@@ -101,7 +101,7 @@ def panel_embed(state: dict, note: str = "") -> discord.Embed:
         inline=False,
     )
     if state.get("ores"):
-        e.add_field(name="💎 作業員の掘り出し", value=ore_text(state["ores"]), inline=False)
+        e.add_field(name="💎 掘り出した鉱石", value=ore_text(state["ores"]), inline=False)
     if state.get("relics"):
         e.add_field(name="🏺 発掘品（受け取ると持ち物に入る）", value=relic_text(state["relics"]), inline=False)
     if state.get("held_relics"):
@@ -327,6 +327,8 @@ class LaborView(discord.ui.View):
             note = f"💥 鉱脈ヒット！！ {note}"
             if r["ore"]:
                 note += f"（さらに {lab.ORE_MARK[r['ore']]}{lab.ORE_NAME[r['ore']]} も！）"
+        if r["combo"]:
+            note += f"\n🔥 {lab.COMBO_SIZE}回コンボ！（+{lab.COMBO_BONUS:.0%}）"
         await self._show(interaction, note)
 
     async def _drink(self, interaction: discord.Interaction):

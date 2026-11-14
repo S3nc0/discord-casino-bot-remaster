@@ -1114,7 +1114,7 @@ def test_crit_multiplies_pay_and_can_add_an_ore(eco, monkeypatch):
     monkeypatch.setattr(lab, "crit_chance", lambda *a, **k: 1.0)  # 必ずヒットさせる
     r = eco.labor_click(U, T0, DAY, rng=_AlwaysCrit)
     assert r["crit"] and r["ore"] == "coal"
-    assert r["pay"] == 10 * lab.CRIT_MULT  # Lv0・疲労なしの通常10が、ヒットで5倍
+    assert r["pay"] == 10 * lab.CRIT_MULT + lab.ORE_VALUE["coal"]  # Lv0・疲労なしの通常10が5倍、鉱石の売値も乗る
     state = eco.labor_state(U, T0 + 1, DAY)
     assert state["ores"]["coal"] == 1
 
@@ -1158,3 +1158,19 @@ def test_collected_finds_disappear_but_new_ones_after_collecting_still_show(eco,
     eco.labor_click(U, T0 + 2 * H, DAY)
     finds = eco.labor_state(U, T0 + 2 * H, DAY)["finds"]
     assert {f["ore"] for f in finds} == {"silver"}  # 新しい分は、収集済みに埋もれず出る
+
+
+def test_hand_dug_ore_value_is_paid_out_on_collect(eco, monkeypatch):
+    monkeypatch.setattr(lab, "crit_chance", lambda *a, **k: 1.0)
+    before = eco.balance(U)
+    r = eco.labor_click(U, T0, DAY, rng=_AlwaysCrit)
+    assert r["ore"] == "coal"
+    got = eco.labor_collect(U, T0 + 1, DAY, detail=True)
+    assert got["amount"] == r["pay"]  # 鉱石の売値を含めて、ちゃんとペリカになる
+    assert eco.balance(U) == before + got["amount"]
+
+
+def test_combo_flag_is_reported_on_the_tenth_click(eco, monkeypatch):
+    monkeypatch.setattr(lab, "crit_chance", lambda *a, **k: 0.0)
+    pays = [eco.labor_click(U, T0 + k * 2000, DAY) for k in range(10)]
+    assert not any(p["combo"] for p in pays[:9]) and pays[9]["combo"]

@@ -114,12 +114,12 @@ class LaborMixin:
         )
 
     def labor_finds(self, user_id: int, limit: int = 6) -> list:
-        """最近の掘り出し（石炭は除く）。新しい順。[{at, kind, ore}]。"""
+        """最近の掘り出し（石炭は除く）。すでにペリカ等を受け取り済みのものは出さない。新しい順。[{at, kind, ore}]。"""
         with self._lock:
             return [
                 dict(r)
                 for r in self._conn.execute(
-                    "SELECT at, kind, ore FROM labor_finds WHERE guild_id=? AND user_id=? AND ore NOT IN (%s) "
+                    "SELECT at, kind, ore FROM labor_finds WHERE guild_id=? AND user_id=? AND collected=0 AND ore NOT IN (%s) "
                     "ORDER BY at DESC, id DESC LIMIT ?" % ",".join("?" * len(labor_mod.FLAT)),
                     (self._g(), user_id, *labor_mod.FLAT, limit),
                 )
@@ -380,7 +380,7 @@ class LaborMixin:
             suspected = labor_mod.auto_click_suspected(self.labor_click_hours(user_id, since), hour)
             if suspected:  # 自動操作の疑い: BANではなく、その日はそこで打ち止め（翌日には戻る）
                 capped = True
-            crit, ore = False, None
+            crit, ore, combo = False, None, False
             if not capped:
                 workers = len(self._workers_of(user_id))
                 crit = rng.random() < labor_mod.crit_chance(row["pick"], workers, terrain)
@@ -388,12 +388,13 @@ class LaborMixin:
                     pay *= labor_mod.CRIT_MULT
                     if rng.random() < labor_mod.CRIT_ORE_CHANCE:
                         ore = labor_mod.roll_crit_ore(rng, terrain)
+                        pay += labor_mod.ORE_VALUE[ore]  # 手掘りの鉱石の売値も、稼ぎに加える
                 combo = (row["clicks"] + 1) % labor_mod.COMBO_SIZE == 0  # 10回ごとのコンボ
                 if combo:
                     pay = round(pay * (1 + labor_mod.COMBO_BONUS))
             pay = labor_mod.OVER_CAP_PAY if capped else pay
             if capped:
-                crit, ore = False, None
+                crit, ore, combo = False, None, False
             row["last_click_before"] = row["last_click"]
             row.update(
                 fatigue=out["fatigue"],
@@ -410,7 +411,7 @@ class LaborMixin:
                 row["ores"] = json.dumps(found)
             self._labor_log_click(user_id, now, pay, now - row["last_click_before"])
             self._labor_save(user_id, row)
-            return {"ok": True, "pay": pay, "crit": crit, "ore": ore, "terrain": terrain}
+            return {"ok": True, "pay": pay, "crit": crit, "ore": ore, "combo": combo, "terrain": terrain}
 
     CLICK_LOG_DAYS = 14  # 押した記録（1時間ごと）を残す日数
 
@@ -463,6 +464,10 @@ class LaborMixin:
             relics = self._relics_of(row)
             row["skimmed"] = 0
             amount = self._labor_flush(user_id, row)
+            self._conn.execute(
+                "UPDATE labor_finds SET collected=1 WHERE guild_id=? AND user_id=? AND collected=0",
+                (self._g(), user_id),
+            )
             for item_id, n in relics.items():
                 self._conn.execute(
                     "INSERT INTO inventory (guild_id, user_id, item_id, qty) VALUES (?, ?, ?, ?) "
