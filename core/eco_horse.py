@@ -171,6 +171,19 @@ class HorseMixin:
             self._conn.execute("UPDATE horses SET owner_id=-2 WHERE id=?", (horse_id,))
             return True, value
 
+    def horse_set_style(self, user_id: int, horse_id: int, style: Optional[str]) -> tuple:
+        """脚質を選ぶ（style=None で、ステータスからの自動判定に戻す）。(成功か, 理由)。"""
+        if style is not None and style not in horse_mod.STYLE_NAMES:
+            return False, "脚質を選んでください。"
+        with self._lock, self._conn:
+            h = self.horse_get(horse_id)
+            if h is None or h["owner_id"] != user_id:
+                return False, "自分の馬を選んでください。"
+            if h["rented_day"] is not None:
+                return False, "レンタル馬は、脚質を選べません（買うと選べます）。"
+            self._conn.execute("UPDATE horses SET style=? WHERE id=?", (style, horse_id))
+            return True, ""
+
     def horse_gold_carrot(self, user_id: int, horse_id: int, first: str, second: str) -> tuple:
         """金にんじん1本で、first と second に5点ずつ足す（ステータスの合計が10点増える。1頭に GOLD_CARROT_MAX 本まで）。"""
         with self._lock, self._conn:
@@ -588,7 +601,10 @@ class HorseMixin:
             is_major = horse_mod.is_major_race(race, tz_hours)
             prizes_table = horse_mod.MAJOR_PRIZES if is_major else horse_mod.PRIZES
             entries = self.race_entries(race_id)
-            styles = [horse_mod.style_of({k: e[k] for k in horse_mod.STAT_KEYS}) for e in entries]
+            styles = []
+            for e in entries:
+                chosen = self.horse_get(e["horse_id"])["style"] if e["horse_id"] else None
+                styles.append(chosen or horse_mod.style_of({k: e[k] for k in horse_mod.STAT_KEYS}))
             runners = [
                 horse_mod.Runner(
                     e["lane"], e["name"], e["speed"], e["stamina"], e["power"], e["guts"], e["form"], style=s

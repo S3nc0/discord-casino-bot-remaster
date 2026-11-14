@@ -719,3 +719,21 @@ def test_major_race_at_21_doubles_prizes_and_tops_up_from_house_cash(eco):
     mine = next(e for e in result["entries"] if e["owner_id"] == U)
     if mine["finish"] <= 3:
         assert result["prizes"].get(U, 0) > 0  # 原資が少なくても、手元現金から補われて出る
+
+
+def test_horse_set_style_overrides_the_automatic_one_and_rejects_rentals(eco):
+    hid = make_horse(eco, U)
+    ok, reason = eco.horse_set_style(U, hid, "oikomi")
+    assert ok and eco.horse_get(hid)["style"] == "oikomi"
+    assert eco.horse_set_style(U, hid, None) == (True, "")  # 自動に戻せる
+    assert eco.horse_get(hid)["style"] is None
+    assert not eco.horse_set_style(U, hid, "bogus")[0]
+    rental = eco.rental_ensure(U, NOW, 9.0)
+    assert not eco.horse_set_style(U, rental["id"], "nige")[0]
+
+
+def test_ability_prior_tilts_odds_for_shallow_records():
+    strong = h.Runner(1, "s", 80, 80, 80, 80)
+    weak = h.Runner(2, "w", 20, 20, 20, 20)
+    win = h._win_weights([strong, weak])
+    assert win[0] > win[1]  # どちらも初出走なら、ステータスの強い方が有利に見積もられる
