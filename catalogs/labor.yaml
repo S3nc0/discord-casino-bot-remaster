@@ -12,7 +12,7 @@ tools:
 max_level: 10
 upgrade_cost: [150, 400, 900, 1800, 3500, 7000, 14000, 28000, 56000, 112000]
 
-max_clicks_per_day: 1000
+max_clicks_per_day: 500
 over_cap_pay: 1
 
 base_pay: 10

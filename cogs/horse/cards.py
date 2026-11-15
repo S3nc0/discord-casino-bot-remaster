@@ -79,9 +79,15 @@ def card_embed(eco, race: dict, closed: bool = False) -> discord.Embed:
                 f"コース: **{track.label}**　発走: {when(race['start_at'])}",
                 f"馬券の発売: **{when(race['bet_close'])}** まで（単勝=1着・複勝=3着以内。**オッズは戦績で決まり、賭けた時点で確定**）",
             ]
+
+        def entry_style(e: dict) -> str:
+            h = eco.horse_get(e["horse_id"]) if e["horse_id"] else None
+            chosen = h["style"] if h is not None else None
+            return chosen or horse_mod.style_of({k: e[k] for k in horse_mod.STAT_KEYS})
+
         rows = [
             f"`{e['lane']}` {e['silks']} **{e['name']}** {horse_mod.FORM_MARK[e['form']]} "
-            f"{horse_mod.STYLE_MARK[horse_mod.style_of({k: e[k] for k in horse_mod.STAT_KEYS})]}　"
+            f"{horse_mod.STYLE_MARK[entry_style(e)]}　"
             f"単勝 **{e['odds_win']:.1f}** 複勝 **{e['odds_place']:.1f}**\n　└ {record_text(e)}　{stat_short(e)}"
             + (f"　馬主 <@{e['owner_id']}>" if e["owner_id"] else "")
             for e in entries

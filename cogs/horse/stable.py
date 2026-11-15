@@ -13,6 +13,53 @@ from domain import shop
 from infra.clock import utc_offset_hours
 
 
+class StyleView(discord.ui.View):
+    """脚質を選ぶ（選ばなければ、ステータスから自動で決まる）。"""
+
+    def __init__(self, stable: "Stable", user_id: int, horse: dict):
+        super().__init__(timeout=300)
+        self.stable, self.user_id, self.horse = stable, user_id, horse
+        auto = horse_mod.style_of({k: horse[k] for k in horse_mod.STAT_KEYS})
+        options = [
+            discord.SelectOption(
+                label=f"（自動: {horse_mod.STYLE_NAMES[auto]}）",
+                value="auto",
+                default=horse["style"] is None,
+            )
+        ] + [
+            discord.SelectOption(label=name, value=key, emoji=horse_mod.STYLE_MARK[key], default=horse["style"] == key)
+            for key, name in horse_mod.STYLE_NAMES.items()
+        ]
+        select = discord.ui.Select(placeholder="脚質を選ぶ", options=options)
+        select.callback = self._on_pick
+        self.add_item(select)
+
+    def embed(self) -> discord.Embed:
+        cur = self.horse["style"]
+        auto = horse_mod.style_of({k: self.horse[k] for k in horse_mod.STAT_KEYS})
+        label = (
+            f"{horse_mod.STYLE_MARK[cur]} {horse_mod.STYLE_NAMES[cur]}"
+            if cur
+            else f"（自動: {horse_mod.STYLE_NAMES[auto]}）"
+        )
+        return ui.embed(f"🎭 {self.horse['name']} の脚質", f"いまの脚質: **{label}**", ui.INFO)
+
+    async def interaction_check(self, interaction: discord.Interaction) -> bool:
+        return interaction.user.id == self.user_id
+
+    async def _on_pick(self, interaction: discord.Interaction):
+        value = ui.selected_values(interaction)[0]
+        eco = self.stable.eco(interaction)
+        ok, reason = eco.horse_set_style(self.user_id, self.horse["id"], None if value == "auto" else value)
+        if not ok:
+            return await interaction.response.send_message(
+                embed=ui.error_embed("選べません", format_failure(reason)), ephemeral=True
+            )
+        self.horse = eco.horse_get(self.horse["id"])
+        self.stop()
+        await interaction.response.edit_message(embed=self.embed(), view=None)
+
+
 class GoldCarrotView(discord.ui.View):
     """金にんじんの振り分け。5点ずつ、2か所を選んでから「使う」を押す（押すまで、反映しない）。"""
 
@@ -165,7 +212,7 @@ class Stable(ui.OwnerView):
             note = f"\n🏁 {race_title(eco, registered[0])} に出走予定" if registered else ""
             mark = "▶ " if h["id"] == self.horse_id else ""
             tag = "🎫 本日のレンタル\n" if h["rented_day"] else ""
-            style = horse_mod.style_of({k: h[k] for k in horse_mod.STAT_KEYS})
+            style = h["style"] or horse_mod.style_of({k: h[k] for k in horse_mod.STAT_KEYS})
             e.add_field(
                 name=f"{mark}{h['silks']} {h['name']}（{h['coat']}）",
                 value=f"{tag}{horse_mod.STYLE_MARK[style]} {horse_mod.STYLE_NAMES[style]}\n{stat_lines(h)}\n戦績 {h['races']}/{horse_mod.MAX_RACES}戦 {h['wins']}勝（3着以内 {h['places']}）　賞金 {ui.pelica(h['earnings'])}{note}",
@@ -225,6 +272,7 @@ class Stable(ui.OwnerView):
             ("↩️ 申し込みを取り下げる", discord.ButtonStyle.secondary, self._on_withdraw, not horses, 3),
             ("🐴 この馬を買う", discord.ButtonStyle.secondary, self._on_buy_rental, not can_buy, 4),
             ("🥇 金にんじんを使う", discord.ButtonStyle.primary, self._on_gold, not horses or rented, 4),
+            ("🎭 脚質を選ぶ", discord.ButtonStyle.secondary, self._on_style, not horses or rented, 4),
             ("🎌 引退させる", discord.ButtonStyle.danger, self._on_retire, not horses or rented, 4),
         ]
         for label, style, cb, disabled, row in buttons:
@@ -258,6 +306,16 @@ class Stable(ui.OwnerView):
 
     async def _on_gold(self, interaction: discord.Interaction):
         view = GoldCarrotView(self, interaction.user.id)
+        await interaction.response.send_message(embed=view.embed(), view=view, ephemeral=True)
+
+    async def _on_style(self, interaction: discord.Interaction):
+        eco = self.eco(interaction)
+        horse = eco.horse_get(self.horse_id)
+        if horse is None or horse["owner_id"] != interaction.user.id:
+            return await interaction.response.send_message(
+                embed=ui.error_embed("選べません", "自分の馬を選んでください。"), ephemeral=True
+            )
+        view = StyleView(self, interaction.user.id, horse)
         await interaction.response.send_message(embed=view.embed(), view=view, ephemeral=True)
 
     async def _on_retire(self, interaction: discord.Interaction):

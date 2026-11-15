@@ -167,6 +167,19 @@ class HorseMixin(EcoBase):
             self._conn.execute("UPDATE horses SET owner_id=-2 WHERE id=?", (horse_id,))
             return True, value
 
+    def horse_set_style(self, user_id: int, horse_id: int, style: Optional[str]) -> tuple:
+        """脚質を選ぶ（style=None で、ステータスからの自動判定に戻す）。(成功か, Failure | \"\")。"""
+        if style is not None and style not in horse_mod.STYLE_NAMES:
+            return False, fail("horse_select_style")
+        with self._lock, self._conn:
+            h = self.horse_get(horse_id)
+            if h is None or h["owner_id"] != user_id:
+                return False, fail("horse_select_own")
+            if h["rented_day"] is not None:
+                return False, fail("horse_rental_no_style")
+            self._conn.execute("UPDATE horses SET style=? WHERE id=?", (style, horse_id))
+            return True, ""
+
     def horse_gold_carrot(self, user_id: int, horse_id: int, first: str, second: str) -> tuple:
         """金にんじん1本で、first と second に5点ずつ足す（ステータスの合計が10点増える。1頭に GOLD_CARROT_MAX 本まで）。"""
         with self._lock, self._conn:

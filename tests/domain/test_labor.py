@@ -23,6 +23,7 @@ def text(embed) -> str:
 
 _REAL_ROLL = lab.roll_ores
 _REAL_RELICS = lab.roll_relics
+_REAL_CRIT_CHANCE = lab.crit_chance
 
 
 @pytest.fixture(autouse=True)
@@ -37,6 +38,7 @@ def no_ores(monkeypatch):
             lab.WORKER_RATE, kind, rate
         )  # 作業員の稼ぎの数字を固定して、計算の仕組みだけを確かめる（本物の数字は、専用のテストで）
     monkeypatch.setattr(teiai, "LABOR_SKIM_RATE", 0.0)  # 帝愛のピンハネは、専用のテストで確かめる
+    monkeypatch.setattr(lab, "crit_chance", lambda *a, **k: 0.0)  # 鉱脈ヒットも、専用のテストで確かめる（#51）
 
 
 @pytest.fixture
@@ -733,7 +735,7 @@ def test_finds_are_logged_with_time_and_worker_and_shown_without_coal(eco, monke
     field = next(f for f in panel_embed(eco.labor_state(U, T0 + 3 * H, DAY)).fields if f.name.startswith("📜"))
     assert "坑夫" in field.value and "ダイヤ" in field.value and "石炭" not in field.value
     eco.labor_collect(U, T0 + 3 * H, DAY)
-    assert len(eco.labor_state(U, T0 + 3 * H, DAY)["finds"]) == 2  # 受け取っても、履歴は残る
+    assert eco.labor_state(U, T0 + 3 * H, DAY)["finds"] == []  # 受け取ると、画面には出なくなる
 
 
 def test_finds_log_keeps_only_the_latest_entries(eco, monkeypatch):
@@ -857,7 +859,7 @@ def test_relics_pile_up_and_are_collected_into_the_inventory_even_with_no_pelica
     assert got["relics"] == held and eco.inventory(U)["relic_fossil"] == 2 and eco.inventory(U)["relic_crown"] == 1
     assert eco.labor_state(U, T0 + 3 * H, DAY)["relics"] == {}  # 受け取ったら、空
     finds = eco.labor_state(U, T0 + 3 * H, DAY)["finds"]
-    assert {f["ore"] for f in finds} == {"relic_fossil", "relic_crown"}  # 掘り出しの履歴にも出る
+    assert finds == []  # 受け取り済みなので、掘り出しの履歴には出ない
 
 
 def test_relics_show_on_the_screens_and_a_big_relic_is_announced_publicly(eco, monkeypatch):
@@ -1112,19 +1114,20 @@ class _NeverCrit:
         return 1.0
 
 
-def test_crit_multiplies_pay_and_can_add_an_ore(eco):
+def test_crit_multiplies_pay_and_can_add_an_ore(eco, monkeypatch):
+    monkeypatch.setattr(lab, "crit_chance", lambda *a, **k: 1.0)  # 必ずヒットさせる
     r = eco.labor_click(U, T0, DAY, rng=_AlwaysCrit)
     assert r["crit"] and r["ore"] == "coal"
-    assert r["pay"] == 10 * lab.CRIT_MULT  # Lv0・疲労なしの通常10が、ヒットで5倍
+    assert r["pay"] == 10 * lab.CRIT_MULT + lab.ORE_VALUE["coal"]  # Lv0・疲労なしの通常10が5倍、鉱石の売値も乗る
     state = eco.labor_state(U, T0 + 1, DAY)
     assert state["ores"]["coal"] == 1
 
 
 def test_crit_chance_rises_with_pick_level_and_workers():
-    base = lab.crit_chance(0, 0, "none")
-    assert lab.crit_chance(10, 0, "none") > base
-    assert lab.crit_chance(0, 5, "none") > base
-    assert lab.crit_chance(10, 100, "hit") == lab.CRIT_MAX  # 上限で止まる
+    base = _REAL_CRIT_CHANCE(0, 0, "none")
+    assert _REAL_CRIT_CHANCE(10, 0, "none") > base
+    assert _REAL_CRIT_CHANCE(0, 5, "none") > base
+    assert _REAL_CRIT_CHANCE(10, 100, "hit") == lab.CRIT_MAX  # 上限で止まる
 
 
 def test_combo_bonus_applies_every_tenth_click(eco, monkeypatch):
@@ -1145,3 +1148,33 @@ def test_fatigue_terrain_reduces_fatigue_gain(eco, monkeypatch):
     eco.labor_click(U, T0, DAY)
     fat = eco.labor_state(U, T0, DAY)["fatigue"]  # クリックと同じ時刻で読んで、自然回復ぶんを混ぜない
     assert abs(fat - lab.FATIGUE_GAIN * (1 - lab.TERRAIN_FATIGUE_CUT)) < 1e-6
+
+
+def test_collected_finds_disappear_but_new_ones_after_collecting_still_show(eco, monkeypatch):
+    monkeypatch.setattr(lab, "roll_ores", lambda kind, h, luck, rng: {"copper": 1} if h > 0 else {})
+    eco.credit(U, 10_000, "テスト")
+    eco.labor_hire(U, "miner", T0, DAY)
+    eco.labor_click(U, T0 + H, DAY)
+    assert {f["ore"] for f in eco.labor_state(U, T0 + H, DAY)["finds"]} == {"copper"}
+    eco.labor_collect(U, T0 + H, DAY)
+    assert eco.labor_state(U, T0 + H, DAY)["finds"] == []  # 受け取り済みは消える
+    monkeypatch.setattr(lab, "roll_ores", lambda kind, h, luck, rng: {"silver": 1} if h > 0 else {})
+    eco.labor_click(U, T0 + 2 * H, DAY)
+    finds = eco.labor_state(U, T0 + 2 * H, DAY)["finds"]
+    assert {f["ore"] for f in finds} == {"silver"}  # 新しい分は、収集済みに埋もれず出る
+
+
+def test_hand_dug_ore_value_is_paid_out_on_collect(eco, monkeypatch):
+    monkeypatch.setattr(lab, "crit_chance", lambda *a, **k: 1.0)
+    before = eco.balance(U)
+    r = eco.labor_click(U, T0, DAY, rng=_AlwaysCrit)
+    assert r["ore"] == "coal"
+    got = eco.labor_collect(U, T0 + 1, DAY, detail=True)
+    assert got["amount"] == r["pay"]  # 鉱石の売値を含めて、ちゃんとペリカになる
+    assert eco.balance(U) == before + got["amount"]
+
+
+def test_combo_flag_is_reported_on_the_tenth_click(eco, monkeypatch):
+    monkeypatch.setattr(lab, "crit_chance", lambda *a, **k: 0.0)
+    pays = [eco.labor_click(U, T0 + k * 2000, DAY) for k in range(10)]
+    assert not any(p["combo"] for p in pays[:9]) and pays[9]["combo"]

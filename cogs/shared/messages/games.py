@@ -30,6 +30,8 @@ GAMES_FAILURES: dict[str, FailureFormatter] = {
     "horse_rental_no_stats": "レンタル馬は、ステータスを調整できません（買うと調整できます）。",
     "horse_no_carrot": "「にんじん」を持っていません。ショップで買えます。",
     "horse_rental_no_retire": "レンタル馬は引退できません（買わなければ、日が替わると自然に消えます）。",
+    "horse_rental_no_style": "レンタル馬は、脚質を選べません（買うと選べます）。",
+    "horse_select_style": "脚質を選んでください。",
     "horse_busy_no_retire": "出走予定のレースが終わるまで、引退できません。",
     "horse_retire_fee_short": lambda p: f"引退費用 {p['fee']:,}ペリカ が足りません（残高 {p['balance']:,}ペリカ）。",
     "horse_gold_carrot_max": lambda p: f"この馬には、金にんじんをもう使えません（1頭に {p['max_count']} 本まで）。",

@@ -70,6 +70,7 @@ class _NoCrit:  # 鉱脈ヒットを起こさない（random() が 1.0 なら、
 
 def test_fossil_raises_click_pay_by_one_percent_on_average(eco, monkeypatch):
     monkeypatch.setattr(lab, "COMBO_SIZE", 10**9)  # コンボ（10回ごとの上乗せ）で平均がずれないようにする
+    monkeypatch.setattr(lab, "MAX_CLICKS_PER_DAY", 10**9)  # 1日の上限で頭打ちにならないようにする
     plain = 0
     for k in range(1000):
         plain += eco.labor_click(U, T0 + k * 2000, DAY, rng=_NoCrit)["pay"]  # 疲労が回復するほど、間をあける

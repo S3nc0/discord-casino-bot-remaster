@@ -130,6 +130,7 @@ max_combo_odds: 100.0
 record_prior_runs: 4
 first_run_factor: 0.75
 place_cap: 0.95
+ability_prior_weight: 0.3
 
 max_races: 32
 retire_win: 5000

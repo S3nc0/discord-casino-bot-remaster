@@ -240,6 +240,7 @@ class HorseCatalog(StrictModel):
     record_prior_runs: int = Field(ge=0)
     first_run_factor: float = Field(gt=0, le=1)
     place_cap: float = Field(gt=0, le=1)
+    ability_prior_weight: float = Field(ge=0, le=1)
     max_races: int = Field(gt=0)
     retire_win: int = Field(ge=0)
     retire_place: int = Field(ge=0)

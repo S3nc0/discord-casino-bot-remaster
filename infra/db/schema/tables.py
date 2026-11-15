@@ -105,7 +105,7 @@ def create_tables(conn: sqlite3.Connection) -> None:
             created   REAL NOT NULL,
             listed_at REAL,                         -- 破産で差し押さえられて、帝愛の競売に出た時刻（owner_id=-1 のとき）
             rented_day TEXT,                         -- 帝愛からの、その日だけのレンタル馬なら、その日付。買うと NULL に戻る
-            tactic    TEXT NOT NULL DEFAULT 'pace'   -- 作戦（front / pace / stalk / close）
+            style     TEXT                           -- 選んだ脚質（nige/senko/sashi/oikomi）。NULL なら、ステータスから自動
         );
         CREATE INDEX IF NOT EXISTS horses_owner ON horses (guild_id, owner_id);
         CREATE TABLE IF NOT EXISTS horse_races (     -- レース（定時と臨時）
@@ -205,7 +205,8 @@ def create_tables(conn: sqlite3.Connection) -> None:
             at       REAL NOT NULL,
             kind     TEXT NOT NULL,                   -- 掘った作業員の種類
             ore      TEXT NOT NULL,
-            qty      INTEGER NOT NULL DEFAULT 1
+            qty      INTEGER NOT NULL DEFAULT 1,
+            collected INTEGER NOT NULL DEFAULT 0        -- 受け取り（労働 collect）済みなら 1。画面には、まだのものだけ出す
         );
         CREATE INDEX IF NOT EXISTS labor_finds_owner ON labor_finds (guild_id, user_id, at);
         CREATE TABLE IF NOT EXISTS labor_click_hours (  -- 「働く」を押した記録（1時間ごとの集計）。自動操作の疑いを、持ち主が確かめるためのもの

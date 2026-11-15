@@ -385,7 +385,11 @@ class RaceMixin(EcoBase):
             is_major = horse_mod.is_major_race(race, tz_hours)
             prizes_table = horse_mod.MAJOR_PRIZES if is_major else horse_mod.PRIZES
             entries = self.race_entries(race_id)
-            styles = [horse_mod.style_of({k: e[k] for k in horse_mod.STAT_KEYS}) for e in entries]
+            styles = []
+            for e in entries:
+                h = self.horse_get(e["horse_id"]) if e["horse_id"] else None
+                chosen = h["style"] if h is not None else None
+                styles.append(chosen or horse_mod.style_of({k: e[k] for k in horse_mod.STAT_KEYS}))
             runners = [
                 horse_mod.Runner(
                     e["lane"], e["name"], e["speed"], e["stamina"], e["power"], e["guts"], e["form"], style=s

@@ -44,8 +44,11 @@ def add_missing_columns(conn: sqlite3.Connection) -> None:
         conn.execute("ALTER TABLE horses ADD COLUMN bonus INTEGER NOT NULL DEFAULT 0")
     if "rented_day" not in hs:
         conn.execute("ALTER TABLE horses ADD COLUMN rented_day TEXT")
-    if "tactic" not in hs:
-        conn.execute("ALTER TABLE horses ADD COLUMN tactic TEXT NOT NULL DEFAULT 'pace'")
+    if "style" not in hs:
+        conn.execute("ALTER TABLE horses ADD COLUMN style TEXT")
+    lf = {r["name"] for r in conn.execute("PRAGMA table_info(labor_finds)")}
+    if "collected" not in lf:
+        conn.execute("ALTER TABLE labor_finds ADD COLUMN collected INTEGER NOT NULL DEFAULT 0")
     hr = {r["name"] for r in conn.execute("PRAGMA table_info(horse_races)")}
     if "grade" not in hr:
         conn.execute("ALTER TABLE horse_races ADD COLUMN grade TEXT NOT NULL DEFAULT ''")

@@ -331,13 +331,30 @@ def npc_record(rng: random.Random) -> tuple:
     return races, wins, places
 
 
+ABILITY_PRIOR_WEIGHT = (
+    _CFG.ability_prior_weight
+)  # オッズの事前値（戦績が浅い馬の基準）に、ステータス合計の傾向をどれだけ緩やかに混ぜるか
+
+
+def _ability_share(runners: list) -> list:
+    """ステータス合計の比率（合計1）。コース適性・脚質・展開の相性は、引き続きオッズに入れない。"""
+    totals = [sum(r.stat(k) for k in STAT_KEYS) for r in runners]
+    s = sum(totals) or 1
+    return [t / s for t in totals]
+
+
 def _win_weights(runners: list) -> list:
-    """勝つ確率の見積もり（合計 1）。戦績の勝率を平均に寄せ、初出走は下げ、調子で補正する。"""
+    """勝つ確率の見積もり（合計 1）。戦績の勝率を平均に寄せ、初出走は下げ、調子で補正する。
+
+    平均（事前値）は、出走馬のステータス合計の傾向を緩やかに混ぜる（戦績が浅い馬ほど効く）。
+    """
     n = len(runners)
-    prior = 1 / n
+    flat = 1 / n
+    share = _ability_share(runners)
+    prior = [ABILITY_PRIOR_WEIGHT * sh + (1 - ABILITY_PRIOR_WEIGHT) * flat for sh in share]
     raw = []
-    for r in runners:
-        p = (r.wins + RECORD_PRIOR_RUNS * prior) / (r.races + RECORD_PRIOR_RUNS)
+    for r, pr in zip(runners, prior):
+        p = (r.wins + RECORD_PRIOR_RUNS * pr) / (r.races + RECORD_PRIOR_RUNS)
         if r.races == 0:
             p *= FIRST_RUN_FACTOR
         raw.append(p * FORM_ODDS[r.form])
@@ -346,12 +363,14 @@ def _win_weights(runners: list) -> list:
 
 
 def _place_probs(runners: list) -> list:
-    """3着以内に入る確率の見積もり（合計はほぼ 3）。"""
+    """3着以内に入る確率の見積もり（合計はほぼ 3）。事前値の扱いは _win_weights と同じ。"""
     n = len(runners)
-    prior = min(3, n) / n
+    flat = min(3, n) / n
+    share = _ability_share(runners)
+    prior = [ABILITY_PRIOR_WEIGHT * (sh * min(3, n)) + (1 - ABILITY_PRIOR_WEIGHT) * flat for sh in share]
     raw = []
-    for r in runners:
-        p = (r.places + RECORD_PRIOR_RUNS * prior) / (r.races + RECORD_PRIOR_RUNS)
+    for r, pr in zip(runners, prior):
+        p = (r.places + RECORD_PRIOR_RUNS * pr) / (r.races + RECORD_PRIOR_RUNS)
         if r.races == 0:
             p *= FIRST_RUN_FACTOR
         raw.append(p * FORM_ODDS[r.form])
