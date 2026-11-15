@@ -46,11 +46,11 @@
 | `loader.py` | 読み込む Cog モジュール一覧（`COG_MODULES`）と `load_all_cogs()`（`main.py` とテストで共有） |
 | `shared/` | 共通 Discord 基盤（`bot.py` / `cog_ports.py` / `ui.py` / `confirm.py` / `messages/` / `approval_guard.py` / `ranking.py` / `announce.py` / `amount.py` / `horse_display.py`） |
 | `casino/` | `/カジノ`。`cog.py` と進行演出（`common.py`・`simple.py`・`blackjack.py`・`chinchiro.py`・`pachinko.py`） |
-| `economy/` | `/ペリカ`。残高・デイリー・ランキング（掲示板の自動更新を含む）・送金・履歴 |
+| `economy/` | `/ペリカ`。`cog.py`・`boards.py`（残高・デイリー・ランキング・掲示板自動更新・送金・履歴） |
 | `teiai/` | `/ペリカ 帝愛` のパネル（`panel.py`）と海外逃亡の演出（`escape.py`） |
 | `shop/` | `/ショップ`。`cog.py`・`actions.py`・`embeds.py`・`views.py`・`discord_ops.py`（ロール・ニックネーム反映） |
 | `horse/` | `/競馬`。`cog.py`・`cards.py`・`betting.py`・`stable.py`・`views.py`（ファサード） |
-| `market/` | `/証券` と債券定期処理。`cog.py`・`bond_cog.py`・`embeds.py`・`bond_embeds.py`・`orders.py`・`views.py` |
+| `market/` | `/証券` と債券定期処理。`cog.py`・`feed.py`・`bond_cog.py`・`embeds.py`・`bond_embeds.py`・`orders.py`・`views.py` |
 | `loan/` | `/貸付`。ユーザー同士の貸し借り |
 | `p2p/` | プレイヤー間の市場と競り（`cog.py`・`embeds.py`） |
 | `labor/` | `/地下 作業`・`/地下 ランキング`。クリッカー、作業員の雇用、鉱石の掘り出し |
@@ -129,7 +129,7 @@
 | `schema/` | DB の表定義（`tables.py`）と旧版からの列追加・データ移行（`migrations.py`） |
 | `economy.py` | `Economy(IEconomy)` Facade（DB バインド・サーバー分離・台帳プリミティブ・全 Mixin 統合） |
 | `escrow.py` / `wallet.py` | 賭け金預かり・精算（`EscrowMixin`）と残高・デイリー・ランキング・統計・送金（`WalletMixin`） |
-| `assets.py` / `auction.py` / `bank.py` / `bonds.py` / `crypto.py` / `debt.py` / `earnings.py` / `events.py` / `guild.py` / `horse.py` / `labor.py` / `loans.py` / `margin.py` / `market.py` / `market_events.py` / `options.py` / `p2p.py` / `pachinko.py` / `quiz.py` / `race.py` / `raffle.py` / `records.py` / `rtp.py` / `shop.py` | 機能別の DB 操作 Mixin 群 |
+| `assets.py` / `auction.py` / `bank.py` / `bonds.py` / `crypto.py` / `debt.py` / `earnings.py` / `events.py` / `guild.py` / `horse.py` / `labor.py` / `loans.py` / `margin.py` / `market.py` / `market_events.py` / `notices.py` / `options.py` / `p2p.py` / `pachinko.py` / `quiz.py` / `race.py` / `raffle.py` / `records.py` / `relics.py` / `rtp.py` / `shop.py` | 機能別の DB 操作 Mixin 群 |
 
 ## `tests/` — 自動テスト
 
