@@ -22,10 +22,10 @@ bind_catalogs()
 from cogs.loader import load_all_cogs as _load_cogs  # noqa: E402
 from cogs.shared import approval_guard, ui  # noqa: E402
 from cogs.shared.bot import CasinoBot  # noqa: E402
-from infra.db.economy import Economy  # noqa: E402
+from infra.db.repositories import open_repositories  # noqa: E402
 from infra.paths import CONFIG_PATH as _CONFIG_PATH  # noqa: E402
 from infra.paths import DB_PATH as _DB_PATH  # noqa: E402
-from services import Sessions, build_services  # noqa: E402
+from services import Sessions  # noqa: E402
 
 CONFIG_PATH = str(_CONFIG_PATH)
 DB_PATH = str(_DB_PATH)
@@ -110,13 +110,12 @@ if config.get("debug_http"):
     logging.getLogger("discord.http").setLevel(logging.DEBUG)
 # ペリカはサーバーごとに別々。古い形式の記録は legacy_guild_id（無ければ許可リストの先頭）のサーバーが引き継ぐ
 _legacy = config.get("legacy_guild_id") or next(iter(config.get("allowed_guild_ids") or []), None)
-_economy = Economy(DB_PATH, legacy_guild_id=_legacy, strict=True)
+_repos = open_repositories(DB_PATH, legacy_guild_id=_legacy, strict=True)
 _sessions = Sessions()
 bot = CasinoBot(
     config=config,
-    economy=_economy,
+    repos=_repos,
     sessions=_sessions,
-    services=build_services(config, _economy._repos, _sessions),
     command_prefix=commands.when_mentioned,
     intents=intents,
     help_command=None,
@@ -156,7 +155,7 @@ async def on_guild_join(guild: discord.Guild):
 @bot.event
 async def setup_hook():
     # 前回の起動中に落ちて、預かったままになっている賭け金を返す
-    refunded = bot.economy.refund_all_escrows()
+    refunded = bot.repos.escrow.refund_all_escrows()
     if refunded:
         print(f"中断していたゲーム {refunded} 件の賭け金を返金しました")
     failed = await load_all_cogs()

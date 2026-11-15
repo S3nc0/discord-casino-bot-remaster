@@ -10,6 +10,7 @@ import random
 import discord
 
 from cogs.casino.common import (
+    CasinoDeps,
     ReplayView,
     game_title,
     log_display_failure,
@@ -54,8 +55,8 @@ async def show(
 
 
 # ---------------------------- スロット ---------------------------- #
-async def play_slot(interaction: discord.Interaction, bot, bet: int):
-    ctx = await start_game(interaction, bot, bet, "スロット")
+async def play_slot(interaction: discord.Interaction, deps: CasinoDeps, bet: int):
+    ctx = await start_game(interaction, deps, bet, "スロット")
     if ctx is None:
         return
     try:
@@ -77,7 +78,7 @@ async def play_slot(interaction: discord.Interaction, bot, bet: int):
                 ui.embed(title, f"┃ {reels[0]} ┃ {reels[1]} ┃ {spin} ┃", ui.GOLD),
             ],
             final,
-            ReplayView(bot, ctx.user_id, bet, lambda it, b: play_slot(it, bot, b)),
+            ReplayView(deps, ctx.user_id, bet, lambda it, b: play_slot(it, deps, b)),
             game="スロット",
         )
     except Exception:
@@ -88,7 +89,9 @@ async def play_slot(interaction: discord.Interaction, bot, bet: int):
 
 
 # --------------------------- ルーレット --------------------------- #
-async def play_roulette(interaction: discord.Interaction, bot, bet: int, kind: str, number: int | None = None) -> None:
+async def play_roulette(
+    interaction: discord.Interaction, deps: CasinoDeps, bet: int, kind: str, number: int | None = None
+) -> None:
     # 賭け方の指定ミスは、賭け金を預かる前に弾く
     if kind == "number" and number is None:
         await interaction.response.send_message(
@@ -104,7 +107,7 @@ async def play_roulette(interaction: discord.Interaction, bot, bet: int, kind: s
             ephemeral=True,
         )
         return
-    ctx = await start_game(interaction, bot, bet, "ルーレット")
+    ctx = await start_game(interaction, deps, bet, "ルーレット")
     if ctx is None:
         return
     try:
@@ -128,7 +131,7 @@ async def play_roulette(interaction: discord.Interaction, bot, bet: int, kind: s
                 ui.embed(title, head + f"もうすぐ止まる… `{RNG.randint(0, 36)}`", ui.GOLD),
             ],
             final,
-            ReplayView(bot, ctx.user_id, bet, lambda it, b: play_roulette(it, bot, b, kind, number)),
+            ReplayView(deps, ctx.user_id, bet, lambda it, b: play_roulette(it, deps, b, kind, number)),
             game="ルーレット",
         )
     except Exception:

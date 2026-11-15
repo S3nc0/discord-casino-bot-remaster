@@ -7,7 +7,8 @@ import pytest
 from cogs.shared import ranking
 from domain import horse as horse_mod
 from domain import shop
-from infra.db.economy import Economy
+from infra.db.repositories import open_repositories
+from tests.support import make_ranking_repos
 
 pytestmark = pytest.mark.real_scope
 
@@ -17,25 +18,25 @@ A, B = 1, 2
 
 @pytest.fixture
 def eco(tmp_path):
-    e = Economy(str(tmp_path / "t.db"), strict=True).for_guild(G)
+    e = open_repositories(str(tmp_path / "t.db"), strict=True).for_guild(G)
     for uid in (A, B):
-        e.balance(uid)
-        e._conn.execute("UPDATE users SET balance=1000 WHERE user_id=?", (uid,))
-    e._conn.commit()
+        e.wallet.balance(uid)
+        e.db.conn.execute("UPDATE users SET balance=1000 WHERE user_id=?", (uid,))
+    e.db.conn.commit()
     return e
 
 
 def give(eco, uid, item, qty=1):
-    eco._conn.execute(
+    eco.db.conn.execute(
         "INSERT INTO inventory (guild_id, user_id, item_id, qty) VALUES (?, ?, ?, ?) "
         "ON CONFLICT(guild_id, user_id, item_id) DO UPDATE SET qty = qty + excluded.qty",
-        (eco._g(), uid, item, qty),
+        (eco.wallet._g(), uid, item, qty),
     )
-    eco._conn.commit()
+    eco.db.conn.commit()
 
 
 def parts(eco, uid):
-    return next(p for u, _t, p in eco.final_assets() if u == uid)
+    return next(p for u, _t, p in eco.assets.final_assets() if u == uid)
 
 
 def test_items_count_at_price_and_relics_at_their_value(eco):
@@ -49,43 +50,44 @@ def test_items_count_at_price_and_relics_at_their_value(eco):
 
 
 def test_horse_is_worth_price_plus_retire_value_and_stays_while_listed(eco):
-    eco._conn.execute(
+    eco.db.conn.execute(
         "INSERT INTO horses (guild_id, owner_id, name, coat, silks, speed, stamina, power, guts, races, wins, places, created) "
         "VALUES (?, ?, 'h', 'c', 's', 50, 50, 50, 50, 10, 2, 4, 0)",
         (G, A),
     )
-    eco._conn.commit()
-    want = max(0, eco.HORSE_PRICE + horse_mod.retire_value(10, 2, 4))
+    eco.db.conn.commit()
+    want = max(0, eco.horses.HORSE_PRICE + horse_mod.retire_value(10, 2, 4))
     assert parts(eco, A)["horses"] == want
-    eco._conn.execute("UPDATE horses SET owner_id=-3")  # 出品中の預かり
-    eco._conn.execute(
+    eco.db.conn.execute("UPDATE horses SET owner_id=-3")  # 出品中の預かり
+    eco.db.conn.execute(
         "INSERT INTO market_listings (guild_id, seller_id, kind, ref, qty, mode, price, bid, bidder_id, created, end_at) "
         "VALUES (?, ?, 'horse', '1', 1, 'auction', 100, 300, ?, 0, 9)",
         (G, A, B),
     )
-    eco._conn.commit()
+    eco.db.conn.commit()
     assert parts(eco, A)["horses"] == want  # 出品中も持ち主のもの
     assert parts(eco, B)["escrow"] == 300  # 入札中のお金は入札した人のもの
 
 
 def test_loans_are_split_into_lent_asset_and_owed_liability(eco):
-    eco._conn.execute(
+    eco.db.conn.execute(
         "INSERT INTO loans (guild_id, lender_id, borrower_id, principal, rate_tenths, term_days, status, created, "
         "offer_expires, accepted_at, due, paid) VALUES (?, ?, ?, 1000, 0, 7, 'active', 0, 0, ?, ?, 0)",
         (G, A, B, time.time(), time.time() + 86400),
     )
-    eco._conn.commit()
+    eco.db.conn.commit()
     assert parts(eco, A)["loans_lent"] == 1000 and parts(eco, B)["loans_owed"] == -1000
 
 
 def test_final_ranking_and_breakdown_embeds(eco):
     relic = next(iter(shop.RELIC_VALUE))
     give(eco, B, relic, 3)
-    assert eco.final_top(2)[0][1] == B
-    assert eco.final_rank_of(A) == (2, 1000, 2)
-    text = ranking.build_final_embed(eco, None, "t", A).description
+    assert eco.assets.final_top(2)[0][1] == B
+    assert eco.assets.final_rank_of(A) == (2, 1000, 2)
+    repos = make_ranking_repos(eco)
+    text = ranking.build_final_embed(repos, None, "t", A).description
     assert text.index(f"<@{B}>") < text.index(f"<@{A}>")
-    d = ranking.build_breakdown_embed(eco, B, "b").description
+    d = ranking.build_breakdown_embed(repos, B, "b").description
     assert "発掘品" in d and "総資産" in d
 
 
@@ -105,7 +107,7 @@ def test_ranking_view_can_switch_back_and_forth(eco):
         seen.append(kw["embed"].title)
 
     it = SimpleNamespace(user=SimpleNamespace(id=A), response=Resp(), edit_original_response=edit)
-    view = RankingView(eco, A)
+    view = RankingView(make_ranking_repos(eco), A, G)
 
     async def go():
         await view.final.callback(it)
@@ -121,9 +123,9 @@ def test_ranking_view_can_switch_back_and_forth(eco):
 def test_labor_tool_upgrades_count_toward_assets(eco):
     from domain import labor as lab
 
-    eco._conn.execute("INSERT OR IGNORE INTO labor (guild_id, user_id) VALUES (?, ?)", (eco._g(), A))
-    eco._conn.execute("UPDATE labor SET pick=2, glove=1, dorm=1 WHERE guild_id=? AND user_id=?", (eco._g(), A))
-    eco._conn.commit()
+    eco.db.conn.execute("INSERT OR IGNORE INTO labor (guild_id, user_id) VALUES (?, ?)", (G, A))
+    eco.db.conn.execute("UPDATE labor SET pick=2, glove=1, dorm=1 WHERE guild_id=? AND user_id=?", (G, A))
+    eco.db.conn.commit()
     want = lab.upgrade_spent(2) + lab.upgrade_spent(1) + lab.dorm_spent(1)
     assert want > 0
     assert parts(eco, A)["tools"] == want
@@ -131,8 +133,8 @@ def test_labor_tool_upgrades_count_toward_assets(eco):
 
 
 def test_debt_is_a_separate_liability_from_cash(eco):
-    eco._conn.execute("UPDATE users SET debt=300 WHERE guild_id=? AND user_id=?", (G, A))
-    eco._conn.commit()
+    eco.db.conn.execute("UPDATE users SET debt=300 WHERE guild_id=? AND user_id=?", (G, A))
+    eco.db.conn.commit()
     p = parts(eco, A)
     assert p["cash"] == 1000 and p["debt"] == -300  # 現金は借金を引かず、借金は別の負債項目になる
 
@@ -140,13 +142,13 @@ def test_debt_is_a_separate_liability_from_cash(eco):
 def test_asset_groups_match_gross_minus_liabilities_equals_net(eco):
     from domain.types import asset_groups
 
-    eco._conn.execute("UPDATE users SET debt=400, balance=1000 WHERE guild_id=? AND user_id=?", (G, A))
-    eco._conn.execute(
+    eco.db.conn.execute("UPDATE users SET debt=400, balance=1000 WHERE guild_id=? AND user_id=?", (G, A))
+    eco.db.conn.execute(
         "INSERT INTO loans (guild_id, lender_id, borrower_id, principal, rate_tenths, term_days, status, created, "
         "offer_expires, accepted_at, due, paid) VALUES (?, ?, ?, 500, 0, 7, 'active', 0, 0, ?, ?, 0)",
         (G, B, A, time.time(), time.time() + 86400),
     )
-    eco._conn.commit()
+    eco.db.conn.commit()
     p = parts(eco, A)
     g = asset_groups(p)
     assert g["gross"] - g["liabilities"] == g["net"]

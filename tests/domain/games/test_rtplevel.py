@@ -6,13 +6,14 @@ from types import SimpleNamespace
 
 import pytest
 
-from cogs.admin.cog import LEVEL_NAME, ApprovalCog, rtp_table_embed
+from cogs.admin.cog import LEVEL_NAME, rtp_table_embed
 from cogs.casino import common, simple
 from domain.games import blackjack as bj
 from domain.games import chinchiro as ch
 from domain.games import pachinko, roulette, rtplevel, slot
-from infra.db.economy import INITIAL_BALANCE, Economy
-from services.session import Sessions
+from domain.types import INITIAL_BALANCE
+from infra.db.repositories import open_repositories
+from tests.support import make_approval_cog, make_casino_deps, make_test_bot
 
 OWNER, FRIEND = 1, 2
 
@@ -112,8 +113,8 @@ def test_approx_rtp_table_matches_the_proposal():
 # ----------------------------- 保存 ----------------------------- #
 @pytest.mark.real_scope
 def test_levels_are_saved_per_guild_and_game_with_three_as_default(tmp_path):
-    eco = Economy(str(tmp_path / "t.db"))
-    a, b = eco.for_guild(10), eco.for_guild(20)
+    eco = open_repositories(str(tmp_path / "t.db"))
+    a, b = eco.rtp.for_guild(10), eco.rtp.for_guild(20)
     assert a.rtp_levels() == {g: 3 for g in rtplevel.GAMES}
     assert (
         a.rtp_level_set("スロット", 5) == ["スロット"]
@@ -125,7 +126,7 @@ def test_levels_are_saved_per_guild_and_game_with_three_as_default(tmp_path):
     a.rtp_level_set("スロット", 3)  # 3 に戻すと、保存はなくなる
     assert (
         a.rtp_level_get("スロット") == 3
-        and eco._conn.execute("SELECT COUNT(*) FROM rtp_level WHERE game='スロット'").fetchone()[0] == 0
+        and eco.db.conn.execute("SELECT COUNT(*) FROM rtp_level WHERE game='スロット'").fetchone()[0] == 0
     )
     for bad in (0, 7):
         with pytest.raises(ValueError):
@@ -136,16 +137,14 @@ def test_levels_are_saved_per_guild_and_game_with_three_as_default(tmp_path):
 
 # ----------------------------- 精算への反映 ----------------------------- #
 def make_bot(tmp_path):
-    return SimpleNamespace(
-        economy=Economy(str(tmp_path / "t.db"), strict=False), sessions=Sessions(cooldown=0), config={}
-    )
+    return make_test_bot(str(tmp_path / "t.db"), strict=False)
 
 
 def play(bot, game, bet, payout, kind=None, level=3):
-    eco = bot.economy
-    eco.rtp_level_set(game, level)
-    eid = eco.place_bet(1, bet, game)
-    ctx = common.GameContext(bot, 1, eid, game, bet, 0)
+    eco = bot.repos
+    eco.rtp.rtp_level_set(game, level)
+    eid = eco.escrow.place_bet(1, bet, game)
+    ctx = common.GameContext(make_casino_deps(bot), 1, eid, game, bet, 0)
     net = ctx.settle(payout, rtp_kind=kind)
     return ctx, net
 
@@ -161,13 +160,13 @@ def test_settlement_applies_the_level_only_to_wins_and_stays_consistent(tmp_path
     assert net < 4000 and ctx.rtp_shift < 0
     ctx, net = play(bot, "パチンコ", 1000, 5000, level=3)
     assert net == 4000 and ctx.rtp_shift == 0
-    eco = bot.economy
-    assert eco._conn.execute("SELECT SUM(delta) FROM ledger WHERE user_id=1").fetchone()[0] == eco.balance(1)
+    eco = bot.repos
+    assert eco.db.conn.execute("SELECT SUM(delta) FROM ledger WHERE user_id=1").fetchone()[0] == eco.wallet.balance(1)
 
 
 def test_roulette_passes_its_bet_kind_and_the_result_text_shows_the_adjusted_payout(tmp_path, monkeypatch):
     bot = make_bot(tmp_path)
-    bot.economy.rtp_level_set("ルーレット", 6)
+    bot.repos.rtp.rtp_level_set("ルーレット", 6)
     monkeypatch.setattr(simple.roulette, "spin", lambda rng: 1)  # 赤の1
     monkeypatch.setattr(simple, "STEP", 0)
     sent, edits = [], []
@@ -186,27 +185,22 @@ def test_roulette_passes_its_bet_kind_and_the_result_text_shows_the_adjusted_pay
         sent.append(kw)
 
     it.response = SimpleNamespace(send_message=send_message)
-    asyncio.run(simple.play_roulette(it, bot, 1000, "red"))
+    asyncio.run(simple.play_roulette(it, make_casino_deps(bot), 1000, "red"))
     expected = rtplevel.adjust("ルーレット", 6, 1000, 2000, "red")
     assert expected > 2000
     desc = edits[-1]["embed"].description
     assert f"払い戻し: **{expected:,}ペリカ**" in desc and f"{expected - 1000:+,}" in edits[-1]["embed"].title
-    assert bot.economy.balance(1) == INITIAL_BALANCE - 1000 + expected
+    assert bot.repos.wallet.balance(1) == INITIAL_BALANCE - 1000 + expected
 
 
 # ----------------------------- コマンド ----------------------------- #
 def make_admin(tmp_path, monkeypatch):
-    eco = Economy(str(tmp_path / "t.db"))
     guild = SimpleNamespace(id=5, name="友達鯖", members=[])
     monkeypatch.setattr("cogs.admin.cog.approval.is_allowed", lambda *a: True)
-    bot = SimpleNamespace(
-        config={"owner_ids": [OWNER]},
-        economy=eco,
-        guilds=[guild],
-        get_guild=lambda gid: guild if gid == 5 else None,
-        get_cog=lambda n: None,
-    )
-    return ApprovalCog(bot), eco
+    bot = make_test_bot(str(tmp_path / "t.db"), config={"owner_ids": [OWNER]})
+    bot.guilds = [guild]
+    bot.get_guild = lambda gid: guild if gid == 5 else None
+    return make_approval_cog(bot), bot.repos
 
 
 def inter(uid, log):
@@ -224,16 +218,18 @@ def test_commands_are_owner_only_and_change_the_chosen_game(tmp_path, monkeypatc
     pick = lambda g, n: SimpleNamespace(value=g, name=n)  # noqa: E731
     asyncio.run(cog.rtp_set.callback(cog, inter(FRIEND, log), "5", pick("スロット", "スロット"), pick(6, "6")))
     asyncio.run(cog.rtp_list.callback(cog, inter(FRIEND, log), None))
-    assert [e[0].title for e in log] == ["❌ 権限がありません"] * 2 and eco.for_guild(5).rtp_level_get("スロット") == 3
+    assert [e[0].title for e in log] == ["❌ 権限がありません"] * 2 and eco.rtp.for_guild(5).rtp_level_get(
+        "スロット"
+    ) == 3
     log.clear()
     asyncio.run(cog.rtp_set.callback(cog, inter(OWNER, log), "5", pick("スロット", "スロット"), pick(6, "6")))
-    assert eco.for_guild(5).rtp_level_get("スロット") == 6 and log[-1][0].title == "✅ 還元率のレベルを変えました"
+    assert eco.rtp.for_guild(5).rtp_level_get("スロット") == 6 and log[-1][0].title == "✅ 還元率のレベルを変えました"
     assert (
         "**スロット**　レベル **6**（大盤振る舞い）" in log[-1][1].description
         and "標準から変更中" in log[-1][1].description
     )
     asyncio.run(cog.rtp_set.callback(cog, inter(OWNER, log), "5", pick("*", "すべて"), pick(2, "2")))
-    assert set(eco.for_guild(5).rtp_levels().values()) == {2}
+    assert set(eco.rtp.for_guild(5).rtp_levels().values()) == {2}
     asyncio.run(cog.rtp_list.callback(cog, inter(OWNER, log), "5"))
     assert log[-1][0].title == "🎚️ 友達鯖 の還元率" and log[-1][0].description.count("レベル **2**") == 5
     asyncio.run(cog.rtp_set.callback(cog, inter(OWNER, log), "999", pick("*", "すべて"), pick(2, "2")))
@@ -257,8 +253,8 @@ def test_pachinko_sets_apply_the_level_to_each_set_not_to_the_sum(tmp_path, monk
     from domain.games import pachinko as pg
 
     bot = make_bot(tmp_path)
-    bot.economy.rtp_level_set("パチンコ", 6)
-    bot.economy.credit(1, 100_000, "テスト")
+    bot.repos.rtp.rtp_level_set("パチンコ", 6)
+    bot.repos.wallet.credit(1, 100_000, "テスト")
     hit = pg.SpinInfo("", "", True, (10,), 0.1)
     miss = pg.SpinInfo("", "", False, (), 0.01)
     plan = iter(
@@ -287,9 +283,9 @@ def test_pachinko_sets_apply_the_level_to_each_set_not_to_the_sum(tmp_path, monk
         sent.append(kw)
 
     it.response = SimpleNamespace(send_message=send_message)
-    before = bot.economy.balance(1)
-    asyncio.run(play_pa.play_pachinko(it, bot, 1000, 3))
+    before = bot.repos.wallet.balance(1)
+    asyncio.run(play_pa.play_pachinko(it, make_casino_deps(bot), 1000, 3))
     expected = rtplevel.adjust("パチンコ", 6, 1000, 10_000)  # 勝った1セットだけ増える
     assert expected > 10_000
-    assert bot.economy.balance(1) == before - 3000 + expected
+    assert bot.repos.wallet.balance(1) == before - 3000 + expected
     assert f"払い戻し: **{expected:,}ペリカ**" in edits[-1]["embed"].description

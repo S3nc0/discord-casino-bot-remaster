@@ -3,7 +3,7 @@
 import re
 import time
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any, Optional
+from typing import TYPE_CHECKING, Any, Optional, cast
 
 import discord
 
@@ -18,29 +18,35 @@ from cogs.quiz.embeds import (
     verdict,
 )
 from cogs.shared import ui
-from cogs.shared.cog_ports import guild_port, port_of
+from cogs.shared.bridges import IQuizAdminBridge
 from cogs.shared.messages import format_failure
 from domain import approval, quizpay
 from domain.duration import format_minutes, parse_duration
-from domain.ports import IQuizPort
+from domain.ports.repos import IGuildRepo, IQuizRepo
 from infra import logthrottle
 
 if TYPE_CHECKING:
-    from cogs.quiz.cog import QuizCog
+    from cogs.shared.bot import CasinoBot
 
 
-async def record_answer(bot, interaction: discord.Interaction, quiz_id: int, pos: int) -> None:
+async def record_answer(
+    quiz_repo: IQuizRepo,
+    guild_repo: IGuildRepo,
+    config: dict[str, Any],
+    interaction: discord.Interaction,
+    quiz_id: int,
+    pos: int,
+) -> None:
     """公開された問題のボタン。押した人が答える（結果は本人だけに見える）。"""
-    quiz_port = port_of(bot, IQuizPort)
-    quiz = quiz_port.quiz_get(quiz_id)
+    quiz = quiz_repo.quiz_get(quiz_id)
     if quiz is None:
         await interaction.response.send_message(embed=ui.error_embed("この問題は終了しました"), ephemeral=True)
         return
     guild_id = interaction.guild_id
-    if guild_id is None or not approval.is_allowed(quiz_port, bot.config, guild_id, interaction.user.id):
+    if guild_id is None or not approval.is_allowed(guild_repo, config, guild_id, interaction.user.id):
         await interaction.response.send_message(embed=ui.error_embed("利用できません"), ephemeral=True)
         return
-    eco = quiz_port.for_guild(guild_id)
+    eco = quiz_repo.for_guild(guild_id)
     ok, result = eco.quiz_answer(interaction.user.id, quiz_id, quiz["order"][pos], time.time())
     if not ok:
         await interaction.response.send_message(
@@ -85,7 +91,10 @@ class PublicButton(discord.ui.DynamicItem[discord.ui.Button], template=r"quiz:(?
         return cls(int(match["qid"]), int(match["pos"]))
 
     async def callback(self, interaction: discord.Interaction):
-        await record_answer(interaction.client, interaction, self.qid, self.pos)
+        bot = cast("CasinoBot", interaction.client)
+        bridge = bot.bridges.quiz
+        if bridge is not None:
+            await bridge.handle_button(interaction, self.qid, self.pos)
 
 
 def public_view(qid: int) -> discord.ui.View:
@@ -98,9 +107,10 @@ def public_view(qid: int) -> discord.ui.View:
 class AnswerView(ui.OwnerView):
     """4択のボタン。押した人が挑戦者本人のときだけ受け付け、答えたらボタンを外す。"""
 
-    def __init__(self, cog: "QuizCog", user_id: int, quiz: dict, order: list):
+    def __init__(self, quiz_repo: IQuizRepo, user_id: int, quiz: dict, order: list):
         super().__init__(user_id, timeout=600)
-        self.cog, self.user_id, self.quiz, self.order = cog, user_id, quiz, order
+        self._quiz = quiz_repo
+        self.user_id, self.quiz, self.order = user_id, quiz, order
         for i in range(4):
             btn = discord.ui.Button(label=LETTERS[i], style=discord.ButtonStyle.primary)
             btn.callback = self._make_callback(i)
@@ -111,7 +121,7 @@ class AnswerView(ui.OwnerView):
 
     def _make_callback(self, index: int):
         async def callback(interaction: discord.Interaction):
-            eco = guild_port(self.cog.bot, ui.guild_id_of(interaction), IQuizPort)
+            eco = self._quiz.for_guild(ui.guild_id_of(interaction))
             ok, result = eco.quiz_answer(self.user_id, self.quiz["id"], self.order[index], time.time())
             if not ok:
                 self.stop()
@@ -186,9 +196,18 @@ class AddModal(QuizForm, title="クイズを追加"):
     )
     verdicts = verdicts_input()
 
-    def __init__(self, cog: "QuizCog", announce: bool = True, guild=None, channel=None):
+    def __init__(
+        self,
+        quiz_repo: IQuizRepo,
+        bridge: IQuizAdminBridge,
+        announce: bool = True,
+        guild=None,
+        channel=None,
+    ):
         super().__init__()
-        self.cog, self.announce, self.guild, self.channel = cog, announce, guild, channel
+        self._quiz = quiz_repo
+        self._bridge = bridge
+        self.announce, self.guild, self.channel = announce, guild, channel
 
     async def on_submit(self, interaction: discord.Interaction):
         try:
@@ -198,7 +217,7 @@ class AddModal(QuizForm, title="クイズを追加"):
             return
         now = time.time()
         expires = now + form.minutes * 60 if form.minutes else None
-        qid = port_of(self.cog.bot, IQuizPort).quiz_add(
+        qid = self._quiz.quiz_add(
             self.question.value.strip(),
             form.choices,
             self.explanation.value.strip(),
@@ -210,7 +229,7 @@ class AddModal(QuizForm, title="クイズを追加"):
             form.msg_wrong,
         )
         await interaction.response.defer(ephemeral=True)
-        posted = await self.cog.broadcast(qid, self.guild, self.channel) if self.announce else None
+        posted = await self._bridge.broadcast(qid, self.guild, self.channel) if self.announce else None
         note = (
             "告知はしていません。`/クイズ 挑戦` で出ます。" if posted is None else f"{posted}サーバーに告知しました。"
         )
@@ -233,9 +252,9 @@ class UserModal(QuizForm, title="クイズを出題"):
     )
     verdicts = verdicts_input()
 
-    def __init__(self, cog: "QuizCog"):
+    def __init__(self, quiz_repo: IQuizRepo):
         super().__init__()
-        self.cog = cog
+        self._quiz = quiz_repo
 
     async def on_submit(self, interaction: discord.Interaction):
         try:
@@ -248,7 +267,7 @@ class UserModal(QuizForm, title="クイズを出題"):
         except ValueError as exc:
             await interaction.response.send_message(embed=ui.error_embed("入力エラー", str(exc)), ephemeral=True)
             return
-        eco = guild_port(self.cog.bot, ui.guild_id_of(interaction), IQuizPort)
+        eco = self._quiz.for_guild(ui.guild_id_of(interaction))
         ok, result = eco.quiz_post(
             interaction.user.id,
             self.question.value.strip(),

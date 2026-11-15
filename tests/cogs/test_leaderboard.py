@@ -9,13 +9,13 @@ from discord import app_commands
 
 from cogs.economy.cog import BOARD_INTERVAL_MINUTES, EconomyCog
 from cogs.shared import ranking
-from infra.db.economy import Economy
-from services.session import Sessions
+from infra.db.repositories import open_repositories
+from tests.support import make_economy_cog, make_ranking_repos, make_test_bot
 
 
 @pytest.fixture
 def eco(tmp_path):
-    return Economy(str(tmp_path / "t.db"))
+    return open_repositories(str(tmp_path / "t.db"))
 
 
 def run(coro):
@@ -81,10 +81,9 @@ class FakeChannel:
 def make(eco, channel=None):
     channel = channel or FakeChannel()
     guild = SimpleNamespace(id=10, me=object(), get_channel=lambda cid: channel if cid == channel.id else None)
-    bot = SimpleNamespace(
-        economy=eco, sessions=Sessions(cooldown=0), config={}, get_guild=lambda gid: guild if gid == 10 else None
-    )
-    return EconomyCog(bot), guild, channel
+    bot = make_test_bot(repos=eco)
+    bot.get_guild = lambda gid: guild if gid == 10 else None
+    return make_economy_cog(bot), guild, channel
 
 
 class FakeInteraction:
@@ -102,8 +101,8 @@ class FakeInteraction:
 
 
 def play_in_guild(eco, uid, guild_id=10):
-    eco.touch_guild_user(guild_id, uid)
-    eco.balance(uid)
+    eco.wallet.touch_guild_user(guild_id, uid)
+    eco.wallet.balance(uid)
 
 
 # ----------------------------- 表示 ----------------------------- #
@@ -112,20 +111,24 @@ def test_interval_is_30_minutes():
 
 
 def test_build_embed_ranks_only_the_servers_members(eco):
-    eco.credit(1, 9_000, "テスト")
-    eco.credit(2, 100, "テスト")
-    eco.credit(3, 99_999, "テスト")  # 別サーバーの人。このサーバーの掲示板には載らない
+    eco.wallet.credit(1, 9_000, "テスト")
+    eco.wallet.credit(2, 100, "テスト")
+    eco.wallet.credit(3, 99_999, "テスト")  # 別サーバーの人。このサーバーの掲示板には載らない
     play_in_guild(eco, 1)
     play_in_guild(eco, 2)
     e = ranking.build_embed(
-        eco, eco.guild_user_ids(10), "🏆 ペリカランキング", header="最終更新: x\n\n", footer="1分ごと"
+        make_ranking_repos(eco),
+        eco.wallet.guild_user_ids(10),
+        "🏆 ペリカランキング",
+        header="最終更新: x\n\n",
+        footer="1分ごと",
     )
     assert e.description.index("<@1>") < e.description.index("<@2>") and "<@3>" not in e.description
     assert e.description.startswith("最終更新: x") and e.footer.text == "1分ごと"
 
 
 def test_build_embed_with_nobody_playing(eco):
-    e = ranking.build_embed(eco, set(), "🏆 ペリカランキング")
+    e = ranking.build_embed(make_ranking_repos(eco), set(), "🏆 ペリカランキング")
     assert "まだ誰も遊んでいません" in e.description
 
 
@@ -135,7 +138,7 @@ def test_set_posts_one_message_and_remembers_it(eco):
     play_in_guild(eco, 1)
     it = FakeInteraction(guild)
     run(EconomyCog.board_set.callback(cog, it, ch))
-    board = eco.get_leaderboard(10)
+    board = eco.guild.get_leaderboard(10)
     assert board["channel_id"] == ch.id and board["message_id"] in ch.messages
     assert "ランキングを掲示しました" in it.sent[-1]["embed"].title and "1分" in it.sent[-1]["embed"].description
 
@@ -143,11 +146,11 @@ def test_set_posts_one_message_and_remembers_it(eco):
 def test_setting_again_replaces_the_old_board_so_there_is_only_one(eco):
     cog, guild, ch = make(eco)
     run(EconomyCog.board_set.callback(cog, FakeInteraction(guild), ch))
-    first = eco.get_leaderboard(10)["message_id"]
+    first = eco.guild.get_leaderboard(10)["message_id"]
     run(EconomyCog.board_set.callback(cog, FakeInteraction(guild), ch))
-    second = eco.get_leaderboard(10)["message_id"]
+    second = eco.guild.get_leaderboard(10)["message_id"]
     assert first != second and ch.messages[first].deleted and not ch.messages[second].deleted
-    assert len(eco.list_leaderboards()) == 1  # 1サーバーに1つ
+    assert len(eco.guild.list_leaderboards()) == 1  # 1サーバーに1つ
 
 
 def test_set_is_refused_when_the_bot_cannot_post_there(eco):
@@ -155,15 +158,15 @@ def test_set_is_refused_when_the_bot_cannot_post_there(eco):
     bad = FakeChannel(cid=777, perms=(True, False, True))
     it = FakeInteraction(guild)
     run(EconomyCog.board_set.callback(cog, it, bad))
-    assert "掲示できません" in it.sent[-1]["embed"].title and eco.get_leaderboard(10) is None
+    assert "掲示できません" in it.sent[-1]["embed"].title and eco.guild.get_leaderboard(10) is None
 
 
 def test_unset_stops_and_removes_the_message(eco):
     cog, guild, ch = make(eco)
     run(EconomyCog.board_set.callback(cog, FakeInteraction(guild), ch))
-    mid = eco.get_leaderboard(10)["message_id"]
+    mid = eco.guild.get_leaderboard(10)["message_id"]
     run(EconomyCog.board_set.callback(cog, FakeInteraction(guild), None, True))
-    assert eco.get_leaderboard(10) is None and ch.messages[mid].deleted
+    assert eco.guild.get_leaderboard(10) is None and ch.messages[mid].deleted
     it = FakeInteraction(guild)
     run(EconomyCog.board_set.callback(cog, it, None, True))  # 掲示がないときは案内する
     assert "掲示していません" in it.sent[-1]["embed"].title
@@ -174,9 +177,9 @@ def test_refresh_edits_the_same_message_with_latest_ranking(eco):
     cog, guild, ch = make(eco)
     play_in_guild(eco, 1)
     run(EconomyCog.board_set.callback(cog, FakeInteraction(guild), ch))
-    mid = eco.get_leaderboard(10)["message_id"]
-    eco.credit(1, 50_000, "テスト")
-    run(cog._refresh_board(eco.get_leaderboard(10)))
+    mid = eco.guild.get_leaderboard(10)["message_id"]
+    eco.wallet.credit(1, 50_000, "テスト")
+    run(cog._refresh_board(eco.guild.get_leaderboard(10)))
     msg = ch.messages[mid]
     assert (
         len(msg.embeds) == 2 and "53,000ペリカ" in msg.embeds[-1].description
@@ -187,10 +190,10 @@ def test_refresh_edits_the_same_message_with_latest_ranking(eco):
 def test_refresh_reposts_when_the_message_was_deleted(eco):
     cog, guild, ch = make(eco)
     run(EconomyCog.board_set.callback(cog, FakeInteraction(guild), ch))
-    old = eco.get_leaderboard(10)["message_id"]
+    old = eco.guild.get_leaderboard(10)["message_id"]
     del ch.messages[old]  # 誰かが消した
-    run(cog._refresh_board(eco.get_leaderboard(10)))
-    new = eco.get_leaderboard(10)["message_id"]
+    run(cog._refresh_board(eco.guild.get_leaderboard(10)))
+    new = eco.guild.get_leaderboard(10)["message_id"]
     assert new != old and new in ch.messages  # 投稿し直して、IDを更新する
 
 
@@ -198,31 +201,31 @@ def test_refresh_forgets_the_board_when_the_channel_is_gone(eco):
     cog, guild, ch = make(eco)
     run(EconomyCog.board_set.callback(cog, FakeInteraction(guild), ch))
     guild.get_channel = lambda cid: None
-    run(cog._refresh_board(eco.get_leaderboard(10)))
-    assert eco.get_leaderboard(10) is None
+    run(cog._refresh_board(eco.guild.get_leaderboard(10)))
+    assert eco.guild.get_leaderboard(10) is None
 
 
 def test_refresh_keeps_the_board_when_permissions_are_temporarily_missing(eco):
     cog, guild, ch = make(eco)
     run(EconomyCog.board_set.callback(cog, FakeInteraction(guild), ch))
-    board = eco.get_leaderboard(10)
+    board = eco.guild.get_leaderboard(10)
     ch.edit_error = http_error(403)
     run(cog._refresh_board(board))  # 例外を出さず、次の周期で再試行する
-    assert eco.get_leaderboard(10) == board
+    assert eco.guild.get_leaderboard(10) == board
 
 
 def test_refresh_does_nothing_when_the_bot_is_not_in_the_guild_right_now(eco):
     cog, guild, ch = make(eco)
     run(EconomyCog.board_set.callback(cog, FakeInteraction(guild), ch))
     cog.bot.get_guild = lambda gid: None
-    run(cog._refresh_board(eco.get_leaderboard(10)))
-    assert eco.get_leaderboard(10) is not None
+    run(cog._refresh_board(eco.guild.get_leaderboard(10)))
+    assert eco.guild.get_leaderboard(10) is not None
 
 
 def test_one_failing_server_does_not_stop_the_others(eco):
     cog, guild, ch = make(eco)
-    eco.set_leaderboard(99, 1, 1)
-    eco.set_leaderboard(10, ch.id, 5)
+    eco.guild.set_leaderboard(99, 1, 1)
+    eco.guild.set_leaderboard(10, ch.id, 5)
     calls = []
 
     async def fake_refresh(board):
@@ -237,16 +240,16 @@ def test_one_failing_server_does_not_stop_the_others(eco):
 
 def test_leaving_a_server_removes_its_board(eco):
     cog, guild, ch = make(eco)
-    eco.set_leaderboard(10, ch.id, 5)
+    eco.guild.set_leaderboard(10, ch.id, 5)
     run(cog.on_guild_remove(SimpleNamespace(id=10)))
-    assert eco.get_leaderboard(10) is None
+    assert eco.guild.get_leaderboard(10) is None
 
 
 def test_board_storage_roundtrip_and_replace(eco):
-    eco.set_leaderboard(10, 1, 2)
-    eco.set_leaderboard(10, 3, 4)  # 同じサーバーは上書き（1つだけ）
-    assert eco.get_leaderboard(10) == {"guild_id": 10, "channel_id": 3, "message_id": 4}
-    assert len(eco.list_leaderboards()) == 1
+    eco.guild.set_leaderboard(10, 1, 2)
+    eco.guild.set_leaderboard(10, 3, 4)  # 同じサーバーは上書き（1つだけ）
+    assert eco.guild.get_leaderboard(10) == {"guild_id": 10, "channel_id": 3, "message_id": 4}
+    assert len(eco.guild.list_leaderboards()) == 1
 
 
 def test_ranking_does_not_show_titles_to_keep_each_row_on_one_line(eco):
@@ -254,10 +257,10 @@ def test_ranking_does_not_show_titles_to_keep_each_row_on_one_line(eco):
 
     play_in_guild(eco, 1)
     it = shop.BY_ID["title_zawa"]
-    eco.credit(1, 20_000, "テスト")
-    assert eco.purchase(1, it.id, shop.label(it), it.price, True).ok
-    eco.equip(1, "title", it.id)
-    e = ranking.build_embed(eco, eco.guild_user_ids(10), "🏆 テスト")
+    eco.wallet.credit(1, 20_000, "テスト")
+    assert eco.shop.purchase(1, it.id, shop.label(it), it.price, True).ok
+    eco.shop.equip(1, "title", it.id)
+    e = ranking.build_embed(make_ranking_repos(eco), eco.wallet.guild_user_ids(10), "🏆 テスト")
     assert "ざわ…ざわ…" not in e.description and "<@1>　" in e.description
 
 

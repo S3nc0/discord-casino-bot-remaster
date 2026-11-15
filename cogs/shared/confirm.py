@@ -7,6 +7,7 @@ from typing import Optional
 import discord
 
 from cogs.shared import ui
+from domain.ports.session import ISessionGuard
 
 
 class ConfirmView(ui.OwnerView):
@@ -53,13 +54,13 @@ async def confirm_action(interaction: discord.Interaction, title: str, descripti
 
 @asynccontextmanager
 async def user_session(
-    bot,
+    sessions: ISessionGuard,
     interaction: discord.Interaction,
     busy_title: str = "いま実行できません",
 ) -> AsyncIterator[bool]:
     """連打・二重操作を防ぐためユーザー単位のセッションを開始し、終了時に必ず解放する。"""
     uid = interaction.user.id
-    reason = bot.sessions.try_start(uid)
+    reason = sessions.try_start(uid)
     if reason:
         await interaction.response.send_message(embed=ui.error_embed(busy_title, reason), ephemeral=True)
         yield False
@@ -67,7 +68,7 @@ async def user_session(
     try:
         yield True
     finally:
-        bot.sessions.end(uid)
+        sessions.end(uid)
 
 
 async def confirmed_reply(

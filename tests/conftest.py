@@ -13,7 +13,6 @@ bind_catalogs()
 
 from domain import events, missions  # noqa: E402
 from infra.db.base import ScopedRepo  # noqa: E402
-from infra.db.economy import Economy  # noqa: E402
 from infra.db.repositories import RepositoryBundle  # noqa: E402
 
 
@@ -35,7 +34,6 @@ def pytest_configure(config):
 def single_scope(request, monkeypatch):
     if request.node.get_closest_marker("real_scope"):
         return
-    monkeypatch.setattr(Economy, "for_guild", lambda self, guild_id: self)
     monkeypatch.setattr(ScopedRepo, "for_guild", lambda self, guild_id: self)
     monkeypatch.setattr(RepositoryBundle, "for_guild", lambda self, guild_id: self)
 

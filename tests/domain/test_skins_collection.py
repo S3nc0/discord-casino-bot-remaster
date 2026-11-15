@@ -7,10 +7,10 @@ import pytest
 
 from cogs.casino import common
 from cogs.economy.cog import EconomyCog
-from cogs.shop.cog import SLOT_OF_KIND, UNEQUIP_NAMES, ShopCog, shop_slots
+from cogs.shop.cog import SLOT_OF_KIND, UNEQUIP_NAMES, shop_slots
 from domain import shop, skins
-from infra.db.economy import Economy
-from services.session import Sessions
+from infra.db.repositories import open_repositories
+from tests.support import make_casino_deps, make_economy_cog, make_shop_cog, make_test_bot
 
 U, G = 7, 10
 
@@ -23,14 +23,14 @@ def run(coro):
 
 @pytest.fixture
 def eco(tmp_path):
-    return Economy(str(tmp_path / "t.db"), strict=True).for_guild(G)
+    return open_repositories(str(tmp_path / "t.db"), strict=True).for_guild(G)
 
 
 def own(eco, *item_ids, money=20_000_000):
-    eco.credit(U, money, "テスト")
+    eco.wallet.credit(U, money, "テスト")
     for item_id in item_ids:
         item = shop.BY_ID[item_id]
-        assert eco.purchase(U, item.id, shop.label(item), item.price, item.unique).ok
+        assert eco.shop.purchase(U, item.id, shop.label(item), item.price, item.unique).ok
 
 
 # ----------------------------- カタログ ----------------------------- #
@@ -76,11 +76,11 @@ def test_collection_value_is_the_sum_of_what_is_owned():
 # ----------------------------- 装備 ----------------------------- #
 def test_skins_are_equipped_into_two_slots_and_collection_is_not_equipped(eco):
     own(eco, "skin_kuro", "skin_vip", "col_beer")
-    assert eco.equip(U, "skin_dice", "skin_kuro") and eco.equip(U, "skin_table", "skin_vip")
-    prof = eco.get_profile(U)
+    assert eco.shop.equip(U, "skin_dice", "skin_kuro") and eco.shop.equip(U, "skin_table", "skin_vip")
+    prof = eco.shop.get_profile(U)
     assert prof["skin_dice"] == "skin_kuro" and prof["skin_table"] == "skin_vip"
-    assert not eco.equip(U, "skin_dice", "skin_gold_dice")  # 持っていないものは装備できない
-    assert eco.equip(U, "skin_dice", None) and eco.get_profile(U)["skin_dice"] is None
+    assert not eco.shop.equip(U, "skin_dice", "skin_gold_dice")  # 持っていないものは装備できない
+    assert eco.shop.equip(U, "skin_dice", None) and eco.shop.get_profile(U)["skin_dice"] is None
     assert shop.COLLECTION not in SLOT_OF_KIND  # コレクションに、装備の枠はない
     assert "skin_dice" in shop_slots() and "skin_table" in shop_slots()
     assert set(UNEQUIP_NAMES) >= {"skin_dice", "skin_table"}
@@ -102,12 +102,13 @@ def test_using_a_collection_item_only_explains_and_a_skin_equips(eco):
 
     it = It()
     it.response = SimpleNamespace(send_message=send, defer=send)
-    cog = ShopCog(SimpleNamespace(economy=eco, sessions=Sessions(cooldown=0), config={}, get_guild=lambda g: None))
-    cog.bot.economy = SimpleNamespace(for_guild=lambda g: eco)
+    cog = make_shop_cog(make_test_bot(repos=eco))
     run(cog.use_item(it, "col_beer"))
     run(cog.use_item(it, "skin_gold_dice"))
     assert (
-        "コレクション" in sent[0] and eco.get_profile(U)["skin_dice"] == "skin_gold_dice" and "装備しました" in sent[1]
+        "コレクション" in sent[0]
+        and eco.shop.get_profile(U)["skin_dice"] == "skin_gold_dice"
+        and "装備しました" in sent[1]
     )
 
 
@@ -130,14 +131,14 @@ def test_a_skin_only_works_in_the_games_it_is_for(eco):
 
 
 def make_bot(eco):
-    return SimpleNamespace(economy=SimpleNamespace(for_guild=lambda g: eco), sessions=Sessions(cooldown=0), config={})
+    return make_test_bot(repos=eco)
 
 
 def play_ctx(eco, game, payout):
     bot = make_bot(eco)
-    escrow = eco.place_bet(U, 1000, game)
-    ctx = common.GameContext(bot, U, escrow, game, 1000, G, "たろう")
-    ctx.skin = skins.active_skin(eco.get_profile(U), game)
+    escrow = eco.escrow.place_bet(U, 1000, game)
+    ctx = common.GameContext(make_casino_deps(bot), U, escrow, game, 1000, G, "たろう")
+    ctx.skin = skins.active_skin(eco.shop.get_profile(U), game)
     net = ctx.settle(payout)
     return ctx, net
 
@@ -147,7 +148,7 @@ def test_skin_changes_title_and_adds_one_line_but_never_the_payout(eco):
     ctx, net = play_ctx(eco, skins.CHINCHIRO, 3000)
     assert net == 2000 and common.game_title("🎲 地下チンチロ", ctx) == "🎲 地下チンチロ（たろう）"  # 装備前
     base_body = common.result_lines(ctx, 3000, net)
-    eco.equip(U, "skin_dice", "skin_gold_dice")
+    eco.shop.equip(U, "skin_dice", "skin_gold_dice")
     ctx2, net2 = play_ctx(eco, skins.CHINCHIRO, 3000)
     assert net2 == net  # 配当は同じ
     assert common.game_title("🎲 地下チンチロ", ctx2) == "✨ 🎲 地下チンチロ（たろう）"
@@ -165,28 +166,28 @@ def test_skin_changes_title_and_adds_one_line_but_never_the_payout(eco):
 
 def test_start_game_reads_the_equipped_skin(eco):
     own(eco, "skin_vip")
-    eco.equip(U, "skin_table", "skin_vip")
-    bot = make_bot(eco)
+    eco.shop.equip(U, "skin_table", "skin_vip")
+    deps = make_casino_deps(make_bot(eco))
     it = SimpleNamespace(user=SimpleNamespace(id=U, display_name="たろう"), guild_id=G, response=SimpleNamespace())
 
     async def send(**kw):
         raise AssertionError("始められるはず")
 
     it.response.send_message = send
-    ctx = run(common.start_game(it, bot, 1000, "パチンコ"))
+    ctx = run(common.start_game(it, deps, 1000, "パチンコ"))
     assert ctx is not None and ctx.skin.item_id == "skin_vip"
     ctx.abort()
-    ctx2 = run(common.start_game(it, bot, 1000, "チンチロ"))  # チンチロ用の枠は空
+    ctx2 = run(common.start_game(it, deps, 1000, "チンチロ"))  # チンチロ用の枠は空
     assert ctx2 is not None and ctx2.skin is None
     ctx2.abort()
 
 
 # ----------------------------- 残高カード・移行 ----------------------------- #
 def test_balance_card_lists_the_collection_with_its_value(tmp_path):
-    eco = Economy(str(tmp_path / "t.db"), strict=True)
-    g = eco.for_guild(G)
+    bot = make_test_bot(str(tmp_path / "t.db"), strict=True)
+    g = bot.repos.for_guild(G)
     own(g, "col_beer", "col_gold_bar")
-    cog = EconomyCog(SimpleNamespace(economy=eco, sessions=Sessions(cooldown=0), config={}))
+    cog = make_economy_cog(bot)
     sent = []
 
     async def send(*args, **kw):
@@ -204,22 +205,23 @@ def test_balance_card_lists_the_collection_with_its_value(tmp_path):
 
 def test_old_profile_table_without_skin_columns_is_upgraded(tmp_path):
     path = str(tmp_path / "old.db")
-    e = Economy(path, strict=True)
-    e._conn.execute("DROP TABLE profile")
-    e._conn.execute(
-        "CREATE TABLE profile (guild_id INTEGER NOT NULL, user_id INTEGER NOT NULL, title TEXT, card_color TEXT, "
-        "card_icon TEXT, daily_boost INTEGER NOT NULL DEFAULT 0, insurance INTEGER NOT NULL DEFAULT 0, "
-        "PRIMARY KEY (guild_id, user_id))"
-    )
-    e._conn.execute("INSERT INTO profile (guild_id, user_id, title) VALUES (10, 7, 'title_rookie')")
-    e._conn.commit()
-    e._conn.close()
-    again = Economy(path, strict=True).for_guild(G)
-    prof = again.get_profile(U)
+    e = open_repositories(path, strict=True)
+    with e.db.tx():
+        e.db.conn.execute("DROP TABLE profile")
+        e.db.conn.execute(
+            "CREATE TABLE profile (guild_id INTEGER NOT NULL, user_id INTEGER NOT NULL, title TEXT, card_color TEXT, "
+            "card_icon TEXT, daily_boost INTEGER NOT NULL DEFAULT 0, insurance INTEGER NOT NULL DEFAULT 0, "
+            "PRIMARY KEY (guild_id, user_id))"
+        )
+        e.db.conn.execute("INSERT INTO profile (guild_id, user_id, title) VALUES (10, 7, 'title_rookie')")
+    e.db.close()
+    again = open_repositories(path, strict=True).for_guild(G)
+    prof = again.shop.get_profile(U)
     assert (
         prof["title"] == "title_rookie" and prof["skin_dice"] is None and prof["skin_table"] is None
     )  # 既存の装備は残る
-    again._conn.execute("UPDATE profile SET skin_dice='skin_kuro' WHERE user_id=7")  # 新しい列に書ける
+    with again.db.tx():
+        again.db.conn.execute("UPDATE profile SET skin_dice='skin_kuro' WHERE user_id=7")  # 新しい列に書ける
 
 
 def test_pachinko_banner_comes_from_the_skin_only_for_big_hits():

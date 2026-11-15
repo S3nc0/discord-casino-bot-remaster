@@ -12,16 +12,15 @@ from typing import Optional
 import discord
 from discord import app_commands
 
-from cogs.shared.cog_ports import guild_port
-from domain.ports import IRankingReader
+from domain.ports.repos import IWalletRepo
 from domain.types import INITIAL_BALANCE
 
 
-def own_balance(bot, interaction: discord.Interaction) -> Optional[int]:
+def own_balance(wallet: IWalletRepo, guild_id: Optional[int], user_id: int) -> Optional[int]:
     """いまの残高。口座を作らずに読む（初めての人は、最初に遊ぶときに初期支給が入る額を返す）。DM などサーバー外は None。"""
-    if interaction.guild_id is None:
+    if guild_id is None:
         return None
-    stats = guild_port(bot, interaction.guild_id, IRankingReader).peek_stats(interaction.user.id)
+    stats = wallet.for_guild(guild_id).peek_stats(user_id)
     return stats["balance"] if stats else INITIAL_BALANCE
 
 
@@ -32,7 +31,11 @@ def typed_amount(current: str) -> Optional[int]:
 
 
 def balance_choices(
-    bot, interaction: discord.Interaction, current: str, minimum: int, maximum: Optional[int] = None
+    wallet: IWalletRepo,
+    interaction: discord.Interaction,
+    current: str,
+    minimum: int,
+    maximum: Optional[int] = None,
 ) -> list[app_commands.Choice[int]]:
     """残高を見せる、1行だけの候補。
 
@@ -40,7 +43,7 @@ def balance_choices(
     - それ以外（空・範囲外）は「残高 8,000ペリカ」。選ぶと minimum になるので、見るだけなら選ばずに数字を打つ。
     DM では候補を出さない。
     """
-    balance = own_balance(bot, interaction)
+    balance = own_balance(wallet, interaction.guild_id, interaction.user.id)
     if balance is None:
         return []
     typed = typed_amount(current)

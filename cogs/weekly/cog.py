@@ -4,29 +4,50 @@
 Bot が止まっていて月曜0時を逃しても、次に起動したときに1回だけ発表する（二重には発表しない）。
 """
 
+from typing import TYPE_CHECKING, Any, Optional
+
 import discord
 from discord.ext import commands, tasks
 
 from cogs.shared import ui
 from cogs.shared.announce import announce_channel
-from cogs.shared.cog_ports import IShopCogPort, get_cog_port, guild_port, port_of
+from cogs.shared.bridges import IShopTitleBridge
 from cogs.shared.messages import format_standings_lines
 from domain import approval, shop, weekly
-from domain.ports import IGuildApprovalStore, IWeeklyPort
+from domain.ports.clock import IClock
+from domain.ports.repos import IGuildRepo, IRecordRepo
 from infra import catalogs, logthrottle
-from infra.clock import local_now
-from services import services_of
+from infra.clock import ConfigClock
+from services.economy import EconomyService
+
+if TYPE_CHECKING:
+    from cogs.shared.bot import CasinoBot
 
 CHECK_MINUTES = catalogs.economy().weekly.check_minutes
 KING = shop.BY_ID[shop.WEEKLY_KING]
 
 
 class WeeklyCog(commands.Cog):
-    def __init__(self, bot):
+    def __init__(
+        self,
+        bot: commands.Bot,
+        config: dict[str, Any],
+        economy_svc: EconomyService,
+        records: IRecordRepo,
+        guild_repo: IGuildRepo,
+        shop_bridge: Optional[IShopTitleBridge] = None,
+        clock: Optional[IClock] = None,
+    ) -> None:
         self.bot = bot
+        self._config = config
+        self._economy_svc = economy_svc
+        self._records = records
+        self._guild_repo = guild_repo
+        self._shop_bridge = shop_bridge
+        self._clock: IClock = clock if clock is not None else ConfigClock(config)
 
-    async def cog_load(self):
-        done = services_of(self.bot).economy.backfill_weekly()  # この機能の前に遊んだ分を、台帳から補う（初回だけ）
+    async def cog_load(self) -> None:
+        done = self._economy_svc.backfill_weekly()  # この機能の前に遊んだ分を、台帳から補う（初回だけ）
         if done:
             print(f"週間ランキング: 過去の {done} ゲーム分を台帳から補いました")
         self.check_weeks.start()
@@ -35,24 +56,23 @@ class WeeklyCog(commands.Cog):
         self.check_weeks.cancel()
 
     @tasks.loop(minutes=CHECK_MINUTES)
-    async def check_weeks(self):
+    async def check_weeks(self) -> None:
         try:
             await self.run_once()
         except Exception as exc:
             print(f"週間ランキングの確認に失敗: {exc!r}")
 
     @check_weeks.before_loop
-    async def _before(self):
+    async def _before(self) -> None:
         await self.bot.wait_until_ready()
 
     async def run_once(self) -> None:
-        today = local_now(self.bot).date()
+        today = self._clock.today()
         prev_week = weekly.previous_week_id(today)
-        approval_store = port_of(self.bot, IGuildApprovalStore)
         for guild in list(self.bot.guilds):
-            if not approval.is_allowed(approval_store, self.bot.config, guild.id, 0):
+            if not approval.is_allowed(self._guild_repo, self._config, guild.id, 0):
                 continue
-            eco = guild_port(self.bot, guild.id, IWeeklyPort)
+            eco = self._records.for_guild(guild.id)
             last = eco.weekly_last_announced()
             if last is None:
                 eco.set_weekly_announced(
@@ -64,8 +84,8 @@ class WeeklyCog(commands.Cog):
                 except Exception as exc:  # 1つのサーバーの失敗で、他のサーバーの発表を止めない
                     print(f"週間ランキングの発表に失敗: guild={guild.id}: {exc!r}")
 
-    def _channel(self, guild: discord.Guild, eco):
-        return announce_channel(guild, eco)
+    def _channel(self, guild: discord.Guild):
+        return announce_channel(guild, self._guild_repo)
 
     def build_embed(self, week: str, result: dict) -> discord.Embed:
         lines = format_standings_lines(result["standings"], ui.MEDALS)
@@ -87,11 +107,11 @@ class WeeklyCog(commands.Cog):
         e.set_footer(text="毎週月曜0時に発表 ｜ 稼ぎ = その週のゲームの損益の合計")
         return e
 
-    async def announce(self, guild: discord.Guild, eco, week: str) -> None:
-        result = eco.weekly_award(week)
+    async def announce(self, guild: discord.Guild, records_scoped: IRecordRepo, week: str) -> None:
+        result = records_scoped.weekly_award(week)
         if result is None or not result["standings"]:
             return  # 発表済み、またはその週は誰も遊んでいない
-        channel = self._channel(guild, eco)
+        channel = self._channel(guild)
         if channel is not None:
             champ = result["champion"]
             mentions = discord.AllowedMentions(
@@ -106,14 +126,22 @@ class WeeklyCog(commands.Cog):
                 )
             except discord.HTTPException as exc:
                 logthrottle.warn(("weekly", guild.id), f"週間ランキングを投稿できません: guild={guild.id}: {exc!r}")
-        shop_cog = get_cog_port(self.bot, "ShopCog", IShopCogPort)
         for uid in result["previous"]:  # 外れた称号をニックネームからも消す
-            if shop_cog is not None:
+            if self._shop_bridge is not None:
                 try:
-                    await shop_cog.sync_title_nick(uid, guild)
+                    await self._shop_bridge.sync_title_nick(uid, guild)
                 except Exception as exc:
                     print(f"称号の取り消しをニックネームに反映できません: guild={guild.id} user={uid}: {exc!r}")
 
 
-async def setup(bot):
-    await bot.add_cog(WeeklyCog(bot))
+async def setup(bot: "CasinoBot") -> None:
+    await bot.add_cog(
+        WeeklyCog(
+            bot,
+            bot.config,
+            bot.services.economy,
+            bot.repos.records,
+            bot.repos.guild,
+            shop_bridge=bot.bridges.shop,
+        )
+    )

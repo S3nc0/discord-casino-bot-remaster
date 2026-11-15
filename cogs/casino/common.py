@@ -1,21 +1,30 @@
 """ゲーム共通の流れ: 賭け金の検証と預かり、精算、ボタンの持ち主確認、結果の表示。"""
 
+from dataclasses import dataclass
 from typing import Any
 
 import discord
 
 from cogs.casino.texts import JACKPOT_ART, big_win_line, streak_line
 from cogs.shared import ui
-from cogs.shared.cog_ports import port_of
 from cogs.shared.messages import format_notices
 from domain import approval, missions, teiai
 from domain.games.rtplevel import MIN_BET as MIN_BET  # noqa: F401
-from domain.ports import IGuildApprovalStore
-from services import services_of
+from domain.ports.repos import IGuildRepo
+from services.casino import CasinoService
 
 
-def local_now(bot: Any):
-    return services_of(bot).casino.now()
+@dataclass(frozen=True)
+class CasinoDeps:
+    """カジノ UI / ゲーム実行に必要な明示依存コンテナ。"""
+
+    casino: CasinoService
+    guild_repo: IGuildRepo
+    config: dict[str, Any]
+
+
+def local_now(deps: CasinoDeps):
+    return deps.casino.now()
 
 
 def log_display_failure(game: str, step: str, exc: Exception) -> None:
@@ -29,9 +38,18 @@ def log_display_failure(game: str, step: str, exc: Exception) -> None:
 class GameContext:
     """1回のゲーム。賭け金は預かり済みで、settle() か abort() で必ず精算する。"""
 
-    def __init__(self, bot: Any, user_id: int, escrow_id: int, game: str, bet: int, guild_id: int, name: str = ""):
-        self.bot = bot
-        self.economy = services_of(bot).casino.for_guild(guild_id)  # ペリカはサーバーごとに別々
+    def __init__(
+        self,
+        deps: CasinoDeps,
+        user_id: int,
+        escrow_id: int,
+        game: str,
+        bet: int,
+        guild_id: int,
+        name: str = "",
+    ):
+        self.deps = deps
+        self.casino = deps.casino
         self.name = name  # 遊んでいる人の表示名（タイトルに付けて、誰のゲームか分かるようにする）
         self.guild_id = guild_id
         self.user_id = user_id
@@ -59,7 +77,7 @@ class GameContext:
         """払い戻し総額で精算し、損益を返す。二重に呼んでも一度しか払わない。"""
         if self.done:
             return 0
-        res = services_of(self.bot).casino.settle_game(
+        res = self.casino.settle_game(
             self.guild_id,
             self.user_id,
             self.escrow_id,
@@ -71,7 +89,7 @@ class GameContext:
             tags=tags,
             rtp_kind=rtp_kind,
             rtp_done=rtp_done,
-            now=local_now(self.bot),
+            now=local_now(self.deps),
         )
         self.done = True
         if not rtp_done:
@@ -88,23 +106,28 @@ class GameContext:
 
     def release(self) -> None:
         """keep_session=True で精算したあと、演出が終わったら呼ぶ。"""
-        services_of(self.bot).casino.release_session(self.user_id)
+        self.casino.release_session(self.user_id)
 
     def abort(self) -> None:
         """エラー時: まだ精算していなければ、預かっている賭け金（追加分も含む）を全額返す。"""
         if self.done:
             return
         self.done = True
-        services_of(self.bot).casino.abort_game(self.guild_id, self.user_id, self.escrow_id)
+        self.casino.abort_game(self.guild_id, self.user_id, self.escrow_id)
 
 
 async def start_game(
-    interaction: discord.Interaction, bot: Any, bet: int, game: str, balance_factor: int = 1, factor_reason: str = ""
+    interaction: discord.Interaction,
+    deps: CasinoDeps,
+    bet: int,
+    game: str,
+    balance_factor: int = 1,
+    factor_reason: str = "",
 ) -> GameContext | None:
     """賭け金を検証して預かる。成功すれば GameContext、失敗すれば理由を返信して None。"""
     uid = interaction.user.id
     guild_id = ui.guild_id_of(interaction)
-    res = services_of(bot).casino.begin_game(guild_id, uid, bet, game, balance_factor=balance_factor)
+    res = deps.casino.begin_game(guild_id, uid, bet, game, balance_factor=balance_factor)
     if not res.ok:
         if res.reason_kind == "session":
             await interaction.response.send_message(
@@ -133,7 +156,9 @@ async def start_game(
                 ephemeral=True,
             )
         return None
-    ctx = GameContext(bot, uid, res.escrow_id, game, bet, guild_id, getattr(interaction.user, "display_name", "") or "")
+    ctx = GameContext(
+        deps, uid, res.escrow_id, game, bet, guild_id, getattr(interaction.user, "display_name", "") or ""
+    )
     ctx.skin = res.skin
     return ctx
 
@@ -150,7 +175,7 @@ def signed(n: int) -> str:
 
 def result_lines(ctx: GameContext, payout: int, net: int, extra: str = "") -> str:
     """結果の共通表示。出目や役（extra）が先頭、そのあとに大勝ち・連勝の演出、賭け金・払い戻し・損益・残高、最後にミッション達成。"""
-    balance = ctx.economy.balance(ctx.user_id)
+    balance = ctx.casino.balance(ctx.guild_id, ctx.user_id)
     top = [extra] if extra else []
     if ctx.skin and net != 0:  # 演出の変更品の一言（勝ったとき・負けたとき）
         top.append(ctx.skin.win_line if net > 0 else ctx.skin.lose_line)
@@ -163,7 +188,7 @@ def result_lines(ctx: GameContext, payout: int, net: int, extra: str = "") -> st
         f"損益: **{signed(net)}ペリカ**",
         f"残高: **{ui.pelica(balance)}**",
     ]
-    debt = ctx.economy.debt(ctx.user_id)
+    debt = ctx.casino.debt_amount(ctx.guild_id, ctx.user_id)
     if debt:
         stats.append(f"借金: **{ui.pelica(debt)}**（収入の{int(teiai.REPAY_RATE * 100)}%が天引きで返済されます）")
     stats += ctx.notices  # 強制執行・種銭の一言
@@ -201,13 +226,13 @@ def _celebration(ctx: GameContext, net: int) -> tuple[list[str], list[str]]:
 class ReplayView(ui.OwnerView):
     """結果の下に出す「もう一度」ボタン。遊んだ本人だけが押せて、押すと新しいゲームが始まる。"""
 
-    def __init__(self, bot: Any, user_id: int, bet: int, replay: Any, timeout: float = 90):
+    def __init__(self, deps: CasinoDeps, user_id: int, bet: int, replay: Any, timeout: float = 90):
         super().__init__(
             user_id,
             timeout=timeout,
             owner_message="これは他の人のゲームです。`/カジノ` で自分も遊べます。",
         )
-        self.bot, self.user_id, self.bet, self.replay = bot, user_id, bet, replay
+        self.deps, self.user_id, self.bet, self.replay = deps, user_id, bet, replay
         self.origin: discord.Interaction | None = (
             None  # この結果を出したメッセージの元になった interaction（時間切れでボタンを消すのに使う）
         )
@@ -218,7 +243,7 @@ class ReplayView(ui.OwnerView):
         if not await super().interaction_check(interaction):
             return False
         if not approval.is_allowed(
-            port_of(self.bot, IGuildApprovalStore), self.bot.config, ui.guild_id_of(interaction), interaction.user.id
+            self.deps.guild_repo, self.deps.config, ui.guild_id_of(interaction), interaction.user.id
         ):
             await interaction.response.send_message(
                 embed=ui.error_embed("使えません", "このサーバーでは、いまは遊べません。"), ephemeral=True

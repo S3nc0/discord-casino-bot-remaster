@@ -1,11 +1,11 @@
 """`/ショップ` の操作パネル（View）。"""
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Optional
 
 import discord
 
 from cogs.shared import ui
-from cogs.shared.cog_ports import IP2PCogPort, get_cog_port, guild_port
+from cogs.shared.bridges import IP2PNavigationBridge
 from cogs.shop.embeds import (
     MAX_QTY,
     P2P_FILTERS,
@@ -16,7 +16,6 @@ from cogs.shop.embeds import (
     tab_items,
 )
 from domain import shop
-from domain.ports import IShopPort
 
 if TYPE_CHECKING:
     from cogs.shop.cog import ShopCog
@@ -95,12 +94,12 @@ class ShopView(ui.OwnerView):
         self.add_item(go)
         items = tab_items(self.tab) if self.tab != "home" else []
         if items:
-            eco = guild_port(self.cog.bot, self.guild_id, IShopPort)
-            inv = eco.inventory(self.user_id)
+            shop_repo = self.cog._shop.for_guild(self.guild_id)
+            inv = shop_repo.inventory(self.user_id)
             stocks = {
                 i.id: st
                 for i in items
-                if i.id in shop.STOCK_RULES and (st := eco.shop_stock(self.user_id, i.id)) is not None
+                if i.id in shop.STOCK_RULES and (st := shop_repo.shop_stock(self.user_id, i.id)) is not None
             }
             mixed = len(TABS[self.tab][1]) > 1
             buy = discord.ui.Select(
@@ -135,9 +134,9 @@ class ShopView(ui.OwnerView):
             qty.callback = self._on_qty
             self.add_item(qty)
 
-    def _p2p(self) -> IP2PCogPort | None:
-        """プレイヤー間の取引ポート。読み込まれていなければ None（画面に出さない）。"""
-        return get_cog_port(self.cog.bot, "P2PCog", IP2PCogPort)
+    def _p2p(self) -> Optional[IP2PNavigationBridge]:
+        """プレイヤー間の取引ブリッジ。読み込まれていなければ None（画面に出さない）。"""
+        return self.cog._p2p_bridge
 
     async def _on_player(self, interaction: discord.Interaction):
         p2p = self._p2p()
@@ -170,11 +169,7 @@ class ShopView(ui.OwnerView):
         kind, value = self.picked
         if kind == "horse":
             horse = next(
-                (
-                    h
-                    for h in guild_port(self.cog.bot, self.guild_id, IShopPort).auction_horses()
-                    if str(h["id"]) == value
-                ),
+                (h for h in self.cog._horses.for_guild(self.guild_id).auction_horses() if str(h["id"]) == value),
                 None,
             )
             return horse["name"] if horse else "競走馬"
@@ -190,19 +185,20 @@ class ShopView(ui.OwnerView):
 
     def _default_auction_tab(self) -> str:
         """競売の画面を開いたときのタブ。プレイヤーの出品があれば、そちら。なければ、帝愛の棚。"""
-        eco = guild_port(self.cog.bot, self.guild_id, IShopPort)
-        return "players" if self._p2p() is not None and eco.p2p_count() else "teiai"
+        return "players" if self._p2p() is not None and self.cog._p2p.for_guild(self.guild_id).p2p_count() else "teiai"
 
     def _build_auction(self) -> None:
         if self.auction_tab is None:
             self.auction_tab = self._default_auction_tab()
-        eco = guild_port(self.cog.bot, self.guild_id, IShopPort)
-        p2p_cog = self._p2p()
+        p2p_repo = self.cog._p2p.for_guild(self.guild_id)
+        auction_repo = self.cog._auction.for_guild(self.guild_id)
+        horse_repo = self.cog._horses.for_guild(self.guild_id)
+        p2p_bridge = self._p2p()
         # 上の段: タブ（いまのタブは青）と、出品・自分の取引・ショップへもどる
-        if p2p_cog is not None:
+        if p2p_bridge is not None:
             for tab, label in (
-                ("players", f"🤝 プレイヤーの出品（{eco.p2p_count()}）"),
-                ("teiai", f"🕴️ 帝愛の棚（{len(eco.auction_list()) + len(eco.auction_horses())}）"),
+                ("players", f"🤝 プレイヤーの出品（{p2p_repo.p2p_count()}）"),
+                ("teiai", f"🕴️ 帝愛の棚（{len(auction_repo.auction_list()) + len(horse_repo.auction_horses())}）"),
             ):
                 btn = discord.ui.Button(
                     label=label,
@@ -223,9 +219,9 @@ class ShopView(ui.OwnerView):
         back.callback = self._to_shop
         self.add_item(back)
         if self.auction_tab == "players":
-            self._build_auction_players(eco)
+            self._build_auction_players(p2p_repo)
         else:
-            self._build_auction_teiai(eco)
+            self._build_auction_teiai(auction_repo, horse_repo)
 
     def _make_auction_tab(self, tab: str):
         async def callback(interaction: discord.Interaction):
@@ -234,11 +230,11 @@ class ShopView(ui.OwnerView):
 
         return callback
 
-    def _p2p_rows(self, eco) -> list:
+    def _p2p_rows(self, p2p_repo) -> list:
         _label, kind, mode = self.P2P_FILTERS[self.p2p_filter]
-        return eco.p2p_active(kind, limit=SHOWN, mode=mode, order=self.p2p_order)
+        return p2p_repo.p2p_active(kind, limit=SHOWN, mode=mode, order=self.p2p_order)
 
-    def _build_auction_players(self, eco) -> None:
+    def _build_auction_players(self, p2p_repo) -> None:
         """プレイヤーの出品のタブ: 絞り込み・並べ替え・出品の選択肢。"""
         for key, (label, _kind, _mode) in self.P2P_FILTERS.items():
             btn = discord.ui.Button(
@@ -258,14 +254,14 @@ class ShopView(ui.OwnerView):
         )
         order.callback = self._on_p2p_order
         self.add_item(order)
-        rows = self._p2p_rows(eco)
+        rows = self._p2p_rows(p2p_repo)
         if rows:
             pick = discord.ui.Select(
                 placeholder="見る出品を選ぶ（選ぶと、買う・入札できる）",
                 row=3,
                 options=[
                     discord.SelectOption(
-                        label=eco.p2p_label(r)[:100],
+                        label=p2p_repo.p2p_label(r)[:100],
                         value=str(r["id"]),
                         description=(
                             f"定価 {r['price']:,}ペリカ"
@@ -290,9 +286,9 @@ class ShopView(ui.OwnerView):
         self.p2p_order = ui.selected_values(interaction)[0]
         await self._redraw(interaction)
 
-    def _build_auction_teiai(self, eco) -> None:
+    def _build_auction_teiai(self, auction_repo, horse_repo) -> None:
         """帝愛の棚のタブ（破産で差し押さえた品・馬。値段は日ごとに下がる）。"""
-        listed = eco.auction_list()
+        listed = auction_repo.auction_list()
         if listed:
             buy = discord.ui.Select(
                 placeholder="買う品を選ぶ",
@@ -320,7 +316,7 @@ class ShopView(ui.OwnerView):
                 )
                 qty.callback = self._on_qty
                 self.add_item(qty)
-        horses = eco.auction_horses()
+        horses = horse_repo.auction_horses()
         if horses:
             pick = discord.ui.Select(
                 placeholder="競走馬を買う",
@@ -344,8 +340,7 @@ class ShopView(ui.OwnerView):
             self._add_buy_button()
 
     def _build_inventory(self) -> None:
-        eco = guild_port(self.cog.bot, self.guild_id, IShopPort)
-        inv = eco.inventory(self.user_id)
+        inv = self.cog._shop.for_guild(self.guild_id).inventory(self.user_id)
         owned = [
             i
             for i in (shop.BY_ID.get(item_id) for item_id in inv)

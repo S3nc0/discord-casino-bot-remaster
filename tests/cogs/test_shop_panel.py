@@ -7,18 +7,19 @@ import pytest
 
 from cogs.shop.cog import MAX_QTY, ShopCog, ShopView
 from domain import shop
-from infra.db.economy import INITIAL_BALANCE, Economy
-from services.session import Sessions
+from domain.types import INITIAL_BALANCE
+from infra.db.repositories import open_repositories
+from tests.support import make_shop_cog, make_test_bot
 
 
 @pytest.fixture
 def eco(tmp_path):
-    return Economy(str(tmp_path / "t.db"))
+    return open_repositories(str(tmp_path / "t.db"))
 
 
 @pytest.fixture
 def cog(eco):
-    return ShopCog(SimpleNamespace(economy=eco, sessions=Sessions(cooldown=0), get_guild=lambda gid: None))
+    return make_shop_cog(make_test_bot(repos=eco))
 
 
 class It:
@@ -60,9 +61,7 @@ def test_command_is_a_single_top_level_guild_command():
     cmd = ShopCog.shop_panel
     assert cmd.name == "ショップ" and cmd.guild_only and cmd.parent is None
     assert "ショップ" not in {
-        c.name
-        for c in ShopCog(SimpleNamespace(economy=None, sessions=None)).__cog_app_commands__
-        if hasattr(c, "commands")
+        c.name for c in make_shop_cog(make_test_bot()).__cog_app_commands__ if hasattr(c, "commands")
     }  # 旧コマンドのグループは登録されない
 
 
@@ -145,14 +144,14 @@ def test_consumables_get_a_quantity_select_and_buying_uses_it(cog, eco):
     assert [o.value for o in qty.options] == [str(n) for n in range(1, MAX_QTY + 1)]
     run(view._on_qty(It(values=["3"])))
     assert view.qty == 3 and select(view, 3).placeholder == "個数（いま 3 個）"
-    eco.credit(1, 20_000, "テスト")
+    eco.wallet.credit(1, 20_000, "テスト")
     pick_it = It(values=[shop.INSURANCE])
     run(view._on_buy(pick_it))
-    assert eco.inventory(1).get(shop.INSURANCE, 0) == 0  # 選んだだけでは、買わない
+    assert eco.shop.inventory(1).get(shop.INSURANCE, 0) == 0  # 選んだだけでは、買わない
     buy_it = It()
     run(view._on_purchase(buy_it))
     assert (
-        eco.inventory(1)[shop.INSURANCE] == 3 and "購入しました" in buy_it.sent[-1]["embed"].title
+        eco.shop.inventory(1)[shop.INSURANCE] == 3 and "購入しました" in buy_it.sent[-1]["embed"].title
     )  # 個数が反映される
     run(view._make_tab("title")(It()))
     assert view.qty == 1 and not has(view, 3)  # 売り場を変えると個数は1に戻り、個数の選択肢も消える
@@ -162,10 +161,12 @@ def test_buying_a_title_then_equipping_and_unequipping_from_the_inventory_screen
     view = ShopView(cog, 1, 0)
     run(view._make_tab("title")(It()))
     run(view._on_buy(It(values=["title_rookie"])))
-    assert "title_rookie" not in eco.inventory(1)  # 選んだだけでは、買わない
+    assert "title_rookie" not in eco.shop.inventory(1)  # 選んだだけでは、買わない
     it = It()
     run(view._on_purchase(it))
-    assert "title_rookie" in eco.inventory(1) and it.sent[-1]["ephemeral"] and eco.balance(1) < INITIAL_BALANCE
+    assert (
+        "title_rookie" in eco.shop.inventory(1) and it.sent[-1]["ephemeral"] and eco.wallet.balance(1) < INITIAL_BALANCE
+    )
     inv_it = It()
     run(view._to_inventory(inv_it))
     assert (
@@ -176,12 +177,12 @@ def test_buying_a_title_then_equipping_and_unequipping_from_the_inventory_screen
     assert [o.value for o in select(view, 0).options] == ["title_rookie"]  # 持っているものだけ
     use_it = It(values=["title_rookie"])
     run(view._on_use(use_it))
-    assert eco.get_profile(1)["title"] == "title_rookie" and "装備しました" in use_it.sent[-1]["embed"].title
+    assert eco.shop.get_profile(1)["title"] == "title_rookie" and "装備しました" in use_it.sent[-1]["embed"].title
     run(view._redraw(It()))
     assert "【装備中】" in str(view.embed().fields[0].value)
     off = It(values=["title"])
     run(view._on_unequip(off))
-    assert eco.get_profile(1)["title"] is None and "外しました" in off.sent[-1]["embed"].title
+    assert eco.shop.get_profile(1)["title"] is None and "外しました" in off.sent[-1]["embed"].title
 
 
 def test_inventory_screen_has_unequip_and_title_toggle_and_back(cog):

@@ -10,7 +10,15 @@ from dataclasses import dataclass
 
 import discord
 
-from cogs.casino.common import ReplayView, game_title, log_display_failure, result_lines, signed, start_game
+from cogs.casino.common import (
+    CasinoDeps,
+    ReplayView,
+    game_title,
+    log_display_failure,
+    result_lines,
+    signed,
+    start_game,
+)
 from cogs.casino.texts import (
     PACHINKO_BANNER as BANNER,
 )
@@ -346,8 +354,8 @@ def result_body(ctx, results: list, payout: int, net: int) -> str:
 class PachinkoView(ReplayView):
     """結果の下のボタン: もう一度・倍にして・×5連続（または×10連続）。"""
 
-    def __init__(self, bot, user_id: int, per_bet: int, sets: int, replay, timeout: float = 90):
-        super().__init__(bot, user_id, per_bet * sets, replay, timeout)
+    def __init__(self, deps: CasinoDeps, user_id: int, per_bet: int, sets: int, replay, timeout: float = 90):
+        super().__init__(deps, user_id, per_bet * sets, replay, timeout)
         self.per_bet, self.sets = per_bet, sets
         extra = next((n for n in EXTRA_SETS if n > sets), None)
         if extra is not None:
@@ -359,28 +367,28 @@ class PachinkoView(ReplayView):
 
     def _make_extra(self, n: int):
         async def callback(interaction: discord.Interaction):
-            await play_pachinko(interaction, self.bot, self.per_bet, n)
+            await play_pachinko(interaction, self.deps, self.per_bet, n)
 
         return callback
 
 
-async def play_pachinko(interaction: discord.Interaction, bot, bet: int, sets: int = 1):
+async def play_pachinko(interaction: discord.Interaction, deps: CasinoDeps, bet: int, sets: int = 1):
     """bet は1セットあたりの賭け金。合計（bet × sets）が、そのまま賭け金になる（残高が足りなければ始まらない）。"""
     sets = max(1, min(int(sets), pachinko.MAX_SETS))
     total = bet * sets
-    ctx = await start_game(interaction, bot, total, "パチンコ")
+    ctx = await start_game(interaction, deps, total, "パチンコ")
     if ctx is None:
         return
     try:
         results = [pachinko.roll_set(RNG) for _ in range(sets)]
-        level = ctx.economy.rtp_level_get("パチンコ")  # 還元率レベルは、セットごとに勝ち分へかける
+        level = ctx.casino.rtp_level(ctx.guild_id, "パチンコ")  # 還元率レベルは、セットごとに勝ち分へかける
         raw = [bet * r.mult for r in results]
         adjusted = [rtplevel.adjust("パチンコ", level, bet, p) for p in raw]
         ctx.rtp_shift = sum(adjusted) - sum(raw)
         net = ctx.settle(sum(adjusted), keep_session=True, rtp_done=True)
         for r in results:
             try:  # 統計用の記録。失敗しても、結果には影響させない
-                ctx.economy.pachinko_record_set(ctx.user_id, bet, pachinko.BALLS_PER_SET, r)
+                ctx.casino.record_pachinko(ctx.guild_id, ctx.user_id, bet, pachinko.BALLS_PER_SET, r)
             except Exception as exc:
                 print(f"パチンコの記録に失敗: {exc!r}")
         top = top_round(results)
@@ -405,7 +413,7 @@ async def play_pachinko(interaction: discord.Interaction, bot, bet: int, sets: i
                 )
             await asyncio.sleep(STEP)
             step = "結果の表示"
-            view = PachinkoView(bot, ctx.user_id, bet, sets, lambda it, b: play_pachinko(it, bot, b // sets, sets))
+            view = PachinkoView(deps, ctx.user_id, bet, sets, lambda it, b: play_pachinko(it, deps, b // sets, sets))
             view.origin = interaction
             await interaction.edit_original_response(
                 embed=ui.embed(f"{game_title(TITLE, ctx)} — {signed(net)}ペリカ", body, color), view=view

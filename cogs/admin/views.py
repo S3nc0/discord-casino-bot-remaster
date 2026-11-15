@@ -10,9 +10,7 @@ from cogs.admin.embeds import announce_embed
 from cogs.admin.purge import PurgeResult, delete_own_messages
 from cogs.shared import ui
 from cogs.shared.announce import announce_channel
-from cogs.shared.cog_ports import IApprovalCogPort, IQuizCogPort, get_cog_port, guild_port, port_of
 from domain import approval
-from domain.ports import IAdminPort, IApprovalAdminPort, IQuizPort
 
 if TYPE_CHECKING:
     from cogs.admin.cog import ApprovalCog
@@ -43,29 +41,9 @@ class ApprovalButton(
         return True
 
     async def callback(self, interaction: discord.Interaction):
-        bot = ui.bot_of(interaction)
-        eco, gid = port_of(bot, IApprovalAdminPort), self.guild_id
-        guild = bot.get_guild(gid)
-        row = eco.get_guild_status(gid) or {}
-        name = guild.name if guild else row.get("name") or str(gid)
-        if self.action == "allow":
-            eco.set_guild_status(gid, approval.APPROVED, name, interaction.user.id)
-            embed = ui.ok_embed("許可しました", f"**{name}**（`{gid}`）で遊べるようになりました。")
-            if guild is not None:
-                cog = get_cog_port(bot, "ApprovalCog", IApprovalCogPort)
-                if cog is not None:
-                    await cog.announce_approved(guild)
-        else:
-            eco.set_guild_status(gid, approval.DENIED, name, interaction.user.id)
-            left = ""
-            if guild is not None:
-                try:
-                    await guild.leave()
-                    left = "Bot はそのサーバーから退出しました。"
-                except discord.HTTPException:
-                    left = "退出できませんでした（コマンドは使えないままです）。"
-            embed = ui.warn_embed("断りました", f"**{name}**（`{gid}`）の利用を断りました。{left}")
-        await interaction.response.edit_message(embed=embed, view=None)
+        bridge = ui.bot_of(interaction).bridges.approval
+        if bridge is not None:
+            await bridge.handle_button(interaction, self.action == "allow", self.guild_id)
 
 
 class AnnounceConfirm(ui.OwnerView):
@@ -96,7 +74,7 @@ class AnnounceConfirm(ui.OwnerView):
         )
         done, failed = [], []
         for guild in self.guilds:
-            channel = self.channel or announce_channel(guild, guild_port(self.cog.bot, guild.id, IAdminPort))
+            channel = self.channel or announce_channel(guild, self.cog._guild_repo.for_guild(guild.id))
             if channel is None:
                 failed.append(f"{guild.name}（投稿できるチャンネルがありません）")
                 continue
@@ -148,14 +126,14 @@ class QuizBulkConfirm(ui.OwnerView):
     async def register(self, interaction: discord.Interaction, button: discord.ui.Button):
         self.stop()
         await interaction.response.defer()
-        ids = port_of(self.cog.bot, IQuizPort).quiz_add_many(self.quizzes, time.time(), interaction.user.display_name)
+        ids = self.cog._quiz.quiz_add_many(self.quizzes, time.time(), interaction.user.display_name)
         note = "告知はしていません。`/クイズ 挑戦` に出ます。"
         if self.announce:
-            quiz_cog = get_cog_port(self.cog.bot, "QuizCog", IQuizCogPort)
-            if quiz_cog is None:
+            quiz_bridge = self.cog._quiz_bridge
+            if quiz_bridge is None:
                 note = "クイズ機能が読み込まれていないため、告知できませんでした。"
             else:
-                counts = [await quiz_cog.broadcast(qid, self.guild, self.channel) for qid in ids]
+                counts = [await quiz_bridge.broadcast(qid, self.guild, self.channel) for qid in ids]
                 note = f"{self.target_text()}に、{len(ids)}問を出しました（のべ{sum(counts)}件の投稿）。"
         await interaction.edit_original_response(
             embeds=[ui.ok_embed(f"クイズを{len(ids)}問登録しました", f"番号: #{ids[0]}〜#{ids[-1]}\n{note}")], view=None
@@ -232,7 +210,9 @@ class PurgeConfirm(ui.OwnerView):
                 pass  # 画面が更新できなくても、削除は続ける
 
         try:
-            result = await delete_own_messages(self.channel, self.cog.bot.user.id, progress)
+            bot_user = self.cog.bot.user
+            assert bot_user is not None
+            result = await delete_own_messages(self.channel, bot_user.id, progress)
             final = purge_report_embed(result, True)
         except discord.Forbidden:
             final = ui.error_embed(

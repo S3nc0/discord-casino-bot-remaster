@@ -8,20 +8,36 @@
 
 import random
 import time
+from typing import TYPE_CHECKING, Any
 
 from discord.ext import commands, tasks
 
 from cogs.market.bond_embeds import KIND_CHOICES, describe_done, due_text  # noqa: F401
-from cogs.shared.cog_ports import guild_port, port_of
 from domain import approval
-from domain.ports import IGuildApprovalStore, IMarketPort
+from domain.ports.repos import IBankRepo, IBondRepo, IGuildRepo, IOptionRepo
+
+if TYPE_CHECKING:
+    from cogs.shared.bot import CasinoBot
 
 RNG = random.SystemRandom()
 
 
 class BondCog(commands.Cog):
-    def __init__(self, bot):
+    def __init__(
+        self,
+        bot: commands.Bot,
+        config: dict[str, Any],
+        guild_repo: IGuildRepo,
+        bonds_repo: IBondRepo,
+        options_repo: IOptionRepo,
+        bank_repo: IBankRepo,
+    ):
         self.bot = bot
+        self._config = config
+        self._guild_repo = guild_repo
+        self._bonds = bonds_repo
+        self._options = options_repo
+        self._bank = bank_repo
 
     async def cog_load(self):
         self.tick.start()
@@ -43,15 +59,15 @@ class BondCog(commands.Cog):
 
     def run_once(self) -> None:
         now = time.time()
-        approval_store = port_of(self.bot, IGuildApprovalStore)
         for guild in list(self.bot.guilds):
-            if not approval.is_allowed(approval_store, self.bot.config, guild.id, 0):
+            if not approval.is_allowed(self._guild_repo, self._config, guild.id, 0):
                 continue
             try:
-                eco = guild_port(self.bot, guild.id, IMarketPort)
-                eco.bond_settle(now, RNG)
-                eco.option_settle(now)  # 満期のオプションの決済
-                for user_id, result in eco.grace_expire(now):  # 破産猶予の時間切れ（強制破産と、CDS の配当）
+                self._bonds.for_guild(guild.id).bond_settle(now, RNG)
+                self._options.for_guild(guild.id).option_settle(now)  # 満期のオプションの決済
+                for user_id, result in self._bank.for_guild(guild.id).grace_expire(
+                    now
+                ):  # 破産猶予の時間切れ（強制破産と、CDS の配当）
                     print(
                         f"強制破産: guild={guild.id} user={user_id} 差し押さえ={result['seized']:,} CDS配当={result['cds_paid']:,}"
                     )
@@ -59,5 +75,14 @@ class BondCog(commands.Cog):
                 print(f"債券の決着・破産猶予の確認に失敗: guild={guild.id}: {exc!r}")
 
 
-async def setup(bot):
-    await bot.add_cog(BondCog(bot))
+async def setup(bot: "CasinoBot"):
+    await bot.add_cog(
+        BondCog(
+            bot,
+            config=bot.config,
+            guild_repo=bot.repos.guild,
+            bonds_repo=bot.repos.bonds,
+            options_repo=bot.repos.options,
+            bank_repo=bot.repos.bank,
+        )
+    )

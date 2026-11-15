@@ -3,6 +3,7 @@
 from dataclasses import dataclass
 from typing import Any
 
+from domain.ports.clock import IClock
 from domain.ports.repos import IRepositoryBundle
 from domain.ports.session import ISessionGuard
 from infra.clock import ConfigClock
@@ -17,6 +18,7 @@ from services.market import MarketService
 class ServiceRegistry:
     """全アプリケーションサービスを束ねるレジストリ。"""
 
+    clock: IClock
     sessions: ISessionGuard
     casino: CasinoService
     market: MarketService
@@ -28,6 +30,7 @@ class ServiceRegistry:
 def build_services(config: dict[str, Any], repos: IRepositoryBundle, sessions: ISessionGuard) -> ServiceRegistry:
     clock = ConfigClock(config)
     return ServiceRegistry(
+        clock=clock,
         sessions=sessions,
         casino=CasinoService(
             wallet=repos.wallet,
@@ -63,23 +66,3 @@ def build_services(config: dict[str, Any], repos: IRepositoryBundle, sessions: I
         ),
         labor=LaborService(labor=repos.labor, clock=clock, config=config),
     )
-
-
-def services_of(bot: Any) -> ServiceRegistry:
-    """`bot.services` を返す。Milestone C 完了までの FakeBot 互換解決を含む。"""
-    existing = getattr(bot, "services", None)
-    if existing is not None:
-        return existing
-    config = getattr(bot, "config", {}) or {}
-    sessions = getattr(bot, "sessions", None)
-    if sessions is None:
-        from services.session import Sessions
-
-        sessions = Sessions()
-    repos = getattr(bot, "repos", None)
-    if repos is None:
-        eco_obj = bot.economy
-        repos = getattr(eco_obj, "_repos", None)
-        if repos is None:
-            repos = eco_obj.for_guild(1)._repos
-    return build_services(config, repos, sessions)

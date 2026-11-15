@@ -9,7 +9,7 @@
 
 import re
 import time
-from typing import Any, Optional
+from typing import TYPE_CHECKING, Any, Optional, cast
 
 import discord
 from discord import app_commands
@@ -18,13 +18,16 @@ from discord.ext import commands, tasks
 from cogs.shared import ui
 from cogs.shared.amount import balance_choices
 from cogs.shared.announce import announce_channel
-from cogs.shared.cog_ports import guild_port, port_of
+from cogs.shared.bridges import ILoanButtonBridge
 from cogs.shared.confirm import confirm_action
 from cogs.shared.messages import format_failure
 from domain import approval, loans, teiai
 from domain.duration import format_minutes
-from domain.ports import IGuildApprovalStore, ILoanPort
+from domain.ports.repos import IGuildRepo, ILoanRepo, IWalletRepo
 from infra import logthrottle
+
+if TYPE_CHECKING:
+    from cogs.shared.bot import CasinoBot
 
 
 def who(user_id: int) -> str:
@@ -42,9 +45,9 @@ def terms_lines(loan: dict) -> list:
     ]
 
 
-def borrower_note(eco, user_id: int) -> str:
+def borrower_note(loans_repo: ILoanRepo, user_id: int) -> str:
     """貸す人が、貸す相手のリスクを見られるように、借りる人の信用情報を出す（資産の額は見せない）。"""
-    c = eco.loan_credit(user_id)
+    c = loans_repo.loan_credit(user_id)
     lines = [
         f"**借りる人の信用情報**\n身分: {teiai.STATUS_LABEL[c['status']]}"
         + (f"　帝愛への借金: {ui.pelica(c['debt'])}" if c["debt"] else "")
@@ -110,7 +113,10 @@ class LoanButton(
         return cls(match["act"], int(match["id"]))
 
     async def callback(self, interaction: discord.Interaction):
-        await handle_button(interaction.client, interaction, self.act, self.loan_id)
+        bot = cast("CasinoBot", interaction.client)
+        bridge = bot.bridges.loan
+        if bridge is not None:
+            await bridge.handle_button(interaction, self.act, self.loan_id)
 
 
 def offer_view(loan_id: int) -> discord.ui.View:
@@ -127,9 +133,9 @@ def request_view(loan_id: int) -> discord.ui.View:
     return view
 
 
-async def handle_lend(bot, interaction: discord.Interaction, loan_id: int) -> None:
+async def handle_lend(loans_repo: ILoanRepo, interaction: discord.Interaction, loan_id: int) -> None:
     """募集の「貸す」。お金が動くので、確認ボタンを挟んでから貸す。"""
-    eco = guild_port(bot, ui.guild_id_of(interaction), ILoanPort)
+    eco = loans_repo.for_guild(ui.guild_id_of(interaction))
     loan = eco.loan_get(loan_id)
     if loan is None or loan["status"] != "request":
         await interaction.response.send_message(
@@ -176,17 +182,22 @@ async def handle_lend(bot, interaction: discord.Interaction, loan_id: int) -> No
     )
 
 
-async def handle_button(bot, interaction: discord.Interaction, act: str, loan_id: int) -> None:
+async def handle_button(
+    loans_repo: ILoanRepo,
+    guild_repo: IGuildRepo,
+    config: dict[str, Any],
+    interaction: discord.Interaction,
+    act: str,
+    loan_id: int,
+) -> None:
     guild_id = interaction.guild_id
-    if guild_id is None or not approval.is_allowed(
-        port_of(bot, IGuildApprovalStore), bot.config, guild_id, interaction.user.id
-    ):
+    if guild_id is None or not approval.is_allowed(guild_repo, config, guild_id, interaction.user.id):
         await interaction.response.send_message(embed=ui.error_embed("利用できません"), ephemeral=True)
         return
-    eco = guild_port(bot, guild_id, ILoanPort)
+    eco = loans_repo.for_guild(guild_id)
     now = time.time()
     if act == "lend":
-        return await handle_lend(bot, interaction, loan_id)
+        return await handle_lend(loans_repo, interaction, loan_id)
     if act == "accept":
         ok, reason = eco.loan_accept(loan_id, interaction.user.id, now)
     elif act == "decline":
@@ -212,11 +223,22 @@ async def handle_button(bot, interaction: discord.Interaction, act: str, loan_id
     await interaction.response.edit_message(embed=embed, view=None)
 
 
-class LoanCog(commands.Cog):
-    def __init__(self, bot):
+class LoanCog(commands.Cog, ILoanButtonBridge):
+    def __init__(
+        self,
+        bot: commands.Bot,
+        config: dict[str, Any],
+        loans_repo: ILoanRepo,
+        wallet: IWalletRepo,
+        guild_repo: IGuildRepo,
+    ) -> None:
         self.bot = bot
+        self._config = config
+        self._loans = loans_repo
+        self._wallet = wallet
+        self._guild_repo = guild_repo
 
-    async def cog_load(self):
+    async def cog_load(self) -> None:
         self.bot.add_dynamic_items(LoanButton)
         self.tick.start()
 
@@ -225,13 +247,16 @@ class LoanCog(commands.Cog):
 
     group = app_commands.Group(name="貸付", description="🤝 ペリカの貸し借り（日割りの単利つき）", guild_only=True)
 
-    def g(self, interaction: discord.Interaction) -> ILoanPort:
-        return guild_port(self.bot, ui.guild_id_of(interaction), ILoanPort)
+    def g(self, interaction: discord.Interaction) -> ILoanRepo:
+        return self._loans.for_guild(ui.guild_id_of(interaction))
+
+    async def handle_button(self, interaction: discord.Interaction, action: str, loan_id: int) -> None:
+        await handle_button(self._loans, self._guild_repo, self._config, interaction, action, loan_id)
 
     # ------------------------------ 提案 ------------------------------ #
     async def _principal_autocomplete(self, interaction: discord.Interaction, current: str):
         """貸す額の欄に、残高を見せる。"""
-        return balance_choices(self.bot, interaction, current, loans.USER_MIN_PRINCIPAL)
+        return balance_choices(self._wallet, interaction, current, loans.USER_MIN_PRINCIPAL)
 
     @group.command(name="提案", description="相手にペリカを貸す提案を出す")
     @app_commands.rename(member="相手", principal="金額", rate="日利", days="期間")
@@ -402,12 +427,11 @@ class LoanCog(commands.Cog):
 
     async def run_once(self) -> None:
         now = time.time()
-        approval_store = port_of(self.bot, IGuildApprovalStore)
         for guild in list(self.bot.guilds):
-            if not approval.is_allowed(approval_store, self.bot.config, guild.id, 0):
+            if not approval.is_allowed(self._guild_repo, self._config, guild.id, 0):
                 continue
             try:
-                eco = guild_port(self.bot, guild.id, ILoanPort)
+                eco = self._loans.for_guild(guild.id)
                 for loan in eco.loan_expire_offers(now):
                     await self._edit_offer(
                         guild,
@@ -422,7 +446,6 @@ class LoanCog(commands.Cog):
                 for loan in eco.loan_due_soon(now):
                     await self._say(
                         guild,
-                        eco,
                         loan,
                         f"⏰ 貸付 #{loan['id']} の返済の期限は <t:{int(loan['due'])}:R> です。<@{loan['borrower_id']}> さん、`/貸付 返済` で返せます（期限には、残高から自動で回収します）。",
                     )
@@ -430,14 +453,12 @@ class LoanCog(commands.Cog):
                     if loan["status"] == "repaid":
                         await self._say(
                             guild,
-                            eco,
                             loan,
                             f"✅ 貸付 #{loan['id']} の期限が来て、{ui.pelica(loan['collected'])}を回収し、返済が終わりました。",
                         )
                     else:
                         await self._say(
                             guild,
-                            eco,
                             loan,
                             f"⚠️ 貸付 #{loan['id']} は延滞です。{ui.pelica(loan['collected'])}を回収しましたが、残り {ui.pelica(loan['left'])} があります。<@{loan['borrower_id']}> さんに入るお金から、自動で回収していきます。",
                         )
@@ -456,9 +477,9 @@ class LoanCog(commands.Cog):
         except discord.HTTPException:
             pass
 
-    async def _say(self, guild: discord.Guild, eco, loan: dict, text: str) -> None:
+    async def _say(self, guild: discord.Guild, loan: dict, text: str) -> None:
         channel = (guild.get_channel(loan["channel_id"]) if loan["channel_id"] else None) or announce_channel(
-            guild, eco
+            guild, self._guild_repo
         )
         if channel is None:
             return
@@ -473,5 +494,7 @@ class LoanCog(commands.Cog):
             logthrottle.warn(("loan", guild.id), f"貸付の知らせを投稿できません: guild={guild.id}: {exc!r}")
 
 
-async def setup(bot):
-    await bot.add_cog(LoanCog(bot))
+async def setup(bot: "CasinoBot") -> None:
+    cog = LoanCog(bot, bot.config, bot.repos.loans, bot.repos.wallet, bot.repos.guild)
+    bot.bridges.loan = cog
+    await bot.add_cog(cog)

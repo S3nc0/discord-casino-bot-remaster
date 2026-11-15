@@ -1,5 +1,7 @@
 """/help — はじめての人向けの短い案内と、ボタンで開くカテゴリ別の説明。"""
 
+from typing import TYPE_CHECKING
+
 import discord
 from discord import app_commands
 from discord.ext import commands
@@ -7,6 +9,9 @@ from discord.ext import commands
 from cogs.help.texts import BUTTONS, HOME_DESCRIPTION, HOME_TITLE, PAGES, home_footer
 from cogs.shared import ui
 from domain.games.rtplevel import MIN_BET
+
+if TYPE_CHECKING:
+    from cogs.shared.bot import CasinoBot
 
 HOME = "home"
 
@@ -39,13 +44,13 @@ class HelpView(discord.ui.View):
 
 
 class Help(commands.Cog):
-    def __init__(self, bot):
-        self.bot = bot
+    def __init__(self) -> None:
+        pass
 
     @app_commands.command(name="help", description="📖 はじめての人向けの案内（ボタンでくわしい説明）")
     async def help(self, interaction: discord.Interaction):
         await interaction.response.send_message(embed=page_embed(HOME), view=HelpView(), ephemeral=True)
 
 
-async def setup(bot):
-    await bot.add_cog(Help(bot))
+async def setup(bot: "CasinoBot") -> None:
+    await bot.add_cog(Help())

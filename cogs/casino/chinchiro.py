@@ -10,6 +10,7 @@ from typing import Optional
 import discord
 
 from cogs.casino.common import (
+    CasinoDeps,
     GameContext,
     OwnerView,
     ReplayView,
@@ -69,9 +70,9 @@ def _role_line(table: dict, skin_table: Optional[dict], key: str) -> str:
     return (skin_table or {}).get(key) or table.get(key, table[rules.ME])
 
 
-async def play_chinchiro(interaction: discord.Interaction, bot, bet: int):
+async def play_chinchiro(interaction: discord.Interaction, deps: CasinoDeps, bet: int):
     # 負けの倍払い（最大10倍）が残高を超えた分は借金になり、次の入金から強制で返済する
-    ctx = await start_game(interaction, bot, bet, "チンチロ")
+    ctx = await start_game(interaction, deps, bet, "チンチロ")
     if ctx is None:
         return
     try:
@@ -145,7 +146,7 @@ class ChinchiroView(OwnerView):
     def replay_view(self) -> ReplayView:
         """結果の下に付ける「もう一度」ボタン。"""
         view = ReplayView(
-            self.ctx.bot, self.ctx.user_id, self.base_bet, lambda it, b: play_chinchiro(it, self.ctx.bot, b)
+            self.ctx.deps, self.ctx.user_id, self.base_bet, lambda it, b: play_chinchiro(it, self.ctx.deps, b)
         )
         view.origin = self.origin
         return view
@@ -168,7 +169,7 @@ class ChinchiroView(OwnerView):
         elif outcome.result == "lose":
             key = rules.HIFUMI if player.kind == rules.HIFUMI else dealer.kind
             line, color = _role_line(LOSE_LINE, skin.role_lose if skin else None, key), ui.ERROR
-            if extra and self.ctx.economy.debt(self.ctx.user_id) > 0:
+            if extra and self.ctx.casino.debt_amount(self.ctx.guild_id, self.ctx.user_id) > 0:
                 line += "\n払い切れない…！ 残りは借金になった…"
         else:
             line, color = "引き分け…。ざわ……何も動かない…", ui.INFO

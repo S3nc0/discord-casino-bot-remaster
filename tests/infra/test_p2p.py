@@ -8,8 +8,8 @@ import pytest
 from cogs.p2p import cog as p2p_cog
 from domain import horse as horse_mod
 from domain import p2p, shop, teiai
-from infra.db.economy import Economy
-from services.session import Sessions
+from infra.db.repositories import open_repositories
+from tests.support import make_p2p_cog, make_shop_cog, make_test_bot
 
 pytestmark = pytest.mark.real_scope
 
@@ -22,24 +22,24 @@ CARD = next(i.id for i in shop.CATALOG if i.kind == shop.CARD_COLOR and not i.li
 
 @pytest.fixture
 def eco(tmp_path):
-    e = Economy(str(tmp_path / "t.db"), strict=True).for_guild(G)
+    e = open_repositories(str(tmp_path / "t.db"), strict=True).for_guild(G)
     for uid in (S, B, C):
-        e.credit(uid, 500_000, "テスト")
+        e.wallet.credit(uid, 500_000, "テスト")
     return e
 
 
 def give(eco, uid, item, qty=1):
-    eco._conn.execute(
+    eco.db.conn.execute(
         "INSERT INTO inventory (guild_id, user_id, item_id, qty) VALUES (?, ?, ?, ?) "
         "ON CONFLICT(guild_id, user_id, item_id) DO UPDATE SET qty = qty + excluded.qty",
-        (eco._g(), uid, item, qty),
+        (G, uid, item, qty),
     )
-    eco._conn.commit()
+    eco.db.conn.commit()
 
 
 def horse(eco, uid=S, name="ホース"):
     give(eco, uid, shop.HORSE_VOUCHER)
-    ok, hid = eco.horse_create(uid, name, "栗毛", "🟥")
+    ok, hid = eco.horses.horse_create(uid, name, "栗毛", "🟥")
     assert ok
     return hid
 
@@ -72,166 +72,171 @@ def test_price_range_follows_the_list_price_and_the_fee_and_increment_rules():
 # ----------------------------- 出品 ----------------------------- #
 def test_listing_an_item_takes_it_from_the_inventory_and_cancel_returns_it(eco):
     give(eco, S, CARROT, 5)
-    ok, lid = eco.p2p_list(S, "item", CARROT, 2, "fixed", 1_500, None, NOW)
-    assert ok and eco.inventory(S)[CARROT] == 3  # 出した分は、預かられる
-    assert eco.p2p_cancel(S, lid, NOW + 1)[0] and eco.inventory(S)[CARROT] == 5
-    assert not eco.p2p_cancel(S, lid, NOW + 2)[0]  # もう取り消せない
+    ok, lid = eco.p2p.p2p_list(S, "item", CARROT, 2, "fixed", 1_500, None, NOW)
+    assert ok and eco.shop.inventory(S)[CARROT] == 3  # 出した分は、預かられる
+    assert eco.p2p.p2p_cancel(S, lid, NOW + 1)[0] and eco.shop.inventory(S)[CARROT] == 5
+    assert not eco.p2p.p2p_cancel(S, lid, NOW + 2)[0]  # もう取り消せない
 
 
 def test_listing_validates_ownership_price_range_kind_and_the_active_limit(eco):
     give(eco, S, CARROT, 1)
-    assert not eco.p2p_list(S, "item", CARROT, 5, "fixed", 1_000, None, NOW)[0]  # 持っていない数
-    assert not eco.p2p_list(S, "item", CARROT, 1, "fixed", 10, None, NOW)[0]  # 安すぎる（送金の抜け道・投げ売り）
-    assert not eco.p2p_list(S, "item", CARROT, 1, "fixed", 900_000, None, NOW)[0]  # 高すぎる（送金の抜け道）
-    assert not eco.p2p_list(S, "item", "title_regular", 1, "fixed", 5_000, None, NOW)[0]  # 称号は売れない
-    assert not eco.p2p_list(S, "item", CARROT, 1, "auction", 1_000, 5, NOW)[0]  # 競りの長さは決まった中から
+    assert not eco.p2p.p2p_list(S, "item", CARROT, 5, "fixed", 1_000, None, NOW)[0]  # 持っていない数
+    assert not eco.p2p.p2p_list(S, "item", CARROT, 1, "fixed", 10, None, NOW)[0]  # 安すぎる（送金の抜け道・投げ売り）
+    assert not eco.p2p.p2p_list(S, "item", CARROT, 1, "fixed", 900_000, None, NOW)[0]  # 高すぎる（送金の抜け道）
+    assert not eco.p2p.p2p_list(S, "item", "title_regular", 1, "fixed", 5_000, None, NOW)[0]  # 称号は売れない
+    assert not eco.p2p.p2p_list(S, "item", CARROT, 1, "auction", 1_000, 5, NOW)[0]  # 競りの長さは決まった中から
     give(eco, S, shop.INSURANCE, 10)
     for _ in range(p2p.MAX_ACTIVE):
-        assert eco.p2p_list(S, "item", shop.INSURANCE, 1, "fixed", 2_000, None, NOW)[0]
-    ok, why = eco.p2p_list(S, "item", shop.INSURANCE, 1, "fixed", 2_000, None, NOW)
+        assert eco.p2p.p2p_list(S, "item", shop.INSURANCE, 1, "fixed", 2_000, None, NOW)[0]
+    ok, why = eco.p2p.p2p_list(S, "item", shop.INSURANCE, 1, "fixed", 2_000, None, NOW)
     assert not ok and why.code == "p2p_max_active" and why.params["max_active"] == p2p.MAX_ACTIVE
 
 
 def test_listing_an_equipped_cosmetic_unequips_it(eco):
     give(eco, S, CARD)
-    assert eco.equip(S, "card_color", CARD)
-    assert eco.get_profile(S)["card_color"] == CARD
-    assert eco.p2p_list(S, "item", CARD, 1, "fixed", shop.BY_ID[CARD].price, None, NOW)[0]
-    assert eco.get_profile(S)["card_color"] is None and CARD not in eco.inventory(S)
+    assert eco.shop.equip(S, "card_color", CARD)
+    assert eco.shop.get_profile(S)["card_color"] == CARD
+    assert eco.p2p.p2p_list(S, "item", CARD, 1, "fixed", shop.BY_ID[CARD].price, None, NOW)[0]
+    assert eco.shop.get_profile(S)["card_color"] is None and CARD not in eco.shop.inventory(S)
 
 
 # ----------------------------- 定価で買う ----------------------------- #
 def test_buying_pays_the_seller_minus_the_fee_and_moves_the_item(eco):
     give(eco, S, CARROT, 2)
-    _, lid = eco.p2p_list(S, "item", CARROT, 2, "fixed", 2_000, None, NOW)
-    s0, b0, cash0 = eco.balance(S), eco.balance(B), eco.bank_status()["cash"]
-    ok, paid = eco.p2p_buy(B, lid, NOW + 1)
+    _, lid = eco.p2p.p2p_list(S, "item", CARROT, 2, "fixed", 2_000, None, NOW)
+    s0, b0, cash0 = eco.wallet.balance(S), eco.wallet.balance(B), eco.bank.bank_status()["cash"]
+    ok, paid = eco.p2p.p2p_buy(B, lid, NOW + 1)
     assert ok and paid == 2_000
-    assert eco.balance(B) == b0 - 2_000 and eco.inventory(B)[CARROT] == 2
-    assert eco.balance(S) == s0 + 2_000 - p2p.fee_of(2_000)  # 手数料を引いた額
-    assert eco.bank_status()["cash"] > cash0  # 手数料は帝愛銀行の収入
-    assert eco.p2p_get(lid)["status"] == "sold" and not eco.p2p_buy(C, lid, NOW + 2)[0]
+    assert eco.wallet.balance(B) == b0 - 2_000 and eco.shop.inventory(B)[CARROT] == 2
+    assert eco.wallet.balance(S) == s0 + 2_000 - p2p.fee_of(2_000)  # 手数料を引いた額
+    assert eco.bank.bank_status()["cash"] > cash0  # 手数料は帝愛銀行の収入
+    assert eco.p2p.p2p_get(lid)["status"] == "sold" and not eco.p2p.p2p_buy(C, lid, NOW + 2)[0]
 
 
 def test_buy_checks_self_balance_debt_ownership_and_expiry(eco):
     give(eco, S, CARD)
-    _, lid = eco.p2p_list(S, "item", CARD, 1, "fixed", shop.BY_ID[CARD].price, None, NOW)
-    assert eco.p2p_buy(S, lid, NOW + 1)[1].code == "p2p_self_buy"
+    _, lid = eco.p2p.p2p_list(S, "item", CARD, 1, "fixed", shop.BY_ID[CARD].price, None, NOW)
+    assert eco.p2p.p2p_buy(S, lid, NOW + 1)[1].code == "p2p_self_buy"
     give(eco, B, CARD)
-    assert eco.p2p_buy(B, lid, NOW + 1)[1].code == "already_owned"  # 見た目の品は、1つだけ
-    eco._conn.execute("UPDATE users SET balance=10 WHERE user_id=?", (C,))
-    assert eco.p2p_buy(C, lid, NOW + 1)[1].code == "insufficient_balance_need" and eco.inventory(S).get(CARD) is None
-    assert not eco.p2p_buy(C, lid, NOW + p2p.FIXED_DAYS * 86400 + 1)[0]  # 期限切れ
+    assert eco.p2p.p2p_buy(B, lid, NOW + 1)[1].code == "already_owned"  # 見た目の品は、1つだけ
+    eco.db.conn.execute("UPDATE users SET balance=10 WHERE user_id=?", (C,))
+    assert (
+        eco.p2p.p2p_buy(C, lid, NOW + 1)[1].code == "insufficient_balance_need"
+        and eco.shop.inventory(S).get(CARD) is None
+    )
+    assert not eco.p2p.p2p_buy(C, lid, NOW + p2p.FIXED_DAYS * 86400 + 1)[0]  # 期限切れ
 
 
 def test_a_debtor_cannot_buy(eco):
     give(eco, S, CARROT)
-    _, lid = eco.p2p_list(S, "item", CARROT, 1, "fixed", 1_000, None, NOW)
-    with eco._lock, eco._conn:
-        eco._conn.execute("UPDATE users SET debt=5000 WHERE user_id=?", (B,))
-    ok, why = eco.p2p_buy(B, lid, NOW + 1)
+    _, lid = eco.p2p.p2p_list(S, "item", CARROT, 1, "fixed", 1_000, None, NOW)
+    with eco.db.tx():
+        eco.db.conn.execute("UPDATE users SET debt=5000 WHERE user_id=?", (B,))
+    ok, why = eco.p2p.p2p_buy(B, lid, NOW + 1)
     assert not ok and why.code == "p2p_katagi_only"
 
 
 # ----------------------------- 馬の売買 ----------------------------- #
 def test_horse_is_escrowed_while_listed_and_moves_to_the_buyer(eco):
     hid = horse(eco, S)
-    ok, lid = eco.p2p_list(S, "horse", str(hid), 1, "fixed", 40_000, None, NOW)
-    assert ok and eco.horse_list(S) == [] and eco.horse_get(hid)["owner_id"] == p2p.ESCROW_OWNER
-    assert eco._horse_count(S) == 1  # 出品中も、持ち数に数える
-    assert eco.p2p_buy(B, lid, NOW + 1)[0]
-    assert [h["id"] for h in eco.horse_list(B)] == [hid] and eco.horse_get(hid)[
+    ok, lid = eco.p2p.p2p_list(S, "horse", str(hid), 1, "fixed", 40_000, None, NOW)
+    assert ok and eco.horses.horse_list(S) == [] and eco.horses.horse_get(hid)["owner_id"] == p2p.ESCROW_OWNER
+    assert eco.horses.horse_count_for(G, S) == 1  # 出品中も、持ち数に数える
+    assert eco.p2p.p2p_buy(B, lid, NOW + 1)[0]
+    assert [h["id"] for h in eco.horses.horse_list(B)] == [hid] and eco.horses.horse_get(hid)[
         "name"
     ] == "ホース"  # 名前・ステータスは、そのまま
 
 
 def test_a_horse_scheduled_for_a_race_cannot_be_listed_and_listing_does_not_free_a_slot(eco):
     hid = horse(eco, S)
-    rid = eco.race_create_special(NOW, 10, 10)
-    assert eco.race_register(S, hid, rid, NOW + 1)[0]
-    ok, why = eco.p2p_list(S, "horse", str(hid), 1, "fixed", 40_000, None, NOW + 2)
+    rid = eco.races.race_create_special(NOW, 10, 10)
+    assert eco.races.race_register(S, hid, rid, NOW + 1)[0]
+    ok, why = eco.p2p.p2p_list(S, "horse", str(hid), 1, "fixed", 40_000, None, NOW + 2)
     assert not ok and why.code == "p2p_horse_in_race"
-    eco.race_withdraw(S, hid, rid, NOW + 3)
+    eco.races.race_withdraw(S, hid, rid, NOW + 3)
     others = [horse(eco, S, f"馬{i}") for i in range(horse_mod.MAX_HORSES - 1)]
     assert len(others) == horse_mod.MAX_HORSES - 1
-    assert eco.p2p_list(S, "horse", str(hid), 1, "fixed", 40_000, None, NOW + 4)[0]
+    assert eco.p2p.p2p_list(S, "horse", str(hid), 1, "fixed", 40_000, None, NOW + 4)[0]
     give(eco, S, shop.HORSE_VOUCHER)
-    ok, why = eco.horse_create(S, "4頭目", "栗毛", "🟥")  # 出品中の馬も数えるので、3頭を超えて持てない
+    ok, why = eco.horses.horse_create(S, "4頭目", "栗毛", "🟥")  # 出品中の馬も数えるので、3頭を超えて持てない
     assert not ok and why.code == "horse_max_owned"
 
 
 def test_cancelling_a_horse_listing_returns_the_horse(eco):
     hid = horse(eco, S)
-    _, lid = eco.p2p_list(S, "horse", str(hid), 1, "auction", 30_000, 6, NOW)
-    assert eco.p2p_cancel(S, lid, NOW + 1)[0] and eco.horse_get(hid)["owner_id"] == S
+    _, lid = eco.p2p.p2p_list(S, "horse", str(hid), 1, "auction", 30_000, 6, NOW)
+    assert eco.p2p.p2p_cancel(S, lid, NOW + 1)[0] and eco.horses.horse_get(hid)["owner_id"] == S
 
 
 def test_buyer_with_three_horses_cannot_buy_another(eco):
     for i in range(horse_mod.MAX_HORSES):
         horse(eco, B, f"持ち馬{i}")
     hid = horse(eco, S)
-    _, lid = eco.p2p_list(S, "horse", str(hid), 1, "fixed", 40_000, None, NOW)
-    ok, why = eco.p2p_buy(B, lid, NOW + 1)
+    _, lid = eco.p2p.p2p_list(S, "horse", str(hid), 1, "fixed", 40_000, None, NOW)
+    ok, why = eco.p2p.p2p_buy(B, lid, NOW + 1)
     assert not ok and why.code == "p2p_horse_limit"
 
 
 # ----------------------------- 競り ----------------------------- #
 def test_bidding_escrows_money_refunds_the_outbid_and_extends_near_the_end(eco):
     give(eco, S, CARROT, 3)
-    _, lid = eco.p2p_list(S, "item", CARROT, 3, "auction", 1_000, 1, NOW)
-    b0, c0 = eco.balance(B), eco.balance(C)
-    bid1 = eco.p2p_bid(B, lid, 900, NOW + 10)[1]
+    _, lid = eco.p2p.p2p_list(S, "item", CARROT, 3, "auction", 1_000, 1, NOW)
+    b0, c0 = eco.wallet.balance(B), eco.wallet.balance(C)
+    bid1 = eco.p2p.p2p_bid(B, lid, 900, NOW + 10)[1]
     assert bid1.code == "p2p_bid_min" and bid1.params["need"] == 1_000  # 開始価格より低い
-    ok, end = eco.p2p_bid(B, lid, 1_000, NOW + 10)
-    assert ok and eco.balance(B) == b0 - 1_000  # お金は預かられる
-    assert eco.p2p_bid(B, lid, 1_500, NOW + 11)[1].code == "p2p_already_highest_bidder"
-    bid2 = eco.p2p_bid(C, lid, 1_050, NOW + 12)[1]
+    ok, end = eco.p2p.p2p_bid(B, lid, 1_000, NOW + 10)
+    assert ok and eco.wallet.balance(B) == b0 - 1_000  # お金は預かられる
+    assert eco.p2p.p2p_bid(B, lid, 1_500, NOW + 11)[1].code == "p2p_already_highest_bidder"
+    bid2 = eco.p2p.p2p_bid(C, lid, 1_050, NOW + 12)[1]
     assert bid2.code == "p2p_bid_min" and bid2.params["need"] == 1_100  # 5%（最低100）以上
-    ok, _ = eco.p2p_bid(C, lid, 1_200, NOW + 3_500)  # 締切（NOW+3600）の5分前を切ってから
-    assert ok and eco.balance(B) == b0 and eco.balance(C) == c0 - 1_200  # 抜かれた人には、返る
-    assert eco.p2p_get(lid)["end_at"] == NOW + 3_500 + p2p.SNIPE_SECONDS  # 締切が延びた
-    assert eco.p2p_buy(B, lid, NOW + 3_501)[1].code == "p2p_is_auction"  # 競りは「買う」では買えない
-    assert not eco.p2p_cancel(S, lid, NOW + 3_502)[0]  # 入札が入ったら、取り消せない
+    ok, _ = eco.p2p.p2p_bid(C, lid, 1_200, NOW + 3_500)  # 締切（NOW+3600）の5分前を切ってから
+    assert ok and eco.wallet.balance(B) == b0 and eco.wallet.balance(C) == c0 - 1_200  # 抜かれた人には、戻る
+    assert eco.p2p.p2p_get(lid)["end_at"] == NOW + 3_500 + p2p.SNIPE_SECONDS  # 締切が延びた
+    assert eco.p2p.p2p_buy(B, lid, NOW + 3_501)[1].code == "p2p_is_auction"  # 競りは「買う」では買えない
+    assert not eco.p2p.p2p_cancel(S, lid, NOW + 3_502)[0]  # 入札が入ったら、取り消せない
 
 
 def test_auction_settles_to_the_highest_bidder_and_pays_the_seller_minus_the_fee(eco):
     give(eco, S, CARROT, 3)
-    _, lid = eco.p2p_list(S, "item", CARROT, 3, "auction", 1_000, 1, NOW)
-    eco.p2p_bid(B, lid, 1_000, NOW + 10)
-    eco.p2p_bid(C, lid, 1_300, NOW + 20)
-    s0 = eco.balance(S)
-    assert eco.p2p_settle(NOW + 100) == []  # まだ締切前
-    out = eco.p2p_settle(NOW + 3_601)
+    _, lid = eco.p2p.p2p_list(S, "item", CARROT, 3, "auction", 1_000, 1, NOW)
+    eco.p2p.p2p_bid(B, lid, 1_000, NOW + 10)
+    eco.p2p.p2p_bid(C, lid, 1_300, NOW + 20)
+    s0 = eco.wallet.balance(S)
+    assert eco.p2p.p2p_settle(NOW + 100) == []  # まだ締切前
+    out = eco.p2p.p2p_settle(NOW + 3_601)
     assert [(r["id"], res) for r, res in out] == [(lid, "sold")]
-    assert eco.inventory(C)[CARROT] == 3 and eco.balance(S) == s0 + 1_300 - p2p.fee_of(1_300)
-    done = eco.p2p_get(lid)
+    assert eco.shop.inventory(C)[CARROT] == 3 and eco.wallet.balance(S) == s0 + 1_300 - p2p.fee_of(1_300)
+    done = eco.p2p.p2p_get(lid)
     assert done["status"] == "sold" and done["buyer_id"] == C and done["sold_price"] == 1_300
-    assert eco.p2p_settle(NOW + 7_000) == []  # 二重に精算しない
-    assert any(n.code == "p2p_won" for n in eco.take_notices(C)) and any(
-        n.code == "p2p_sold" for n in eco.take_notices(S)
+    assert eco.p2p.p2p_settle(NOW + 7_000) == []  # 二重に精算しない
+    assert any(n.code == "p2p_won" for n in eco.notices.take_notices(C)) and any(
+        n.code == "p2p_sold" for n in eco.notices.take_notices(S)
     )
 
 
 def test_unsold_listings_return_to_the_seller(eco):
     give(eco, S, CARROT, 2)
-    _, a = eco.p2p_list(S, "item", CARROT, 1, "auction", 1_000, 1, NOW)
-    _, b = eco.p2p_list(S, "item", CARROT, 1, "fixed", 1_000, None, NOW)
-    assert eco.inventory(S).get(CARROT, 0) == 0
-    out = eco.p2p_settle(NOW + p2p.FIXED_DAYS * 86400 + 1)
-    assert {res for _, res in out} == {"expired"} and eco.inventory(S)[CARROT] == 2  # 売れ残りは、戻る
-    assert eco.p2p_get(a)["status"] == "expired" and eco.p2p_get(b)["status"] == "expired"
+    _, a = eco.p2p.p2p_list(S, "item", CARROT, 1, "auction", 1_000, 1, NOW)
+    _, b = eco.p2p.p2p_list(S, "item", CARROT, 1, "fixed", 1_000, None, NOW)
+    assert eco.shop.inventory(S).get(CARROT, 0) == 0
+    out = eco.p2p.p2p_settle(NOW + p2p.FIXED_DAYS * 86400 + 1)
+    assert {res for _, res in out} == {"expired"} and eco.shop.inventory(S)[CARROT] == 2  # 売れ残りは、戻る
+    assert eco.p2p.p2p_get(a)["status"] == "expired" and eco.p2p.p2p_get(b)["status"] == "expired"
 
 
 def test_winner_who_can_no_longer_receive_gets_a_refund_and_the_item_goes_back(eco):
     give(eco, S, CARD)
-    _, lid = eco.p2p_list(S, "item", CARD, 1, "auction", shop.BY_ID[CARD].price, 1, NOW)
+    _, lid = eco.p2p.p2p_list(S, "item", CARD, 1, "auction", shop.BY_ID[CARD].price, 1, NOW)
     price = shop.BY_ID[CARD].price
-    b0 = eco.balance(B)
-    assert eco.p2p_bid(B, lid, price, NOW + 10)[0]
+    b0 = eco.wallet.balance(B)
+    assert eco.p2p.p2p_bid(B, lid, price, NOW + 10)[0]
     give(eco, B, CARD)  # 入札のあと、別の方法で同じ品を手に入れた
-    out = eco.p2p_settle(NOW + 3_601)
+    out = eco.p2p.p2p_settle(NOW + 3_601)
     assert [(res) for _, res in out] == ["failed"]
-    assert eco.balance(B) == b0 and eco.inventory(S)[CARD] == 1 and eco.p2p_get(lid)["status"] == "expired"
+    assert (
+        eco.wallet.balance(B) == b0 and eco.shop.inventory(S)[CARD] == 1 and eco.p2p.p2p_get(lid)["status"] == "expired"
+    )
 
 
 # ----------------------------- 送金の抜け道 ----------------------------- #
@@ -241,9 +246,9 @@ def test_same_pair_trades_are_capped_per_day_so_the_market_is_not_a_transfer_loo
     total = 0
     bought = 0
     while True:
-        ok, lid = eco.p2p_list(S, "item", shop.INSURANCE, 1, "fixed", price, None, NOW)
+        ok, lid = eco.p2p.p2p_list(S, "item", shop.INSURANCE, 1, "fixed", price, None, NOW)
         assert ok
-        ok, why = eco.p2p_buy(B, lid, NOW + bought + 1)
+        ok, why = eco.p2p.p2p_buy(B, lid, NOW + bought + 1)
         if not ok:
             assert why.code == "p2p_pair_limit" and why.params["limit"] == p2p.PAIR_DAILY_LIMIT
             break
@@ -251,8 +256,8 @@ def test_same_pair_trades_are_capped_per_day_so_the_market_is_not_a_transfer_loo
         bought += 1
         assert bought < 30
     assert total <= p2p.PAIR_DAILY_LIMIT
-    ok, lid = eco.p2p_list(S, "item", shop.INSURANCE, 1, "fixed", price, None, NOW)
-    assert eco.p2p_buy(C, lid, NOW + 100)[0]  # 別の相手なら、買える（上限は、2人の組ごと）
+    ok, lid = eco.p2p.p2p_list(S, "item", shop.INSURANCE, 1, "fixed", price, None, NOW)
+    assert eco.p2p.p2p_buy(C, lid, NOW + 100)[0]  # 別の相手なら、買える（上限は、2人の組ごと）
 
 
 def test_the_pair_cap_resets_after_24_hours(eco):
@@ -260,25 +265,25 @@ def test_the_pair_cap_resets_after_24_hours(eco):
     price = shop.BY_ID[shop.INSURANCE].price * 5
     n = p2p.PAIR_DAILY_LIMIT // price
     for i in range(n):
-        _, lid = eco.p2p_list(S, "item", shop.INSURANCE, 1, "fixed", price, None, NOW)
-        assert eco.p2p_buy(B, lid, NOW + i + 1)[0]
-    _, lid = eco.p2p_list(S, "item", shop.INSURANCE, 1, "fixed", price, None, NOW)
-    assert not eco.p2p_buy(B, lid, NOW + 100)[0]
-    assert eco.p2p_buy(B, lid, NOW + 86_400 + 100)[0]
+        _, lid = eco.p2p.p2p_list(S, "item", shop.INSURANCE, 1, "fixed", price, None, NOW)
+        assert eco.p2p.p2p_buy(B, lid, NOW + i + 1)[0]
+    _, lid = eco.p2p.p2p_list(S, "item", shop.INSURANCE, 1, "fixed", price, None, NOW)
+    assert not eco.p2p.p2p_buy(B, lid, NOW + 100)[0]
+    assert eco.p2p.p2p_buy(B, lid, NOW + 86_400 + 100)[0]
 
 
 # ----------------------------- 一覧 ----------------------------- #
 def test_active_and_mine_lists(eco):
     give(eco, S, CARROT, 2)
     hid = horse(eco, S)
-    _, a = eco.p2p_list(S, "item", CARROT, 1, "fixed", 1_000, None, NOW)
-    _, b = eco.p2p_list(S, "horse", str(hid), 1, "auction", 30_000, 6, NOW)
-    assert {r["id"] for r in eco.p2p_active(None, NOW + 1)} == {a, b}
-    assert [r["id"] for r in eco.p2p_active("horse", NOW + 1)] == [b]
-    eco.p2p_bid(B, b, 30_000, NOW + 2)
-    assert {r["id"] for r in eco.p2p_mine(S, NOW + 3)["selling"]} == {a, b}
-    assert [r["id"] for r in eco.p2p_mine(B, NOW + 3)["bidding"]] == [b]
-    assert eco.p2p_active(None, NOW + 10 * 86400) == []  # 期限を過ぎたものは出ない
+    _, a = eco.p2p.p2p_list(S, "item", CARROT, 1, "fixed", 1_000, None, NOW)
+    _, b = eco.p2p.p2p_list(S, "horse", str(hid), 1, "auction", 30_000, 6, NOW)
+    assert {r["id"] for r in eco.p2p.p2p_active(None, NOW + 1)} == {a, b}
+    assert [r["id"] for r in eco.p2p.p2p_active("horse", NOW + 1)] == [b]
+    eco.p2p.p2p_bid(B, b, 30_000, NOW + 2)
+    assert {r["id"] for r in eco.p2p.p2p_mine(S, NOW + 3)["selling"]} == {a, b}
+    assert [r["id"] for r in eco.p2p.p2p_mine(B, NOW + 3)["bidding"]] == [b]
+    assert eco.p2p.p2p_active(None, NOW + 10 * 86400) == []  # 期限を過ぎたものは出ない
 
 
 # ----------------------------- Cog ----------------------------- #
@@ -307,11 +312,13 @@ class It:
 
 
 @pytest.fixture
-def cog(eco):
-    bot = SimpleNamespace(
-        economy=SimpleNamespace(for_guild=lambda gid: eco), sessions=Sessions(cooldown=0), config={}, guilds=[]
-    )
-    return p2p_cog.P2PCog(bot)
+def bot(eco):
+    return make_test_bot(repos=eco)
+
+
+@pytest.fixture
+def cog(bot):
+    return make_p2p_cog(bot)
 
 
 def _auction_view(cog_shop, uid):
@@ -321,17 +328,8 @@ def _auction_view(cog_shop, uid):
 
 
 @pytest.fixture
-def shop_cog_obj(eco, cog):
-    from cogs.shop import cog as shop_cog
-
-    bot = SimpleNamespace(
-        economy=SimpleNamespace(for_guild=lambda gid: eco),
-        sessions=cog.bot.sessions,
-        config={},
-        guilds=[],
-        get_cog=lambda name: cog if name == "P2PCog" else None,
-    )
-    return shop_cog.ShopCog(bot)
+def shop_cog_obj(bot, cog):
+    return make_shop_cog(bot)
 
 
 def test_sell_view_lists_tradable_items_and_horses_and_the_modal_lists_it(cog, eco):
@@ -376,13 +374,13 @@ def test_sell_modal_lists_the_item_and_validates_numbers(cog, eco):
     modal.price._value = "abc"
     bad = It(S)
     asyncio.run(modal.on_submit(bad))
-    assert "数字で入れて" in bad.sent[-1]["embed"].description and eco.inventory(S)[CARROT] == 3
+    assert "数字で入れて" in bad.sent[-1]["embed"].description and eco.shop.inventory(S)[CARROT] == 3
     modal.price._value = "1,500"
     modal.qty._value = "2"
     done = It(S)
     asyncio.run(modal.on_submit(done))
-    assert "出品しました" in done.sent[-1]["embed"].title and eco.inventory(S)[CARROT] == 1
-    listing = eco.p2p_active(None)[0]
+    assert "出品しました" in done.sent[-1]["embed"].title and eco.shop.inventory(S)[CARROT] == 1
+    listing = eco.p2p.p2p_active(None)[0]
     assert listing["price"] == 1_500 and listing["qty"] == 2 and listing["mode"] == "fixed"
     view.target = f"item:{CARROT}"
     auction = p2p_cog.SellModal(view, "auction")
@@ -390,12 +388,12 @@ def test_sell_modal_lists_the_item_and_validates_numbers(cog, eco):
     auction.qty._value = "1"
     auction.hours._value = "6"
     asyncio.run(auction.on_submit(It(S)))
-    assert any(r["mode"] == "auction" and r["end_at"] > 0 for r in eco.p2p_active(None))
+    assert any(r["mode"] == "auction" and r["end_at"] > 0 for r in eco.p2p.p2p_active(None))
 
 
 def test_auction_screen_shows_player_listings_with_sell_and_mine_buttons(shop_cog_obj, eco):
     give(eco, S, CARROT, 2)
-    _, lid = eco.p2p_list(S, "item", CARROT, 1, "fixed", 1_500, None, time_now())
+    _, lid = eco.p2p.p2p_list(S, "item", CARROT, 1, "fixed", 1_500, None, time_now())
     view = _auction_view(shop_cog_obj, B)
     labels = [getattr(c, "label", "") for c in view.children]
     assert "📤 出品する" in labels and "📋 自分の取引" in labels and "🛍️ ショップ" in labels
@@ -408,7 +406,7 @@ def test_auction_screen_shows_player_listings_with_sell_and_mine_buttons(shop_co
 
 def test_picking_a_player_listing_opens_the_detail_and_the_button_buys(shop_cog_obj, cog, eco, monkeypatch):
     give(eco, S, CARROT, 2)
-    _, lid = eco.p2p_list(S, "item", CARROT, 2, "fixed", 1_500, None, time_now())
+    _, lid = eco.p2p.p2p_list(S, "item", CARROT, 2, "fixed", 1_500, None, time_now())
 
     async def yes(*a, **k):
         return True
@@ -420,14 +418,14 @@ def test_picking_a_player_listing_opens_the_detail_and_the_button_buys(shop_cog_
     sent = pick.sent[-1]
     assert "にんじん" in sent["embed"].title and sent["view"].children and sent["ephemeral"] is True
     asyncio.run(sent["view"]._on_go(It(B)))
-    assert eco.inventory(B)[CARROT] == 2
-    seller_pick = It(S, values=[str(eco.p2p_active(None)[0]["id"])]) if eco.p2p_active(None) else None
+    assert eco.shop.inventory(B)[CARROT] == 2
+    seller_pick = It(S, values=[str(eco.p2p.p2p_active(None)[0]["id"])]) if eco.p2p.p2p_active(None) else None
     assert seller_pick is None  # 売れたので、もう出ていない
 
 
 def test_own_listing_has_no_buy_button_and_mine_view_cancels(cog, eco):
     give(eco, S, CARROT)
-    _, lid = eco.p2p_list(S, "item", CARROT, 1, "fixed", 1_000, None, time_now())
+    _, lid = eco.p2p.p2p_list(S, "item", CARROT, 1, "fixed", 1_000, None, time_now())
     own = It(S)
     asyncio.run(cog.open_detail(own, lid))
     assert not own.sent[-1]["view"].children  # 自分の出品は、買えない
@@ -435,7 +433,7 @@ def test_own_listing_has_no_buy_button_and_mine_view_cancels(cog, eco):
     assert f"#{lid}" in mine.embed().fields[0].value and mine.children
     gone = It(S, values=[str(lid)])
     asyncio.run(mine._on_cancel(gone))
-    assert "取り消しました" in gone.sent[-1]["embed"].title and eco.inventory(S)[CARROT] == 1
+    assert "取り消しました" in gone.sent[-1]["embed"].title and eco.shop.inventory(S)[CARROT] == 1
     empty = p2p_cog.MineView(cog, S, G)
     assert not empty.children and "出していません" in empty.embed().fields[0].value
 
@@ -454,14 +452,14 @@ def time_now():
 
 def test_bid_through_the_modal_and_settlement_announces_the_winner(cog, eco, monkeypatch):
     give(eco, S, CARROT, 2)
-    _, lid = eco.p2p_list(S, "item", CARROT, 2, "auction", 1_000, 1, NOW)
+    _, lid = eco.p2p.p2p_list(S, "item", CARROT, 2, "auction", 1_000, 1, NOW)
     it = It(B)
     asyncio.run(cog.do_bid(it, lid, 1_200))
-    assert "入札しました" in it.sent[-1]["embed"].title and eco.p2p_get(lid)["bid"] == 1_200
+    assert "入札しました" in it.sent[-1]["embed"].title and eco.p2p.p2p_get(lid)["bid"] == 1_200
     chan = Chan()
     guild = SimpleNamespace(id=G)
     monkeypatch.setattr(p2p_cog, "announce_channel", lambda g, e: chan)
-    monkeypatch.setattr(eco, "p2p_settle", lambda now=None: eco.__class__.p2p_settle(eco, NOW + 5_000))
+    monkeypatch.setattr(eco.p2p, "p2p_settle", lambda now=None: eco.p2p.__class__.p2p_settle(eco.p2p, NOW + 5_000))
     asyncio.run(cog._settle_guild(guild))
     assert chan.sent and "落札" in chan.sent[0]["embed"].title and f"<@{B}>" in chan.sent[0]["embed"].description
 
@@ -473,13 +471,13 @@ def test_relics_can_be_traded_within_their_reference_value_range(eco):
     give(eco, S, rid, 2)
     lo, hi = p2p.price_range("item", rid, 1)
     assert lo == max(p2p.MIN_PRICE, int(value * 0.10)) and hi == min(p2p.PAIR_DAILY_LIMIT, value * 5)
-    assert not eco.p2p_list(S, "item", rid, 1, "fixed", lo - 1, None, NOW)[0]  # 安すぎる
-    ok, lid = eco.p2p_list(S, "item", rid, 1, "fixed", value, None, NOW)
-    assert ok and eco.inventory(S)[rid] == 1
-    assert eco.p2p_buy(B, lid, NOW + 1)[0] and eco.inventory(B)[rid] == 1  # 発掘品は、いくつでも持てる
-    ok, lid2 = eco.p2p_list(S, "item", rid, 1, "auction", value, 6, NOW)
-    assert ok and eco.p2p_bid(B, lid2, value, NOW + 10)[0]
-    assert eco.p2p_settle(NOW + 7 * 3600)[0][1] == "sold" and eco.inventory(B)[rid] == 2
+    assert not eco.p2p.p2p_list(S, "item", rid, 1, "fixed", lo - 1, None, NOW)[0]  # 安すぎる
+    ok, lid = eco.p2p.p2p_list(S, "item", rid, 1, "fixed", value, None, NOW)
+    assert ok and eco.shop.inventory(S)[rid] == 1
+    assert eco.p2p.p2p_buy(B, lid, NOW + 1)[0] and eco.shop.inventory(B)[rid] == 1  # 発掘品は、いくつでも持てる
+    ok, lid2 = eco.p2p.p2p_list(S, "item", rid, 1, "auction", value, 6, NOW)
+    assert ok and eco.p2p.p2p_bid(B, lid2, value, NOW + 10)[0]
+    assert eco.p2p.p2p_settle(NOW + 7 * 3600)[0][1] == "sold" and eco.shop.inventory(B)[rid] == 2
 
 
 def test_the_most_valuable_relic_still_fits_under_the_pair_cap(eco):
@@ -498,7 +496,7 @@ def test_auction_screen_opens_on_the_shelf_when_no_player_listings_and_tabs_swit
     labels = [getattr(c, "label", "") for c in view.children]
     assert any(label.startswith("🤝 プレイヤーの出品（0）") for label in labels)
     give(eco, S, CARROT)
-    eco.p2p_list(S, "item", CARROT, 1, "fixed", 1_000, None, time_now())
+    eco.p2p.p2p_list(S, "item", CARROT, 1, "fixed", 1_000, None, time_now())
     again = _auction_view(shop_cog_obj, B)
     assert again.auction_tab == "players"
     labels = [getattr(c, "label", "") for c in again.children]
@@ -516,9 +514,9 @@ def test_player_tab_filters_sorts_and_shows_two_line_entries(shop_cog_obj, eco):
     give(eco, S, CARROT, 2)
     give(eco, S, shop.INSURANCE)
     hid = horse(eco, S)
-    _, cheap = eco.p2p_list(S, "item", CARROT, 1, "fixed", 1_000, None, now)
-    _, pricey = eco.p2p_list(S, "item", shop.INSURANCE, 1, "auction", 3_000, 6, now + 1)
-    _, mount = eco.p2p_list(S, "horse", str(hid), 1, "fixed", 40_000, None, now + 2)
+    _, cheap = eco.p2p.p2p_list(S, "item", CARROT, 1, "fixed", 1_000, None, now)
+    _, pricey = eco.p2p.p2p_list(S, "item", shop.INSURANCE, 1, "auction", 3_000, 6, now + 1)
+    _, mount = eco.p2p.p2p_list(S, "horse", str(hid), 1, "fixed", 40_000, None, now + 2)
     view = _auction_view(shop_cog_obj, B)
     text = view.embed().fields[0].value
     assert (
@@ -577,14 +575,14 @@ def test_listing_is_announced_in_the_channel_and_the_post_follows_bids_and_the_s
     monkeypatch.setattr(p2p_cog, "announce_channel", lambda g, e: chan)
     guild = _guild(chan)
     give(eco, S, CARROT, 2)
-    _, lid = eco.p2p_list(S, "item", CARROT, 2, "auction", 1_000, 6, NOW)
+    _, lid = eco.p2p.p2p_list(S, "item", CARROT, 2, "auction", 1_000, 6, NOW)
     assert asyncio.run(cog.announce(guild, lid)) is True
     post = chan.sent[0]
     assert "出品" in post["embed"].title and "にんじん" in post["embed"].title
     assert post["view"].children[0].custom_id == f"p2p:open:{lid}"  # 「見る・買う・入札」のボタン
-    row = eco.p2p_get(lid)
+    row = eco.p2p.p2p_get(lid)
     assert row["channel_id"] == chan.id and row["message_id"] == 501
-    eco.p2p_bid(B, lid, 1_200, NOW + 10)
+    eco.p2p.p2p_bid(B, lid, 1_200, NOW + 10)
     asyncio.run(cog.refresh_post(guild, lid))
     mid, kw = chan.edits[-1]
     assert (
@@ -593,7 +591,7 @@ def test_listing_is_announced_in_the_channel_and_the_post_follows_bids_and_the_s
         and "1,200" in kw["embed"].description + kw["embed"].title + "".join(f.value for f in kw["embed"].fields)
     )
     assert "view" not in kw  # 出ている間は、ボタンを残す
-    eco.p2p_settle(NOW + 7 * 3600)
+    eco.p2p.p2p_settle(NOW + 7 * 3600)
     asyncio.run(cog.refresh_post(guild, lid))
     mid, kw = chan.edits[-1]
     assert "売れました" in kw["embed"].title and kw["view"] is None  # 売れたら、結果に書き換わり、ボタンが外れる
@@ -604,14 +602,14 @@ def test_cancelled_and_expired_posts_are_rewritten_and_missing_channels_are_igno
     monkeypatch.setattr(p2p_cog, "announce_channel", lambda g, e: chan)
     guild = _guild(chan)
     give(eco, S, CARROT, 2)
-    _, a = eco.p2p_list(S, "item", CARROT, 1, "fixed", 1_000, None, NOW)
+    _, a = eco.p2p.p2p_list(S, "item", CARROT, 1, "fixed", 1_000, None, NOW)
     asyncio.run(cog.announce(guild, a))
-    eco.p2p_cancel(S, a, NOW + 1)
+    eco.p2p.p2p_cancel(S, a, NOW + 1)
     asyncio.run(cog.refresh_post(guild, a))
     assert "取り消されました" in chan.edits[-1][1]["embed"].title
-    _, b = eco.p2p_list(S, "item", CARROT, 1, "auction", 1_000, 1, NOW)
+    _, b = eco.p2p.p2p_list(S, "item", CARROT, 1, "auction", 1_000, 1, NOW)
     asyncio.run(cog.announce(guild, b))
-    eco.p2p_settle(NOW + 3_601)
+    eco.p2p.p2p_settle(NOW + 3_601)
     asyncio.run(cog.refresh_post(guild, b))
     assert "売れ残り" in chan.edits[-1][1]["embed"].title
     assert asyncio.run(cog.announce(None, b)) is False  # サーバーがなければ、何もしない
@@ -633,19 +631,19 @@ def test_selling_through_the_modal_posts_the_announcement(cog, eco, monkeypatch)
     done.guild = _guild(chan)
     asyncio.run(modal.on_submit(done))
     assert chan.sent and "告知チャンネルに" in done.sent[-1]["embed"].description
-    assert eco.p2p_active(None)[0]["message_id"] == 501
+    assert eco.p2p.p2p_active(None)[0]["message_id"] == 501
 
 
 def test_the_announce_button_opens_the_detail_for_anyone(cog, eco):
     give(eco, S, CARROT)
-    _, lid = eco.p2p_list(S, "item", CARROT, 1, "fixed", 1_000, None, time_now())
+    _, lid = eco.p2p.p2p_list(S, "item", CARROT, 1, "fixed", 1_000, None, time_now())
     button = p2p_cog.ListingButton(lid)
     it = It(B)
-    it.client = SimpleNamespace(get_cog=lambda name: cog)
+    it.client = SimpleNamespace(bridges=SimpleNamespace(p2p=cog))
     asyncio.run(button.callback(it))
     assert "にんじん" in it.sent[-1]["embed"].title and it.sent[-1]["view"].children
     gone = It(B)
-    gone.client = SimpleNamespace(get_cog=lambda name: None)
+    gone.client = SimpleNamespace(bridges=SimpleNamespace(p2p=None))
     asyncio.run(button.callback(gone))
     assert "いまは使えません" in gone.sent[-1]["embed"].title
 
@@ -653,71 +651,71 @@ def test_the_announce_button_opens_the_detail_for_anyone(cog, eco):
 # ----------------------------- 破産猶予・破産中の取引の遮断（#25） ----------------------------- #
 def _into_grace(eco, uid):
     """uid を、破産猶予に入る借金の額にする。"""
-    eco.balance(uid)
-    with eco._lock, eco._conn:
-        eco._conn.execute("UPDATE users SET balance=0 WHERE guild_id=? AND user_id=?", (eco._g(), uid))
-        eco._owe(uid, teiai.GRACE_DEBT + 5_000, "テスト")
-    assert eco.grace_until(uid) is not None
+    eco.wallet.balance(uid)
+    with eco.db.tx():
+        eco.db.conn.execute("UPDATE users SET balance=0 WHERE guild_id=? AND user_id=?", (G, uid))
+        eco.debt.owe_for(G, uid, teiai.GRACE_DEBT + 5_000, "テスト")
+    assert eco.bank.grace_until(uid) is not None
 
 
 def test_a_user_in_grace_cannot_list_buy_or_bid(eco):
     give(eco, S, CARROT, 2)
-    _, fixed = eco.p2p_list(S, "item", CARROT, 1, "fixed", 1_000, None, NOW)
-    _, auction = eco.p2p_list(S, "item", CARROT, 1, "auction", 1_000, 6, NOW)
+    _, fixed = eco.p2p.p2p_list(S, "item", CARROT, 1, "fixed", 1_000, None, NOW)
+    _, auction = eco.p2p.p2p_list(S, "item", CARROT, 1, "auction", 1_000, 6, NOW)
     _into_grace(eco, B)
     give(eco, B, CARROT)
-    ok, why = eco.p2p_list(B, "item", CARROT, 1, "fixed", 1_000, None, NOW)
-    assert not ok and why.code == "grace_lock" and eco.inventory(B)[CARROT] == 1  # 出品できない（品は、動かない）
-    ok, why = eco.p2p_buy(B, fixed, NOW + 1)
+    ok, why = eco.p2p.p2p_list(B, "item", CARROT, 1, "fixed", 1_000, None, NOW)
+    assert not ok and why.code == "grace_lock" and eco.shop.inventory(B)[CARROT] == 1  # 出品できない（品は、動かない）
+    ok, why = eco.p2p.p2p_buy(B, fixed, NOW + 1)
     assert not ok and why.code == "grace_lock"
-    ok, why = eco.p2p_bid(B, auction, 1_000, NOW + 1)
-    assert not ok and why.code == "grace_lock" and eco.p2p_get(auction)["bid"] == 0
+    ok, why = eco.p2p.p2p_bid(B, auction, 1_000, NOW + 1)
+    assert not ok and why.code == "grace_lock" and eco.p2p.p2p_get(auction)["bid"] == 0
 
 
 def test_entering_grace_pulls_back_the_listings_and_refunds_the_top_bidder(eco):
     give(eco, B, CARROT, 2)
     horse_id = horse(eco, B)
-    _, fixed = eco.p2p_list(B, "item", CARROT, 1, "fixed", 1_000, None, NOW)
-    _, auction = eco.p2p_list(B, "item", CARROT, 1, "auction", 1_000, 6, NOW)
-    _, mount = eco.p2p_list(B, "horse", str(horse_id), 1, "fixed", 40_000, None, NOW)
-    assert eco.inventory(B).get(CARROT, 0) == 0 and eco.horse_list(B) == []  # 預かり中
-    c0 = eco.balance(C)
-    assert eco.p2p_bid(C, auction, 1_200, NOW + 5)[0] and eco.balance(C) == c0 - 1_200
+    _, fixed = eco.p2p.p2p_list(B, "item", CARROT, 1, "fixed", 1_000, None, NOW)
+    _, auction = eco.p2p.p2p_list(B, "item", CARROT, 1, "auction", 1_000, 6, NOW)
+    _, mount = eco.p2p.p2p_list(B, "horse", str(horse_id), 1, "fixed", 40_000, None, NOW)
+    assert eco.shop.inventory(B).get(CARROT, 0) == 0 and eco.horses.horse_list(B) == []  # 預かり中
+    c0 = eco.wallet.balance(C)
+    assert eco.p2p.p2p_bid(C, auction, 1_200, NOW + 5)[0] and eco.wallet.balance(C) == c0 - 1_200
     _into_grace(eco, B)
-    assert eco.inventory(B)[CARROT] == 2 and [h["id"] for h in eco.horse_list(B)] == [horse_id]  # 持ち物へ戻った
-    assert all(eco.p2p_get(i)["status"] == "cancelled" for i in (fixed, auction, mount))
-    assert eco.balance(C) == c0  # 入札のお金は、返る
-    assert any(n.code == "p2p_seller_pulled_back" for n in eco.take_notices(C))
-    assert not eco.p2p_cancel(B, fixed, NOW + 10)[0]  # もう取り消せるものはない
+    assert eco.shop.inventory(B)[CARROT] == 2 and [h["id"] for h in eco.horses.horse_list(B)] == [
+        horse_id
+    ]  # 持ち物へ戻った
+    assert all(eco.p2p.p2p_get(i)["status"] == "cancelled" for i in (fixed, auction, mount))
+    assert eco.wallet.balance(C) == c0  # 入札のお金は、戻る
+    assert any(n.code == "p2p_seller_pulled_back" for n in eco.notices.take_notices(C))
+    assert not eco.p2p.p2p_cancel(B, fixed, NOW + 10)[0]  # もう取り消せるものはない
 
 
 def test_entering_grace_cancels_the_bids_the_user_holds_and_returns_the_escrowed_cash(eco):
     give(eco, S, CARROT)
-    _, auction = eco.p2p_list(S, "item", CARROT, 1, "auction", 1_000, 6, NOW)
-    b0 = eco.balance(B)
-    assert eco.p2p_bid(B, auction, 3_000, NOW + 5)[0] and eco.balance(B) == b0 - 3_000
+    _, auction = eco.p2p.p2p_list(S, "item", CARROT, 1, "auction", 1_000, 6, NOW)
+    b0 = eco.wallet.balance(B)
+    assert eco.p2p.p2p_bid(B, auction, 3_000, NOW + 5)[0] and eco.wallet.balance(B) == b0 - 3_000
     _into_grace(eco, B)
-    listing = eco.p2p_get(auction)
+    listing = eco.p2p.p2p_get(auction)
     assert (
         listing["status"] == "active" and listing["bid"] == 0 and listing["bidder_id"] == 0
     )  # 入札だけが、取り消された
     # 預けていたお金が現金に戻っているので、差し押さえの対象になる（隠せない）
-    assert eco.balance(B) >= 0 and eco.debt(B) > 0
+    assert eco.wallet.balance(B) >= 0 and eco.debt.debt(B) > 0
 
 
 def test_bankruptcy_pulls_back_listings_so_they_are_seized_not_hidden(eco):
     give(eco, B, CARROT, 3)
-    eco.p2p_list(B, "item", CARROT, 3, "fixed", 1_500, None, NOW)
-    with eco._lock, eco._conn:
-        eco._conn.execute(
-            "UPDATE users SET debt=2000 WHERE guild_id=? AND user_id=?", (eco._g(), B)
-        )  # 猶予の手前の借金
-    assert eco.grace_until(B) is None and eco.inventory(B).get(CARROT, 0) == 0
-    ok, result = eco.bankrupt(B)
+    eco.p2p.p2p_list(B, "item", CARROT, 3, "fixed", 1_500, None, NOW)
+    with eco.db.tx():
+        eco.db.conn.execute("UPDATE users SET debt=2000 WHERE guild_id=? AND user_id=?", (G, B))  # 猶予の手前の借金
+    assert eco.bank.grace_until(B) is None and eco.shop.inventory(B).get(CARROT, 0) == 0
+    ok, result = eco.debt.bankrupt(B)
     assert ok
-    assert not eco.p2p_active(None, NOW + 1)  # 出品は、なくなった
-    assert any(r["status"] == "cancelled" for r in eco._conn.execute("SELECT status FROM market_listings"))
-    assert eco.inventory(B).get(CARROT, 0) == 0  # 持ち物に戻ったあと、差し押さえられた
+    assert not eco.p2p.p2p_active(None, NOW + 1)  # 出品は、なくなった
+    assert any(r["status"] == "cancelled" for r in eco.db.conn.execute("SELECT status FROM market_listings"))
+    assert eco.shop.inventory(B).get(CARROT, 0) == 0  # 持ち物に戻ったあと、差し押さえられた
     assert result["shop_value"] == int(
         3 * shop.BY_ID[CARROT].price * teiai.SEIZE_RATE
     )  # 隠していた3個ぶんも、差し押さえの額に入っている
@@ -728,13 +726,13 @@ def test_ended_posts_are_synced_once_even_when_the_listing_was_pulled_back_elsew
     monkeypatch.setattr(p2p_cog, "announce_channel", lambda g, e: chan)
     guild = _guild(chan)
     give(eco, B, CARROT)
-    _, lid = eco.p2p_list(B, "item", CARROT, 1, "fixed", 1_000, None, NOW)
+    _, lid = eco.p2p.p2p_list(B, "item", CARROT, 1, "fixed", 1_000, None, NOW)
     asyncio.run(cog.announce(guild, lid))
     _into_grace(eco, B)  # 取り下げられる（告知の書き換えは、まだ）
-    assert [r["id"] for r in eco.p2p_unsynced_posts()] == [lid]
+    assert [r["id"] for r in eco.p2p.p2p_unsynced_posts()] == [lid]
     asyncio.run(cog._settle_guild(guild))  # 定期の確認で、告知が「取り消されました」に書き換わる
     assert "取り消されました" in chan.edits[-1][1]["embed"].title and chan.edits[-1][1]["view"] is None
-    assert eco.p2p_unsynced_posts() == []
+    assert eco.p2p.p2p_unsynced_posts() == []
     n = len(chan.edits)
     asyncio.run(cog._settle_guild(guild))
     assert len(chan.edits) == n  # 二度目は、書き換えない

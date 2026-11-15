@@ -10,17 +10,19 @@ import pytest
 
 from cogs.shop import cog as shop_cog
 from domain import shop
-from infra.db.economy import INITIAL_BALANCE, Economy
+from domain.types import DAILY_BASE, DAILY_STREAK_BONUS, DAILY_STREAK_CAP, INITIAL_BALANCE
+from infra.db.repositories import open_repositories
+from tests.support import make_shop_cog, make_test_bot
 
 
 @pytest.fixture
 def eco(tmp_path):
-    return Economy(str(tmp_path / "t.db"))
+    return open_repositories(str(tmp_path / "t.db"))
 
 
 def buy(eco, item_id, qty=1, uid=1):
     it = shop.BY_ID[item_id]
-    return eco.purchase(uid, it.id, shop.label(it), it.price, it.unique, qty)
+    return eco.shop.purchase(uid, it.id, shop.label(it), it.price, it.unique, qty)
 
 
 # ----------------------------- カタログ ----------------------------- #
@@ -42,92 +44,96 @@ def test_catalog_is_consistent():
 # ----------------------------- 購入 ----------------------------- #
 def test_purchase_charges_and_adds_to_inventory(eco):
     res = buy(eco, "title_rookie")
-    assert res.ok and eco.balance(1) == INITIAL_BALANCE - 2_000
-    assert eco.inventory(1) == {"title_rookie": 1}
+    assert res.ok and eco.wallet.balance(1) == INITIAL_BALANCE - 2_000
+    assert eco.shop.inventory(1) == {"title_rookie": 1}
 
 
 def test_cannot_buy_unique_item_twice_or_without_money(eco):
     assert buy(eco, "title_rookie").ok
     again = buy(eco, "title_rookie")
-    assert not again.ok and again.reason.code == "already_owned" and eco.balance(1) == INITIAL_BALANCE - 2_000
+    assert not again.ok and again.reason.code == "already_owned" and eco.wallet.balance(1) == INITIAL_BALANCE - 2_000
     poor = buy(eco, "col_sunglasses")  # 100,000 は足りない
-    assert not poor.ok and poor.reason.code == "insufficient_balance_need" and eco.balance(1) == INITIAL_BALANCE - 2_000
-    assert "title_emperor" not in eco.inventory(1)  # 失敗したら持ち物も増えない
+    assert (
+        not poor.ok
+        and poor.reason.code == "insufficient_balance_need"
+        and eco.wallet.balance(1) == INITIAL_BALANCE - 2_000
+    )
+    assert "title_emperor" not in eco.shop.inventory(1)  # 失敗したら持ち物も増えない
 
 
 def test_consumables_stack_and_charge_per_unit(eco):
-    eco.credit(1, 10_000, "テスト")
+    eco.wallet.credit(1, 10_000, "テスト")
     assert buy(eco, shop.INSURANCE, qty=3).ok
-    assert eco.inventory(1)[shop.INSURANCE] == 3 and eco.balance(1) == INITIAL_BALANCE + 10_000 - 2_000 * 3
-    assert buy(eco, shop.INSURANCE).ok and eco.inventory(1)[shop.INSURANCE] == 4
+    assert eco.shop.inventory(1)[shop.INSURANCE] == 3 and eco.wallet.balance(1) == INITIAL_BALANCE + 10_000 - 2_000 * 3
+    assert buy(eco, shop.INSURANCE).ok and eco.shop.inventory(1)[shop.INSURANCE] == 4
 
 
 def test_purchase_is_recorded_in_ledger(eco):
     buy(eco, "title_rookie")
-    assert eco.history(1)[0]["delta"] == -2_000 and "購入" in eco.history(1)[0]["reason"]
+    assert eco.wallet.history(1)[0]["delta"] == -2_000 and "購入" in eco.wallet.history(1)[0]["reason"]
 
 
 # ----------------------------- 装備 ----------------------------- #
 def test_equip_requires_ownership_and_can_be_removed(eco):
-    assert not eco.equip(1, "title", "title_rookie")  # 持っていない
+    assert not eco.shop.equip(1, "title", "title_rookie")  # 持っていない
     buy(eco, "title_rookie")
-    assert eco.equip(1, "title", "title_rookie")
-    assert eco.get_profile(1)["title"] == "title_rookie"
-    assert eco.equip(1, "title", None)
-    assert eco.get_profile(1)["title"] is None
+    assert eco.shop.equip(1, "title", "title_rookie")
+    assert eco.shop.get_profile(1)["title"] == "title_rookie"
+    assert eco.shop.equip(1, "title", None)
+    assert eco.shop.get_profile(1)["title"] is None
     with pytest.raises(ValueError):
-        eco.equip(1, "balance; DROP TABLE users", None)  # スロット名は固定の3つだけ
+        eco.shop.equip(1, "balance; DROP TABLE users", None)  # スロット名は固定の3つだけ
 
 
 def test_get_profile_does_not_create_accounts(eco):
-    assert eco.get_profile(99)["title"] is None
-    assert eco._conn.execute("SELECT COUNT(*) FROM users WHERE user_id=99").fetchone()[0] == 0
+    assert eco.shop.get_profile(99)["title"] is None
+    assert eco.db.conn.execute("SELECT COUNT(*) FROM users WHERE user_id=99").fetchone()[0] == 0
 
 
 # ------------------------- 消耗品の効果 ------------------------- #
 def test_daily_double_ticket_doubles_next_daily_once(eco):
     buy(eco, shop.DAILY_DOUBLE)
-    assert eco.arm(1, shop.DAILY_DOUBLE)
-    assert not eco.arm(1, shop.DAILY_DOUBLE)  # 持っていないので2回目は使えない
+    assert eco.shop.arm(1, shop.DAILY_DOUBLE)
+    assert not eco.shop.arm(1, shop.DAILY_DOUBLE)  # 持っていないので2回目は使えない
     day = datetime.date(2026, 10, 20)
-    r1 = eco.claim_daily(1, day)
-    assert r1.boosted and r1.amount == Economy.DAILY_BASE * 2
-    r2 = eco.claim_daily(1, day + datetime.timedelta(days=1))
-    assert not r2.boosted and r2.amount == Economy.DAILY_BASE + Economy.DAILY_STREAK_BONUS  # 券は1回きり
+    r1 = eco.wallet.claim_daily(1, day)
+    assert r1.boosted and r1.amount == DAILY_BASE * 2
+    r2 = eco.wallet.claim_daily(1, day + datetime.timedelta(days=1))
+    assert not r2.boosted and r2.amount == DAILY_BASE + DAILY_STREAK_BONUS  # 券は1回きり
 
 
 def test_insurance_refunds_half_on_first_loss_only(eco):
-    eco.credit(1, 10_000, "テスト")
+    eco.wallet.credit(1, 10_000, "テスト")
     buy(eco, shop.INSURANCE)
-    eco.arm(1, shop.INSURANCE)
-    before = eco.balance(1)
-    eid = eco.place_bet(1, 1000, "テスト")
-    net, taken, insured = eco.settle_with_penalty(eid, 0, "テスト", 0)  # 負け
-    assert insured == 500 and net == -500 and eco.balance(1) == before - 500
-    eid = eco.place_bet(1, 1000, "テスト")
-    net, _, insured = eco.settle_with_penalty(eid, 0, "テスト", 0)  # 券は使用済み
+    eco.shop.arm(1, shop.INSURANCE)
+    before = eco.wallet.balance(1)
+    eid = eco.escrow.place_bet(1, 1000, "テスト")
+    net, taken, insured = eco.escrow.settle_with_penalty(eid, 0, "テスト", 0)  # 負け
+    assert insured == 500 and net == -500 and eco.wallet.balance(1) == before - 500
+    eid = eco.escrow.place_bet(1, 1000, "テスト")
+    net, _, insured = eco.escrow.settle_with_penalty(eid, 0, "テスト", 0)  # 券は使用済み
     assert insured == 0 and net == -1000
 
 
 def test_insurance_is_not_used_on_a_win_or_draw(eco):
-    eco.credit(1, 10_000, "テスト")
+    eco.wallet.credit(1, 10_000, "テスト")
     buy(eco, shop.INSURANCE)
-    eco.arm(1, shop.INSURANCE)
+    eco.shop.arm(1, shop.INSURANCE)
     for payout in (2000, 1000):
-        eid = eco.place_bet(1, 1000, "テスト")
-        assert eco.settle_with_penalty(eid, payout, "テスト", 0)[2] == 0
-    assert eco.get_profile(1)["insurance"] == 1  # 負けるまで取っておかれる
+        eid = eco.escrow.place_bet(1, 1000, "テスト")
+        assert eco.escrow.settle_with_penalty(eid, payout, "テスト", 0)[2] == 0
+    assert eco.shop.get_profile(1)["insurance"] == 1  # 負けるまで取っておかれる
 
 
 def test_insurance_and_double_penalty_in_one_settlement(eco):
-    eco.credit(1, 10_000, "テスト")
+    eco.wallet.credit(1, 10_000, "テスト")
     buy(eco, shop.INSURANCE)
-    eco.arm(1, shop.INSURANCE)
-    before = eco.balance(1)
-    eid = eco.place_bet(1, 500, "チンチロ")
-    net, taken, insured = eco.settle_with_penalty(eid, 0, "チンチロ", 2000)  # 5倍払い: 追加で 2000
+    eco.shop.arm(1, shop.INSURANCE)
+    before = eco.wallet.balance(1)
+    eid = eco.escrow.place_bet(1, 500, "チンチロ")
+    net, taken, insured = eco.escrow.settle_with_penalty(eid, 0, "チンチロ", 2000)  # 5倍払い: 追加で 2000
     assert (taken, insured) == (2000, 250)
-    assert eco.balance(1) == before - 500 + 250 - 2000 and net == 250 - 500 - 2000
+    assert eco.wallet.balance(1) == before - 500 + 250 - 2000 and net == 250 - 500 - 2000
 
 
 # ------------------------- 名前の色ロール ------------------------- #
@@ -242,9 +248,7 @@ class FakeInteraction:
 
 @pytest.fixture
 def cog(eco):
-    from services.session import Sessions
-
-    return shop_cog.ShopCog(SimpleNamespace(economy=eco, sessions=Sessions(cooldown=0)))
+    return make_shop_cog(make_test_bot(repos=eco))
 
 
 def test_cannot_buy_or_use_consumables_during_a_game(cog, eco):
@@ -252,11 +256,11 @@ def test_cannot_buy_or_use_consumables_during_a_game(cog, eco):
     cog.bot.sessions.try_start(1)
     it = FakeInteraction()
     run(cog.buy_item(it, "title_rookie", 1))
-    assert "遊んでいる" in it.sent[0]["embed"].description and "title_rookie" not in eco.inventory(1)
+    assert "遊んでいる" in it.sent[0]["embed"].description and "title_rookie" not in eco.shop.inventory(1)
     it = FakeInteraction()
     run(cog.use_item(it, shop.INSURANCE))
     assert "ゲームの途中" in it.sent[0]["embed"].description
-    assert eco.inventory(1)[shop.INSURANCE] == 1 and eco.get_profile(1)["insurance"] == 0  # 使われていない
+    assert eco.shop.inventory(1)[shop.INSURANCE] == 1 and eco.shop.get_profile(1)["insurance"] == 0  # 使われていない
     cog.bot.sessions.end(1)
 
 
@@ -266,7 +270,7 @@ def test_buy_and_use_flow(cog, eco):
     assert it.sent[-1]["ephemeral"] and "購入しました" in it.sent[-1]["embed"].title
     it = FakeInteraction()
     run(cog.use_item(it, "見習いギャンブラー"))  # 名前でも指定できる
-    assert eco.get_profile(1)["title"] == "title_rookie"
+    assert eco.shop.get_profile(1)["title"] == "title_rookie"
     it = FakeInteraction()
     run(cog.use_item(it, "title_regular"))  # 持っていないものは使えない
     assert "持っていません" in it.sent[0]["embed"].title
@@ -283,25 +287,25 @@ def test_insurance_ticket_can_never_make_money(eco):
     """保険券は値段より多くは戻らない。最大額を賭けて負け続けても、買うほど増えることはない。"""
     price = shop.BY_ID[shop.INSURANCE].price
     assert shop.INSURANCE_CAP < price
-    eco.credit(1, 1_000_000, "テスト")
+    eco.wallet.credit(1, 1_000_000, "テスト")
     buy(eco, shop.INSURANCE)
-    eco.arm(1, shop.INSURANCE)
-    eid = eco.place_bet(1, 100_000, "コイン")  # 上限いっぱいの賭け
-    _, _, insured = eco.settle_with_penalty(eid, 0, "コイン", 0)
+    eco.shop.arm(1, shop.INSURANCE)
+    eid = eco.escrow.place_bet(1, 100_000, "コイン")  # 上限いっぱいの賭け
+    _, _, insured = eco.escrow.settle_with_penalty(eid, 0, "コイン", 0)
     assert insured == shop.INSURANCE_CAP  # 賭け金の半分(50,000)ではなく上限で頭打ち
     assert insured < price  # 券の値段を超えて戻ることはない
 
 
 def test_insurance_cap_does_not_reduce_small_refunds(eco):
-    eco.credit(1, 10_000, "テスト")
+    eco.wallet.credit(1, 10_000, "テスト")
     buy(eco, shop.INSURANCE)
-    eco.arm(1, shop.INSURANCE)
-    eid = eco.place_bet(1, 400, "テスト")
-    assert eco.settle_with_penalty(eid, 0, "テスト", 0)[2] == 200
+    eco.shop.arm(1, shop.INSURANCE)
+    eid = eco.escrow.place_bet(1, 400, "テスト")
+    assert eco.escrow.settle_with_penalty(eid, 0, "テスト", 0)[2] == 200
 
 
 def test_daily_double_ticket_is_never_profitable():
-    max_daily = Economy.DAILY_BASE + Economy.DAILY_STREAK_BONUS * Economy.DAILY_STREAK_CAP
+    max_daily = DAILY_BASE + DAILY_STREAK_BONUS * DAILY_STREAK_CAP
     assert (
         max_daily <= shop.BY_ID[shop.DAILY_DOUBLE].price
     )  # 増える分(最大3,000)より券(3,000)のほうが、安くはない（儲からない）
@@ -309,18 +313,20 @@ def test_daily_double_ticket_is_never_profitable():
 
 def test_purchase_rejects_nonsense_quantities_and_prices(eco):
     for qty, price in ((0, 100), (-3, 100), (1, 0), (1, -500)):
-        assert not eco.purchase(1, "x", "x", price, False, qty).ok
-    assert eco.balance(1) == INITIAL_BALANCE and eco.inventory(1) == {}
+        assert not eco.shop.purchase(1, "x", "x", price, False, qty).ok
+    assert eco.wallet.balance(1) == INITIAL_BALANCE and eco.shop.inventory(1) == {}
 
 
 def test_arm_only_works_for_real_consumables(eco):
-    eco.credit(1, 10_000, "テスト")
+    eco.wallet.credit(1, 10_000, "テスト")
     buy(eco, "title_rookie")
-    assert not eco.arm(1, "title_rookie")  # 称号は消耗品ではない
-    assert not eco.arm(1, "なんでもない")
+    assert not eco.shop.arm(1, "title_rookie")  # 称号は消耗品ではない
+    assert not eco.shop.arm(1, "なんでもない")
     buy(eco, shop.INSURANCE)
     assert (
-        eco.arm(1, shop.INSURANCE) and eco.get_profile(1)["insurance"] == 1 and eco.get_profile(1)["daily_boost"] == 0
+        eco.shop.arm(1, shop.INSURANCE)
+        and eco.shop.get_profile(1)["insurance"] == 1
+        and eco.shop.get_profile(1)["daily_boost"] == 0
     )
 
 
@@ -395,7 +401,7 @@ def test_concurrent_first_purchases_create_one_role(cog, get_by_name):
 
 def test_purchase_holds_the_session_while_waiting_for_confirmation(cog, eco, monkeypatch):
     """確認ボタンの待ち時間に、ゲームを始めて残高を動かす抜け道がない。"""
-    eco.credit(1, 200_000, "テスト")
+    eco.wallet.credit(1, 200_000, "テスト")
     seen = {}
 
     async def fake_confirm(interaction, *a, **k):
@@ -413,12 +419,12 @@ def test_purchase_holds_the_session_while_waiting_for_confirmation(cog, eco, mon
     it = It()
     run(cog.buy_item(it, "col_sunglasses", 1))  # 100,000: 確認ボタンが出る価格
     assert seen == {"active": True, "start_blocked": True}
-    assert "col_sunglasses" in eco.inventory(1)
+    assert "col_sunglasses" in eco.shop.inventory(1)
     assert not cog.bot.sessions.is_active(1)  # 終わったら解除される
 
 
 def test_use_prefers_the_owned_item_when_names_collide(cog, eco):
-    eco.credit(1, 30_000, "テスト")
+    eco.wallet.credit(1, 30_000, "テスト")
     buy(eco, "role_red")  # 色ロールの「赤」だけ持っている
     guild = FakeGuild([])
     guild.id = 10
@@ -436,7 +442,7 @@ def test_use_prefers_the_owned_item_when_names_collide(cog, eco):
 def test_list_does_not_create_an_account(cog, eco):
     it = FakeInteraction(uid=77)
     cog._catalog_embed(it.guild.id, it.user.id)
-    assert eco._conn.execute("SELECT COUNT(*) FROM users WHERE user_id=77").fetchone()[0] == 0
+    assert eco.db.conn.execute("SELECT COUNT(*) FROM users WHERE user_id=77").fetchone()[0] == 0
 
 
 def test_buying_without_enough_pelica_shows_a_clear_message(cog, eco):
@@ -444,46 +450,46 @@ def test_buying_without_enough_pelica_shows_a_clear_message(cog, eco):
     run(cog.buy_item(it, "col_sunglasses", 1))  # 100,000: 初期の 3,000 では足りない
     embed = it.sent[-1]["embed"]
     assert "買えませんでした" in embed.title and "足りません" in embed.description and "100,000" in embed.description
-    assert eco.balance(1) == INITIAL_BALANCE and eco.inventory(1) == {}
+    assert eco.wallet.balance(1) == INITIAL_BALANCE and eco.shop.inventory(1) == {}
     assert not cog.bot.sessions.is_active(1)  # 失敗してもロックが残らない
 
 
 # ----------------------------- 連続守り券 ----------------------------- #
 def _days(eco, *days):
-    eco.credit(1, 100_000, "テスト")
-    return [eco.claim_daily(1, datetime.date(2026, 11, d)) for d in days]
+    eco.wallet.credit(1, 100_000, "テスト")
+    return [eco.wallet.claim_daily(1, datetime.date(2026, 11, d)) for d in days]
 
 
 def test_streak_guard_fills_missed_days_one_ticket_per_day(eco):
     _days(eco, 1, 2)  # 連続2日
     assert buy(eco, shop.STREAK_GUARD, qty=2).ok
-    r = eco.claim_daily(1, datetime.date(2026, 11, 5))  # 3日・4日を逃した（2日ぶん）
+    r = eco.wallet.claim_daily(1, datetime.date(2026, 11, 5))  # 3日・4日を逃した（2日ぶん）
     assert r.streak == 3 and r.guarded == 2
-    assert eco.inventory(1).get(shop.STREAK_GUARD, 0) == 0
+    assert eco.shop.inventory(1).get(shop.STREAK_GUARD, 0) == 0
 
 
 def test_streak_guard_not_used_when_tickets_are_short(eco):
     _days(eco, 1, 2)
     assert buy(eco, shop.STREAK_GUARD).ok
-    r = eco.claim_daily(1, datetime.date(2026, 11, 5))  # 2日ぶん逃したが、券は1枚
+    r = eco.wallet.claim_daily(1, datetime.date(2026, 11, 5))  # 2日ぶん逃したが、券は1枚
     assert r.streak == 1 and r.guarded == 0
-    assert eco.inventory(1)[shop.STREAK_GUARD] == 1  # 足りないときは1枚も使わない
+    assert eco.shop.inventory(1)[shop.STREAK_GUARD] == 1  # 足りないときは1枚も使わない
 
 
 def test_streak_guard_not_used_when_nothing_missed(eco):
     _days(eco, 1)
     assert buy(eco, shop.STREAK_GUARD).ok
-    r = eco.claim_daily(1, datetime.date(2026, 11, 2))
-    assert r.streak == 2 and r.guarded == 0 and eco.inventory(1)[shop.STREAK_GUARD] == 1
+    r = eco.wallet.claim_daily(1, datetime.date(2026, 11, 2))
+    assert r.streak == 2 and r.guarded == 0 and eco.shop.inventory(1)[shop.STREAK_GUARD] == 1
 
 
 def test_streak_guard_price_and_use_message(cog, eco):
     assert shop.BY_ID[shop.STREAK_GUARD].price == 16_000
-    eco.credit(1, 100_000, "テスト")
+    eco.wallet.credit(1, 100_000, "テスト")
     buy(eco, shop.STREAK_GUARD)
     it = FakeInteraction()
     run(cog.use_item(it, shop.STREAK_GUARD))
-    assert "ここでは使いません" in it.sent[0]["embed"].title and eco.inventory(1)[shop.STREAK_GUARD] == 1
+    assert "ここでは使いません" in it.sent[0]["embed"].title and eco.shop.inventory(1)[shop.STREAK_GUARD] == 1
 
 
 # ----------------------------- 帝愛の競売 ----------------------------- #
@@ -494,24 +500,25 @@ CARD = next(i.id for i in shop.CATALOG if i.kind == shop.CARD_COLOR and not i.li
 
 def _seized(eco, uid=1):
     """uid が品物を買って、破産する。"""
-    eco.credit(uid, 100_000, "テスト")
+    eco.wallet.credit(uid, 100_000, "テスト")
     assert buy(eco, shop.STREAK_GUARD, qty=2, uid=uid).ok
     assert buy(eco, "title_regular", uid=uid).ok  # 称号は、没収するだけで、競売に出さない
     assert buy(eco, CARD, uid=uid).ok
-    eco._conn.execute("UPDATE users SET balance=0 WHERE user_id=?", (uid,))
-    eco._owe(uid, 500, "テスト")
-    assert eco.bankrupt(uid)[0]
+    with eco.db.tx():
+        eco.db.conn.execute("UPDATE users SET balance=0 WHERE user_id=?", (uid,))
+        eco.debt.owe_for(eco.debt.guild_id, uid, 500, "テスト")
+    assert eco.debt.bankrupt(uid)[0]
 
 
 def test_bankruptcy_lists_seized_items_but_not_collection_or_limited(eco):
     _seized(eco)
-    listed = {e["item_id"]: e for e in eco.auction_list()}
+    listed = {e["item_id"]: e for e in eco.auction.auction_list()}
     assert listed[shop.STREAK_GUARD]["qty"] == 2 and CARD in listed
     assert listed[shop.STREAK_GUARD]["price"] == round(16_000 * teiai.AUCTION_START)
     assert not any(
         shop.BY_ID[i].kind in (shop.COLLECTION, shop.TITLE) or shop.BY_ID[i].limited for i in listed
     )  # 称号・コレクション・限定品は出ない（称号は、そのまま没収）
-    assert "title_regular" not in listed and "title_regular" not in eco.inventory(1)
+    assert "title_regular" not in listed and "title_regular" not in eco.shop.inventory(1)
 
 
 def test_auction_price_falls_daily_and_stops_at_floor():
@@ -529,45 +536,47 @@ def test_unsold_items_stay_on_the_shelf_at_the_floor_price(eco):
     _seized(eco)
     month = 30 * 86400
     now = time.time() + month
-    shelf = {e["item_id"]: e for e in eco.auction_list(now)}
+    shelf = {e["item_id"]: e for e in eco.auction.auction_list(now)}
     assert shelf[shop.STREAK_GUARD]["qty"] == 2  # 1か月たっても、売れ残りは棚に残る
     assert shelf[shop.STREAK_GUARD]["price"] == round(16_000 * teiai.AUCTION_FLOOR)
 
 
 def test_auction_buy_moves_item_pays_bank_and_blocks_non_katagi(eco):
     _seized(eco, uid=1)
-    eco.credit(2, 100_000, "テスト")
-    cash_before = eco.bank_status()["cash"]
-    res = eco.auction_buy(2, shop.STREAK_GUARD, qty=2)
-    assert res.ok and eco.inventory(2)[shop.STREAK_GUARD] == 2
-    assert eco.balance(2) == INITIAL_BALANCE + 100_000 - 2 * round(16_000 * teiai.AUCTION_START)
-    assert not any(e["item_id"] == shop.STREAK_GUARD for e in eco.auction_list())
-    assert eco.bank_status()["cash"] > cash_before  # 売上は帝愛の収入
+    eco.wallet.credit(2, 100_000, "テスト")
+    cash_before = eco.bank.bank_status()["cash"]
+    res = eco.auction.auction_buy(2, shop.STREAK_GUARD, qty=2)
+    assert res.ok and eco.shop.inventory(2)[shop.STREAK_GUARD] == 2
+    assert eco.wallet.balance(2) == INITIAL_BALANCE + 100_000 - 2 * round(16_000 * teiai.AUCTION_START)
+    assert not any(e["item_id"] == shop.STREAK_GUARD for e in eco.auction.auction_list())
+    assert eco.bank.bank_status()["cash"] > cash_before  # 売上は帝愛の収入
     # 破産者（カタギでない）は、買えない。持っているものは買えない
-    eco._conn.execute("UPDATE users SET debt=100 WHERE user_id=1")  # 借金のある人（カタギでない）は、買えない
-    assert not eco.auction_buy(1, CARD).ok
-    assert eco.auction_buy(2, CARD).ok and not eco.auction_buy(2, CARD).ok
+    with eco.db.tx():
+        eco.db.conn.execute("UPDATE users SET debt=100 WHERE user_id=1")  # 借金のある人（カタギでない）は、買えない
+    assert not eco.auction.auction_buy(1, CARD).ok
+    assert eco.auction.auction_buy(2, CARD).ok and not eco.auction.auction_buy(2, CARD).ok
 
 
 def test_auction_buy_rejects_missing_or_unaffordable(eco):
     _seized(eco, uid=1)
-    assert not eco.auction_buy(2, shop.STREAK_GUARD, qty=3).ok  # 在庫は2
-    eco.balance(2)
-    eco._conn.execute("UPDATE users SET balance=100 WHERE user_id=2")
-    res = eco.auction_buy(2, CARD)
+    assert not eco.auction.auction_buy(2, shop.STREAK_GUARD, qty=3).ok  # 在庫は2
+    eco.wallet.balance(2)
+    with eco.db.tx():
+        eco.db.conn.execute("UPDATE users SET balance=100 WHERE user_id=2")
+    res = eco.auction.auction_buy(2, CARD)
     assert not res.ok and res.reason.code == "insufficient_balance_need"  # 払えないときは、買えない
 
 
 def test_auction_screen_and_buy_flow(cog, eco):
     _seized(eco, uid=1)
-    eco.credit(2, 50_000, "テスト")
-    view = shop_cog.ShopView(cog, 2, eco.guild_id if hasattr(eco, "guild_id") else 0, screen="auction")
+    eco.wallet.credit(2, 50_000, "テスト")
+    view = shop_cog.ShopView(cog, 2, eco.shop.guild_id, screen="auction")
     text = view.embed().fields[0].value
     assert "連続守り券" in text and "×2" in text
     it = FakeInteraction()
     it.user = SimpleNamespace(id=2)
     run(cog.buy_auction(it, CARD, 1))
-    assert "競売で買いました" in it.sent[0]["embed"].title and CARD in eco.inventory(2)
+    assert "競売で買いました" in it.sent[0]["embed"].title and CARD in eco.shop.inventory(2)
 
 
 # ----------------------------- 在庫（1人ずつ別々） ----------------------------- #
@@ -577,7 +586,7 @@ T0 = 1_800_000_000.0
 
 def buy_at(eco, qty, now, uid=1):
     it = shop.BY_ID[DRINK]
-    return eco.purchase(uid, it.id, shop.label(it), it.price, it.unique, qty, now)
+    return eco.shop.purchase(uid, it.id, shop.label(it), it.price, it.unique, qty, now)
 
 
 def test_stock_math_is_pure_and_capped_at_the_max():
@@ -591,64 +600,68 @@ def test_stock_math_is_pure_and_capped_at_the_max():
 
 def test_everyone_starts_with_a_full_stock_and_buying_reduces_only_their_own(eco):
     rule = shop.STOCK_RULES[DRINK]
-    eco.credit(1, 100_000, "テスト")
-    eco.credit(2, 100_000, "テスト")
-    assert eco.shop_stock(1, DRINK, T0)["stock"] == rule.max and eco.shop_stock(2, DRINK, T0)["stock"] == rule.max
+    eco.wallet.credit(1, 100_000, "テスト")
+    eco.wallet.credit(2, 100_000, "テスト")
+    assert (
+        eco.shop.shop_stock(1, DRINK, T0)["stock"] == rule.max
+        and eco.shop.shop_stock(2, DRINK, T0)["stock"] == rule.max
+    )
     assert buy_at(eco, 4, T0, 1).ok
-    assert eco.shop_stock(1, DRINK, T0)["stock"] == rule.max - 4
-    assert eco.shop_stock(2, DRINK, T0)["stock"] == rule.max  # 別の人の在庫は、減らない
-    assert eco.shop_stock(1, "title_rookie", T0) is None  # 在庫のない品は、None
+    assert eco.shop.shop_stock(1, DRINK, T0)["stock"] == rule.max - 4
+    assert eco.shop.shop_stock(2, DRINK, T0)["stock"] == rule.max  # 別の人の在庫は、減らない
+    assert eco.shop.shop_stock(1, "title_rookie", T0) is None  # 在庫のない品は、None
 
 
 def test_buying_more_than_the_stock_is_refused_and_changes_nothing(eco):
     rule = shop.STOCK_RULES[DRINK]
-    eco.credit(1, 100_000, "テスト")
+    eco.wallet.credit(1, 100_000, "テスト")
     assert buy_at(eco, rule.max, T0).ok
-    before = eco.balance(1)
+    before = eco.wallet.balance(1)
     res = buy_at(eco, 1, T0)
     assert not res.ok and res.reason.code == "shop_out_of_stock" and res.reason.params["next_at"] is not None
-    assert eco.balance(1) == before and eco.inventory(1)[DRINK] == rule.max
+    assert eco.wallet.balance(1) == before and eco.shop.inventory(1)[DRINK] == rule.max
     res = buy_at(eco, rule.max + 1, T0 + 10 * 3600)  # 補充されて満タンでも、上限を超えては買えない
     assert not res.ok
 
 
 def test_stock_refills_over_time_and_keeps_the_fraction(eco):
     rule = shop.STOCK_RULES[DRINK]
-    eco.credit(1, 100_000, "テスト")
+    eco.wallet.credit(1, 100_000, "テスト")
     assert buy_at(eco, rule.max, T0).ok  # 0にする
     half = 1800 / 3600 * rule.per_hour  # 30分ぶん
-    assert eco.shop_stock(1, DRINK, T0 + 1800)["stock"] == int(half)
-    s = eco.shop_stock(1, DRINK, T0 + 900)  # 15分: まだ整数に届かない（0.5個）
+    assert eco.shop.shop_stock(1, DRINK, T0 + 1800)["stock"] == int(half)
+    s = eco.shop.shop_stock(1, DRINK, T0 + 900)  # 15分: まだ整数に届かない（0.5個）
     assert s["stock"] == 0 and s["next_at"] == pytest.approx(T0 + 1800)
     assert buy_at(eco, 1, T0 + 1800).ok  # 30分たつと、1本買える
-    assert eco.shop_stock(1, DRINK, T0 + 1800)["stock"] == 0
-    assert eco.shop_stock(1, DRINK, T0 + 1800 + 3600 * 5)["stock"] == rule.max  # 買ってから5時間で満タン
+    assert eco.shop.shop_stock(1, DRINK, T0 + 1800)["stock"] == 0
+    assert eco.shop.shop_stock(1, DRINK, T0 + 1800 + 3600 * 5)["stock"] == rule.max  # 買ってから5時間で満タン
 
 
 def test_a_failed_purchase_does_not_use_up_the_stock(eco):
-    eco.set_balance(1, 0, "テスト")
+    eco.wallet.set_balance(1, 0, "テスト")
     res = buy_at(eco, 3, T0)  # ペリカが足りない
     assert not res.ok and res.reason.code == "insufficient_balance_need"
-    assert eco.shop_stock(1, DRINK, T0)["stock"] == shop.STOCK_RULES[DRINK].max
+    assert eco.shop.shop_stock(1, DRINK, T0)["stock"] == shop.STOCK_RULES[DRINK].max
 
 
 def test_shop_screen_shows_the_players_own_stock(eco):
-    from types import SimpleNamespace as NS
+    from tests.support import make_shop_cog, make_test_bot
 
-    eco.credit(1, 100_000, "テスト")
+    eco.wallet.credit(1, 100_000, "テスト")
     buy_at(eco, 3, time.time())
-    cog = shop_cog.ShopCog(NS(economy=NS(for_guild=lambda g: eco)))
+    cog = make_shop_cog(make_test_bot(repos=eco))
     text = "\n".join(f.value for f in cog._catalog_embed(0, 1, "item").fields)
     assert "📦 在庫 7/10" in text
 
 
 def test_titles_are_confiscated_not_auctioned_and_old_title_listings_are_purged(eco):
     _seized(eco)
-    assert not any(shop.BY_ID[e["item_id"]].kind == shop.TITLE for e in eco.auction_list())
-    with eco._lock, eco._conn:  # 古い版が出品していた称号
-        eco._conn.execute(
-            "INSERT INTO seized_items (guild_id, item_id, qty, listed_at) VALUES (?, ?, 1, 0)", (eco._g(), "title_zawa")
+    assert not any(shop.BY_ID[e["item_id"]].kind == shop.TITLE for e in eco.auction.auction_list())
+    with eco.db.tx():  # 古い版が出品していた称号
+        eco.db.conn.execute(
+            "INSERT INTO seized_items (guild_id, item_id, qty, listed_at) VALUES (?, ?, 1, 0)",
+            (eco.auction.guild_id, "title_zawa"),
         )
-        assert eco._purge_unlistable_auctions() == 1
-    assert "title_zawa" not in {e["item_id"] for e in eco.auction_list()}
-    assert shop.STREAK_GUARD in {e["item_id"] for e in eco.auction_list()}  # 出せる品は、残る
+        assert eco.auction.purge_unlistable_auctions() == 1
+    assert "title_zawa" not in {e["item_id"] for e in eco.auction.auction_list()}
+    assert shop.STREAK_GUARD in {e["item_id"] for e in eco.auction.auction_list()}  # 出せる品は、残る

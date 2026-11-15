@@ -1,6 +1,7 @@
 """/クイズ — 持ち主・プレイヤーが出題する 4 択クイズの Cog と定期精算タスク。"""
 
 import time
+from typing import TYPE_CHECKING, Any, Optional
 
 import discord
 from discord import app_commands
@@ -75,23 +76,38 @@ from cogs.quiz.views import (
 )
 from cogs.shared import ui
 from cogs.shared.announce import announce_channel
-from cogs.shared.cog_ports import guild_port, port_of
+from cogs.shared.bridges import IQuizAdminBridge
 from domain import approval
 from domain.duration import format_minutes
-from domain.ports import IGuildApprovalStore, IQuizPort
+from domain.ports.repos import IGuildRepo, IQuizRepo
 from infra import logthrottle
 
+if TYPE_CHECKING:
+    from cogs.shared.bot import CasinoBot
 
-class QuizCog(commands.Cog):
-    def __init__(self, bot):
+
+class QuizCog(commands.Cog, IQuizAdminBridge):
+    def __init__(
+        self,
+        bot: commands.Bot,
+        config: dict[str, Any],
+        quiz_repo: IQuizRepo,
+        guild_repo: IGuildRepo,
+    ) -> None:
         self.bot = bot
+        self._config = config
+        self._quiz = quiz_repo
+        self._guild_repo = guild_repo
 
-    async def cog_load(self):
+    async def cog_load(self) -> None:
         self.bot.add_dynamic_items(PublicButton)
         self.tick.start()
 
     async def cog_unload(self) -> None:
         self.tick.cancel()
+
+    async def handle_button(self, interaction: discord.Interaction, quiz_id: int, pos: int) -> None:
+        await record_answer(self._quiz, self._guild_repo, self._config, interaction, quiz_id, pos)
 
     # ------------------------------ 出題者への報酬（期限が来たら） ------------------------------ #
     @tasks.loop(minutes=1)
@@ -107,12 +123,11 @@ class QuizCog(commands.Cog):
 
     async def run_once(self) -> None:
         now = time.time()
-        approval_store = port_of(self.bot, IGuildApprovalStore)
         for guild in list(self.bot.guilds):
-            if not approval.is_allowed(approval_store, self.bot.config, guild.id, 0):
+            if not approval.is_allowed(self._guild_repo, self._config, guild.id, 0):
                 continue
             try:
-                for q in guild_port(self.bot, guild.id, IQuizPort).quiz_settle(now):
+                for q in self._quiz.for_guild(guild.id).quiz_settle(now):
                     await self.announce_settle(guild, q)
             except Exception as exc:  # 1サーバーの失敗で、ほかを止めない
                 print(f"クイズを精算できません: guild={guild.id}: {exc!r}")
@@ -141,36 +156,40 @@ class QuizCog(commands.Cog):
         except discord.HTTPException as exc:
             logthrottle.warn(("quiz-settle", guild.id), f"クイズの結果を投稿できません: guild={guild.id}: {exc!r}")
 
-    async def broadcast(self, quiz_id: int, only_guild=None, only_channel=None) -> int:
+    async def broadcast(
+        self,
+        quiz_id: int,
+        guild: Optional[discord.Guild] = None,
+        channel: Optional[discord.abc.Messageable] = None,
+    ) -> int:
         """問題を、許可されている全サーバーの告知チャンネルに出す。出せた投稿の数を返す。"""
-        quiz_port = port_of(self.bot, IQuizPort)
-        quiz = quiz_port.quiz_get(quiz_id)
+        quiz = self._quiz.quiz_get(quiz_id)
         if quiz is None:
             return 0
         count = 0
-        for guild in [only_guild] if only_guild is not None else list(self.bot.guilds):
-            if only_guild is None and not approval.is_allowed(quiz_port, self.bot.config, guild.id, 0):
+        for g in [guild] if guild is not None else list(self.bot.guilds):
+            if guild is None and not approval.is_allowed(self._guild_repo, self._config, g.id, 0):
                 continue
-            channel = only_channel or announce_channel(guild, guild_port(self.bot, guild.id, IQuizPort))
-            if channel is None:
+            target = channel or announce_channel(g, self._guild_repo)
+            if target is None:
                 continue
             try:
                 await ui.send_channel(
-                    channel,
+                    target,
                     embed=public_embed(quiz),
                     view=public_view(quiz_id),
                     allowed_mentions=discord.AllowedMentions.none(),
                 )
                 count += 1
             except discord.HTTPException as exc:
-                logthrottle.warn(("quiz", guild.id), f"クイズを投稿できません: guild={guild.id}: {exc!r}")
+                logthrottle.warn(("quiz", g.id), f"クイズを投稿できません: guild={g.id}: {exc!r}")
         return count
 
     group = app_commands.Group(name="クイズ", description="📰 時事ネタ・豆知識の4択に答えて、正解でペリカをもらう")
 
     @group.command(name="挑戦", description="クイズに挑戦する（正解でペリカがもらえる）")
     async def play(self, interaction: discord.Interaction):
-        eco = guild_port(self.bot, ui.guild_id_of(interaction), IQuizPort)
+        eco = self._quiz.for_guild(ui.guild_id_of(interaction))
         quiz, remaining = eco.quiz_next(interaction.user.id, time.time())
         if quiz is None:
             return await interaction.response.send_message(
@@ -179,19 +198,19 @@ class QuizCog(commands.Cog):
             )
         await interaction.response.send_message(
             embed=question_embed(quiz, quiz["order"], remaining),
-            view=AnswerView(self, interaction.user.id, quiz, quiz["order"]),
+            view=AnswerView(self._quiz, interaction.user.id, quiz, quiz["order"]),
             ephemeral=True,
         )
 
     @group.command(name="出題", description="自分のクイズを出す（報酬は自分のペリカから払う）")
     async def post(self, interaction: discord.Interaction):
-        await interaction.response.send_modal(UserModal(self))
+        await interaction.response.send_modal(UserModal(self._quiz))
 
     @group.command(name="取り下げ", description="自分が出したクイズを終わらせる")
     @app_commands.rename(quiz_id="番号")
     @app_commands.describe(quiz_id="取り下げる問題（自分の問題だけ候補に出ます）")
     async def withdraw(self, interaction: discord.Interaction, quiz_id: int):
-        done = guild_port(self.bot, ui.guild_id_of(interaction), IQuizPort).quiz_withdraw(
+        done = self._quiz.for_guild(ui.guild_id_of(interaction)).quiz_withdraw(
             interaction.user.id, quiz_id, time.time()
         )
         if done is None:
@@ -215,7 +234,7 @@ class QuizCog(commands.Cog):
         now = time.time()
         cur = current.strip().lower()
         out = []
-        for q in guild_port(self.bot, interaction.guild_id, IQuizPort).quiz_own_open(interaction.user.id, now):
+        for q in self._quiz.for_guild(interaction.guild_id).quiz_own_open(interaction.user.id, now):
             text = q["question"].replace("\n", " ")
             label = f"#{q['id']} {text[:50]}（あと{format_minutes(max(1, int((q['expires'] - now) // 60)))}）"
             if not cur or cur in label.lower():
@@ -223,12 +242,17 @@ class QuizCog(commands.Cog):
         return out[:25]
 
     # ------------------------------ 運営の操作（`/運営 クイズ …` から呼ぶ） ------------------------------ #
-    def add_modal(self, announce: bool = True, guild=None, channel=None) -> AddModal:
-        return AddModal(self, announce, guild, channel)
+    def add_modal(
+        self,
+        announce: bool = True,
+        guild: Optional[discord.Guild] = None,
+        channel: Optional[discord.abc.Messageable] = None,
+    ) -> AddModal:
+        return AddModal(self._quiz, self, announce, guild, channel)
 
     def listing_embed(self) -> discord.Embed:
         now, lines = time.time(), []
-        for q in port_of(self.bot, IQuizPort).quiz_list()[:15]:
+        for q in self._quiz.quiz_list()[:15]:
             state = "⌛" if q["expires"] is not None and now >= q["expires"] else "🟢"
             until = "" if q["expires"] is None else f" 〜<t:{int(q['expires'])}:d>"
             lines.append(
@@ -241,8 +265,10 @@ class QuizCog(commands.Cog):
         )
 
     def remove(self, quiz_id: int) -> bool:
-        return port_of(self.bot, IQuizPort).quiz_delete(quiz_id)
+        return self._quiz.quiz_delete(quiz_id)
 
 
-async def setup(bot):
-    await bot.add_cog(QuizCog(bot))
+async def setup(bot: "CasinoBot") -> None:
+    cog = QuizCog(bot, bot.config, bot.repos.quiz, bot.repos.guild)
+    bot.bridges.quiz = cog
+    await bot.add_cog(cog)

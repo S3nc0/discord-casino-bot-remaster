@@ -3,7 +3,7 @@
 import random
 import time
 from types import SimpleNamespace
-from typing import Optional
+from typing import TYPE_CHECKING, Any, Optional
 
 import discord
 from discord import app_commands
@@ -34,13 +34,27 @@ from cogs.market.views import OptionAmountModal as OptionAmountModal  # noqa: F4
 from cogs.shared import ui
 from cogs.shared.amount import balance_choices, own_balance, typed_amount
 from cogs.shared.announce import announce_channel
-from cogs.shared.cog_ports import guild_port, port_of
 from domain import approval as approval  # noqa: F401
 from domain import market, market_events
 from domain import options as opt
-from domain.ports import IMarketPort
+from domain.ports.repos import (
+    IBondRepo,
+    ICryptoRepo,
+    IDebtRepo,
+    IEarningsRepo,
+    IGuildRepo,
+    IMarginRepo,
+    IMarketDataRepo,
+    IMarketEventRepo,
+    IOptionRepo,
+    IWalletRepo,
+)
+from domain.ports.session import ISessionGuard
 from infra import catalogs, logthrottle
-from services import services_of
+from services.market import MarketService
+
+if TYPE_CHECKING:
+    from cogs.shared.bot import CasinoBot
 
 RNG = random.SystemRandom()
 KEEP_DAYS = catalogs.market().market.keep_days  # 価格の履歴を残す日数
@@ -59,12 +73,38 @@ _worth = orders.worth
 
 
 class MarketCog(commands.Cog):
-    def __init__(self, bot):
+    def __init__(
+        self,
+        bot: commands.Bot,
+        config: dict[str, Any],
+        market_svc: MarketService,
+        market_data: IMarketDataRepo,
+        market_events_repo: IMarketEventRepo,
+        earnings_repo: IEarningsRepo,
+        crypto: ICryptoRepo,
+        margin: IMarginRepo,
+        bonds_repo: IBondRepo,
+        options_repo: IOptionRepo,
+        wallet: IWalletRepo,
+        debt: IDebtRepo,
+        guild_repo: IGuildRepo,
+        sessions: ISessionGuard,
+    ):
         self.bot = bot
+        self._config = config
+        self._market_svc = market_svc
+        self._market = market_data
+        self._market_events = market_events_repo
+        self._earnings = earnings_repo
+        self._crypto = crypto
+        self._margin = margin
+        self._bonds = bonds_repo
+        self._options = options_repo
+        self._wallet = wallet
+        self._debt = debt
+        self._guild_repo = guild_repo
+        self._sessions = sessions
         self._earnings_results = []  # 発表した決算（チャンネルへの投稿待ち）
-
-    def g(self, interaction: discord.Interaction) -> IMarketPort:
-        return guild_port(self.bot, ui.guild_id_of(interaction), IMarketPort)
 
     group = app_commands.Group(
         name="証券", description="📈 注文・保有・市況・決済（4銘柄と債券。ゲーム内の通貨・現実のお金とは無関係）"
@@ -72,16 +112,16 @@ class MarketCog(commands.Cog):
 
     # ------------------------------ 価格の更新（MarketService へ委譲） ------------------------------ #
     def _price(self, symbol: str = market.DEFAULT) -> float:
-        return services_of(self.bot).market.latest_price(symbol)
+        return self._market_svc.latest_price(symbol)
 
     def _prices(self) -> dict[str, float]:
-        return services_of(self.bot).market.latest_prices()
+        return self._market_svc.latest_prices()
 
     def _day_reference(self, now: float) -> dict:
-        return services_of(self.bot).market.day_reference(now)
+        return self._market_svc.day_reference(now)
 
     def step_prices(self) -> tuple:
-        return services_of(self.bot).market.step_prices(self._earnings_results, RNG)
+        return self._market_svc.step_prices(self._earnings_results, RNG)
 
     async def cog_load(self):
         self._prices()  # 初回は開始価格を入れる（起動直後でもコマンドが使えるように）
@@ -92,14 +132,13 @@ class MarketCog(commands.Cog):
 
     @tasks.loop(minutes=TICK_MINUTES)
     async def tick(self):
-        mkt = port_of(self.bot, IMarketPort)
         try:
             prices, _event = self.step_prices()
-            mkt.margin_interest(time.time())
-            for guild_id, user_id, symbol, side, loss in mkt.margin_losscut(prices):
+            self._margin.margin_interest(time.time())
+            for guild_id, user_id, symbol, side, loss in self._margin.margin_losscut(prices):
                 print(f"{market.SIDE_NAME[side]}をロスカット: guild={guild_id} user={user_id} {symbol} 損失={loss:,}")
-            mkt.market_prune(time.time() - KEEP_DAYS * 86400)
-            mkt.prune_chart_posts(time.time() - KEEP_DAYS * 86400)
+            self._market.market_prune(time.time() - KEEP_DAYS * 86400)
+            self._market.prune_chart_posts(time.time() - KEEP_DAYS * 86400)
         except Exception as exc:
             print(f"価格の更新に失敗: {exc!r}")
             return
@@ -108,14 +147,22 @@ class MarketCog(commands.Cog):
         except Exception as exc:
             print(f"決算の告知に失敗: {exc!r}")
         now, cache = time.time(), {}
-        for post in mkt.live_chart_posts():
+        for post in self._market.live_chart_posts():
             try:
                 await self._refresh_post(post, now, cache)
             except Exception as exc:
                 print(f"チャートの更新に失敗: {post}: {exc!r}")
 
     async def _earnings_posts(self) -> None:
-        await feed.earnings_posts(self.bot, self._earnings_results, announce_fn=announce_channel)
+        await feed.earnings_posts(
+            self.bot,
+            self._config,
+            self._earnings,
+            self._market,
+            self._guild_repo,
+            self._earnings_results,
+            announce_fn=announce_channel,
+        )
 
     @tick.before_loop
     async def _before_tick(self):
@@ -127,7 +174,7 @@ class MarketCog(commands.Cog):
 
     # ------------------------------ 表示 ------------------------------ #
     def _histories_24h(self, now: float) -> dict[str, list]:
-        return services_of(self.bot).market.histories(CORRELATION_MINUTES, now)
+        return self._market_svc.histories(CORRELATION_MINUTES, now)
 
     def correlation_lines(self, symbol: str) -> str:
         return correlation_lines(symbol, self._histories_24h(time.time()))
@@ -143,20 +190,11 @@ class MarketCog(commands.Cog):
     ) -> discord.Embed:
         now = time.time()
         _label, seconds = market.PERIODS[period]
-        mkt = port_of(self.bot, IMarketPort)
-        hist = mkt.market_history(now - seconds, symbol)
-        pin = mkt.market_pin(symbol)
+        hist = self._market.market_history(now - seconds, symbol)
+        pin = self._market.market_pin(symbol)
         hist_24h = self._histories_24h(now)
-        holders = (
-            guild_port(self.bot, guild_id, IMarketPort).crypto_holders(HOLDER_ROWS, symbol)
-            if guild_id is not None
-            else ()
-        )
-        shorts = (
-            guild_port(self.bot, guild_id, IMarketPort).short_holders(HOLDER_ROWS, symbol)
-            if guild_id is not None
-            else ()
-        )
+        holders = self._crypto.for_guild(guild_id).crypto_holders(HOLDER_ROWS, symbol) if guild_id is not None else ()
+        shorts = self._margin.for_guild(guild_id).short_holders(HOLDER_ROWS, symbol) if guild_id is not None else ()
         return chart_embed(
             symbol,
             period,
@@ -172,38 +210,38 @@ class MarketCog(commands.Cog):
         )
 
     def pin_lines(self, symbol: str) -> str:
-        return pin_lines(port_of(self.bot, IMarketPort).market_pin(symbol))
+        return pin_lines(self._market.market_pin(symbol))
 
     def correlation_table(self) -> str:
         return correlation_table(self._histories_24h(time.time()))
 
     def event_lines(self) -> str:
         now = time.time()
-        return event_lines(port_of(self.bot, IMarketPort).market_events(now), now)
+        return event_lines(self._market_events.market_events(now), now)
 
     def earnings_lines(self) -> str:
-        return earnings_lines(port_of(self.bot, IMarketPort).earnings_upcoming(time.time()))
+        return earnings_lines(self._earnings.earnings_upcoming(time.time()))
 
     def alert_lines(self) -> str:
-        mkt = port_of(self.bot, IMarketPort)
         since = time.time() - (market_events.ALERT_WINDOW + 5) * 60
-        history = {s.key: [p for _, p, _ in mkt.market_history(since, s.key)] for s in market.SYMBOLS}
+        history = {s.key: [p for _, p, _ in self._market.market_history(since, s.key)] for s in market.SYMBOLS}
         return _alert_lines(history)
 
     def cut_lines(self, guild_id: int) -> str:
         prices = self._prices()
-        return cut_lines(prices, guild_port(self.bot, guild_id, IMarketPort).margin_cut_map(prices))
+        return cut_lines(prices, self._margin.for_guild(guild_id).margin_cut_map(prices))
 
     def summary_embed(self, guild_id: Optional[int] = None) -> discord.Embed:
         now = time.time()
-        mkt = port_of(self.bot, IMarketPort)
         hist_24h = self._histories_24h(now)
         latest = self._prices()
-        upcoming = mkt.earnings_upcoming(now)
-        ev_rows = mkt.market_events(now)
+        upcoming = self._earnings.earnings_upcoming(now)
+        ev_rows = self._market_events.market_events(now)
         since_alert = now - (market_events.ALERT_WINDOW + 5) * 60
-        alert_histories = {s.key: [p for _, p, _ in mkt.market_history(since_alert, s.key)] for s in market.SYMBOLS}
-        cut_rows = guild_port(self.bot, guild_id, IMarketPort).margin_cut_map(latest) if guild_id else []
+        alert_histories = {
+            s.key: [p for _, p, _ in self._market.market_history(since_alert, s.key)] for s in market.SYMBOLS
+        }
+        cut_rows = self._margin.for_guild(guild_id).margin_cut_map(latest) if guild_id else []
         return summary_embed(hist_24h, latest, upcoming, ev_rows, alert_histories, cut_rows, now)
 
     @group.command(
@@ -235,7 +273,7 @@ class MarketCog(commands.Cog):
         )
         try:
             message = await interaction.original_response()
-            prev = port_of(self.bot, IMarketPort).swap_chart_post(message.channel.id, message.id, gid, key, now, sym)
+            prev = self._market.swap_chart_post(message.channel.id, message.id, gid, key, now, sym)
             if prev is not None and prev != message.id:
                 await ui.partial_message(message.channel, prev).delete()
         except discord.HTTPException as exc:
@@ -243,11 +281,11 @@ class MarketCog(commands.Cog):
 
     # ------------------------------ 売買 ------------------------------ #
     async def _trade(self, interaction: discord.Interaction, action):
-        await orders.run_trade(self.bot, interaction, action)
+        await orders.run_trade(self._sessions, interaction, action)
 
     async def _buy_amount_autocomplete(self, interaction: discord.Interaction, current: str):
-        choices = balance_choices(self.bot, interaction, current, 10, 1_000_000)
-        balance = own_balance(self.bot, interaction)
+        choices = balance_choices(self._wallet, interaction, current, 10, 1_000_000)
+        balance = own_balance(self._wallet, interaction.guild_id, interaction.user.id)
         if balance is not None and typed_amount(current) is None:
             for pct in (25, 50, 75, 100):
                 value = min(10_000_000, balance * pct // 100)
@@ -400,7 +438,7 @@ class MarketCog(commands.Cog):
 
     # ------------------------------ 保有・決済 ------------------------------ #
     def positions(self, uid: int, guild_id: int) -> list:
-        return services_of(self.bot).market.positions(guild_id, uid)
+        return self._market_svc.positions(guild_id, uid)
 
     async def settle_position(self, interaction: discord.Interaction, code: str, ratio=None) -> None:
         kind, _, target = code.partition(":")
@@ -417,7 +455,7 @@ class MarketCog(commands.Cog):
         )
 
     def holdings_embed(self, uid: int, guild_id: int) -> discord.Embed:
-        snap = services_of(self.bot).market.holdings_snapshot(guild_id, uid, RNG)
+        snap = self._market_svc.holdings_snapshot(guild_id, uid, RNG)
         return holdings_embed(
             snap["prices"],
             snap["spots"],
@@ -483,15 +521,32 @@ class MarketCog(commands.Cog):
 
     # ------------------------------ チャート定期更新（feed.py へ委譲） ------------------------------ #
     async def _refresh_post(self, post: dict, now: float, cache: dict) -> None:
-        await feed.refresh_post(self, post, now, cache)
+        await feed.refresh_post(self.bot, self._market, self, post, now, cache)
 
     async def _retire_old_boards(self) -> None:
-        await feed.retire_old_boards(self.bot)
+        await feed.retire_old_boards(self.bot, self._market)
 
     @commands.Cog.listener()
     async def on_guild_remove(self, guild: discord.Guild):
-        port_of(self.bot, IMarketPort).delete_guild_chart_posts(guild.id)
+        self._market.delete_guild_chart_posts(guild.id)
 
 
-async def setup(bot):
-    await bot.add_cog(MarketCog(bot))
+async def setup(bot: "CasinoBot"):
+    await bot.add_cog(
+        MarketCog(
+            bot,
+            config=bot.config,
+            market_svc=bot.services.market,
+            market_data=bot.repos.market,
+            market_events_repo=bot.repos.market_events,
+            earnings_repo=bot.repos.earnings,
+            crypto=bot.repos.crypto,
+            margin=bot.repos.margin,
+            bonds_repo=bot.repos.bonds,
+            options_repo=bot.repos.options,
+            wallet=bot.repos.wallet,
+            debt=bot.repos.debt,
+            guild_repo=bot.repos.guild,
+            sessions=bot.sessions,
+        )
+    )

@@ -1,15 +1,14 @@
-"""水平ポート契約（ISP / DIP）とレイヤ境界の自動ガードレールテスト。"""
+"""水平ポート契約（名目的基底クラス・Bridge・Constructor DI）とレイヤ境界の自動ガードレールテスト。"""
 
 import ast
 import subprocess
 import sys
 from pathlib import Path
-from types import SimpleNamespace
 
-from cogs.shared.cog_ports import guild_port, port_of
-from domain import ports as domain_ports
-from domain.ports import IEconomy, IHorsePort, IShopPort
-from infra.db.economy import Economy, _verify_ieconomy
+import pytest
+
+from domain.ports import repos as repo_ports
+from infra.db.repositories import RepositoryBundle, open_repositories
 
 ROOT = Path(__file__).resolve().parents[2]
 
@@ -41,27 +40,58 @@ def test_domain_ports_import_does_not_require_catalogs():
     assert proc.returncode == 0, proc.stderr
 
 
-def test_economy_satisfies_ieconomy_and_all_ports():
-    """Economy が IEconomy および全ドメインポートに定義された公開メソッドを備える。"""
-    eco = Economy(":memory:")
+def test_legacy_facade_and_service_locators_are_removed():
+    """旧 Economy ファサード・cog_ports・旧プロトコル群が削除されている。"""
+    assert not (ROOT / "infra/db/economy.py").exists()
+    assert not (ROOT / "cogs/shared/cog_ports.py").exists()
+    for removed in ("core.py", "casino.py", "community.py", "economy.py", "horse.py", "labor.py", "market.py"):
+        assert not (ROOT / "domain/ports" / removed).exists()
+
+
+def test_ports_and_bridges_use_nominal_base_classes_without_protocol_or_abc():
+    """domain/ports/（catalogs 除く）と bridges.py は Protocol・abc.ABC を使わない名目的基底クラスである。"""
+    targets = [p for p in _iter_py("domain/ports") if p.name not in ("catalogs.py",) and "catalog_types" not in p.parts]
+    targets.append(ROOT / "cogs/shared/bridges.py")
+    violations: list[str] = []
+    for path in targets:
+        tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+        for node in ast.walk(tree):
+            if isinstance(node, ast.ClassDef):
+                for base in node.bases:
+                    base_id = base.id if isinstance(base, ast.Name) else getattr(base, "attr", "")
+                    if base_id in ("Protocol", "ABC"):
+                        violations.append(
+                            f"{path.relative_to(ROOT)}:{node.lineno} class {node.name} inherits {base_id}"
+                        )
+            elif isinstance(node, ast.ImportFrom) and node.module in ("abc",):
+                violations.append(f"{path.relative_to(ROOT)}:{node.lineno} imports abc")
+    assert not violations, "\n".join(violations)
+
+
+@pytest.mark.real_scope
+def test_repository_bundle_satisfies_nominal_repo_ports():
+    """open_repositories() が返す全リポジトリは domain.ports.repos の名目的基底クラスを継承する。"""
+    repos = open_repositories(":memory:", strict=True)
     try:
-        verified = _verify_ieconomy(eco)
-        assert verified is eco
+        assert isinstance(repos, repo_ports.IRepositoryBundle)
+        assert isinstance(repos, RepositoryBundle)
+        assert isinstance(repos.wallet, repo_ports.IWalletRepo)
+        assert isinstance(repos.escrow, repo_ports.IEscrowRepo)
+        assert isinstance(repos.records, repo_ports.IRecordRepo)
+        assert isinstance(repos.guild, repo_ports.IGuildRepo)
+        assert isinstance(repos.bank, repo_ports.IBankRepo)
+        assert isinstance(repos.debt, repo_ports.IDebtRepo)
+        assert isinstance(repos.shop, repo_ports.IShopRepo)
+        assert isinstance(repos.p2p, repo_ports.IP2PRepo)
+        assert isinstance(repos.horses, repo_ports.IHorseRepo)
+        assert isinstance(repos.races, repo_ports.IRaceRepo)
 
-        guild_eco = eco.for_guild(1)
-        assert guild_eco.balance(1) > 0
-
-        bot = SimpleNamespace(economy=eco)
-        assert port_of(bot, IEconomy) is eco
-        assert guild_port(bot, 1, IShopPort).inventory(1) == {}
-        assert guild_port(bot, 1, IHorsePort).horse_list(1) == []
-
-        for name in domain_ports.__all__:
-            obj = getattr(domain_ports, name)
-            if isinstance(obj, type) and getattr(obj, "_is_protocol", False) and name != "ICatalogs":
-                assert hasattr(obj, "__mro__")
+        scoped = repos.for_guild(1)
+        assert scoped.wallet.balance(1) > 0
+        assert scoped.shop.inventory(1) == {}
+        assert scoped.horses.horse_list(1) == []
     finally:
-        eco.close()
+        repos.close()
 
 
 def test_domain_has_no_outward_dependencies():
@@ -99,21 +129,15 @@ def test_services_no_infra_db_cogs_or_any_economy():
     assert not violations, "\n".join(violations)
 
 
-def test_cogs_no_infra_db_imports_and_no_raw_bot_economy():
-    """cogs/ は infra.db を import せず、cogs/shared/(bot|cog_ports).py 以外で bot.economy に直接触れない。"""
-    allowed_bot_economy = {
-        Path("cogs/shared/bot.py"),
-        Path("cogs/shared/cog_ports.py"),
-    }
+def test_cogs_no_infra_db_imports_and_no_service_locators():
+    """cogs/ は infra.db を import せず、bot.economy や旧 Service Locator を一切使わない。"""
+    forbidden_names = {"port_of", "guild_port", "get_cog_port", "require_cog_port", "services_of"}
     violations: list[str] = []
     for path in _iter_py("cogs"):
         rel = path.relative_to(ROOT)
         for mod in _imported_modules(path):
-            if mod == "infra.db" or mod.startswith("infra.db."):
+            if mod == "infra.db" or mod.startswith("infra.db.") or "cog_ports" in mod:
                 violations.append(f"{rel} imports {mod}")
-
-        if rel in allowed_bot_economy:
-            continue
 
         tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
         for node in ast.walk(tree):
@@ -123,4 +147,6 @@ def test_cogs_no_infra_db_imports_and_no_raw_bot_economy():
                     isinstance(val, ast.Attribute) and val.attr == "bot"
                 ):
                     violations.append(f"{rel}:{node.lineno} accesses *.economy directly")
+            elif isinstance(node, ast.Name) and node.id in forbidden_names:
+                violations.append(f"{rel}:{node.lineno} uses locator {node.id}")
     assert not violations, "\n".join(violations)

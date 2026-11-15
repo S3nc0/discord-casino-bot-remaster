@@ -4,7 +4,7 @@ Bot が新しいサーバーに追加されると、持ち主（owner_ids）に 
 コマンドの業務ロジックは approval_ops / economy_ops / content_ops へ分離し、ここはコマンド定義と委譲のみを持つ。
 """
 
-from typing import Optional
+from typing import TYPE_CHECKING, Any, Optional
 
 import discord
 from discord import app_commands
@@ -29,20 +29,56 @@ from cogs.admin.targets import postable as postable  # noqa: F401
 from cogs.admin.views import AnnounceModal as AnnounceModal  # noqa: F401
 from cogs.admin.views import ApprovalButton
 from cogs.shared import ui
-from cogs.shared.cog_ports import port_of
+from cogs.shared.bridges import (
+    IApprovalBridge,
+    IEventAdminBridge,
+    IHorseRaceBridge,
+    IQuizAdminBridge,
+    IRaffleAdminBridge,
+)
 from domain import approval, events
 from domain.games import rtplevel
-from domain.ports import IGuildApprovalStore
+from domain.ports.repos import IGuildRepo, IPachinkoRepo, IQuizRepo, IRtpRepo, IWalletRepo
+from services.labor import LaborService
+
+if TYPE_CHECKING:
+    from cogs.shared.bot import CasinoBot
 
 MAX_IMAGE_BYTES = content_ops.MAX_IMAGE_BYTES
 MAX_IMPORT_BYTES = content_ops.MAX_IMPORT_BYTES
 RENOTIFY_AFTER = 3600  # 承認待ちのサーバーで誰かがコマンドを使ったとき、前の通知からこれ以上たっていれば催促する（秒）
 
 
-class ApprovalCog(commands.Cog):
-    def __init__(self, bot):
+class ApprovalCog(commands.Cog, IApprovalBridge):
+    def __init__(
+        self,
+        bot: commands.Bot,
+        config: dict[str, Any],
+        guild_repo: IGuildRepo,
+        wallet: IWalletRepo,
+        rtp: IRtpRepo,
+        pachinko: IPachinkoRepo,
+        quiz_repo: IQuizRepo,
+        labor_svc: LaborService,
+        *,
+        event_bridge: Optional[IEventAdminBridge] = None,
+        horse_bridge: Optional[IHorseRaceBridge] = None,
+        raffle_bridge: Optional[IRaffleAdminBridge] = None,
+        quiz_bridge: Optional[IQuizAdminBridge] = None,
+    ):
         self.bot = bot
-        self.purging = set()  # 発言を消している最中のチャンネル（同じチャンネルを二重に消さない）
+        self._config = config
+        self._guild_repo = guild_repo
+        self._wallet = wallet
+        self._rtp = rtp
+        self._pachinko = pachinko
+        self._quiz = quiz_repo
+        self._labor_svc = labor_svc
+        self._event_bridge = event_bridge
+        self._horse_bridge = horse_bridge
+        self._raffle_bridge = raffle_bridge
+        self._quiz_bridge = quiz_bridge
+        self.purging: set[int] = set()  # 発言を消している最中のチャンネル（同じチャンネルを二重に消さない）
 
     async def cog_load(self):
         self.bot.add_dynamic_items(ApprovalButton)
@@ -56,6 +92,27 @@ class ApprovalCog(commands.Cog):
 
     async def announce_approved(self, guild: discord.Guild) -> None:
         await approval_ops.announce_approved(guild)
+
+    async def handle_button(self, interaction: discord.Interaction, allow: bool, guild_id: int) -> None:
+        guild = self.bot.get_guild(guild_id)
+        row = self._guild_repo.get_guild_status(guild_id) or {}
+        name = guild.name if guild else row.get("name") or str(guild_id)
+        if allow:
+            self._guild_repo.set_guild_status(guild_id, approval.APPROVED, name, interaction.user.id)
+            embed = ui.ok_embed("許可しました", f"**{name}**（`{guild_id}`）で遊べるようになりました。")
+            if guild is not None:
+                await self.announce_approved(guild)
+        else:
+            self._guild_repo.set_guild_status(guild_id, approval.DENIED, name, interaction.user.id)
+            left = ""
+            if guild is not None:
+                try:
+                    await guild.leave()
+                    left = "Bot はそのサーバーから退出しました。"
+                except discord.HTTPException:
+                    left = "退出はできませんでした（コマンドは使えないままです）。"
+            embed = ui.warn_embed("断りました", f"**{name}**（`{guild_id}`）の利用を断りました。{left}")
+        await interaction.response.edit_message(embed=embed, view=None)
 
     @commands.Cog.listener()
     async def on_guild_join(self, guild: discord.Guild):
@@ -81,7 +138,7 @@ class ApprovalCog(commands.Cog):
     )
 
     async def _owner_only(self, interaction: discord.Interaction) -> bool:
-        if interaction.user.id not in approval.owner_ids(self.bot.config):
+        if interaction.user.id not in approval.owner_ids(self._config):
             await interaction.response.send_message(
                 embed=ui.error_embed("権限がありません", "このコマンドは Bot の持ち主だけが使えます。"), ephemeral=True
             )
@@ -89,8 +146,7 @@ class ApprovalCog(commands.Cog):
         return True
 
     def _allowed_guilds(self) -> list:
-        approval_store = port_of(self.bot, IGuildApprovalStore)
-        return [g for g in self.bot.guilds if approval.is_allowed(approval_store, self.bot.config, g.id, 0)]
+        return [g for g in self.bot.guilds if approval.is_allowed(self._guild_repo, self._config, g.id, 0)]
 
     def _event_targets(self, guild_id: Optional[str]) -> list:
         return [self.bot.get_guild(int(guild_id))] if guild_id else self._allowed_guilds()
@@ -99,7 +155,7 @@ class ApprovalCog(commands.Cog):
         return guild_choices(self.bot, current)
 
     async def guild_autocomplete(self, interaction: discord.Interaction, current: str):
-        return self._guild_choices(current) if interaction.user.id in approval.owner_ids(self.bot.config) else []
+        return self._guild_choices(current) if interaction.user.id in approval.owner_ids(self._config) else []
 
     async def _pick_guild(self, interaction: discord.Interaction, guild_id: str) -> Optional[discord.Guild]:
         return await pick_guild(self.bot, interaction, guild_id)
@@ -109,7 +165,7 @@ class ApprovalCog(commands.Cog):
 
     async def channel_autocomplete(self, interaction: discord.Interaction, current: str):
         guild = self._namespace_guild(interaction)
-        if interaction.user.id not in approval.owner_ids(self.bot.config) or guild is None:
+        if interaction.user.id not in approval.owner_ids(self._config) or guild is None:
             return []
         return channel_choices(guild, current)
 
@@ -119,7 +175,7 @@ class ApprovalCog(commands.Cog):
         return await _pick_channel_impl(interaction, guild, channel_id)
 
     async def user_autocomplete(self, interaction: discord.Interaction, current: str):
-        if interaction.user.id not in approval.owner_ids(self.bot.config):
+        if interaction.user.id not in approval.owner_ids(self._config):
             return []
         guild = self._namespace_guild(interaction)
         return [] if guild is None else user_choices(guild, current)
@@ -480,5 +536,20 @@ class ApprovalCog(commands.Cog):
             await approval_ops.server_revoke(self, interaction, guild_id)
 
 
-async def setup(bot):
-    await bot.add_cog(ApprovalCog(bot))
+async def setup(bot: "CasinoBot"):
+    cog = ApprovalCog(
+        bot,
+        config=bot.config,
+        guild_repo=bot.repos.guild,
+        wallet=bot.repos.wallet,
+        rtp=bot.repos.rtp,
+        pachinko=bot.repos.pachinko,
+        quiz_repo=bot.repos.quiz,
+        labor_svc=bot.services.labor,
+        event_bridge=bot.bridges.event,
+        horse_bridge=bot.bridges.horse,
+        raffle_bridge=bot.bridges.raffle,
+        quiz_bridge=bot.bridges.quiz,
+    )
+    bot.bridges.approval = cog
+    await bot.add_cog(cog)

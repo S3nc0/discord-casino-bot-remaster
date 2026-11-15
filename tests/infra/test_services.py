@@ -84,7 +84,7 @@ class StubWallet(IWalletRepo):
         min_games: int = 0,
     ) -> TransferResult:
         self.transfers.append((sender, receiver, amount, day_start_ts))
-        return TransferResult(True, sent=amount, fee=0, balance=1000)
+        return TransferResult(True, received=amount, fee=0, sender_balance=1000)
 
 
 class StubEscrow(IEscrowRepo):
@@ -175,8 +175,24 @@ class StubRaces(IRaceRepo):
         return self
 
     def race_close_entries(self, race_id: int, rng=None) -> Optional[dict[str, Any]]:
+        from domain.horse import Runner
+
         return {
-            "runners": [{"lane": i + 1, "races": 5, "wins": 1, "places": 3, "form": 0, "ability": 50} for i in range(6)]
+            "runners": [
+                Runner(
+                    lane=i + 1,
+                    name=f"H{i + 1}",
+                    speed=50,
+                    stamina=50,
+                    power=50,
+                    guts=50,
+                    races=5,
+                    wins=1,
+                    places=3,
+                    form=0,
+                )
+                for i in range(6)
+            ]
         }
 
     def race_set_odds(self, race_id: int, odds: Any) -> None:
@@ -191,7 +207,17 @@ class StubLabor(ILaborRepo):
         return self
 
     def labor_click_hours(self, user_id: int, since: float) -> list[Any]:
-        return [{"hour": 100, "clicks": 3, "gaps": 2, "sum_gap": 10.0, "sum_sq": 50.0, "min_gap": 5.0, "max_gap": 5.0}]
+        return [
+            {
+                "hour": 100,
+                "clicks": 3,
+                "pay": 300,
+                "gaps": 2,
+                "sum_gap": 10.0,
+                "sum_gap2": 50.0,
+                "min_gap": 5.0,
+            }
+        ]
 
 
 def test_casino_service_works_with_narrow_bridge_stubs():

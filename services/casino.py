@@ -49,51 +49,6 @@ class SettleGameResult:
     events: dict[str, Any] | None = None
 
 
-class _ScopedCasinoView:
-    """Milestone C で cogs/casino を移行するまでのサーバー単位ファサード。"""
-
-    def __init__(
-        self,
-        wallet: IWalletRepo,
-        escrow: IEscrowRepo,
-        rtp: IRtpRepo,
-        debt: Optional[IDebtRepo],
-        pachinko: Optional[IPachinkoRepo],
-    ) -> None:
-        self._wallet = wallet
-        self._escrow = escrow
-        self._rtp = rtp
-        self._debt = debt
-        self._pachinko = pachinko
-
-    def balance(self, user_id: int) -> int:
-        return self._wallet.balance(user_id)
-
-    def debt(self, user_id: int) -> int:
-        if self._debt is None:
-            raise RuntimeError("debt repository not wired")
-        return self._debt.debt(user_id)
-
-    def can_borrow_for_bet(self, user_id: int, need: int) -> tuple[Any, ...]:
-        if self._debt is None:
-            raise RuntimeError("debt repository not wired")
-        return self._debt.can_borrow_for_bet(user_id, need)
-
-    def escrow_amount(self, escrow_id: int) -> int:
-        return self._escrow.escrow_amount(escrow_id)
-
-    def add_to_escrow(self, escrow_id: int, extra: int, credit: bool = False) -> bool:
-        return self._escrow.add_to_escrow(escrow_id, extra, credit=credit)
-
-    def rtp_level_get(self, game: str) -> int:
-        return self._rtp.rtp_level_get(game)
-
-    def pachinko_record_set(self, user_id: int, bet: int, balls: int, result: Any) -> None:
-        if self._pachinko is None:
-            raise RuntimeError("pachinko repository not wired")
-        self._pachinko.pachinko_record_set(user_id, bet, balls, result)
-
-
 class CasinoService:
     """カジノ 1 プレイの開始〜精算〜中断のアプリケーションサービス。"""
 
@@ -124,15 +79,6 @@ class CasinoService:
         self._rtp_policy = rtp_policy
         self._debt = debt
         self._pachinko = pachinko
-
-    def for_guild(self, guild_id: int) -> _ScopedCasinoView:
-        return _ScopedCasinoView(
-            self._wallet.for_guild(guild_id),
-            self._escrow.for_guild(guild_id),
-            self._rtp.for_guild(guild_id),
-            self._debt.for_guild(guild_id) if self._debt is not None else None,
-            self._pachinko.for_guild(guild_id) if self._pachinko is not None else None,
-        )
 
     def balance(self, guild_id: int, user_id: int) -> int:
         return self._wallet.for_guild(guild_id).balance(user_id)

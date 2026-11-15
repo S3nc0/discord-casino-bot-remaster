@@ -8,7 +8,7 @@
 """
 
 import re
-from typing import Any
+from typing import TYPE_CHECKING, Any, Optional, cast
 
 import discord
 from discord.ext import commands, tasks
@@ -24,13 +24,17 @@ from cogs.p2p.embeds import (  # noqa: F401
 )
 from cogs.shared import ui
 from cogs.shared.announce import announce_channel
-from cogs.shared.cog_ports import IP2PCogPort, get_cog_port, guild_port, port_of
+from cogs.shared.bridges import IP2PNavigationBridge
 from cogs.shared.confirm import confirm_action, confirmed_reply, user_session
 from cogs.shared.messages import format_failure
 from domain import approval, p2p
 from domain import shop as shop_mod
-from domain.ports import IGuildApprovalStore, IP2PPort
+from domain.ports.repos import IGuildRepo, IHorseRepo, IP2PRepo, IShopRepo, IWalletRepo
+from domain.ports.session import ISessionGuard
 from infra import catalogs, logthrottle
+
+if TYPE_CHECKING:
+    from cogs.shared.bot import CasinoBot
 
 CONFIRM_FROM = catalogs.economy().p2p.confirm_from  # この金額以上の購入・入札は、確認ボタンを挟む
 SHOWN = 25
@@ -53,12 +57,13 @@ class ListingButton(discord.ui.DynamicItem[discord.ui.Button], template=r"p2p:op
         return cls(int(match["id"]))
 
     async def callback(self, interaction: discord.Interaction):
-        cog = get_cog_port(ui.bot_of(interaction), "P2PCog", IP2PCogPort)
-        if cog is None:
+        bot = cast("CasinoBot", interaction.client)
+        bridge = bot.bridges.p2p
+        if bridge is None:
             return await interaction.response.send_message(
                 embed=ui.error_embed("いまは使えません", "しばらくしてから、もう一度試してください。"), ephemeral=True
             )
-        await cog.open_detail(interaction, self.listing_id)
+        await bridge.open_detail(interaction, self.listing_id)
 
 
 def listing_view(listing_id: int) -> discord.ui.View:
@@ -97,7 +102,7 @@ class DetailView(ui.OwnerView):
         self.add_item(go)
 
     async def _on_go(self, interaction: discord.Interaction):
-        eco = self.cog.eco_of(interaction)
+        eco = self.cog.p2p_of(interaction)
         row = eco.p2p_get(self.listing_id)
         if row is None or row["status"] != "active":
             return await interaction.response.send_message(
@@ -155,7 +160,7 @@ class SellModal(discord.ui.Modal):
             return
         assert self.view.target is not None
         kind, _, ref = self.view.target.partition(":")
-        eco = self.view.cog.eco_of(interaction)
+        eco = self.view.cog.p2p_of(interaction)
         ok, result = eco.p2p_list(interaction.user.id, kind, ref, qty or 1, self.mode, price, hours)
         if not ok:
             await interaction.response.send_message(
@@ -183,14 +188,15 @@ class SellView(ui.OwnerView):
     def __init__(self, cog: "P2PCog", user_id: int, guild_id: int):
         super().__init__(user_id, timeout=300)
         self.cog, self.user_id = cog, user_id
-        self.target: str | None = None
-        eco = guild_port(cog.bot, guild_id, IP2PPort)
+        self.target: Optional[str] = None
+        shop_repo = cog._shop.for_guild(guild_id)
+        horse_repo = cog._horses.for_guild(guild_id)
         self.options = []
-        for item_id, qty in eco.inventory(user_id).items():
+        for item_id, qty in shop_repo.inventory(user_id).items():
             if p2p.tradable(item_id):
                 label = f"{shop_mod.label(shop_mod.BY_ID[item_id])}（持っている {qty}）"
                 self.options.append(discord.SelectOption(label=label[:100], value=f"item:{item_id}"))
-        for horse in eco.horse_list(user_id):
+        for horse in horse_repo.horse_list(user_id):
             self.options.append(
                 discord.SelectOption(
                     label=f"{horse['name']}（馬）"[:100], value=f"horse:{horse['id']}", emoji=horse["silks"]
@@ -238,7 +244,7 @@ class MineView(ui.OwnerView):
     def __init__(self, cog: "P2PCog", user_id: int, guild_id: int):
         super().__init__(user_id, timeout=300)
         self.cog, self.user_id, self.guild_id = cog, user_id, guild_id
-        eco = guild_port(cog.bot, guild_id, IP2PPort)
+        eco = cog._p2p.for_guild(guild_id)
         self.data = eco.p2p_mine(user_id)
         cancellable = [r for r in self.data["selling"] if not r["bidder_id"]]  # 入札が入った競りは、取り消せない
         if cancellable:
@@ -253,7 +259,7 @@ class MineView(ui.OwnerView):
             self.add_item(select)
 
     def embed(self) -> discord.Embed:
-        eco = guild_port(self.cog.bot, self.guild_id, IP2PPort)
+        eco = self.cog._p2p.for_guild(self.guild_id)
         sell = "\n".join(line_of(r, eco.p2p_label(r)) for r in self.data["selling"]) or "出していません。"
         bid = "\n".join(line_of(r, eco.p2p_label(r)) for r in self.data["bidding"]) or "入札中のものは、ありません。"
         e = ui.embed("📋 自分の取引", "", ui.INFO)
@@ -262,7 +268,7 @@ class MineView(ui.OwnerView):
         return e
 
     async def _on_cancel(self, interaction: discord.Interaction):
-        eco = guild_port(self.cog.bot, self.guild_id, IP2PPort)
+        eco = self.cog._p2p.for_guild(self.guild_id)
         listing_id = int(ui.selected_values(interaction)[0])
         ok, why = eco.p2p_cancel(self.user_id, listing_id)
         if not ok:
@@ -277,36 +283,53 @@ class MineView(ui.OwnerView):
         )
 
 
-class P2PCog(commands.Cog):
-    def __init__(self, bot):
+class P2PCog(commands.Cog, IP2PNavigationBridge):
+    def __init__(
+        self,
+        bot: commands.Bot,
+        config: dict[str, Any],
+        p2p_repo: IP2PRepo,
+        horses: IHorseRepo,
+        shop_repo: IShopRepo,
+        wallet: IWalletRepo,
+        guild_repo: IGuildRepo,
+        sessions: ISessionGuard,
+    ) -> None:
         self.bot = bot
+        self._config = config
+        self._p2p = p2p_repo
+        self._horses = horses
+        self._shop = shop_repo
+        self._wallet = wallet
+        self._guild_repo = guild_repo
+        self._sessions = sessions
 
-    async def cog_load(self):
+    async def cog_load(self) -> None:
         self.bot.add_dynamic_items(ListingButton)
         self.tick.start()
 
     async def cog_unload(self) -> None:
         self.tick.cancel()
 
-    def eco_of(self, interaction: discord.Interaction) -> IP2PPort:
-        return guild_port(self.bot, ui.guild_id_of(interaction), IP2PPort)
+    def p2p_of(self, interaction: discord.Interaction) -> IP2PRepo:
+        return self._p2p.for_guild(ui.guild_id_of(interaction))
 
-    def _post_args(self, eco: IP2PPort, row: dict) -> tuple[str, dict | None]:
-        horse = eco.horse_get(int(row["ref"])) if row["kind"] == "horse" else None
+    def _post_args(self, guild_id: int, eco: IP2PRepo, row: dict) -> tuple[str, Optional[dict]]:
+        horse = self._horses.for_guild(guild_id).horse_get(int(row["ref"])) if row["kind"] == "horse" else None
         return eco.p2p_label(row), horse
 
     # ------------------------------ 出品の告知（チャンネルへの投稿） ------------------------------ #
-    async def announce(self, guild, listing_id: int) -> bool:
+    async def announce(self, guild: Optional[discord.Guild], listing_id: int) -> bool:
         """出品を、告知チャンネルに投稿する（投稿を覚えて、入札・売れたときに書き換える）。投稿できたら True。失敗しても、出品には影響しない。"""
         if guild is None:
             return False
-        eco = guild_port(self.bot, guild.id, IP2PPort)
+        eco = self._p2p.for_guild(guild.id)
         row = eco.p2p_get(listing_id)
-        channel = announce_channel(guild, eco) if row else None
+        channel = announce_channel(guild, self._guild_repo) if row else None
         if row is None or channel is None:
             return False
         try:
-            label, horse = self._post_args(eco, row)
+            label, horse = self._post_args(guild.id, eco, row)
             msg = await ui.send_channel(
                 channel, embed=post_embed(row, label, horse), view=listing_view(listing_id), allowed_mentions=NONE
             )
@@ -316,11 +339,11 @@ class P2PCog(commands.Cog):
         eco.p2p_set_post(listing_id, channel.id, msg.id)
         return True
 
-    async def refresh_post(self, guild, listing_id: int) -> None:
+    async def refresh_post(self, guild: Optional[discord.Guild], listing_id: int) -> None:
         """告知の投稿を、いまの状態（最高入札・売れた・取り消し・終了）に書き換える。終わったら、ボタンを外す。"""
         if guild is None:
             return
-        eco = guild_port(self.bot, guild.id, IP2PPort)
+        eco = self._p2p.for_guild(guild.id)
         row = eco.p2p_get(listing_id)
         if row is None or not row["message_id"]:
             return
@@ -328,11 +351,13 @@ class P2PCog(commands.Cog):
         channel = guild.get_channel(row["channel_id"])
         if channel is not None:
             try:
-                label, horse = self._post_args(eco, row)
+                label, horse = self._post_args(guild.id, eco, row)
                 kwargs: dict[str, Any] = {"embed": post_embed(row, label, horse)}
                 if ended:
                     kwargs["view"] = None
-                await ui.partial_message(channel, row["message_id"]).edit(**kwargs)
+                msg = ui.partial_message(channel, row["message_id"])
+                if msg is not None:
+                    await msg.edit(**kwargs)
             except discord.HTTPException as exc:  # 消されていても、取引には関係ない
                 logthrottle.warn(
                     ("p2p-refresh", guild.id), f"出品の告知を書き換えられません: guild={guild.id}: {exc!r}"
@@ -344,14 +369,16 @@ class P2PCog(commands.Cog):
 
     # ------------------------------ 買う・入札 ------------------------------ #
     async def do_buy(self, interaction: discord.Interaction, listing_id: int) -> None:
-        eco = self.eco_of(interaction)
+        gid = ui.guild_id_of(interaction)
+        eco = self._p2p.for_guild(gid)
+        wallet = self._wallet.for_guild(gid)
         row = eco.p2p_get(listing_id)
         if row is None or row["status"] != "active":
             await interaction.response.send_message(
                 embed=ui.error_embed("買えません", "その出品は、もうありません。"), ephemeral=True
             )
             return
-        async with user_session(self.bot, interaction, "いまは買えません") as ok:
+        async with user_session(self._sessions, interaction, "いまは買えません") as ok:
             if not ok:
                 return
             uid = interaction.user.id
@@ -372,21 +399,23 @@ class P2PCog(commands.Cog):
             await reply(
                 embed=ui.ok_embed(
                     "購入しました",
-                    f"**{eco.p2p_label(row)}** を {ui.pelica(result)} で買いました。\n残高: **{ui.pelica(eco.balance(uid))}**",
+                    f"**{eco.p2p_label(row)}** を {ui.pelica(result)} で買いました。\n残高: **{ui.pelica(wallet.balance(uid))}**",
                 ),
                 ephemeral=True,
             )
             await self.refresh_post(getattr(interaction, "guild", None), listing_id)  # 告知を「売れました」に
 
     async def do_bid(self, interaction: discord.Interaction, listing_id: int, amount: int) -> None:
-        eco = self.eco_of(interaction)
+        gid = ui.guild_id_of(interaction)
+        eco = self._p2p.for_guild(gid)
+        wallet = self._wallet.for_guild(gid)
         row = eco.p2p_get(listing_id)
         if row is None or row["status"] != "active":
             await interaction.response.send_message(
                 embed=ui.error_embed("入札できません", "その出品は、もうありません。"), ephemeral=True
             )
             return
-        async with user_session(self.bot, interaction, "いまは入札できません") as ok:
+        async with user_session(self._sessions, interaction, "いまは入札できません") as ok:
             if not ok:
                 return
             uid = interaction.user.id
@@ -407,7 +436,7 @@ class P2PCog(commands.Cog):
             await reply(
                 embed=ui.ok_embed(
                     "入札しました",
-                    f"**{eco.p2p_label(row)}** に **{ui.pelica(amount)}** で入札しました。締切 {when(result)}\n残高: **{ui.pelica(eco.balance(uid))}**",
+                    f"**{eco.p2p_label(row)}** に **{ui.pelica(amount)}** で入札しました。締切 {when(result)}\n残高: **{ui.pelica(wallet.balance(uid))}**",
                 ),
                 ephemeral=True,
             )
@@ -416,7 +445,8 @@ class P2PCog(commands.Cog):
     # ------------------------------ 画面（競売の画面から開く） ------------------------------ #
     async def open_detail(self, interaction: discord.Interaction, listing_id: int) -> None:
         """出品の詳細（「買う」「入札する」）を、本人にだけ見せる。"""
-        eco = self.eco_of(interaction)
+        gid = ui.guild_id_of(interaction)
+        eco = self._p2p.for_guild(gid)
         row = eco.p2p_get(listing_id)
         if row is None or row["status"] != "active":
             await interaction.response.send_message(
@@ -426,7 +456,7 @@ class P2PCog(commands.Cog):
         view = DetailView(self, interaction.user.id, row["id"], row["mode"])
         if row["seller_id"] == interaction.user.id:
             view.clear_items()  # 自分の出品は、買えない
-        label, horse = self._post_args(eco, row)
+        label, horse = self._post_args(gid, eco, row)
         await interaction.response.send_message(embed=detail_embed(row, label, horse), view=view, ephemeral=True)
 
     async def open_sell(self, interaction: discord.Interaction) -> None:
@@ -454,7 +484,7 @@ class P2PCog(commands.Cog):
     @tasks.loop(seconds=30)
     async def tick(self):
         for guild in list(self.bot.guilds):
-            if not approval.is_allowed(port_of(self.bot, IGuildApprovalStore), self.bot.config, guild.id, 0):
+            if not approval.is_allowed(self._guild_repo, self._config, guild.id, 0):
                 continue
             try:
                 await self._settle_guild(guild)
@@ -466,14 +496,14 @@ class P2PCog(commands.Cog):
         await self.bot.wait_until_ready()
 
     async def _settle_guild(self, guild: discord.Guild) -> None:
-        eco = guild_port(self.bot, guild.id, IP2PPort)
+        eco = self._p2p.for_guild(guild.id)
         results = eco.p2p_settle()
         for row, _res in results:
             await self.refresh_post(guild, row["id"])  # 告知を、売れた・終了に書き換える
         for row in eco.p2p_unsynced_posts():  # 取引停止（破産猶予・破産）などで、取り下げられた出品の告知も、書き換える
             await self.refresh_post(guild, row["id"])
         channel = (
-            announce_channel(guild, eco)
+            announce_channel(guild, self._guild_repo)
             if any(res == "sold" and r["mode"] == "auction" for r, res in results)
             else None
         )
@@ -497,5 +527,16 @@ class P2PCog(commands.Cog):
                 logthrottle.warn(("p2p-post", guild.id), f"落札の告知に失敗: guild={guild.id}: {exc!r}")
 
 
-async def setup(bot):
-    await bot.add_cog(P2PCog(bot))
+async def setup(bot: "CasinoBot") -> None:
+    cog = P2PCog(
+        bot,
+        bot.config,
+        bot.repos.p2p,
+        bot.repos.horses,
+        bot.repos.shop,
+        bot.repos.wallet,
+        bot.repos.guild,
+        bot.sessions,
+    )
+    bot.bridges.p2p = cog
+    await bot.add_cog(cog)

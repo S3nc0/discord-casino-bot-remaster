@@ -6,13 +6,10 @@ from types import SimpleNamespace
 
 import pytest
 
-from cogs.admin.cog import AnnounceModal, ApprovalCog, postable
+from cogs.admin.cog import AnnounceModal, postable
 from cogs.event import cog as event_cog
-from cogs.event.cog import EventCog
-from cogs.quiz.cog import QuizCog
-from cogs.raffle.cog import RaffleCog
-from infra.db.economy import Economy
-from services.session import Sessions
+from infra.db.repositories import open_repositories
+from tests.support import make_approval_cog, make_event_cog, make_quiz_cog, make_raffle_cog, make_test_bot
 
 OWNER, FRIEND = 1, 2
 
@@ -49,16 +46,17 @@ def make_guild(gid=5, name="鯖5"):
 
 
 def make_admin(tmp_path, guilds, cogs=None):
-    eco = Economy(str(tmp_path / "t.db"))
     by_id = {g.id: g for g in guilds}
-    bot = SimpleNamespace(
-        config={"owner_ids": [OWNER]},
-        economy=eco,
-        guilds=list(guilds),
-        get_guild=lambda gid: by_id.get(gid),
-        get_cog=lambda n: (cogs or {}).get(n),
-    )
-    return ApprovalCog(bot), eco, bot
+    bot = make_test_bot(db_path=str(tmp_path / "t.db"), config={"owner_ids": [OWNER]})
+    bot.guilds = list(guilds)
+    bot.get_guild = lambda gid: by_id.get(gid)
+    if cogs and "QuizCog" in cogs:
+        bot.bridges.quiz = cogs["QuizCog"]
+    if cogs and "EventCog" in cogs:
+        bot.bridges.event = cogs["EventCog"]
+    if cogs and "RaffleCog" in cogs:
+        bot.bridges.raffle = cogs["RaffleCog"]
+    return make_approval_cog(bot), bot.repos, bot
 
 
 def dm(uid, log, namespace=None):
@@ -181,58 +179,60 @@ def test_command_requires_a_guild_with_a_channel_and_passes_it_on(tmp_path, monk
 # ----------------------------- 各機能が指定先に出す ----------------------------- #
 def test_raffle_host_and_repost_use_the_chosen_channel(tmp_path):
     guild, chans = make_guild()
-    eco = Economy(str(tmp_path / "t.db"))
-    bot = SimpleNamespace(guilds=[guild], config={}, economy=eco)
-    cog = RaffleCog(bot)
+    bot = make_test_bot(db_path=str(tmp_path / "t.db"))
+    bot.guilds = [guild]
+    eco = bot.repos
+    cog = make_raffle_cog(bot)
     ok, text = asyncio.run(cog.host(guild, OWNER, 1000, 30, chans[11]))
-    r = eco.raffle_get()
+    r = eco.raffle.raffle_get()
     assert ok and r["channel_id"] == 11 and len(chans[11].sent) == 1 and chans[10].sent == [] and "#クイズ部屋" in text
     ok, text = asyncio.run(cog.repost(guild, chans[10]))  # 別のチャンネルへ出し直す
-    assert ok and eco.raffle_get()["channel_id"] == 10 and len(chans[10].sent) == 1
+    assert ok and eco.raffle.raffle_get()["channel_id"] == 10 and len(chans[10].sent) == 1
     assert chans[11].deleted == [9001]  # 古い投稿は元のチャンネルから消える
 
 
 def test_manual_event_announces_start_and_end_in_the_chosen_channel(tmp_path, monkeypatch):
     guild, chans = make_guild()
-    eco = Economy(str(tmp_path / "t.db"))
-    bot = SimpleNamespace(guilds=[guild], config={}, economy=eco, sessions=Sessions(cooldown=0))
+    bot = make_test_bot(db_path=str(tmp_path / "t.db"))
+    bot.guilds = [guild]
+    eco = bot.repos
     monkeypatch.setattr(event_cog.approval, "is_allowed", lambda *a: True)
-    cog = EventCog(bot)
+    cog = make_event_cog(bot)
     asyncio.run(cog.start_manual(guild, "スロット", 80, 45, chans[11]))
-    assert len(chans[11].sent) == 1 and chans[10].sent == [] and eco.manual_event_get(time.time())["channel_id"] == 11
+    assert (
+        len(chans[11].sent) == 1
+        and chans[10].sent == []
+        and eco.events.manual_event_get(time.time())["channel_id"] == 11
+    )
     asyncio.run(cog.stop_manual(guild))
     assert (
         len(chans[11].sent) == 2 and "終了" in chans[11].sent[1]["embed"].title and chans[10].sent == []
     )  # 終了も同じチャンネル
     asyncio.run(cog.start_manual(guild, "ルーレット", 50, 30))  # 指定なしは告知チャンネル（system_channel）
-    assert len(chans[10].sent) == 1 and eco.manual_event_get(time.time())["channel_id"] == 0
+    assert len(chans[10].sent) == 1 and eco.events.manual_event_get(time.time())["channel_id"] == 0
 
 
 def test_old_manual_event_table_gets_channel_id(tmp_path):
     import sqlite3
 
     path = str(tmp_path / "t.db")
-    Economy(path)
+    open_repositories(path)
     c = sqlite3.connect(path)
     c.executescript("""DROP TABLE manual_event; CREATE TABLE manual_event (guild_id INTEGER PRIMARY KEY, game TEXT NOT NULL, boost INTEGER NOT NULL,
         starts REAL NOT NULL, ends REAL NOT NULL, ended INTEGER NOT NULL DEFAULT 0); INSERT INTO manual_event VALUES (0, 'ルーレット', 50, 0, 9e12, 0);""")
     c.commit()
     c.close()
-    assert Economy(path).manual_event_get(100)["channel_id"] == 0
+    assert open_repositories(path).events.manual_event_get(100)["channel_id"] == 0
 
 
 @pytest.mark.real_scope
 def test_quiz_broadcast_can_target_one_guild_and_channel(tmp_path, monkeypatch):
     g1, c1 = make_guild(5, "鯖5")
     g2, c2 = make_guild(6, "鯖6")
-    eco = Economy(str(tmp_path / "t.db"))
-    qid = eco.quiz_add("問", ["a", "b", "c", "d"], "", 100, None, 0.0)
-    bot = SimpleNamespace(
-        guilds=[g1, g2],
-        config={},
-        economy=SimpleNamespace(quiz_get=eco.quiz_get, for_guild=lambda gid: eco, is_approved=lambda *a: True),
-    )
-    cog = QuizCog(bot)
+    bot = make_test_bot(db_path=str(tmp_path / "t.db"))
+    bot.guilds = [g1, g2]
+    qid = bot.repos.quiz.quiz_add("問", ["a", "b", "c", "d"], "", 100, None, 0.0)
+    cog = make_quiz_cog(bot)
     monkeypatch.setattr("cogs.quiz.cog.approval.is_allowed", lambda e, c, gid, uid: gid == 5)  # 6 は許可されていない
     monkeypatch.setattr("cogs.quiz.cog.announce_channel", lambda g, e: (c1 if g.id == 5 else c2)[10])
     assert (

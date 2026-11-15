@@ -11,7 +11,7 @@ from cogs.horse import views as views
 from cogs.horse.cog import HorseCog, anim_frames, comment, lane_text, laps_for, pick_frames
 from domain import horse as h
 from domain import shop
-from infra.db.economy import Economy
+from tests.support import make_horse_cog, make_shop_cog, make_test_bot
 
 U, V = 1, 2
 
@@ -46,10 +46,11 @@ class Chan:
 
 @pytest.fixture
 def setup(tmp_path, monkeypatch):
-    eco = Economy(str(tmp_path / "t.db"))
+    bot = make_test_bot(db_path=str(tmp_path / "t.db"))
     chan = Chan()
     guild = SimpleNamespace(id=0, me=object(), system_channel=chan, get_channel=lambda cid: chan, name="g")
-    bot = SimpleNamespace(economy=SimpleNamespace(for_guild=lambda gid: eco), config={}, guilds=[guild])
+    bot.guilds = [guild]
+    bot.get_guild = lambda gid: guild if gid == 0 else None
     monkeypatch.setattr(horse_cog.approval, "is_allowed", lambda *a: True)
     monkeypatch.setattr("cogs.horse.cog.announce_channel", lambda g, e: chan)
 
@@ -58,7 +59,7 @@ def setup(tmp_path, monkeypatch):
 
     monkeypatch.setattr(horse_cog.asyncio, "sleep", nap)
     monkeypatch.setattr(horse_cog.horse_mod, "ODDS_SIMS", 300)
-    return eco, chan, guild, bot, HorseCog(bot)
+    return bot.repos, chan, guild, bot, make_horse_cog(bot)
 
 
 def test_pick_frames_keeps_first_and_last_and_the_count():
@@ -81,31 +82,35 @@ def test_lane_text_and_commentary():
 
 def test_scheduled_flow_announces_closes_with_odds_runs_animation_and_settles(setup, monkeypatch):
     eco, chan, guild, bot, cog = setup
-    eco.credit(U, 100_000, "テスト")
-    eco._conn.execute(
-        "INSERT INTO inventory (guild_id, user_id, item_id, qty) VALUES (?, ?, ?, 1)", (eco._g(), U, shop.HORSE_VOUCHER)
-    )
-    ok, hid = eco.horse_create(U, "テストホース", "栗毛", "🟥")
+    eco.wallet.credit(U, 100_000, "テスト")
+    with eco.db.tx():
+        eco.db.conn.execute(
+            "INSERT INTO inventory (guild_id, user_id, item_id, qty) VALUES (?, ?, ?, 1)",
+            (eco.horses.guild_id, U, shop.HORSE_VOUCHER),
+        )
+    ok, hid = eco.horses.horse_create(U, "テストホース", "栗毛", "🟥")
     assert ok
     now = 1_700_000_000.0
     monkeypatch.setattr("cogs.horse.cog.time.time", lambda: now)
     asyncio.run(cog.run_once())  # 次の定時レースを作って、申し込み開始を知らせる
-    race = eco.race_open()[0]
+    race = eco.races.race_open()[0]
     assert race["status"] == "entry" and "申し込みが始まりました" in chan.sent[0]["content"]
-    assert eco.race_register(U, hid, race["id"], now)[0]
+    assert eco.races.race_register(U, hid, race["id"], now)[0]
     monkeypatch.setattr("cogs.horse.cog.time.time", lambda: race["entry_close"] + 1)
     asyncio.run(cog.run_once())  # 締切 → 出馬表とオッズ
-    race = eco.race_get(race["id"])
+    race = eco.races.race_get(race["id"])
     assert race["status"] == "betting" and "出馬表とオッズ" in chan.sent[-1]["content"]
-    entries = eco.race_entries(race["id"])
+    entries = eco.races.race_entries(race["id"])
     assert len(entries) == h.FIELD_SIZE and all(e["odds_win"] >= 1.0 for e in entries)
-    assert eco.race_bet(V, race["id"], "win", 1, 100, race["entry_close"] + 2)[1] != ""  # V には残高があるので買える
+    assert (
+        eco.races.race_bet(V, race["id"], "win", 1, 100, race["entry_close"] + 2)[1] != ""
+    )  # V には残高があるので買える
     assert len(chan.retired) == 1 and "受付終了" in chan.retired[0][1]["embed"].title  # 申し込みの投稿を書き換えた
     assert chan.retired[0][1]["view"] is None and "R>" not in chan.retired[0][1]["embed"].description
     sent_before = len(chan.sent)
     monkeypatch.setattr("cogs.horse.cog.time.time", lambda: race["start_at"] + 1)
     asyncio.run(cog.run_once())  # 発走 → 精算 → アニメーション → 結果
-    assert eco.race_get(race["id"])["status"] == "done"
+    assert eco.races.race_get(race["id"])["status"] == "done"
     assert len(chan.retired) == 2 and "発売終了" in chan.retired[1][1]["embed"].title  # 出馬表の投稿も、書き換えた
     assert "R>" not in chan.retired[1][1]["embed"].description
     assert (
@@ -113,16 +118,16 @@ def test_scheduled_flow_announces_closes_with_odds_runs_animation_and_settles(se
     )  # アニメーションのメッセージ・結果（次のレースの申し込みは、1時間後に始まる）
     assert "発走" in chan.sent[-2]["embed"].title
     assert len(chan.edits) >= 5 and "ゴール" in chan.edits[-1]["embed"].description
-    assert "結果" in chan.sent[-1]["embed"].title and eco.horse_get(hid)["races"] == 1
+    assert "結果" in chan.sent[-1]["embed"].title and eco.horses.horse_get(hid)["races"] == 1
     asyncio.run(cog.run_once())  # もう一度確認しても、二重に走らない
-    assert eco.horse_get(hid)["races"] == 1
+    assert eco.horses.horse_get(hid)["races"] == 1
 
 
 def test_special_race_command_path_creates_and_announces(setup, monkeypatch):
     eco, chan, guild, bot, cog = setup
     monkeypatch.setattr("cogs.horse.cog.time.time", lambda: 1_700_000_000.0)
     rid = asyncio.run(cog.start_special(guild, 3, 4))
-    race = eco.race_get(rid)
+    race = eco.races.race_get(rid)
     assert race["kind"] == "special" and race["entry_close"] == 1_700_000_000.0 + 180
     assert race["bet_close"] == race["entry_close"] + 240 and "申し込みが始まりました" in chan.sent[0]["content"]
 
@@ -134,37 +139,37 @@ def test_special_race_can_use_a_chosen_channel(setup, monkeypatch):
     guild.get_channel = lambda cid: other if cid == 77 else chan
     monkeypatch.setattr("cogs.horse.cog.time.time", lambda: 1_700_000_000.0)
     rid = asyncio.run(cog.start_special(guild, 3, 4, other))
-    assert eco.race_get(rid)["channel_id"] == 77 and not chan.sent
+    assert eco.races.race_get(rid)["channel_id"] == 77 and not chan.sent
     assert "申し込みが始まりました" in other.sent[0]["content"]
 
 
 def test_card_embed_for_each_stage_and_bet_panel(setup):
     eco, chan, guild, bot, cog = setup
-    eco.credit(V, 10_000, "テスト")
-    rid = eco.race_create_special(1_700_000_000.0, 1, 1)
-    race = eco.race_get(rid)
-    assert "出走受付中" in views.card_embed(eco, race).title
-    field = eco.race_close_entries(rid, random.Random(1))
-    eco.race_set_odds(rid, h.make_odds(field["runners"]))
-    race = eco.race_get(rid)
-    card = views.card_embed(eco, race)
+    eco.wallet.credit(V, 10_000, "テスト")
+    rid = eco.races.race_create_special(1_700_000_000.0, 1, 1)
+    race = eco.races.race_get(rid)
+    assert "出走受付中" in views.card_embed(eco.horses, eco.races, race).title
+    field = eco.races.race_close_entries(rid, random.Random(1))
+    eco.races.race_set_odds(rid, h.make_odds(field["runners"]))
+    race = eco.races.race_get(rid)
+    card = views.card_embed(eco.horses, eco.races, race)
     assert "発売中" in card.title and card.description.count("単勝") >= h.FIELD_SIZE
-    panel = views.BetPanel(
-        SimpleNamespace(economy=SimpleNamespace(for_guild=lambda g: eco)), V, {**race, "guild_id": 0}
-    )
-    assert len(panel.children) == 3 and "馬券を買う" in panel.embed(eco).title
-    eco.race_run(rid, random.Random(2))
-    assert "結果" in views.card_embed(eco, eco.race_get(rid)).title
+    panel = views.BetPanel(eco.races, V, {**race, "guild_id": 0})
+    assert len(panel.children) == 3 and "馬券を買う" in panel.embed(eco.races).title
+    eco.races.race_run(rid, random.Random(2))
+    assert "結果" in views.card_embed(eco.horses, eco.races, eco.races.race_get(rid)).title
 
 
 def test_stable_view_shows_horses_and_stats(setup):
     eco, chan, guild, bot, cog = setup
-    eco.credit(U, 50_000, "テスト")
-    eco._conn.execute(
-        "INSERT INTO inventory (guild_id, user_id, item_id, qty) VALUES (?, ?, ?, 2)", (eco._g(), U, shop.HORSE_VOUCHER)
-    )
-    eco.horse_create(U, "ホースA", "鹿毛", "🟦")
-    stable = views.Stable(bot, U, 0)
+    eco.wallet.credit(U, 50_000, "テスト")
+    with eco.db.tx():
+        eco.db.conn.execute(
+            "INSERT INTO inventory (guild_id, user_id, item_id, qty) VALUES (?, ?, ?, 2)",
+            (eco.horses.guild_id, U, shop.HORSE_VOUCHER),
+        )
+    eco.horses.horse_create(U, "ホースA", "鹿毛", "🟦")
+    stable = views.Stable(eco.horses, eco.races, eco.shop, bot.services.horse, U, 0)
     emb = stable.embed()
     assert "ホースA" in emb.fields[0].name and "スピード" in emb.fields[0].value
     assert any(isinstance(c, views.discord.ui.Select) for c in stable.children)
@@ -188,17 +193,17 @@ def test_display_frames_end_when_the_winner_crosses_and_never_move_backward():
 
 def test_bet_panel_builds_for_every_kind_and_shows_the_odds(setup):
     eco, chan, guild, bot, cog = setup
-    rid = eco.race_create_special(1_700_000_000.0, 1, 1)
-    field = eco.race_close_entries(rid, random.Random(1))
-    eco.race_set_odds(rid, h.make_all_odds(field["runners"]))
-    race = {**eco.race_get(rid), "guild_id": 0}
-    panel = views.BetPanel(SimpleNamespace(economy=SimpleNamespace(for_guild=lambda g: eco)), V, race)
+    rid = eco.races.race_create_special(1_700_000_000.0, 1, 1)
+    field = eco.races.race_close_entries(rid, random.Random(1))
+    eco.races.race_set_odds(rid, h.make_all_odds(field["runners"]))
+    race = {**eco.races.race_get(rid), "guild_id": 0}
+    panel = views.BetPanel(eco.races, V, race)
     selects = {}
     for kind in h.BET_KINDS:
         panel.kind = kind
-        panel._build(eco)
+        panel._build(eco.races)
         selects[kind] = [c for c in panel.children if isinstance(c, views.discord.ui.Select)]
-        embed = panel.embed(eco)
+        embed = panel.embed(eco.races)
         assert h.BET_KINDS[kind] in embed.description and "オッズ" in embed.description
     assert [len(v) for v in selects.values()] == [2, 2, 2, 2, 3, 2]  # 馬単だけ、1着と2着の2つ
     assert (selects["trio"][1].min_values, selects["trio"][1].max_values) == (3, 3)
@@ -211,15 +216,17 @@ def test_auction_screen_lists_seized_horses_with_a_horse_select(setup):
     eco, chan, guild, bot, cog = setup
     from cogs.shop import cog as shop_cog
 
-    eco.credit(U, 50_000, "テスト")
-    eco._conn.execute(
-        "INSERT INTO inventory (guild_id, user_id, item_id, qty) VALUES (?, ?, ?, 1)", (eco._g(), U, shop.HORSE_VOUCHER)
-    )
-    eco.horse_create(U, "競売の馬", "鹿毛", "🟦")
-    eco._conn.execute("UPDATE users SET balance=0, debt=20000 WHERE user_id=?", (U,))
-    assert eco.bankrupt(U)[0]
-    fake_bot = SimpleNamespace(economy=SimpleNamespace(for_guild=lambda g: eco))
-    cog_shop = shop_cog.ShopCog(fake_bot)
+    eco.wallet.credit(U, 50_000, "テスト")
+    with eco.db.tx():
+        eco.db.conn.execute(
+            "INSERT INTO inventory (guild_id, user_id, item_id, qty) VALUES (?, ?, ?, 1)",
+            (eco.horses.guild_id, U, shop.HORSE_VOUCHER),
+        )
+    eco.horses.horse_create(U, "競売の馬", "鹿毛", "🟦")
+    with eco.db.tx():
+        eco.db.conn.execute("UPDATE users SET balance=0, debt=20000 WHERE user_id=?", (U,))
+    assert eco.debt.bankrupt(U)[0]
+    cog_shop = make_shop_cog(bot)
     embed = cog_shop._auction_embed(0, V)
     assert any("競売の馬" in f.value for f in embed.fields)
     view = shop_cog.ShopView(cog_shop, V, 0, screen="auction")
@@ -228,10 +235,9 @@ def test_auction_screen_lists_seized_horses_with_a_horse_select(setup):
 
 def test_bet_is_announced_publicly_in_the_race_channel(setup):
     eco, chan, guild, bot, cog = setup
-    bot.get_cog = lambda name: cog
-    rid = eco.race_create_special(1_700_000_000.0, 1, 1)
-    race = eco.race_get(rid)
-    panel = views.BetPanel(bot, V, {**race, "guild_id": 0})
+    rid = eco.races.race_create_special(1_700_000_000.0, 1, 1)
+    race = eco.races.race_get(rid)
+    panel = views.BetPanel(eco.races, V, {**race, "guild_id": 0}, cog.post_bet_announcement)
     interaction = SimpleNamespace(guild=guild, guild_id=0, user=SimpleNamespace(id=V))
     result = {"kind": "win", "lanes": [3], "name": "アルファ", "stake": 500, "odds": 4.2}
     asyncio.run(panel.announce_bet(interaction, "3", result))
@@ -240,67 +246,66 @@ def test_bet_is_announced_publicly_in_the_race_channel(setup):
 
 
 def _open_race(eco):
-    rid = eco.race_create_special(1_700_000_000.0, 1, 1)
-    field = eco.race_close_entries(rid, random.Random(1))
-    eco.race_set_odds(rid, h.make_all_odds(field["runners"]))
-    race = eco.race_get(rid)
+    rid = eco.races.race_create_special(1_700_000_000.0, 1, 1)
+    field = eco.races.race_close_entries(rid, random.Random(1))
+    eco.races.race_set_odds(rid, h.make_all_odds(field["runners"]))
+    race = eco.races.race_get(rid)
     return rid, race, race["bet_close"] - 10
 
 
 def test_win_and_place_select_several_horses_at_once(setup):
     eco, chan, guild, bot, cog = setup
     rid, race, now = _open_race(eco)
-    panel = views.BetPanel(
-        SimpleNamespace(economy=SimpleNamespace(for_guild=lambda g: eco)), V, {**race, "guild_id": 0}
-    )
+    panel = views.BetPanel(eco.races, V, {**race, "guild_id": 0})
     for kind in h.MULTI_KINDS:
         panel.kind = kind
-        panel._build(eco)
+        panel._build(eco.races)
         sel = [c for c in panel.children if isinstance(c, views.discord.ui.Select)][1]
-        assert (sel.min_values, sel.max_values) == (1, len(eco.race_entries(rid)))  # 何頭でも選べる
+        assert (sel.min_values, sel.max_values) == (1, len(eco.races.race_entries(rid)))  # 何頭でも選べる
     panel.multi = [5, 2, 7]
     assert panel.picked() == [2, 5, 7]
-    text = panel.embed(eco).description
+    text = panel.embed(eco.races).description
     assert "3頭" in text and "2枠" in text and "5枠" in text and "7枠" in text
 
 
 def test_race_bet_many_buys_one_ticket_per_horse_with_the_same_stake_each(setup):
     eco, chan, guild, bot, cog = setup
-    eco.credit(V, 10_000, "テスト")
+    eco.wallet.credit(V, 10_000, "テスト")
     rid, race, now = _open_race(eco)
-    before = eco.balance(V)
-    ok, bought = eco.race_bet_many(V, rid, "place", [2, 5, 7, 5], 500, now)  # 重複した枠は1回だけ
+    before = eco.wallet.balance(V)
+    ok, bought = eco.races.race_bet_many(V, rid, "place", [2, 5, 7, 5], 500, now)  # 重複した枠は1回だけ
     assert ok and [b["lane"] for b in bought] == [2, 5, 7] and all(b["stake"] == 500 for b in bought)
-    assert eco.balance(V) == before - 1_500 and len(eco.race_bets(V, rid)) == 3
-    assert {b["kind"] for b in eco.race_bets(V, rid)} == {"place"}
-    assert eco.race_bet_many(V, rid, "quinella", [1, 2], 500, now)[0] is False  # まとめ買いは、単勝・複勝だけ
-    assert eco.race_bet_many(V, rid, "place", [], 500, now)[0] is False
+    assert eco.wallet.balance(V) == before - 1_500 and len(eco.races.race_bets(V, rid)) == 3
+    assert {b["kind"] for b in eco.races.race_bets(V, rid)} == {"place"}
+    assert eco.races.race_bet_many(V, rid, "quinella", [1, 2], 500, now)[0] is False  # まとめ買いは、単勝・複勝だけ
+    assert eco.races.race_bet_many(V, rid, "place", [], 500, now)[0] is False
 
 
 def test_race_bet_many_checks_the_total_before_buying_anything(setup):
     eco, chan, guild, bot, cog = setup
-    eco.set_balance(V, 1_000, "テスト")
+    eco.wallet.set_balance(V, 1_000, "テスト")
     rid, race, now = _open_race(eco)
-    ok, why = eco.race_bet_many(V, rid, "place", [1, 2, 3], 500, now)  # 合計 1,500 で足りない
+    ok, why = eco.races.race_bet_many(V, rid, "place", [1, 2, 3], 500, now)  # 合計 1,500 で足りない
     assert (
         not ok
         and why.code == "race_insufficient_balance_many"
-        and eco.balance(V) == 1_000
-        and eco.race_bets(V, rid) == []
+        and eco.wallet.balance(V) == 1_000
+        and eco.races.race_bets(V, rid) == []
     )
-    eco.set_balance(V, 100_000, "テスト")
-    ok, why = eco.race_bet_many(V, rid, "place", list(range(1, 9)), h.MAX_STAKE, now)  # 合計が1レースの上限を超える
-    assert not ok and why.code == "race_max_stake_many" and eco.race_bets(V, rid) == []
+    eco.wallet.set_balance(V, 100_000, "テスト")
+    ok, why = eco.races.race_bet_many(
+        V, rid, "place", list(range(1, 9)), h.MAX_STAKE, now
+    )  # 合計が1レースの上限を超える
+    assert not ok and why.code == "race_max_stake_many" and eco.races.race_bets(V, rid) == []
 
 
 @pytest.mark.filterwarnings("ignore::DeprecationWarning")
 def test_stake_modal_buys_every_selected_horse_and_announces_once(setup):
     eco, chan, guild, bot, cog = setup
-    bot.get_cog = lambda name: cog
-    eco.credit(V, 10_000, "テスト")
-    before = eco.balance(V)
+    eco.wallet.credit(V, 10_000, "テスト")
+    before = eco.wallet.balance(V)
     rid, race, now = _open_race(eco)
-    panel = views.BetPanel(bot, V, {**race, "guild_id": 0})
+    panel = views.BetPanel(eco.races, V, {**race, "guild_id": 0}, cog.post_bet_announcement)
     panel.kind, panel.multi = "place", [3, 6]
     modal = views.StakeModal(panel)
     assert "1頭あたり" in modal.stake.label
@@ -320,7 +325,7 @@ def test_stake_modal_buys_every_selected_horse_and_announces_once(setup):
         asyncio.run(modal.on_submit(it))
     finally:
         _t.time = orig
-    assert len(eco.race_bets(V, rid)) == 2 and eco.balance(V) == before - 800
+    assert len(eco.races.race_bets(V, rid)) == 2 and eco.wallet.balance(V) == before - 800
     assert "合計" in sent[-1]["embed"].description
     posts = [m["content"] for m in chan.sent if "content" in m and "🎫" in m["content"]]
     assert len(posts) == 1 and "複勝" in posts[0] and "3枠" in posts[0] and "6枠" in posts[0]
@@ -328,21 +333,23 @@ def test_stake_modal_buys_every_selected_horse_and_announces_once(setup):
 
 def test_entry_card_in_the_channel_is_redrawn_when_registrations_change(setup):
     eco, chan, guild, bot, cog = setup
-    eco.credit(U, 100_000, "テスト")
-    eco._conn.execute(
-        "INSERT INTO inventory (guild_id, user_id, item_id, qty) VALUES (?, ?, ?, 1)", (eco._g(), U, shop.HORSE_VOUCHER)
-    )
-    ok, hid = eco.horse_create(U, "ライブホース", "栗毛", "🟥")
+    eco.wallet.credit(U, 100_000, "テスト")
+    with eco.db.tx():
+        eco.db.conn.execute(
+            "INSERT INTO inventory (guild_id, user_id, item_id, qty) VALUES (?, ?, ?, 1)",
+            (eco.horses.guild_id, U, shop.HORSE_VOUCHER),
+        )
+    ok, hid = eco.horses.horse_create(U, "ライブホース", "栗毛", "🟥")
     assert ok
-    rid = eco.race_create_special(1_700_000_000.0, 5, 5, chan.id)
-    eco.race_set_message(rid, chan.id, 777)
-    assert eco.race_register(U, hid, rid, 1_700_000_001.0)[0]
+    rid = eco.races.race_create_special(1_700_000_000.0, 5, 5, chan.id)
+    eco.races.race_set_message(rid, chan.id, 777)
+    assert eco.races.race_register(U, hid, rid, 1_700_000_001.0)[0]
     interaction = SimpleNamespace(guild=guild, guild_id=0, user=SimpleNamespace(id=U))
-    asyncio.run(views.refresh_entry_card(interaction, eco, rid))
+    asyncio.run(views.refresh_entry_card(interaction, eco.horses, eco.races, rid))
     mid, kw = chan.retired[-1]
     assert mid == 777 and "ライブホース" in kw["embed"].description
-    assert eco.race_withdraw(U, hid, rid, 1_700_000_002.0)[0]
-    asyncio.run(views.refresh_entry_card(interaction, eco, rid))
+    assert eco.races.race_withdraw(U, hid, rid, 1_700_000_002.0)[0]
+    asyncio.run(views.refresh_entry_card(interaction, eco.horses, eco.races, rid))
     assert "ライブホース" not in chan.retired[-1][1]["embed"].description
 
 
@@ -364,14 +371,14 @@ def test_long_races_run_several_laps_and_show_the_lap():
 
 def test_result_embed_lists_every_winner_even_when_the_net_is_a_loss(setup):
     eco, chan, guild, bot, cog = setup
-    rid = eco.race_create_special(1_700_000_000.0, 1, 1)
-    race = eco.race_get(rid)
+    rid = eco.races.race_create_special(1_700_000_000.0, 1, 1)
+    race = eco.races.race_get(rid)
     bets = [
         {"user_id": U, "stake": 1000, "payout": 0},
         {"user_id": U, "stake": 1000, "payout": 1500},  # 当たったが、合計は赤字
         {"user_id": V, "stake": 500, "payout": 0},
     ]
-    embed = horse_cog.result_embed(eco, {"race": race, "bets": bets, "prizes": {}})
+    embed = horse_cog.result_embed(eco.horses, eco.races, {"race": race, "bets": bets, "prizes": {}})
     text = next(f.value for f in embed.fields if f.name == "払い戻し")
     assert f"<@{U}>" in text and "1,500" in text and "収支" not in text and f"<@{V}>" not in text
 
@@ -385,7 +392,7 @@ def test_when_drops_the_relative_time_once_it_has_passed(monkeypatch):
 def test_bet_close_rewrites_the_post_once_before_the_start(setup, monkeypatch):
     eco, chan, guild, bot, cog = setup
     rid, race, _ = _open_race(eco)
-    eco.race_set_message(rid, chan.id, 321)
+    eco.races.race_set_message(rid, chan.id, 321)
     monkeypatch.setattr("cogs.horse.cog.time.time", lambda: race["bet_close"] + 1)
     asyncio.run(cog.run_once())
     asyncio.run(cog.run_once())  # 2回目は、もう書き換えない
@@ -433,27 +440,31 @@ class _It:
 
 def _stable_with_horse(setup):
     eco, chan, guild, bot, cog = setup
-    eco.credit(U, 100_000, "テスト")
-    eco._conn.execute(
-        "INSERT INTO inventory (guild_id, user_id, item_id, qty) VALUES (?, ?, ?, 1)", (eco._g(), U, shop.HORSE_VOUCHER)
-    )
-    ok, hid = eco.horse_create(U, "ホースA", "鹿毛", "🟦")
+    eco.wallet.credit(U, 100_000, "テスト")
+    with eco.db.tx():
+        eco.db.conn.execute(
+            "INSERT INTO inventory (guild_id, user_id, item_id, qty) VALUES (?, ?, ?, 1)",
+            (eco.horses.guild_id, U, shop.HORSE_VOUCHER),
+        )
+    ok, hid = eco.horses.horse_create(U, "ホースA", "鹿毛", "🟦")
     assert ok
-    return eco, bot, views.Stable(bot, U, 0), hid
+    return eco, bot, views.Stable(eco.horses, eco.races, eco.shop, bot.services.horse, U, 0), hid
 
 
 def test_gold_carrot_view_applies_only_when_use_is_pressed(setup):
     eco, bot, stable, hid = _stable_with_horse(setup)
-    eco._conn.execute(
-        "INSERT INTO inventory (guild_id, user_id, item_id, qty) VALUES (?, ?, ?, 1)", (eco._g(), U, shop.GOLD_CARROT)
-    )
+    with eco.db.tx():
+        eco.db.conn.execute(
+            "INSERT INTO inventory (guild_id, user_id, item_id, qty) VALUES (?, ?, ?, 1)",
+            (eco.horses.guild_id, U, shop.GOLD_CARROT),
+        )
     view = views.GoldCarrotView(stable, U)
     asyncio.run(view._make_pick("first")(_It(U, ["power"])))
     asyncio.run(view._make_pick("second")(_It(U, ["guts"])))
-    assert eco.horse_get(hid)["power"] == 50  # 選んだだけでは、反映しない
+    assert eco.horses.horse_get(hid)["power"] == 50  # 選んだだけでは、反映しない
     it = _It(U)
     asyncio.run(view._on_use(it))
-    horse = eco.horse_get(hid)
+    horse = eco.horses.horse_get(hid)
     assert (
         horse["power"] == 55
         and horse["guts"] == 55
@@ -464,15 +475,16 @@ def test_gold_carrot_view_applies_only_when_use_is_pressed(setup):
 
 def test_retire_view_charges_or_pays_and_updates_the_stable(setup):
     eco, bot, stable, hid = _stable_with_horse(setup)
-    eco._conn.execute("UPDATE horses SET races=10, wins=3, places=5 WHERE id=?", (hid,))
-    horse = eco.horse_get(hid)
+    with eco.db.tx():
+        eco.db.conn.execute("UPDATE horses SET races=10, wins=3, places=5 WHERE id=?", (hid,))
+    horse = eco.horses.horse_get(hid)
     value = h.retire_value(10, 3, 5)
     view = views.RetireView(stable, U, horse, value)
     assert "引退金" in view.embed().description
-    before = eco.balance(U)
+    before = eco.wallet.balance(U)
     it = _It(U)
     asyncio.run(view._on_ok(it))
-    assert eco.balance(U) == before + value and "引退しました" in it.edited[0]["embed"].title
-    remaining = eco.horse_list(U)
+    assert eco.wallet.balance(U) == before + value and "引退しました" in it.edited[0]["embed"].title
+    remaining = eco.horses.horse_list(U)
     assert [h for h in remaining if not h["rented_day"]] == []  # 持ち馬はもういない（レンタルだけ残る）
     assert stable.horse_id == remaining[0]["id"]

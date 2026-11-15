@@ -6,6 +6,7 @@ Bot が止まっていて開始を逃しても、告知はやり直さない（�
 
 import datetime
 import time
+from typing import TYPE_CHECKING, Any, Optional
 
 import discord
 from discord.ext import commands, tasks
@@ -13,37 +14,52 @@ from discord.ext import commands, tasks
 from cogs.event.texts import event_copy
 from cogs.shared import ui
 from cogs.shared.announce import announce_channel
-from cogs.shared.cog_ports import guild_port, port_of
+from cogs.shared.bridges import IEventAdminBridge
 from domain import approval, events
-from domain.ports import IEventPort, IGuildApprovalStore
+from domain.ports.clock import IClock
+from domain.ports.repos import IEventRepo, IGuildRepo
 from infra import logthrottle
-from infra.clock import local_now
+from infra.clock import ConfigClock
+
+if TYPE_CHECKING:
+    from cogs.shared.bot import CasinoBot
 
 
-def _event_channel(guild: discord.Guild, m: dict):
+def _event_channel(guild: discord.Guild, m: dict) -> Optional[discord.abc.GuildChannel]:
     """特別イベントの開始を告知したチャンネル（消えていれば None → 告知チャンネルに出す）。"""
     return guild.get_channel(m["channel_id"]) if m.get("channel_id") else None
 
 
-class EventCog(commands.Cog):
-    def __init__(self, bot):
+class EventCog(commands.Cog, IEventAdminBridge):
+    def __init__(
+        self,
+        bot: commands.Bot,
+        config: dict[str, Any],
+        events_repo: IEventRepo,
+        guild_repo: IGuildRepo,
+        clock: Optional[IClock] = None,
+    ) -> None:
         self.bot = bot
+        self._config = config
+        self._events = events_repo
+        self._guild_repo = guild_repo
+        self._clock: IClock = clock if clock is not None else ConfigClock(config)
 
-    async def cog_load(self):
+    async def cog_load(self) -> None:
         self.tick.start()
 
     async def cog_unload(self) -> None:
         self.tick.cancel()
 
     @tasks.loop(minutes=1)
-    async def tick(self):
+    async def tick(self) -> None:
         try:
             await self.run_once()
         except Exception as exc:
             print(f"突発イベントの確認に失敗: {exc!r}")
 
     @tick.before_loop
-    async def _before(self):
+    async def _before(self) -> None:
         await self.bot.wait_until_ready()
 
     def build_embed(self, ev: events.Event, ended: bool) -> discord.Embed:
@@ -68,34 +84,40 @@ class EventCog(commands.Cog):
         )
         return ui.embed(f"🔥 特別イベント発生！ {title}", text, ui.GOLD)
 
-    async def start_manual(self, guild: discord.Guild, game: str, boost_pct: int, minutes: int, channel=None) -> tuple:
+    async def start_manual(
+        self,
+        guild: discord.Guild,
+        game: str,
+        boost_pct: int,
+        minutes: int,
+        channel: Optional[discord.abc.Messageable] = None,
+    ) -> tuple[bool, str]:
         """持ち主が開く特別イベント。いま開催中のものがあれば置き換える。channel を渡すと、そこに告知する（終了の告知も同じ所）。"""
-        eco = guild_port(self.bot, guild.id, IEventPort)
+        eco = self._events.for_guild(guild.id)
         now = time.time()
         replaced = eco.manual_event_get(now) is not None
-        eco.manual_event_start(game, boost_pct, now, now + minutes * 60, channel.id if channel is not None else 0)
+        eco.manual_event_start(game, boost_pct, now, now + minutes * 60, getattr(channel, "id", 0) or 0)
         started = eco.manual_event_get(now)
         if started is not None:
-            await self._post(guild, eco, self.manual_embed(started, False), channel)
+            await self._post(guild, self.manual_embed(started, False), channel)
         title, _ = event_copy(game)
         return True, f"{guild.name}: {title}を{minutes}分間、勝ち分+{boost_pct}%で開きました" + (
             "（前のイベントは置き換えました）" if replaced else ""
         )
 
-    async def stop_manual(self, guild: discord.Guild) -> tuple:
-        eco = guild_port(self.bot, guild.id, IEventPort)
+    async def stop_manual(self, guild: discord.Guild) -> tuple[bool, str]:
+        eco = self._events.for_guild(guild.id)
         m = eco.manual_event_stop(time.time())
         if m is None:
             return False, f"{guild.name}: 開催中の特別イベントはありません"
-        await self._post(guild, eco, self.manual_embed(m, True), _event_channel(guild, m))
+        await self._post(guild, self.manual_embed(m, True), _event_channel(guild, m))
         title, _ = event_copy(m["game"])
         return True, f"{guild.name}: {title}を終わらせました"
 
     async def run_once(self) -> None:
-        now = local_now(self.bot)
-        approval_store = port_of(self.bot, IGuildApprovalStore)
+        now = self._clock.now()
         for guild in list(self.bot.guilds):
-            if not approval.is_allowed(approval_store, self.bot.config, guild.id, 0):
+            if not approval.is_allowed(self._guild_repo, self._config, guild.id, 0):
                 continue
             try:
                 await self._run_guild(guild, now)
@@ -104,29 +126,36 @@ class EventCog(commands.Cog):
 
     async def _run_guild(self, guild: discord.Guild, now: datetime.datetime) -> None:
         minutes = now.hour * 60 + now.minute
-        eco = guild_port(self.bot, guild.id, IEventPort)
+        eco = self._events.for_guild(guild.id)
         done = eco.manual_event_finish_due(time.time())  # 時間が来た特別イベントの終了を、1回だけ告知する
         if done is not None:
-            await self._post(guild, eco, self.manual_embed(done, True), _event_channel(guild, done))
+            await self._post(guild, self.manual_embed(done, True), _event_channel(guild, done))
         ev = events.schedule(guild.id, now.date())
         phase = eco.event_phase(now.date())
         if phase == 0 and ev.start_min <= minutes < ev.end_min:
             eco.set_event_phase(now.date(), 1)
-            await self._post(guild, eco, self.build_embed(ev, False))
+            await self._post(guild, self.build_embed(ev, False))
         elif phase < 2 and minutes >= ev.end_min:
             eco.set_event_phase(now.date(), 2)
             if phase == 1:  # 開始を告知した分だけ、終了も告知する
-                await self._post(guild, eco, self.build_embed(ev, True))
+                await self._post(guild, self.build_embed(ev, True))
 
-    async def _post(self, guild: discord.Guild, eco, embed: discord.Embed, channel=None) -> None:
-        channel = channel or announce_channel(guild, eco)
-        if channel is None:
+    async def _post(
+        self,
+        guild: discord.Guild,
+        embed: discord.Embed,
+        channel: object = None,
+    ) -> None:
+        target = channel or announce_channel(guild, self._guild_repo)
+        if target is None:
             return
         try:
-            await ui.send_channel(channel, embed=embed, allowed_mentions=discord.AllowedMentions.none())
+            await ui.send_channel(target, embed=embed, allowed_mentions=discord.AllowedMentions.none())
         except discord.HTTPException as exc:
             logthrottle.warn(("event", guild.id), f"突発イベントを投稿できません: guild={guild.id}: {exc!r}")
 
 
-async def setup(bot):
-    await bot.add_cog(EventCog(bot))
+async def setup(bot: "CasinoBot") -> None:
+    cog = EventCog(bot, bot.config, bot.repos.events, bot.repos.guild)
+    bot.bridges.event = cog
+    await bot.add_cog(cog)

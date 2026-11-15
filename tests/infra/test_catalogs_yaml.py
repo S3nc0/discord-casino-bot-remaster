@@ -42,7 +42,6 @@ from domain import (
 )
 from domain.games import blackjack, chinchiro, pachinko, roulette, rtplevel, slot
 from infra import catalogs
-from infra.db import economy
 
 
 def test_all_yaml_catalogs_load_and_validate() -> None:
@@ -76,7 +75,7 @@ def test_cross_catalog_consistency() -> None:
     assert market.EVENT_PROB == pytest.approx(1 / 720)
     assert market_events.ANNOUNCE_PROB == pytest.approx(1 / 300)
     assert earnings.RELEASE_WEEKDAY == 1
-    assert economy.Economy.DAILY_BASE > 0
+    assert eco_types.DAILY_BASE > 0
     assert loans.USER_MIN_PRINCIPAL > 0
     assert quizpay.BASE_REWARD > 0
     assert quizimport.MAX_CHOICE_LEN == quiz_cog.MAX_CHOICE_LEN

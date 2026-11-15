@@ -2,14 +2,16 @@
 
 import re
 import time
-from typing import Any, cast
+from typing import TYPE_CHECKING, Any, cast
 
 import discord
 
 from cogs.shared import ui
-from cogs.shared.cog_ports import guild_port
 from domain import horse as horse_mod
-from domain.ports import IHorsePort
+from domain.ports.repos import IHorseRepo, IRaceRepo
+
+if TYPE_CHECKING:
+    from cogs.shared.bot import CasinoBot
 
 MEDAL = ui.MEDALS
 
@@ -25,14 +27,19 @@ def stat_short(e: dict) -> str:
     return f"速{e['speed']} ス{e['stamina']} パ{e['power']} 根{e['guts']}"
 
 
-def race_title(eco: IHorsePort, race: dict) -> str:
+def race_title(races: IRaceRepo, race: dict) -> str:
     tag = "（臨時）" if race["kind"] == "special" else ("🏆重賞" if horse_mod.is_major_race(race) else "")
-    return f"🏇 第{eco.race_number(race['id'])}競走{tag}"
+    return f"🏇 第{races.race_number(race['id'])}競走{tag}"
 
 
-async def refresh_entry_card(interaction: discord.Interaction, eco: IHorsePort, race_id: int) -> None:
+async def refresh_entry_card(
+    interaction: discord.Interaction,
+    horses: IHorseRepo,
+    races: IRaceRepo,
+    race_id: int,
+) -> None:
     """申し込み・取り下げのあと、チャンネルの出馬表（申し込み中）を、いまの申し込みに書き換える。"""
-    race = eco.race_get(race_id)
+    race = races.race_get(race_id)
     if race is None or race["status"] != "entry" or not race["message_id"] or not race["channel_id"]:
         return
     channel = interaction.guild.get_channel(race["channel_id"]) if interaction.guild else None
@@ -40,7 +47,9 @@ async def refresh_entry_card(interaction: discord.Interaction, eco: IHorsePort, 
         return
     try:
         await (
-            cast(discord.TextChannel, channel).get_partial_message(race["message_id"]).edit(embed=card_embed(eco, race))
+            cast(discord.TextChannel, channel)
+            .get_partial_message(race["message_id"])
+            .edit(embed=card_embed(horses, races, race))
         )
     except discord.HTTPException:  # 消されていても、進行には関係ない
         pass
@@ -53,10 +62,10 @@ def when(ts: float) -> str:
     return f"<t:{int(ts)}:t>（<t:{int(ts)}:R>）"
 
 
-def card_embed(eco: IHorsePort, race: dict, closed: bool = False) -> discord.Embed:
+def card_embed(horses: IHorseRepo, races: IRaceRepo, race: dict, closed: bool = False) -> discord.Embed:
     """出馬表。申し込み中は申し込みの馬、発売中は枠・オッズ・調子、終わったら着順。"""
-    title = race_title(eco, race)
-    entries = eco.race_entries(race["id"])
+    title = race_title(races, race)
+    entries = races.race_entries(race["id"])
     if race["status"] == "entry":
         reg = [e for e in entries if e["lane"] < 0]
         if closed:
@@ -83,7 +92,7 @@ def card_embed(eco: IHorsePort, race: dict, closed: bool = False) -> discord.Emb
             ]
 
         def entry_style(e: dict) -> str:
-            h = eco.horse_get(e["horse_id"]) if e["horse_id"] else None
+            h = horses.horse_get(e["horse_id"]) if e["horse_id"] else None
             chosen = h["style"] if h is not None else None
             return chosen or horse_mod.style_of({k: e[k] for k in horse_mod.STAT_KEYS})
 
@@ -128,22 +137,10 @@ class RaceButton(discord.ui.DynamicItem[discord.ui.Button], template=r"horse:(?P
         return cls(match["act"], int(match["id"]))
 
     async def callback(self, interaction: discord.Interaction):
-        from cogs.horse.betting import BetPanel
-
-        eco = guild_port(ui.bot_of(interaction), ui.guild_id_of(interaction), IHorsePort)
-        race = eco.race_get(self.race_id)
-        if race is None:
-            return await interaction.response.send_message(
-                embed=ui.error_embed("見つかりません", "そのレースは、もうありません。"), ephemeral=True
-            )
-        if self.act == "card":
-            return await interaction.response.send_message(embed=card_embed(eco, race), ephemeral=True)
-        if race["status"] != "betting" or time.time() >= race["bet_close"]:
-            return await interaction.response.send_message(
-                embed=ui.error_embed("買えません", "このレースの馬券は、まだ（またはもう）買えません。"), ephemeral=True
-            )
-        panel = BetPanel(interaction.client, interaction.user.id, race)
-        await interaction.response.send_message(embed=panel.embed(eco), view=panel, ephemeral=True)
+        bot = cast("CasinoBot", interaction.client)
+        bridge = bot.bridges.horse
+        if bridge is not None:
+            await bridge.handle_button(interaction, self.act, self.race_id)
 
 
 def card_view(race_id: int, betting: bool) -> discord.ui.View:

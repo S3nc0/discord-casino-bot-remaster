@@ -13,8 +13,8 @@ from cogs.casino import pachinko as play_pa
 from domain import teiai
 from domain.games import blackjack as bj
 from domain.games import chinchiro as ch
-from infra.db.economy import INITIAL_BALANCE, Economy
-from services.session import Sessions
+from domain.types import INITIAL_BALANCE
+from tests.support import make_casino_deps, make_economy_cog, make_test_bot
 
 
 @pytest.fixture(autouse=True)
@@ -27,7 +27,7 @@ def no_sleep(monkeypatch):
 
 @pytest.fixture
 def bot(tmp_path):
-    return SimpleNamespace(economy=Economy(str(tmp_path / "t.db")), sessions=Sessions(cooldown=0), config={})
+    return make_test_bot(db_path=str(tmp_path / "t.db"))
 
 
 class FakeInteraction:
@@ -63,34 +63,36 @@ def title_of(interaction):
 
 def assert_clean(bot, uid=1):
     """ゲーム後に、預かり金が残っておらず、次のゲームを始められる。"""
-    assert bot.economy._conn.execute("SELECT COUNT(*) FROM escrow").fetchone()[0] == 0
+    assert bot.repos.db.conn.execute("SELECT COUNT(*) FROM escrow").fetchone()[0] == 0
     assert not bot.sessions.is_active(uid)
 
 
 def ledger_matches_balance(bot, uid=1):
-    total = bot.economy._conn.execute("SELECT SUM(delta) FROM ledger WHERE user_id=?", (uid,)).fetchone()[0]
-    return total == bot.economy.balance(uid)
+    total = bot.repos.db.conn.execute("SELECT SUM(delta) FROM ledger WHERE user_id=?", (uid,)).fetchone()[0]
+    return total == bot.repos.wallet.balance(uid)
 
 
 # ---------------------------- 賭け金の検証 ---------------------------- #
 def test_bet_below_the_minimum_and_insufficient_are_rejected_without_charging(bot):
+    deps = make_casino_deps(bot)
     it = FakeInteraction()
-    assert run(common.start_game(it, bot, 1, "テスト")) is None
+    assert run(common.start_game(it, deps, 1, "テスト")) is None
     assert it.sent[0]["ephemeral"] and "少なすぎ" in it.sent[0]["embed"].title
     it = FakeInteraction()
-    assert run(common.start_game(it, bot, INITIAL_BALANCE + 1, "テスト")) is None
+    assert run(common.start_game(it, deps, INITIAL_BALANCE + 1, "テスト")) is None
     assert "足りません" in it.sent[0]["embed"].title
-    assert bot.economy.balance(1) == INITIAL_BALANCE
+    assert bot.repos.wallet.balance(1) == INITIAL_BALANCE
     assert_clean(bot)
 
 
 def test_cannot_start_second_game_while_playing(bot):
-    ctx = run(common.start_game(FakeInteraction(), bot, 100, "A"))
+    deps = make_casino_deps(bot)
+    ctx = run(common.start_game(FakeInteraction(), deps, 100, "A"))
     assert ctx is not None
     it = FakeInteraction()
-    assert run(common.start_game(it, bot, 100, "B")) is None
+    assert run(common.start_game(it, deps, 100, "B")) is None
     assert "遊んでいる" in it.sent[0]["embed"].description
-    assert bot.economy.balance(1) == INITIAL_BALANCE - 100  # 2つ目の賭け金は引かれていない
+    assert bot.repos.wallet.balance(1) == INITIAL_BALANCE - 100  # 2つ目の賭け金は引かれていない
     ctx.settle(0)
 
 
@@ -98,31 +100,33 @@ def test_cannot_start_second_game_while_playing(bot):
 @pytest.mark.parametrize("play", ["slot", "roulette"])
 def test_instant_games_settle_and_keep_ledger_consistent(bot, monkeypatch, play):
     monkeypatch.setattr(simple, "RNG", random.Random(5))
+    deps = make_casino_deps(bot)
     for i in range(30):
         it = FakeInteraction()
         if play == "slot":
-            run(simple.play_slot(it, bot, 100))
+            run(simple.play_slot(it, deps, 100))
         else:
-            run(simple.play_roulette(it, bot, 100, "red"))
+            run(simple.play_roulette(it, deps, 100, "red"))
         assert_clean(bot)
-        assert bot.economy.balance(1) >= 0
+        assert bot.repos.wallet.balance(1) >= 0
     assert ledger_matches_balance(bot)
 
 
 def test_roulette_red_win_pays_double(bot, monkeypatch):
     monkeypatch.setattr(simple.roulette, "spin", lambda rng: 1)  # 出目は必ず赤の1
     it = FakeInteraction()
-    run(simple.play_roulette(it, bot, 1000, "red"))
-    assert bot.economy.balance(1) == INITIAL_BALANCE - 1000 + 2000
+    run(simple.play_roulette(it, make_casino_deps(bot), 1000, "red"))
+    assert bot.repos.wallet.balance(1) == INITIAL_BALANCE - 1000 + 2000
 
 
 def test_roulette_validates_number_before_charging(bot):
+    deps = make_casino_deps(bot)
     it = FakeInteraction()
-    run(simple.play_roulette(it, bot, 100, "number", None))
-    assert "数字が必要" in it.sent[0]["embed"].title and bot.economy.balance(1) == INITIAL_BALANCE
+    run(simple.play_roulette(it, deps, 100, "number", None))
+    assert "数字が必要" in it.sent[0]["embed"].title and bot.repos.wallet.balance(1) == INITIAL_BALANCE
     it = FakeInteraction()
-    run(simple.play_roulette(it, bot, 100, "red", 7))
-    assert "数字は不要" in it.sent[0]["embed"].title and bot.economy.balance(1) == INITIAL_BALANCE
+    run(simple.play_roulette(it, deps, 100, "red", 7))
+    assert "数字は不要" in it.sent[0]["embed"].title and bot.repos.wallet.balance(1) == INITIAL_BALANCE
 
 
 def http_error(status):
@@ -136,18 +140,18 @@ def test_display_failure_after_result_does_not_change_the_result(bot, monkeypatc
     """演出の途中でメッセージが消えても、結果は先に精算済み（外れが返金に変わらない）。"""
     monkeypatch.setattr(simple.roulette, "spin", lambda rng: 2)  # 赤に賭けたが、出目は黒の2＝ハズレ
     it = FakeInteraction(fail_edit_after=1, fail_with=http_error(404))
-    run(simple.play_roulette(it, bot, 500, "red"))
-    assert bot.economy.balance(1) == INITIAL_BALANCE - 500
+    run(simple.play_roulette(it, make_casino_deps(bot), 500, "red"))
+    assert bot.repos.wallet.balance(1) == INITIAL_BALANCE - 500
     assert_clean(bot)
 
 
 def test_non_display_error_after_settle_keeps_result(bot, monkeypatch):
     monkeypatch.setattr(simple, "RNG", random.Random(1))
     it = FakeInteraction(fail_edit_after=1)  # 想定外の例外（バグ）
-    before = bot.economy.balance(1)
+    before = bot.repos.wallet.balance(1)
     with pytest.raises(RuntimeError):
-        run(simple.play_slot(it, bot, 500))
-    after = bot.economy.balance(1)
+        run(simple.play_slot(it, make_casino_deps(bot), 500))
+    after = bot.repos.wallet.balance(1)
     reels = simple.slot.spin(random.Random(1))
     assert after == before - 500 + int(500 * simple.slot.multiplier(reels))  # 返金ではなく、精算した結果のまま
     assert_clean(bot)
@@ -159,30 +163,31 @@ def test_error_before_settle_refunds_bet(bot, monkeypatch):
 
     monkeypatch.setattr(simple.slot, "spin", boom)
     with pytest.raises(ValueError):
-        run(simple.play_slot(FakeInteraction(), bot, 500))
-    assert bot.economy.balance(1) == INITIAL_BALANCE  # 精算の前に失敗したら、賭け金は返る
-    assert bot.economy.stats(1)["games_played"] == 0  # 返金は成績に数えない
+        run(simple.play_slot(FakeInteraction(), make_casino_deps(bot), 500))
+    assert bot.repos.wallet.balance(1) == INITIAL_BALANCE  # 精算の前に失敗したら、賭け金は返る
+    assert bot.repos.wallet.stats(1)["games_played"] == 0  # 返金は成績に数えない
     assert_clean(bot)
 
 
 def test_pachinko_plays_all_frames_and_settles(bot, monkeypatch):
     monkeypatch.setattr(play_pa, "RNG", random.Random(2))
     monkeypatch.setattr(play_pa, "STEP", 0)
-    bot.economy.credit(1, 100_000, "テスト")  # 40回遊ぶので、残高を増やしておく
+    deps = make_casino_deps(bot)
+    bot.repos.wallet.credit(1, 100_000, "テスト")  # 40回遊ぶので、残高を増やしておく
     for _ in range(40):
         it = FakeInteraction()
-        run(play_pa.play_pachinko(it, bot, 100))
+        run(play_pa.play_pachinko(it, deps, 100))
         assert len(it.edits) >= 4 and "パチンコ" in title_of(it)
         assert_clean(bot)
     assert ledger_matches_balance(bot)
-    stats = bot.economy.pachinko_stats()
+    stats = bot.repos.pachinko.pachinko_stats()
     assert stats["sets"][0] == 40 and stats["spins"][0] == stats["sets"][5]  # セットと回転ごとに、統計用の記録が残る
     assert sum(n for n, _ in stats["omen"].values()) == stats["spins"][0]
 
 
 # ------------------------------ チンチロ ------------------------------ #
 def make_chinchiro_view(bot, bet, dealer_dice, player_dice_list):
-    ctx = run(common.start_game(FakeInteraction(), bot, bet, "チンチロ"))
+    ctx = run(common.start_game(FakeInteraction(), make_casino_deps(bot), bet, "チンチロ"))
     dealer_rolls = [(dealer_dice, ch.classify(dealer_dice))]
     view = play_ch.ChinchiroView(ctx, FakeInteraction(), dealer_rolls)
     view.player_rolls = [(d, ch.classify(d)) for d in player_dice_list]
@@ -192,23 +197,24 @@ def make_chinchiro_view(bot, bet, dealer_dice, player_dice_list):
 def test_chinchiro_win_pays_by_role(bot):
     ctx, view = make_chinchiro_view(bot, 1000, (1, 1, 3), [(1, 1, 1)])  # 子がピンゾロ（5倍）
     view.final_embed()
-    assert bot.economy.balance(1) == INITIAL_BALANCE + 5000
+    assert bot.repos.wallet.balance(1) == INITIAL_BALANCE + 5000
     assert_clean(bot)
 
 
 def test_chinchiro_skins_change_only_the_look_not_the_payout(bot):
     from domain import skins
 
+    deps = make_casino_deps(bot)
     results = {}
     for name in (None, "skin_gold_dice", "skin_kuro"):
-        bot.economy.credit(1, 100_000, "テスト")
-        before = bot.economy.balance(1)
-        ctx = run(common.start_game(FakeInteraction(), bot, 1000, "チンチロ"))
+        bot.repos.wallet.credit(1, 100_000, "テスト")
+        before = bot.repos.wallet.balance(1)
+        ctx = run(common.start_game(FakeInteraction(), deps, 1000, "チンチロ"))
         ctx.skin = skins.SKINS.get(name)
         view = play_ch.ChinchiroView(ctx, FakeInteraction(), [((1, 1, 3), ch.classify((1, 1, 3)))])
         view.player_rolls = [((1, 1, 1), ch.classify((1, 1, 1)))]  # 子がピンゾロ（5倍）
         embed = view.final_embed()
-        results[name] = (bot.economy.balance(1) - before, embed.description)
+        results[name] = (bot.repos.wallet.balance(1) - before, embed.description)
     assert results[None][0] == results["skin_gold_dice"][0] == results["skin_kuro"][0] == 5000  # 配当は同じ
     plain, gold, kuro = (results[k][1] for k in (None, "skin_gold_dice", "skin_kuro"))
     assert "🟡⚀ 🟡⚀ 🟡⚀" in gold and "🟡" not in plain  # サイコロの飾り
@@ -221,39 +227,39 @@ def test_chinchiro_loss_beyond_balance_becomes_debt(bot):
     ctx, view = make_chinchiro_view(bot, INITIAL_BALANCE, (1, 1, 1), [(2, 2, 3)])
     embed = view.final_embed()
     assert (
-        bot.economy.balance(1) == teiai.SEED and bot.economy.debt(1) == INITIAL_BALANCE * 4 + teiai.SEED
+        bot.repos.wallet.balance(1) == teiai.SEED and bot.repos.debt.debt(1) == INITIAL_BALANCE * 4 + teiai.SEED
     )  # 手元が空なので、種銭
     assert "借金" in embed.description and "種銭" in embed.description
     assert_clean(bot) and ledger_matches_balance(bot)
 
 
 def test_chinchiro_lose_double_extra_comes_from_remaining_balance(bot):
-    bot.economy.credit(1, 7000, "テスト")  # 残高 10,000
+    bot.repos.wallet.credit(1, 7000, "テスト")  # 残高 10,000
     ctx, view = make_chinchiro_view(bot, 1000, (1, 1, 1), [(2, 2, 3)])  # 親ピンゾロ: 5倍 = 賭け金1000 + 追加4000
     view.final_embed()
-    assert bot.economy.balance(1) == 10_000 - 1000 - 4000
+    assert bot.repos.wallet.balance(1) == 10_000 - 1000 - 4000
     assert ledger_matches_balance(bot)
 
 
 def test_chinchiro_draw_returns_bet(bot):
     ctx, view = make_chinchiro_view(bot, 500, (2, 2, 4), [(4, 2, 2)])
     view.final_embed()
-    assert bot.economy.balance(1) == INITIAL_BALANCE
+    assert bot.repos.wallet.balance(1) == INITIAL_BALANCE
 
 
 def test_chinchiro_timeout_settles_as_menashi_loss(bot):
     ctx, view = make_chinchiro_view(bot, 400, (2, 2, 4), [])  # 放置
     run(view.on_timeout())
-    assert bot.economy.balance(1) == INITIAL_BALANCE - 400  # 目なし扱いで負け。賭け金は預かったままにならない
+    assert bot.repos.wallet.balance(1) == INITIAL_BALANCE - 400  # 目なし扱いで負け。賭け金は預かったままにならない
     assert_clean(bot)
 
 
 def test_chinchiro_full_flow_with_button(bot, monkeypatch):
     monkeypatch.setattr(play_ch, "RNG", random.Random(4))
     it = FakeInteraction()
-    run(play_ch.play_chinchiro(it, bot, 300))
+    run(play_ch.play_chinchiro(it, make_casino_deps(bot), 300))
     view = it.edits[-1]["view"]
-    assert view is not None and not bot.economy._conn.execute("SELECT COUNT(*) FROM escrow").fetchone()[0] == 0
+    assert view is not None and not bot.repos.db.conn.execute("SELECT COUNT(*) FROM escrow").fetchone()[0] == 0
     for _ in range(3):  # 押し続ければ必ず終わる（最大3回）
         if view.ctx.done:
             break
@@ -265,7 +271,7 @@ def test_chinchiro_full_flow_with_button(bot, monkeypatch):
 
 # ---------------------------- ブラックジャック ---------------------------- #
 def make_bj(bot, bet, player, dealer, deck=()):
-    ctx = run(common.start_game(FakeInteraction(), bot, bet, "ブラックジャック"))
+    ctx = run(common.start_game(FakeInteraction(), make_casino_deps(bot), bet, "ブラックジャック"))
     game = bj.Game(random.Random(0))
     c = lambda *ranks: [(r, "♠") for r in ranks]  # noqa: E731
     game.player, game.dealer, game.finished, game.deck = c(*player), c(*dealer), False, c(*deck)
@@ -276,11 +282,11 @@ def test_blackjack_stand_win_and_natural(bot):
     ctx, view = make_bj(bot, 1000, ("10", "9"), ("10", "7"))
     view.game.stand()
     view.final_embed()
-    assert bot.economy.balance(1) == INITIAL_BALANCE + 1000
+    assert bot.repos.wallet.balance(1) == INITIAL_BALANCE + 1000
     ctx, view = make_bj(bot, 1000, ("A", "K"), ("10", "7"))
     view.game.stand()
     view.final_embed()
-    assert bot.economy.balance(1) == INITIAL_BALANCE + 1000 + 1500  # ブラックジャックは3:2
+    assert bot.repos.wallet.balance(1) == INITIAL_BALANCE + 1000 + 1500  # ブラックジャックは3:2
     assert_clean(bot)
 
 
@@ -289,20 +295,20 @@ def test_blackjack_double_down_doubles_bet_and_payout(bot):
     pressed = FakeInteraction()
     run(view.double_button.callback(pressed))
     assert ctx.bet == 2000 and view.game.doubled
-    assert bot.economy.balance(1) == INITIAL_BALANCE + 2000  # 賭け金2000が倍になって戻る
+    assert bot.repos.wallet.balance(1) == INITIAL_BALANCE + 2000  # 賭け金2000が倍になって戻る
     assert_clean(bot) and ledger_matches_balance(bot)
 
 
 def test_blackjack_double_refused_when_even_teiai_credit_cannot_cover_it(bot):
-    bot.economy.credit(1, 10_000, "テスト")
-    bot.economy.debit_up_to(1, bot.economy.balance(1) - 5_100, "テスト")  # 残高 5,100
+    bot.repos.wallet.credit(1, 10_000, "テスト")
+    bot.repos.wallet.debit_up_to(1, bot.repos.wallet.balance(1) - 5_100, "テスト")  # 残高 5,100
     ctx, view = make_bj(
         bot, 5_000, ("5", "6"), ("10", "7"), deck=("10",)
     )  # 預けて残り 100 → 足りない 4,900 は信用の枠（3,000）超え
     pressed = FakeInteraction()
     run(view.double_button.callback(pressed))
     assert not view.game.doubled and pressed.sent and pressed.sent[0]["ephemeral"]
-    assert bot.economy.escrow_amount(ctx.escrow_id) == 5_000 and bot.economy.debt(1) == 0
+    assert bot.repos.escrow.escrow_amount(ctx.escrow_id) == 5_000 and bot.repos.debt.debt(1) == 0
     ctx.abort()
     assert_clean(bot)
 
@@ -312,14 +318,14 @@ def test_blackjack_double_on_teiai_credit_after_confirmation(bot, monkeypatch):
         return True
 
     monkeypatch.setattr(play_bj, "confirm_action", agree)
-    bot.economy.debit_up_to(1, INITIAL_BALANCE - 1200, "テスト")  # 残高 1,200
+    bot.repos.wallet.debit_up_to(1, INITIAL_BALANCE - 1200, "テスト")  # 残高 1,200
     ctx, view = make_bj(
         bot, 1000, ("5", "6"), ("10", "7"), deck=("10",)
     )  # 預けて残り 200 → 足りない 800 を、帝愛から借りる
     run(view.double_button.callback(FakeInteraction()))
     assert view.game.doubled and ctx.bet == 2000
     assert (
-        bot.economy.debt(1) == 200 and view.origin.edits
+        bot.repos.debt.debt(1) == 200 and view.origin.edits
     )  # 800 借りた。勝って、純利益2,000の3割（600）が天引きで返済され、残り200
     assert_clean(bot)
 
@@ -329,10 +335,12 @@ def test_blackjack_double_on_credit_is_cancelled_without_borrowing(bot, monkeypa
         return False
 
     monkeypatch.setattr(play_bj, "confirm_action", decline)
-    bot.economy.debit_up_to(1, INITIAL_BALANCE - 1200, "テスト")
+    bot.repos.wallet.debit_up_to(1, INITIAL_BALANCE - 1200, "テスト")
     ctx, view = make_bj(bot, 1000, ("5", "6"), ("10", "7"), deck=("10",))
     run(view.double_button.callback(FakeInteraction()))
-    assert not view.game.doubled and bot.economy.debt(1) == 0 and bot.economy.escrow_amount(ctx.escrow_id) == 1000
+    assert (
+        not view.game.doubled and bot.repos.debt.debt(1) == 0 and bot.repos.escrow.escrow_amount(ctx.escrow_id) == 1000
+    )
     ctx.abort()
     assert_clean(bot)
 
@@ -340,7 +348,7 @@ def test_blackjack_double_on_credit_is_cancelled_without_borrowing(bot, monkeypa
 def test_blackjack_timeout_stands_and_settles(bot):
     ctx, view = make_bj(bot, 500, ("10", "9"), ("10", "7"))
     run(view.on_timeout())
-    assert ctx.done and bot.economy.balance(1) == INITIAL_BALANCE + 500
+    assert ctx.done and bot.repos.wallet.balance(1) == INITIAL_BALANCE + 500
     assert_clean(bot)
 
 
@@ -357,7 +365,7 @@ def test_view_error_refunds_bet(bot):
     it = FakeInteraction()
     it.channel = SimpleNamespace(send=lambda **k: asyncio.sleep(0))
     run(view.on_error(it, RuntimeError("x"), None))
-    assert bot.economy.balance(1) == INITIAL_BALANCE and view.ctx.done
+    assert bot.repos.wallet.balance(1) == INITIAL_BALANCE and view.ctx.done
     assert_clean(bot)
 
 
@@ -370,21 +378,41 @@ def _names(payload):
 
 def test_all_commands_load_and_follow_discord_rules(bot, tmp_path):
     import re
+    import sys
 
     import discord
-    from discord.ext import commands
 
     from cogs.loader import COG_MODULES
+    from cogs.shared.bot import CasinoBot
 
-    cmd_bot = commands.Bot(command_prefix="!", intents=discord.Intents.default())
-    cmd_bot.economy, cmd_bot.sessions, cmd_bot.config = bot.economy, bot.sessions, {}
+    cmd_bot = CasinoBot(
+        command_prefix="!",
+        intents=discord.Intents.default(),
+        config={},
+        repos=bot.repos,
+        sessions=bot.sessions,
+        services=bot.services,
+        bridges=bot.bridges,
+    )
+    saved = {m: sys.modules.get(m) for m in COG_MODULES}
 
     async def load():
-        for module in COG_MODULES:
-            await cmd_bot.load_extension(module)
+        try:
+            for module in COG_MODULES:
+                await cmd_bot.load_extension(module)
+            return [c.to_dict(cmd_bot.tree) for c in cmd_bot.tree.get_commands()]
+        finally:
+            await cmd_bot.close()
 
-    asyncio.run(load())
-    payloads = [c.to_dict(cmd_bot.tree) for c in cmd_bot.tree.get_commands()]
+    try:
+        payloads = asyncio.run(load())
+    finally:
+        for mod_name, orig in saved.items():
+            if orig is not None:
+                sys.modules[mod_name] = orig
+                pkg_name, _, attr = mod_name.rpartition(".")
+                if pkg_name in sys.modules:
+                    setattr(sys.modules[pkg_name], attr, orig)
     names = [n for p in payloads for n in _names(p)]
     assert {p["name"] for p in payloads} == {
         "ペリカ",
@@ -448,20 +476,24 @@ def test_all_commands_load_and_follow_discord_rules(bot, tmp_path):
 # ----------------- 抜け道・競合に対する回帰テスト ----------------- #
 def test_chinchiro_all_in_is_allowed_and_debt_is_collected_from_next_income(bot):
     it = FakeInteraction()
-    run(play_ch.play_chinchiro(it, bot, INITIAL_BALANCE))  # 全財産でも遊べる（倍払いの超過は借金になる）
+    run(
+        play_ch.play_chinchiro(it, make_casino_deps(bot), INITIAL_BALANCE)
+    )  # 全財産でも遊べる（倍払いの超過は借金になる）
     assert it.edits and it.edits[-1].get("view") is not None
     it.edits[-1]["view"].ctx.abort()
     ctx, view = make_chinchiro_view(bot, INITIAL_BALANCE, (1, 1, 1), [(2, 2, 3)])
     view.final_embed()
     debt = INITIAL_BALANCE * 4 + teiai.SEED
-    assert bot.economy.debt(1) == debt and bot.economy.balance(1) == teiai.SEED
-    bot.economy.credit(1, 5000, "テスト")  # 付与などの入金は、天引きされない
-    assert bot.economy.balance(1) == teiai.SEED + 5000 and bot.economy.debt(1) == debt
-    ok, paid = bot.economy.repay_debt(1)  # 自分から返す
-    assert ok and paid == teiai.SEED + 5000 and bot.economy.balance(1) == 0 and bot.economy.debt(1) == debt - paid
-    bot.economy.credit(1, 20_000, "テスト")
-    ok, paid2 = bot.economy.repay_debt(1)  # 完済して、残りが残高になる
-    assert ok and bot.economy.debt(1) == 0 and bot.economy.balance(1) == 20_000 - (debt - paid)
+    assert bot.repos.debt.debt(1) == debt and bot.repos.wallet.balance(1) == teiai.SEED
+    bot.repos.wallet.credit(1, 5000, "テスト")  # 付与などの入金は、天引きされない
+    assert bot.repos.wallet.balance(1) == teiai.SEED + 5000 and bot.repos.debt.debt(1) == debt
+    ok, paid = bot.repos.debt.repay_debt(1)  # 自分から返す
+    assert (
+        ok and paid == teiai.SEED + 5000 and bot.repos.wallet.balance(1) == 0 and bot.repos.debt.debt(1) == debt - paid
+    )
+    bot.repos.wallet.credit(1, 20_000, "テスト")
+    ok, paid2 = bot.repos.debt.repay_debt(1)  # 完済して、残りが残高になる
+    assert ok and bot.repos.debt.debt(1) == 0 and bot.repos.wallet.balance(1) == 20_000 - (debt - paid)
     assert_clean(bot) and ledger_matches_balance(bot)
 
 
@@ -471,15 +503,15 @@ def test_chinchiro_loss_is_always_fully_collectable_at_max_bet(bot):
     ctx, view = make_chinchiro_view(bot, bet, (1, 1, 1), [(3, 2, 1)])
     view.final_embed()
     assert ctx.penalty_taken == bet * 9
-    assert bot.economy.balance(1) == INITIAL_BALANCE - bet * 10
+    assert bot.repos.wallet.balance(1) == INITIAL_BALANCE - bet * 10
 
 
 def test_chinchiro_timeout_and_button_race_settles_once(bot):
     ctx, view = make_chinchiro_view(bot, 500, (1, 1, 1), [])  # 親のピンゾロ。子は放置
     first = view.final_embed()
-    balance = bot.economy.balance(1)
+    balance = bot.repos.wallet.balance(1)
     second = view.final_embed()  # 競合して2回呼ばれても
-    assert first is second and bot.economy.balance(1) == balance  # 倍払いが二重に引かれない
+    assert first is second and bot.repos.wallet.balance(1) == balance  # 倍払いが二重に引かれない
     assert balance == INITIAL_BALANCE - 500 * 5
 
 
@@ -490,8 +522,8 @@ def test_chinchiro_deleting_message_after_seeing_dealer_roll_settles_as_menashi(
     strong = [((1, 1, 1), rules.Hand(rules.PINZORO))]
     monkeypatch.setattr(rules, "play_hand", lambda rng: strong)
     it = FakeInteraction(fail_edit_after=0, fail_with=http_error(404))  # 親の出目を見せる編集で、メッセージが消えていた
-    run(play_ch.play_chinchiro(it, bot, 300))
-    assert bot.economy.balance(1) == INITIAL_BALANCE - 300 * 5  # 賭け金＋ピンゾロの5倍払い（4倍分）を引かれる
+    run(play_ch.play_chinchiro(it, make_casino_deps(bot), 300))
+    assert bot.repos.wallet.balance(1) == INITIAL_BALANCE - 300 * 5  # 賭け金＋ピンゾロの5倍払い（4倍分）を引かれる
     assert_clean(bot)
 
 
@@ -506,7 +538,7 @@ def test_chinchiro_deleting_message_while_rolling_also_settles(bot, monkeypatch)
     ctx, view = make_chinchiro_view(bot, 300, (1, 1, 1), [(1, 2, 4), (1, 2, 4), (1, 2, 4)])
     it = FakeInteraction(fail_edit_after=0, fail_with=http_error(404))
     run(view.roll.callback(it))
-    assert bot.economy.balance(1) == INITIAL_BALANCE - 300 * 5  # 返金されない
+    assert bot.repos.wallet.balance(1) == INITIAL_BALANCE - 300 * 5  # 返金されない
     assert_clean(bot)
 
 
@@ -514,8 +546,8 @@ def test_chinchiro_server_error_during_dealer_roll_refunds(bot, monkeypatch):
     monkeypatch.setattr(play_ch, "RNG", random.Random(4))
     it = FakeInteraction(fail_edit_after=0, fail_with=http_error(503))  # Discord 側の障害は、遊ぶ人のせいではない
     with pytest.raises(Exception):
-        run(play_ch.play_chinchiro(it, bot, 300))
-    assert bot.economy.balance(1) == INITIAL_BALANCE
+        run(play_ch.play_chinchiro(it, make_casino_deps(bot), 300))
+    assert bot.repos.wallet.balance(1) == INITIAL_BALANCE
     assert_clean(bot)
 
 
@@ -526,20 +558,20 @@ def test_blackjack_double_press_is_ignored_after_finish(bot):
     run(view.stand_button.callback(first))
     cards = list(view.game.player)
     run(view.hit_button.callback(second))  # 精算後に届いた2回目の操作
-    assert view.game.player == cards and bot.economy.balance(1) == INITIAL_BALANCE + 1000
+    assert view.game.player == cards and bot.repos.wallet.balance(1) == INITIAL_BALANCE + 1000
 
 
 def test_transfer_blocked_while_playing_and_needs_min_games(bot, tmp_path):
     from cogs.economy.cog import TRANSFER_MIN_GAMES, EconomyCog
 
-    eco = bot.economy
-    r = eco.transfer(1, 2, 100, 0.1, 20_000, 0.0, TRANSFER_MIN_GAMES)
+    wallet, escrow = bot.repos.wallet, bot.repos.escrow
+    r = wallet.transfer(1, 2, 100, 0.1, 20_000, 0.0, TRANSFER_MIN_GAMES)
     assert not r.ok and r.reason.code == "transfer_min_games"  # 1回も遊んでいない人は送れない
     for _ in range(TRANSFER_MIN_GAMES):
-        eco.settle(eco.place_bet(1, 10, "テスト"), 10, "テスト")
-    assert eco.transfer(1, 2, 100, 0.1, 20_000, 0.0, TRANSFER_MIN_GAMES).ok
+        escrow.settle(escrow.place_bet(1, 10, "テスト"), 10, "テスト")
+    assert wallet.transfer(1, 2, 100, 0.1, 20_000, 0.0, TRANSFER_MIN_GAMES).ok
     # ゲーム中の送金はコマンド側で止める
-    cog = EconomyCog(bot)
+    cog = make_economy_cog(bot)
     bot.sessions.try_start(1)
     it = FakeInteraction()
     it.guild = SimpleNamespace(id=10)
@@ -550,35 +582,36 @@ def test_transfer_blocked_while_playing_and_needs_min_games(bot, tmp_path):
 
 
 def test_transfer_fee_rounds_up_and_does_not_count_toward_limit(bot):
-    eco = bot.economy
+    wallet, escrow = bot.repos.wallet, bot.repos.escrow
     for _ in range(3):
-        eco.settle(eco.place_bet(1, 10, "テスト"), 10, "テスト")
-    r = eco.transfer(1, 2, 5, 0.1, 20_000, 0.0, 3)
+        escrow.settle(escrow.place_bet(1, 10, "テスト"), 10, "テスト")
+    r = wallet.transfer(1, 2, 5, 0.1, 20_000, 0.0, 3)
     assert r.ok and r.fee == 1  # 少額でも手数料は切り上げ
-    eco.credit(1, 100_000, "テスト")
-    assert eco.transfer(1, 2, 1000, 0.1, 1200, 0.0, 3).ok  # 送った額は 5 + 1000 = 1005（手数料は数えない）
-    assert not eco.transfer(1, 2, 200, 0.1, 1200, 0.0, 3).ok  # 1205 になるので上限を超える
-    assert eco.transfer(1, 2, 195, 0.1, 1200, 0.0, 3).ok  # ちょうど上限の 1200 までは送れる
+    wallet.credit(1, 100_000, "テスト")
+    assert wallet.transfer(1, 2, 1000, 0.1, 1200, 0.0, 3).ok  # 送った額は 5 + 1000 = 1005（手数料は数えない）
+    assert not wallet.transfer(1, 2, 200, 0.1, 1200, 0.0, 3).ok  # 1205 になるので上限を超える
+    assert wallet.transfer(1, 2, 195, 0.1, 1200, 0.0, 3).ok  # ちょうど上限の 1200 までは送れる
 
 
 def test_balance_of_others_does_not_create_accounts(bot):
-    assert bot.economy.peek_stats(99) is None
-    assert bot.economy._conn.execute("SELECT COUNT(*) FROM users WHERE user_id=99").fetchone()[0] == 0
+    assert bot.repos.wallet.peek_stats(99) is None
+    assert bot.repos.db.conn.execute("SELECT COUNT(*) FROM users WHERE user_id=99").fetchone()[0] == 0
 
 
 def test_daily_cannot_be_claimed_again_if_clock_goes_back(bot):
     import datetime
 
     d = datetime.date(2026, 10, 20)
-    assert bot.economy.claim_daily(1, d).ok
-    assert not bot.economy.claim_daily(1, d - datetime.timedelta(days=1)).ok  # 時計が戻っても再受取できない
+    assert bot.repos.wallet.claim_daily(1, d).ok
+    assert not bot.repos.wallet.claim_daily(1, d - datetime.timedelta(days=1)).ok  # 時計が戻っても再受取できない
 
 
 def test_failed_start_does_not_leave_the_user_locked(bot):
+    deps = make_casino_deps(bot)
     it = FakeInteraction()
-    assert run(common.start_game(it, bot, 5, "テスト")) is None  # 範囲外
+    assert run(common.start_game(it, deps, 5, "テスト")) is None  # 範囲外
     assert not bot.sessions.is_active(1)
-    assert run(common.start_game(FakeInteraction(), bot, 100, "テスト")) is not None
+    assert run(common.start_game(FakeInteraction(), deps, 100, "テスト")) is not None
 
 
 def test_second_instance_is_refused_by_the_lock(tmp_path, monkeypatch):
@@ -611,10 +644,11 @@ def test_win_result_shows_streak_and_mission_celebration(bot, monkeypatch):
     )
 
     monkeypatch.setattr(simple.roulette, "spin", lambda rng: 1)  # 出目は必ず赤の1
+    deps = make_casino_deps(bot)
     texts = []
     for _ in range(2):
         it = FakeInteraction()
-        run(simple.play_roulette(it, bot, 1000, "red"))
+        run(simple.play_roulette(it, deps, 1000, "red"))
         e = (it.edits[-1] if it.edits else it.sent[-1])["embed"]
         texts.append(e.description)
     assert "連勝" not in texts[0] and "2連勝中" in texts[1]
@@ -632,9 +666,10 @@ def test_result_title_shows_profit_and_order_puts_dice_before_mission_notice(bot
     )
 
     monkeypatch.setattr(simple.roulette, "spin", lambda rng: 1)  # 出目は必ず赤の1
+    deps = make_casino_deps(bot)
     for _ in range(5):
         it = FakeInteraction()
-        run(simple.play_roulette(it, bot, 1000, "red"))
+        run(simple.play_roulette(it, deps, 1000, "red"))
     e = (it.edits[-1] if it.edits else it.sent[-1])["embed"]
     assert "ペリカ" in e.title and "+1,000" in e.title  # タイトルに損益
     d = e.description
@@ -653,7 +688,7 @@ def test_help_is_short_and_has_a_page_per_category():
         sent.append(kw)
 
     it.response = type("R", (), {"send_message": staticmethod(send)})()
-    asyncio.run(Help.help.callback(Help(None), it))
+    asyncio.run(Help.help.callback(Help(), it))
     e = sent[0]["embed"]
     assert (
         "はじめの3ステップ" in e.description and sent[0]["ephemeral"] is True and len(e.description) < 400
@@ -693,10 +728,11 @@ def test_replay_button_plays_again_with_same_and_double_bet(bot, monkeypatch, ga
 
     monkeypatch.setattr(simple, "STEP", 0)
     monkeypatch.setattr(play_pa, "STEP", 0)
+    deps = make_casino_deps(bot)
     start = {
-        "slot": lambda it: simple.play_slot(it, bot, 100),
-        "roulette": lambda it: simple.play_roulette(it, bot, 100, "red"),
-        "pachinko": lambda it: play_pa.play_pachinko(it, bot, 100),
+        "slot": lambda it: simple.play_slot(it, deps, 100),
+        "roulette": lambda it: simple.play_roulette(it, deps, 100, "red"),
+        "pachinko": lambda it: play_pa.play_pachinko(it, deps, 100),
     }[game]
     it = FakeInteraction()
     run(start(it))
@@ -705,23 +741,24 @@ def test_replay_button_plays_again_with_same_and_double_bet(bot, monkeypatch, ga
     again = FakeInteraction()
     run(view.again.callback(again))  # 同じ額でもう一度
     assert any("embed" in k for k in again.sent + again.edits) and again.edits and "ペリカ" in title_of(again)
-    assert bot.economy.stats(1)["games_played"] == 2
+    assert bot.repos.wallet.stats(1)["games_played"] == 2
     dbl = FakeInteraction()
     run(view.double.callback(dbl))
-    assert bot.economy.stats(1)["games_played"] == 3 and ledger_matches_balance(bot) and assert_clean(bot) is None
+    assert bot.repos.wallet.stats(1)["games_played"] == 3 and ledger_matches_balance(bot) and assert_clean(bot) is None
 
 
 def test_replay_button_only_for_the_player_and_double_is_always_offered(bot, monkeypatch):
     monkeypatch.setattr(simple, "STEP", 0)
+    deps = make_casino_deps(bot)
     it = FakeInteraction()
-    run(simple.play_roulette(it, bot, 100, "red"))
+    run(simple.play_roulette(it, deps, 100, "red"))
     view = _last_view(it)
     other = FakeInteraction(uid=2)
     assert run(view.interaction_check(other)) is False and "他の人" in other.sent[-1]["content"]
     from cogs.casino.common import ReplayView
 
     assert any(
-        "倍にして（2,000,000）" in (c.label or "") for c in ReplayView(bot, 1, 1_000_000, None).children
+        "倍にして（2,000,000）" in (c.label or "") for c in ReplayView(deps, 1, 1_000_000, None).children
     )  # 上限がないので、大きな額でも出る
     assert any("倍にして" in (c.label or "") for c in view.children)
 
@@ -784,17 +821,18 @@ def test_every_game_title_shows_the_players_name(bot, monkeypatch, game):
     monkeypatch.setattr(simple, "STEP", 0)
     monkeypatch.setattr(play_pa, "STEP", 0)
     monkeypatch.setattr(play_ch, "STEP", 0)
+    deps = make_casino_deps(bot)
     it = FakeInteraction()  # display_name は「テスト」
     if game == "slot":
-        run(simple.play_slot(it, bot, 100))
+        run(simple.play_slot(it, deps, 100))
     elif game == "roulette":
-        run(simple.play_roulette(it, bot, 100, "red"))
+        run(simple.play_roulette(it, deps, 100, "red"))
     elif game == "pachinko":
-        run(play_pa.play_pachinko(it, bot, 100))
+        run(play_pa.play_pachinko(it, deps, 100))
     elif game == "chinchiro":
-        run(play_ch.play_chinchiro(it, bot, 100))
+        run(play_ch.play_chinchiro(it, deps, 100))
     else:
-        run(play_bj.play_blackjack(it, bot, 100))
+        run(play_bj.play_blackjack(it, deps, 100))
     titles = _all_titles(it)
     assert titles and all("（テスト）" in t for t in titles), titles
 
@@ -802,7 +840,7 @@ def test_every_game_title_shows_the_players_name(bot, monkeypatch, game):
 # ------------------- 演出の表示に失敗したときの記録 ------------------- #
 def test_display_failure_is_logged_with_game_step_and_status_and_settlement_still_holds(bot, capsys):
     it = FakeInteraction(fail_edit_after=1, fail_with=http_error(503))  # 途中のコマの書き換えで、Discord 側の障害
-    run(simple.play_roulette(it, bot, 100, "red"))
+    run(simple.play_roulette(it, make_casino_deps(bot), 100, "red"))
     out = capsys.readouterr().out
     assert "演出の表示に失敗: ルーレット/途中のコマ 2/2: " in out and "status=503" in out
     assert_clean(bot)  # 精算は済み、次のゲームを始められる
@@ -812,13 +850,13 @@ def test_display_failure_is_logged_with_game_step_and_status_and_settlement_stil
 @pytest.mark.parametrize(
     "play, name",
     [
-        (lambda it, bot: simple.play_slot(it, bot, 100), "スロット"),
-        (lambda it, bot: play_pa.play_pachinko(it, bot, 100), "パチンコ"),
+        (lambda it, deps: simple.play_slot(it, deps, 100), "スロット"),
+        (lambda it, deps: play_pa.play_pachinko(it, deps, 100), "パチンコ"),
     ],
 )
 def test_display_failure_is_logged_for_every_animated_game(bot, capsys, play, name):
     it = FakeInteraction(fail_edit_after=0, fail_with=http_error(404))  # 最初の書き換えで、メッセージが消えていた
-    run(play(it, bot))
+    run(play(it, make_casino_deps(bot)))
     out = capsys.readouterr().out
     assert f"演出の表示に失敗: {name}/" in out and "status=404" in out
     assert_clean(bot)
@@ -834,10 +872,10 @@ def test_pachinko_sets_play_in_one_go_and_settle_once(bot, monkeypatch):
     monkeypatch.setattr(play_pa, "RNG", random.Random(7))
     monkeypatch.setattr(play_pa, "STEP", 0)
     it = FakeInteraction()
-    run(play_pa.play_pachinko(it, bot, 200, 5))  # 200 × 5セット = 1,000
-    stats = bot.economy.pachinko_stats()
-    assert stats["sets"][0] == 5 and stats["sets"][2] == 5 * 200 and bot.economy.stats(1)["total_wagered"] == 1000
-    assert bot.economy.stats(1)["games_played"] == 1  # 連続投入は、1回の遊びとして数える
+    run(play_pa.play_pachinko(it, make_casino_deps(bot), 200, 5))  # 200 × 5セット = 1,000
+    stats = bot.repos.pachinko.pachinko_stats()
+    assert stats["sets"][0] == 5 and stats["sets"][2] == 5 * 200 and bot.repos.wallet.stats(1)["total_wagered"] == 1000
+    assert bot.repos.wallet.stats(1)["games_played"] == 1  # 連続投入は、1回の遊びとして数える
     assert "×" in it.sent[0]["embed"].description and "5セット" in it.sent[0]["embed"].description
     final = it.edits[-1]["embed"]
     assert "5セット" in final.description or "セット" in final.description
@@ -847,11 +885,11 @@ def test_pachinko_sets_play_in_one_go_and_settle_once(bot, monkeypatch):
 
 def test_pachinko_sets_total_has_no_cap_but_needs_the_balance_and_nothing_is_charged_otherwise(bot):
     it = FakeInteraction()
-    run(play_pa.play_pachinko(it, bot, 1_000_000, 2))  # 合計200万は、残高に足りない
+    run(play_pa.play_pachinko(it, make_casino_deps(bot), 1_000_000, 2))  # 合計200万は、残高に足りない
     assert (
         "足りません" in it.sent[0]["embed"].title
-        and bot.economy.balance(1) == INITIAL_BALANCE
-        and bot.economy.pachinko_stats()["sets"][0] == 0
+        and bot.repos.wallet.balance(1) == INITIAL_BALANCE
+        and bot.repos.pachinko.pachinko_stats()["sets"][0] == 0
     )
 
 
@@ -859,16 +897,16 @@ def test_pachinko_with_a_skin_changes_only_the_look(bot, monkeypatch):
     from domain import shop, skins
 
     monkeypatch.setattr(play_pa, "STEP", 0)
-    eco = bot.economy
-    eco.credit(1, 2_000_000, "テスト")
+    deps = make_casino_deps(bot)
+    bot.repos.wallet.credit(1, 2_000_000, "テスト")
     vip = shop.BY_ID["skin_vip"]
-    assert eco.purchase(1, vip.id, shop.label(vip), vip.price, vip.unique).ok
+    assert bot.repos.shop.purchase(1, vip.id, shop.label(vip), vip.price, vip.unique).ok
     results = {}
     for equipped in (False, True):
-        eco.equip(1, "skin_table", vip.id if equipped else None)
+        bot.repos.shop.equip(1, "skin_table", vip.id if equipped else None)
         monkeypatch.setattr(play_pa, "RNG", random.Random(3))  # 同じ乱数なら、同じ結果になるはず
         it = FakeInteraction()
-        run(play_pa.play_pachinko(it, bot, 100, 1))
+        run(play_pa.play_pachinko(it, deps, 100, 1))
         results[equipped] = it
     plain, skinned = results[False], results[True]
     title = lambda it: it.edits[-1]["embed"].title  # noqa: E731
@@ -882,9 +920,10 @@ def test_pachinko_with_a_skin_changes_only_the_look(bot, monkeypatch):
 def test_pachinko_buttons_again_double_and_extra_sets(bot, monkeypatch):
     monkeypatch.setattr(play_pa, "RNG", random.Random(3))
     monkeypatch.setattr(play_pa, "STEP", 0)
-    bot.economy.credit(1, 50_000, "テスト")
+    deps = make_casino_deps(bot)
+    bot.repos.wallet.credit(1, 50_000, "テスト")
     it = FakeInteraction()
-    run(play_pa.play_pachinko(it, bot, 100, 1))
+    run(play_pa.play_pachinko(it, deps, 100, 1))
     view = _last_view(it)
     labels = [c.label for c in view.children]
     assert any("同じ額" in label for label in labels) and any(
@@ -893,14 +932,14 @@ def test_pachinko_buttons_again_double_and_extra_sets(bot, monkeypatch):
     extra = next(c for c in view.children if "×5連続" in c.label)
     again = FakeInteraction()
     run(extra.callback(again))
-    assert bot.economy.pachinko_stats()["sets"][0] == 1 + 5
+    assert bot.repos.pachinko.pachinko_stats()["sets"][0] == 1 + 5
     view5 = _last_view(again)
     assert any("×10連続（1,000）" in c.label for c in view5.children)  # 5セットのあとは ×10連続
     same = FakeInteraction()
     run(next(c for c in view5.children if "同じ額" in c.label).callback(same))
-    assert bot.economy.pachinko_stats()["sets"][0] == 1 + 5 + 5  # 同じ額 = 同じセット数のまま
+    assert bot.repos.pachinko.pachinko_stats()["sets"][0] == 1 + 5 + 5  # 同じ額 = 同じセット数のまま
     big = FakeInteraction()
-    run(play_pa.play_pachinko(big, bot, 100, 10))
+    run(play_pa.play_pachinko(big, deps, 100, 10))
     assert not any(
         "連続" in c.label for c in _last_view(big).children if c.label
     )  # 10セットなら、これ以上の連続ボタンはない
