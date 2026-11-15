@@ -5,32 +5,17 @@
 
 import random
 import time
-from typing import Any, Optional
+from typing import Optional
 
 from domain import market as market_mod
 from domain import shop as shop_mod
 from domain import teiai
-from domain.errors import Notice, fail, notice
-from infra import catalogs
+from domain.errors import fail
 from infra.db.base import EcoBase
-
-MAX_NOTICES = catalogs.economy().wallet.max_notices  # たまっている一言の上限（古いものから捨てる）
 
 
 class DebtMixin(EcoBase):
     """借金・強制執行・種銭・身分・自己破産。"""
-
-    # ------------------------------------------------------------------ #
-    # 結果の画面に出す一言（強制執行・種銭など。精算のあとに、画面が取り出して表示する）
-    # ------------------------------------------------------------------ #
-    def _note(self, user_id: int, code: str, **params: Any) -> None:
-        notes = self._notices.setdefault((self._g(), user_id), [])
-        notes.append(notice(code, **params))
-        del notes[:-MAX_NOTICES]  # 本人が遊ばないままたまり続けないよう、新しい数件だけ残す
-
-    def take_notices(self, user_id: int) -> list[Notice]:
-        """たまっている一言を取り出す（取り出すと空になる）。"""
-        return self._notices.pop((self._g(), user_id), [])
 
     # ------------------------------------------------------------------ #
     # 身分

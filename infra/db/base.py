@@ -269,6 +269,9 @@ class EcoBase:
     def _relic_buffs(self, user_id: int) -> dict[str, float]:
         raise NotImplementedError
 
+    def relic_stock(self, user_id: int) -> dict[str, int]:
+        raise NotImplementedError
+
     def _horse_count(self, user_id: int) -> int:
         raise NotImplementedError
 

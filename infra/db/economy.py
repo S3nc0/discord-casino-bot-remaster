@@ -41,6 +41,7 @@ from infra.db.loans import LoanMixin
 from infra.db.margin import MarginMixin
 from infra.db.market import MarketMixin
 from infra.db.market_events import MarketEventMixin
+from infra.db.notices import NoticeMixin
 from infra.db.options import OptionMixin
 from infra.db.p2p import P2PMixin
 from infra.db.pachinko import PachinkoMixin
@@ -48,6 +49,7 @@ from infra.db.quiz import QuizMixin
 from infra.db.race import RaceMixin
 from infra.db.raffle import RaffleMixin
 from infra.db.records import RecordMixin
+from infra.db.relics import RelicMixin
 from infra.db.rtp import RtpMixin
 from infra.db.shop import ShopMixin
 from infra.db.wallet import WalletMixin
@@ -70,11 +72,13 @@ class Economy(
     MarketMixin,
     ShopMixin,
     GuildMixin,
+    NoticeMixin,
     DebtMixin,
     BankMixin,
     AuctionMixin,
     RaceMixin,
     HorseMixin,
+    RelicMixin,
     LaborMixin,
     OptionMixin,
     MarketEventMixin,
