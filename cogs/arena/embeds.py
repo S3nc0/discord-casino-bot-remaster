@@ -1,5 +1,6 @@
 """地下闘技場の掲示（出場表・結果）を組み立てる。"""
 
+import datetime
 import time
 
 import discord
@@ -29,10 +30,23 @@ def fighter_line(f: dict) -> str:
     return f"{mark} **{f['name']}**　強さ {f['base_power']}{weapon}　賭け総額 {ui.pelica(f['bet_total'])}"
 
 
+def _schedule_line(t: dict, semi_hour: int, final_hour: int) -> str:
+    today = datetime.date.fromisoformat(t["day"])
+    jst = datetime.timezone(datetime.timedelta(hours=9))
+    semi_at = datetime.datetime.combine(today, datetime.time(semi_hour), tzinfo=jst).timestamp()
+    final_at = datetime.datetime.combine(today, datetime.time(final_hour), tzinfo=jst).timestamp()
+    if t["status"] == "semi_betting":
+        return f"準決勝: {when(semi_at)}"
+    if t["status"] == "final_betting":
+        return f"決勝: {when(final_at)}"
+    return ""
+
+
 def tournament_embed(t: dict, semi_hour: int, final_hour: int) -> discord.Embed:
     fmt_label = FORMAT_NAME.get(t["format"], t["format"])
     status_label = STAGE_LABEL.get(t["status"], t["status"])
-    lines = [f"今日の形式: {fmt_label}　状態: **{status_label}**", ""]
+    schedule = _schedule_line(t, semi_hour, final_hour)
+    lines = [f"今日の形式: {fmt_label}　状態: **{status_label}**" + (f"　{schedule}" if schedule else ""), ""]
     groups: dict[int, list[dict]] = {}
     finalists = []
     for f in t["fighters"]:
