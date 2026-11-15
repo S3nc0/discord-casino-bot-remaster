@@ -1,0 +1,154 @@
+"""地下闘技場: 形式決定・戦士生成・武器強度・試合シミュレーション・配当計算の純粋ロジック・永続化。"""
+
+import random
+
+import pytest
+
+from domain import arena as a
+from infra.db.economy import Economy
+
+U, V = 1, 2
+NOW = 1_000_000.0
+
+
+@pytest.fixture
+def eco(tmp_path):
+    e = Economy(str(tmp_path / "t.db"))
+    e.credit(U, 50_000, "テスト")
+    e.credit(V, 50_000, "テスト")
+    return e
+
+
+def test_format_today_is_deterministic_by_day_and_covers_both_formats():
+    assert a.format_today("2026-11-16") == a.format_today("2026-11-16")
+    seen = {a.format_today(f"2026-01-{d:02d}") for d in range(1, 29)}
+    assert seen == {"duel", "royale"}  # 十分な日数を見れば、両方の形式が出る
+
+
+def test_group_size_matches_format():
+    assert a.group_size("duel") == 2 and a.group_size("royale") == 4
+
+
+def test_payout_rate_depends_on_match_size_not_day_format():
+    assert a.payout_rate(2) == a.DUEL_PAYOUT  # 決勝はバトロワの日でも2人なので2倍
+    assert a.payout_rate(4) == a.ROYALE_PAYOUT
+
+
+def test_generate_fighters_count_matches_format_and_names_are_unique():
+    rng = random.Random(1)
+    duel = a.generate_fighters("duel", rng)
+    assert len(duel) == 4 and len({f["name"] for f in duel}) == 4
+    rng2 = random.Random(1)
+    royale = a.generate_fighters("royale", rng2)
+    assert len(royale) == 8 and len({f["name"] for f in royale}) == 8
+    assert all(a.BASE_POWER_MIN <= f["base_power"] <= a.BASE_POWER_MAX for f in duel + royale)
+
+
+def test_weapon_bonus_scales_with_bets_and_caps():
+    assert a.weapon_bonus(0) == 0.0
+    assert 0 < a.weapon_bonus(a.WEAPON_SCALE // 2) < a.WEAPON_CAP
+    assert a.weapon_bonus(a.WEAPON_SCALE) == a.WEAPON_CAP
+    assert a.weapon_bonus(a.WEAPON_SCALE * 10) == a.WEAPON_CAP  # 上限を超えない
+
+
+def test_effective_power_is_boosted_by_bets():
+    assert a.effective_power(50, 0) == 50
+    assert a.effective_power(50, a.WEAPON_SCALE) == 50 * (1 + a.WEAPON_CAP)
+
+
+def test_simulate_match_favors_the_stronger_and_more_bet_fighter_but_not_always():
+    fighters = [{"name": "強い", "base_power": 80}, {"name": "弱い", "base_power": 20}]
+    wins = [0, 0]
+    for i in range(2000):
+        wins[a.simulate_match(fighters, {}, random.Random(i))] += 1
+    assert wins[0] > wins[1] * 2  # 強いほうが勝ちやすい
+    assert wins[1] > 0  # だが、必ず勝てるわけではない
+
+
+def test_simulate_match_weapon_bonus_increases_win_chance():
+    fighters = [{"name": "A", "base_power": 50}, {"name": "B", "base_power": 50}]
+    plain = sum(a.simulate_match(fighters, {}, random.Random(i)) == 0 for i in range(2000)) / 2000
+    boosted = sum(
+        a.simulate_match(fighters, {"A": a.WEAPON_SCALE}, random.Random(i)) == 0 for i in range(2000)
+    ) / 2000
+    assert boosted > plain + 0.1  # 賭け総額ぶんの武器で、勝ちやすくなる
+
+
+def test_payout_scale_caps_at_available_pool_and_never_exceeds_one():
+    assert a.payout_scale(10_000, 5_000) == 1.0  # 原資が十分なら、満額
+    assert a.payout_scale(2_000, 4_000) == 0.5  # 足りなければ、比例して減る
+    assert a.payout_scale(0, 1_000) == 0.0
+    assert a.payout_scale(10_000, 0) == 1.0  # 配当が無いなら、常に満額（0倍）扱い
+
+
+def test_arena_tournament_ensure_creates_once_and_is_idempotent(eco):
+    t1 = eco.arena_tournament_ensure(NOW, rng=random.Random(1))
+    t2 = eco.arena_tournament_ensure(NOW, rng=random.Random(2))  # 2回目は作り直さない
+    assert t1["id"] == t2["id"]
+    assert len(t1["fighters"]) in (4, 8)
+    assert len({f["group_no"] for f in t1["fighters"]}) == 2
+
+
+def test_arena_bet_validates_range_eliminated_and_closed_stage(eco):
+    t = eco.arena_tournament_ensure(NOW, rng=random.Random(1))
+    fid = t["fighters"][0]["id"]
+    assert eco.arena_bet(U, fid, a.MIN_STAKE - 1, NOW)[0] is False
+    assert eco.arena_bet(U, fid, a.MAX_STAKE + 1, NOW)[0] is False
+    before = eco.balance(U)
+    ok, reason = eco.arena_bet(U, fid, 1_000, NOW)
+    assert ok and reason == ""
+    assert eco.balance(U) == before - 1_000
+    eco.arena_run_semis(t["id"], rng=random.Random(1))
+    fighters_after = eco.arena_fighters(t["id"])
+    eliminated = next(f for f in fighters_after if f["stage"] == "out")
+    assert eco.arena_bet(V, eliminated["id"], 1_000, NOW)[0] is False  # 脱落した戦士には賭けられない
+
+
+def test_arena_run_semis_advances_exactly_two_finalists_and_settles_group_bets(eco):
+    t = eco.arena_tournament_ensure(NOW, rng=random.Random(3))
+    fighters = t["fighters"]
+    eco.arena_bet(U, fighters[0]["id"], 2_000, NOW)
+    eco.arena_bet(V, fighters[1]["id"], 2_000, NOW)
+    before = eco.balance(U) + eco.balance(V)
+    result = eco.arena_run_semis(t["id"], rng=random.Random(5))
+    assert result is not None and len(result["finalists"]) == 2
+    after_fighters = eco.arena_fighters(t["id"])
+    assert sum(1 for f in after_fighters if f["stage"] == "final") == 2
+    assert sum(1 for f in after_fighters if f["stage"] == "out") == len(fighters) - 2
+    bets = eco.arena_my_bets(t["id"], U) + eco.arena_my_bets(t["id"], V)
+    assert all(b["settled"] for b in bets)
+    after = eco.balance(U) + eco.balance(V)
+    assert after <= before + 2_000 * (a.ROYALE_PAYOUT - 1)  # 新しいペリカを大量発生させていない
+
+
+def test_arena_run_final_crowns_champion_and_pays_without_minting_money(eco):
+    t = eco.arena_tournament_ensure(NOW, rng=random.Random(3))
+    eco.arena_run_semis(t["id"], rng=random.Random(5))
+    finalists = [f for f in eco.arena_fighters(t["id"]) if f["stage"] == "final"]
+    eco.arena_bet(U, finalists[0]["id"], 3_000, NOW)
+    eco.arena_bet(V, finalists[1]["id"], 3_000, NOW)
+    before = eco.balance(U) + eco.balance(V)
+    result = eco.arena_run_final(t["id"], rng=random.Random(7))
+    assert result is not None and result["champion"] in (finalists[0]["name"], finalists[1]["name"])
+    after = eco.balance(U) + eco.balance(V)
+    # 負けた側の賭け(3,000)が原資。勝った側は最大 2倍（決勝は常に1on1）なので、増える額は賭けた分を超えない
+    assert after - before <= 3_000
+    tour = eco.arena_tournament_get_by_day(eco._arena_today(NOW))
+    assert tour is not None and tour["status"] == "done"
+
+
+def test_arena_payout_scales_down_when_pool_is_insufficient(eco):
+    t = eco.arena_tournament_ensure(NOW, rng=random.Random(3))
+    fighters = t["fighters"]
+    group1 = [f for f in fighters if f["group_no"] == 1]
+    # 勝つ方に大量、負ける方には少額だけ賭けておく（原資が足りない状況を作る）
+    eco.credit(U, 100_000, "テスト")
+    winner_bias = group1[0]
+    eco.arena_bet(U, winner_bias["id"], a.MAX_STAKE, NOW)
+    eco.arena_bet(V, group1[1]["id"], a.MIN_STAKE, NOW)
+    before = eco.balance(U)
+    eco.arena_run_semis(t["id"], rng=random.Random(1))
+    my_bet = next(b for b in eco.arena_my_bets(t["id"], U) if b["fighter_id"] == winner_bias["id"])
+    if my_bet["payout"] > 0:  # 勝っていれば、配当は原資（負け分）を超えない
+        assert my_bet["payout"] <= a.MIN_STAKE * a.payout_rate(2) + 1
+    assert eco.balance(U) - before == my_bet["payout"]  # 賭け金はbet時点で引かれ済み。差分=配当そのもの

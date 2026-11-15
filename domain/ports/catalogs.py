@@ -1,6 +1,7 @@
 """カタログ提供の抽象契約（DIP: domain が infra.catalogs や YAML I/O に直接依存しないため）。"""
 
 from domain.ports.catalog_types import (
+    ArenaCatalogProto,
     BondsCatalogProto,
     EconomyCatalogProto,
     EventsCatalogProto,
@@ -53,6 +54,9 @@ class ICatalogs:
         raise NotImplementedError
 
     def games(self) -> GamesCatalogProto:
+        raise NotImplementedError
+
+    def arena(self) -> ArenaCatalogProto:
         raise NotImplementedError
 
 

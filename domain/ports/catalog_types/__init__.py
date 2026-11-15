@@ -1,5 +1,6 @@
 """ドメイン層が参照するカタログ設定の構造的契約（責務別サブモジュール集約）。"""
 
+from domain.ports.catalog_types.arena import ArenaCatalogProto
 from domain.ports.catalog_types.economy import (
     BondKindProto,
     BondsCatalogProto,
@@ -68,6 +69,7 @@ from domain.ports.catalog_types.shop import (
 )
 
 __all__ = [
+    "ArenaCatalogProto",
     "BlackjackSectionProto",
     "BondKindProto",
     "BondsCatalogProto",

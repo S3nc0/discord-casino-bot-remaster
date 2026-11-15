@@ -24,6 +24,7 @@ from domain.types import (  # noqa: F401  (他のモジュールが infra.db.eco
     TransferResult,
 )
 from infra.db import schema
+from infra.db.arena import ArenaMixin
 from infra.db.assets import AssetMixin
 from infra.db.auction import AuctionMixin
 from infra.db.bank import BankMixin
@@ -84,6 +85,7 @@ class Economy(
     MarketEventMixin,
     EarningsMixin,
     P2PMixin,
+    ArenaMixin,
     IEconomy,
 ):
     DAILY_BASE = DAILY_BASE

@@ -99,4 +99,9 @@ GAMES_FAILURES: dict[str, FailureFormatter] = {
     "raffle_insufficient_balance": lambda p: (
         f"残高が足りません（参加費 {p['fee']:,}ペリカ、いまの残高 {p['balance']:,}ペリカ）。"
     ),
+    # 地下闘技場
+    "arena_stake_range": lambda p: f"賭け金は {p['lo']:,}〜{p['hi']:,}ペリカ にしてください。",
+    "arena_fighter_not_found": "その戦士は見つかりません。",
+    "arena_fighter_eliminated": "その戦士は、すでに脱落しています。",
+    "arena_bet_closed": "いまは、その段への賭けを受け付けていません。",
 }
