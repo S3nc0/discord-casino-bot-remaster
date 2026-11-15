@@ -28,6 +28,7 @@ class ArenaCog(commands.Cog):
         self.bot = bot
         self._busy = set()
         self._announced = set()  # (guild_id, day) のうち、今日の開幕を告知済みのもの
+        self._panels = {}  # (guild_id, day) → 自動投稿した掲示のBetPanel（段が進むたび、同じメッセージを書き換える）
 
     async def cog_load(self):
         self.tick.start()
@@ -47,9 +48,11 @@ class ArenaCog(commands.Cog):
         eco = self.g(interaction)
         t = eco.arena_tournament_ensure(time.time())
         panel = BetPanel(self.bot, t)
-        await interaction.response.send_message(
-            embed=panel.embed(arena_mod.SEMI_HOUR, arena_mod.FINAL_HOUR), view=panel
-        )
+        await interaction.response.send_message(embed=panel.embed(), view=panel)
+        try:
+            panel.message = await interaction.original_response()
+        except discord.HTTPException:
+            pass
 
     # ------------------------------ 定時の進行 ------------------------------ #
     @tasks.loop(seconds=30)
@@ -90,12 +93,14 @@ class ArenaCog(commands.Cog):
                     channel = await self._channel(guild, eco)
                     if channel is not None:
                         panel = BetPanel(self.bot, t)
-                        await self._post(
+                        msg = await self._post(
                             channel,
                             content="🏛️ **地下闘技場** 今日の大会が始まりました！",
-                            embed=panel.embed(arena_mod.SEMI_HOUR, arena_mod.FINAL_HOUR),
+                            embed=panel.embed(),
                             view=panel,
                         )
+                        panel.message = msg
+                        self._panels[day_key] = panel
                 if t["status"] == "semi_betting" and tz_hour >= arena_mod.SEMI_HOUR:
                     result = eco.arena_run_semis(t["id"])
                     if result:
@@ -113,6 +118,8 @@ class ArenaCog(commands.Cog):
                                     ui.GOLD,
                                 ),
                             )
+                        if day_key in self._panels:
+                            await self._panels[day_key].refresh()
                 t = eco.arena_tournament_ensure(now)  # 準決勝の決着を反映して読み直す
                 if t["status"] == "final_betting" and tz_hour >= arena_mod.FINAL_HOUR:
                     result = eco.arena_run_final(t["id"])
@@ -127,6 +134,9 @@ class ArenaCog(commands.Cog):
                                     ui.GOLD,
                                 ),
                             )
+                        if day_key in self._panels:
+                            await self._panels[day_key].refresh()
+                            del self._panels[day_key]  # 大会は終わったので、以後は書き換えない
             except Exception as exc:  # 1サーバーの失敗で、ほかを止めない
                 print(f"地下闘技場を処理できません: guild={guild.id}: {exc!r}")
             finally:

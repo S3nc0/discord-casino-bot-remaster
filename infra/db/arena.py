@@ -206,3 +206,16 @@ class ArenaMixin(EcoBase):
                     (tournament_id, user_id),
                 )
             ]
+
+    def arena_bets_breakdown(self, tournament_id: int) -> dict:
+        """戦士ごとの、誰がいくら賭けているか（大会を通じた累積）。{戦士ID: [{user_id, amount}]}（金額の多い順）。"""
+        with self._lock:
+            rows = self._conn.execute(
+                "SELECT fighter_id, user_id, SUM(amount) AS amount FROM arena_bets WHERE tournament_id=? "
+                "GROUP BY fighter_id, user_id ORDER BY fighter_id, amount DESC",
+                (tournament_id,),
+            ).fetchall()
+        out: dict[int, list] = {}
+        for r in rows:
+            out.setdefault(r["fighter_id"], []).append({"user_id": r["user_id"], "amount": r["amount"]})
+        return out

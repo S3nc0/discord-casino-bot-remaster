@@ -1,6 +1,7 @@
-"""地下闘技場の賭けパネル（BetPanel）と賭け金モーダル（StakeModal）。"""
+"""地下闘技場の賭けパネル（BetPanel）と賭け金モーダル（StakeModal）。賭けが入ると、掲示を自動で書き換える。"""
 
 import time
+from typing import Optional
 
 import discord
 
@@ -46,6 +47,7 @@ class StakeModal(discord.ui.Modal):
             ),
             ephemeral=True,
         )
+        await self.panel.refresh()  # 掲示の賭け総額・内訳を、すぐ書き換える
 
 
 class FighterSelect(discord.ui.Select):
@@ -59,6 +61,7 @@ class FighterSelect(discord.ui.Select):
         self.panel = panel
 
     async def callback(self, interaction: discord.Interaction):
+        self.panel.message = interaction.message  # 賭け後に書き換えるメッセージを覚えておく
         fid = int(ui.selected_values(interaction)[0])
         fighter = next(f for f in self.panel.tournament["fighters"] if f["id"] == fid)
         await interaction.response.send_modal(StakeModal(self.panel, fighter))
@@ -70,8 +73,27 @@ class BetPanel(discord.ui.View):
     def __init__(self, bot, tournament: dict):
         super().__init__(timeout=None)
         self.bot, self.tournament = bot, tournament
+        self.message: Optional[discord.Message] = None
         if bettable_fighters(tournament):
             self.add_item(FighterSelect(self))
 
-    def embed(self, semi_hour: int, final_hour: int) -> discord.Embed:
-        return tournament_embed(self.tournament, semi_hour, final_hour)
+    def _eco(self):
+        return self.bot.economy.for_guild(self.tournament["guild_id"])
+
+    def embed(self) -> discord.Embed:
+        breakdown = self._eco().arena_bets_breakdown(self.tournament["id"])
+        return tournament_embed(self.tournament, arena_mod.SEMI_HOUR, arena_mod.FINAL_HOUR, breakdown)
+
+    async def refresh(self) -> None:
+        """最新のDB状態を読み直し、掲示メッセージを書き換える（賭けが入るたび・段が進むたび）。"""
+        fresh = self._eco().arena_tournament_get_by_day(self.tournament["day"])
+        if fresh is not None:
+            self.tournament = fresh
+        self.clear_items()
+        if bettable_fighters(self.tournament):
+            self.add_item(FighterSelect(self))
+        if self.message is not None:
+            try:
+                await self.message.edit(embed=self.embed(), view=self)
+            except discord.HTTPException:
+                pass

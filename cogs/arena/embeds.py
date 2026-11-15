@@ -23,11 +23,24 @@ def when(ts: float) -> str:
     return f"<t:{int(ts)}:t>（<t:{int(ts)}:R>）"
 
 
-def fighter_line(f: dict) -> str:
+BETTORS_SHOWN = 5  # 1戦士ごとに表示する、賭け額が多い順の人数（それ以上は人数だけ出す）
+
+
+def bettor_text(uid: int, amount: int) -> str:
+    who = "観客" if uid == arena_mod.NPC_SPECTATOR else f"<@{uid}>"
+    return f"{who} {ui.pelica(amount)}"
+
+
+def fighter_line(f: dict, bettors: list) -> str:
     bonus = arena_mod.weapon_bonus(f["bet_total"])
     mark = {"semi": "⏳", "final": "🏅", "out": "💀"}[f["stage"]]
     weapon = f" 🗡️+{bonus:.0%}" if bonus > 0 else ""
-    return f"{mark} **{f['name']}**　強さ {f['base_power']}{weapon}　賭け総額 {ui.pelica(f['bet_total'])}"
+    line = f"{mark} **{f['name']}**　強さ {f['base_power']}{weapon}　賭け総額 {ui.pelica(f['bet_total'])}"
+    if bettors:
+        shown = "／".join(bettor_text(b["user_id"], b["amount"]) for b in bettors[:BETTORS_SHOWN])
+        rest = len(bettors) - BETTORS_SHOWN
+        line += f"\n　└ {shown}" + (f"　他{rest}人" if rest > 0 else "")
+    return line
 
 
 def _schedule_line(t: dict, semi_hour: int, final_hour: int) -> str:
@@ -42,7 +55,7 @@ def _schedule_line(t: dict, semi_hour: int, final_hour: int) -> str:
     return ""
 
 
-def tournament_embed(t: dict, semi_hour: int, final_hour: int) -> discord.Embed:
+def tournament_embed(t: dict, semi_hour: int, final_hour: int, breakdown: dict) -> discord.Embed:
     fmt_label = FORMAT_NAME.get(t["format"], t["format"])
     status_label = STAGE_LABEL.get(t["status"], t["status"])
     schedule = _schedule_line(t, semi_hour, final_hour)
@@ -56,12 +69,12 @@ def tournament_embed(t: dict, semi_hour: int, final_hour: int) -> discord.Embed:
             groups.setdefault(f["group_no"], []).append(f)
     for group_no in sorted(groups):
         lines.append(f"__準決勝 第{group_no}組__")
-        lines.extend(fighter_line(f) for f in groups[group_no])
+        lines.extend(fighter_line(f, breakdown.get(f["id"], [])) for f in groups[group_no])
         lines.append("")
     if finalists or t["status"] in ("final_betting", "done"):
         lines.append("__決勝__")
         if finalists:
-            lines.extend(fighter_line(f) for f in finalists)
+            lines.extend(fighter_line(f, breakdown.get(f["id"], [])) for f in finalists)
         else:
             lines.append("（準決勝の結果で決まります）")
     title = "🏛️ 地下闘技場"
