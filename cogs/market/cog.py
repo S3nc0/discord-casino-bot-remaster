@@ -1,4 +1,4 @@
-"""/証券（注文・保有・市況・決済）— 4銘柄（CSトークン・TEIO重工・NUMAバイオ・GOLD地金）と債券の売買、価格のチャート。価格は全サーバー共通で、1分ごとに、相関をもって動く。"""
+"""/証券（注文・保有・市況・決済）— 4銘柄（CSトークン・TEIO重工・NUMAバイオ・GOLD地金）と債券の売買、価格のチャート。"""
 
 import random
 import time
@@ -9,6 +9,7 @@ import discord
 from discord import app_commands
 from discord.ext import commands, tasks
 
+from cogs.market import feed
 from cogs.market import orders as orders
 from cogs.market.bond_embeds import KIND_CHOICES
 from cogs.market.embeds import (
@@ -21,9 +22,7 @@ from cogs.market.embeds import (
     correlation_lines,
     correlation_table,
     cut_lines,
-    earnings_announce_embed,
     earnings_lines,
-    earnings_result_embed,
     event_lines,
     holdings_embed,
     pin_lines,
@@ -35,11 +34,11 @@ from cogs.market.views import OptionAmountModal as OptionAmountModal  # noqa: F4
 from cogs.shared import ui
 from cogs.shared.amount import balance_choices, own_balance, typed_amount
 from cogs.shared.announce import announce_channel
-from domain import approval, bonds, earnings, market, market_events
+from domain import approval as approval  # noqa: F401
+from domain import bonds, market, market_events
 from domain import options as opt
 from domain.options import name_of
 from infra import catalogs, logthrottle
-from infra.clock import utc_offset_hours
 
 RNG = random.SystemRandom()
 KEEP_DAYS = catalogs.market().market.keep_days  # 価格の履歴を残す日数
@@ -69,61 +68,18 @@ class MarketCog(commands.Cog):
         name="証券", description="📈 注文・保有・市況・決済（4銘柄と債券。ゲーム内の通貨・現実のお金とは無関係）"
     )
 
-    # ------------------------------ 価格の更新 ------------------------------ #
+    # ------------------------------ 価格の更新（feed.py へ委譲） ------------------------------ #
     def _price(self, symbol: str = market.DEFAULT) -> float:
-        latest = self.bot.economy.market_latest(symbol)
-        if latest is None:
-            start = market.BY_KEY[symbol].start
-            self.bot.economy.market_set(time.time(), start, 0, symbol)
-            return start
-        return latest[1]
+        return feed.price(self.bot, symbol)
 
     def _prices(self) -> dict[str, float]:
-        return {s.key: self._price(s.key) for s in market.SYMBOLS}
+        return feed.prices(self.bot)
 
     def _day_reference(self, now: float) -> dict:
-        """値幅制限の基準になる、約24時間前の価格 {銘柄: 価格}。履歴がまだ無い銘柄は含めない。"""
-        out = {}
-        for sym in market.SYMBOLS:
-            hist = self.bot.economy.market_history(now - 86400, sym.key)
-            if hist:
-                out[sym.key] = hist[0][1]
-        return out
+        return feed.day_reference(self.bot, now)
 
     def step_prices(self) -> tuple:
-        """全銘柄の価格を1つ進めて、(新しい価格 {銘柄: 価格}, 有事の出来事) を返す。"""
-        prices = self._prices()  # 画面に出ている価格（値幅制限のかかったもの）
-        fair = {
-            k: self.bot.economy.market_fair_get(k) or p for k, p in prices.items()
-        }  # 裏の理論価格（制限なしで動く）
-        last_ts = max((self.bot.economy.market_latest(k) or (0,))[0] for k in prices)
-        now = time.time()
-        announced = self.bot.economy.event_step(now, RNG)  # ボラティリティ予告の抽選
-        if announced is not None:
-            print(
-                f"ボラティリティ予告: {announced['symbol']} {market_events.LEAD_MIN}分後から{market_events.DURATION_MIN}分"
-            )
-        tz = utc_offset_hours(self.bot)
-        self.bot.economy.earnings_ensure(now, tz)  # 次の決算（毎週火曜13:30）を決めておく
-        new_fair, event = market.next_prices(fair, RNG, self.bot.economy.vol_multipliers(now))
-        for r in self.bot.economy.earnings_release_due(
-            now
-        ):  # 決算の発表: 理論価格が、一気に動く（値幅制限は、画面の価格にだけかかる）
-            hit = new_fair[r["symbol"]] * earnings.factor(r["direction"], r["size"])
-            new_fair[r["symbol"]] = min(market.MAX_PRICE, max(market.MIN_PRICE, round(hit, 2)))
-            self._earnings_results.append(r)
-        ref = self._day_reference(now)
-        new = {
-            k: round(v, 2) for k, v in market.limit_to_day(new_fair, ref).items()
-        }  # 値幅制限（理論価格は、外へ突き抜けてよい）
-        pins = market.pin_states(
-            new_fair, ref
-        )  # 理論価格が値幅の外なら、張り付き（翌日も、次の値幅の端に張り付く＝2連ストップ）
-        ts = max(time.time(), last_ts + 0.001)  # 時計が戻っても、記録の順序を崩さない
-        for key, price in new.items():
-            self.bot.economy.market_set(ts, price, event, key)
-            self.bot.economy.market_fair_set(key, new_fair[key], pins.get(key, 0), ts)
-        return new, event
+        return feed.step_prices(self.bot, self._earnings_results, RNG)
 
     async def cog_load(self):
         self._prices()  # 初回は開始価格を入れる（起動直後でもコマンドが使えるように）
@@ -136,7 +92,7 @@ class MarketCog(commands.Cog):
     async def tick(self):
         try:
             prices, _event = self.step_prices()
-            self.bot.economy.margin_interest(time.time())  # 信用金利を、担保から引く（そのあとで、維持率を調べる）
+            self.bot.economy.margin_interest(time.time())
             for guild_id, user_id, symbol, side, loss in self.bot.economy.margin_losscut(prices):
                 print(f"{market.SIDE_NAME[side]}をロスカット: guild={guild_id} user={user_id} {symbol} 損失={loss:,}")
             self.bot.economy.market_prune(time.time() - KEEP_DAYS * 86400)
@@ -152,29 +108,11 @@ class MarketCog(commands.Cog):
         for post in self.bot.economy.live_chart_posts():
             try:
                 await self._refresh_post(post, now, cache)
-            except Exception as exc:  # 1つのチャンネルの失敗で、他の更新を止めない
+            except Exception as exc:
                 print(f"チャートの更新に失敗: {post}: {exc!r}")
 
     async def _earnings_posts(self) -> None:
-        """決算の予告（月曜9:00）と発表の結果を、各サーバーの告知チャンネルに投稿する。"""
-        now = time.time()
-        embeds = [earnings_announce_embed(r) for r in self.bot.economy.earnings_to_announce(now)]
-        results, self._earnings_results = self._earnings_results, []
-        for r in results:
-            embeds.append(earnings_result_embed(r, self.bot.economy.market_pin(r["symbol"])))
-        if not embeds:
-            return
-        for guild in list(self.bot.guilds):
-            if not approval.is_allowed(self.bot.economy, self.bot.config, guild.id, 0):
-                continue
-            channel = announce_channel(guild, self.bot.economy.for_guild(guild.id))
-            if channel is None:
-                continue
-            for embed in embeds:
-                try:
-                    await ui.send_channel(channel, embed=embed, allowed_mentions=discord.AllowedMentions.none())
-                except discord.HTTPException as exc:
-                    logthrottle.warn(("earnings-post", guild.id), f"決算の投稿に失敗: guild={guild.id}: {exc!r}")
+        await feed.earnings_posts(self.bot, self._earnings_results, announce_fn=announce_channel)
 
     @tick.before_loop
     async def _before_tick(self):
@@ -286,22 +224,19 @@ class MarketCog(commands.Cog):
             embed=self.chart_embed(key, guild_id=gid, live_until=now + LIVE_MINUTES * 60, symbol=sym),
             allowed_mentions=discord.AllowedMentions.none(),
         )
-        # チャートは1チャンネルに1つだけ。前に出したチャートは消し、新しいものを、一定時間だけ自動で更新する
         try:
             message = await interaction.original_response()
             prev = self.bot.economy.swap_chart_post(message.channel.id, message.id, gid, key, now, sym)
             if prev is not None and prev != message.id:
                 await ui.partial_message(message.channel, prev).delete()
-        except discord.HTTPException as exc:  # 前のチャートがすでに無い・消せないときは、そのままにする（記録だけ残す）
+        except discord.HTTPException as exc:
             logthrottle.warn(("chart-swap", gid), f"前のチャートを消せません: guild={gid}: {exc!r}")
 
     # ------------------------------ 売買 ------------------------------ #
     async def _trade(self, interaction: discord.Interaction, action):
-        """売買（action(uid)）の間は「プレイ中」にして、ゲームの最中に残高を動かせないようにする（ショップの購入と同じ）。"""
         await orders.run_trade(self.bot, interaction, action)
 
     async def _buy_amount_autocomplete(self, interaction: discord.Interaction, current: str):
-        """買うのに使う金額の欄に、残高を見せる。何も打っていない（数字でない）ときは、残高の25・50・75・100%の候補も出す。"""
         choices = balance_choices(self.bot, interaction, current, 10, 1_000_000)
         balance = own_balance(self.bot, interaction)
         if balance is not None and typed_amount(current) is None:
@@ -454,9 +389,8 @@ class MarketCog(commands.Cog):
             )
         await self._buy(interaction, symbol.value, amount)
 
-    # ------------------------------ 保有 ------------------------------ #
+    # ------------------------------ 保有・決済 ------------------------------ #
     def positions(self, uid: int, guild_id: int) -> list:
-        """決済できる持ち物 [(コード, ボタンの名前), ...]。コードは spot:銘柄 / long:銘柄 / short:銘柄 / bond:番号。"""
         eco, out = self.bot.economy.for_guild(guild_id), []
         for symbol, _units, _cost in eco.holdings(uid):
             out.append((f"spot:{symbol}", f"{market.BY_KEY[symbol].emoji} {market.BY_KEY[symbol].name} 全売却"))
@@ -474,7 +408,6 @@ class MarketCog(commands.Cog):
         return out
 
     async def settle_position(self, interaction: discord.Interaction, code: str, ratio=None) -> None:
-        """positions のコードで指す持ち物を決済する（現物は売る・信用取引は反対売買・オプションと債券は満期前に売却）。ratio は半分か全部。"""
         kind, _, target = code.partition(":")
         if kind == "spot" and target in market.BY_KEY:
             return await self._sell(interaction, target, None, ratio)
@@ -491,7 +424,7 @@ class MarketCog(commands.Cog):
     def holdings_embed(self, uid: int, guild_id: int) -> discord.Embed:
         now = time.time()
         guild_eco = self.bot.economy.for_guild(guild_id)
-        guild_eco.bond_settle(now, RNG)  # 満期の分を先に入金する
+        guild_eco.bond_settle(now, RNG)
         guild_eco.option_settle(now)
         prices = self._prices()
         options = guild_eco.option_list(uid)
@@ -520,13 +453,11 @@ class MarketCog(commands.Cog):
         uid, gid = interaction.user.id, ui.guild_id_of(interaction)
         embed = self.holdings_embed(uid, gid)
         view = HoldingsView(self, uid, gid)
-        # ボタンが無いときは、view を渡さない（None を渡すと discord.py が落ちる）
         if view.children:
             await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
         else:
             await interaction.response.send_message(embed=embed, ephemeral=True)
 
-    # ------------------------------ 決済 ------------------------------ #
     async def _position_autocomplete(self, interaction: discord.Interaction, current: str):
         found = [
             app_commands.Choice(name=label, value=code)
@@ -569,51 +500,12 @@ class MarketCog(commands.Cog):
     async def _bond_cancel(self, interaction: discord.Interaction, bond_id: int) -> None:
         await orders.bond_cancel(self, interaction, bond_id)
 
-    # ------------------------------ 出したチャートの自動更新 ------------------------------ #
+    # ------------------------------ チャート定期更新（feed.py へ委譲） ------------------------------ #
     async def _refresh_post(self, post: dict, now: float, cache: dict) -> None:
-        """出したチャートを、最新に書き換える。時間が来たら、最後に1回だけ書き換えて、更新を終える。"""
-        ends = post["ts"] + LIVE_MINUTES * 60
-        expired = now >= ends or post["guild_id"] <= 0
-        channel = self.bot.get_channel(post["channel_id"])
-        if channel is None:
-            if expired or self.bot.get_guild(post["guild_id"]) is None:
-                self.bot.economy.end_chart_post(post["channel_id"])
-            return
-        if post["guild_id"] > 0:
-            key = (post["guild_id"], post["period"], post["symbol"], expired, int(ends // 60))
-            if key not in cache:  # 同じ表示は、1回だけ作って使い回す（重い集計を重ねない）
-                cache[key] = self.chart_embed(
-                    post["period"],
-                    guild_id=post["guild_id"],
-                    live_until=None if expired else ends,
-                    ended=expired,
-                    symbol=post["symbol"],
-                )
-            try:  # 履歴を読む権限が要らないよう、投稿を取得せずに直接書き換える
-                await ui.partial_message(channel, post["message_id"]).edit(embed=cache[key])
-            except discord.NotFound:
-                self.bot.economy.delete_chart_post(post["channel_id"])  # 消されたチャートは、もう更新しない
-                return
-            except discord.HTTPException as exc:
-                logthrottle.warn(
-                    ("chart", post["channel_id"]), f"チャートを更新できません: channel={post['channel_id']}: {exc!r}"
-                )
-        if expired:
-            self.bot.economy.end_chart_post(post["channel_id"])
+        await feed.refresh_post(self, post, now, cache)
 
     async def _retire_old_boards(self) -> None:
-        """廃止した「チャート掲示」が残っていれば、メッセージを消して、設定も捨てる（1回だけ）。"""
-        for board in self.bot.economy.list_chart_boards():
-            channel = self.bot.get_channel(board["channel_id"])
-            if channel is not None:
-                try:
-                    await ui.partial_message(channel, board["message_id"]).delete()
-                except discord.HTTPException as exc:  # すでに消えている場合など。設定は捨てるので、記録だけ残す
-                    logthrottle.warn(
-                        ("chart-board", board["guild_id"]),
-                        f"廃止したチャート掲示を消せません: guild={board['guild_id']}: {exc!r}",
-                    )
-            self.bot.economy.delete_chart_board(board["guild_id"])
+        await feed.retire_old_boards(self.bot)
 
     @commands.Cog.listener()
     async def on_guild_remove(self, guild: discord.Guild):
