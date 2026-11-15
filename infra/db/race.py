@@ -181,7 +181,9 @@ class RaceMixin(EcoBase):
                 return None
             registered = self.race_entries(race_id, registered_only=True)
             rows = []
-            for e in registered:  # 申し込み済みの馬は、いまのステータスをコピーする（締切のあとの、にんじん・脚質変更は効かない）
+            for e in (
+                registered
+            ):  # 申し込み済みの馬は、いまのステータスをコピーする（締切のあとの、にんじん・脚質変更は効かない）
                 h = self.horse_get(e["horse_id"]) or e
                 rows.append(
                     (e["horse_id"], e["owner_id"], h["name"], h["coat"], h["silks"])

@@ -68,9 +68,7 @@ def test_simulate_match_favors_the_stronger_and_more_bet_fighter_but_not_always(
 def test_simulate_match_weapon_bonus_increases_win_chance():
     fighters = [{"name": "A", "base_power": 50}, {"name": "B", "base_power": 50}]
     plain = sum(a.simulate_match(fighters, {}, random.Random(i)) == 0 for i in range(2000)) / 2000
-    boosted = sum(
-        a.simulate_match(fighters, {"A": a.WEAPON_SCALE}, random.Random(i)) == 0 for i in range(2000)
-    ) / 2000
+    boosted = sum(a.simulate_match(fighters, {"A": a.WEAPON_SCALE}, random.Random(i)) == 0 for i in range(2000)) / 2000
     assert boosted > plain + 0.1  # 賭け総額ぶんの武器で、勝ちやすくなる
 
 
