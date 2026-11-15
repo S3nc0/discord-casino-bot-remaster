@@ -8,7 +8,7 @@ from dataclasses import dataclass
 from typing import Any, Optional
 
 from domain import events, skins
-from domain.games import rtplevel
+from domain.games.rtplevel import DEFAULT_RTP_POLICY, IRtpPolicy
 from domain.ports import ICasinoPort, IClock, ISessionGuard
 
 _log = logging.getLogger(__name__)
@@ -39,10 +39,17 @@ class SettleGameResult:
 class CasinoService:
     """カジノ 1 プレイの開始〜精算〜中断のアプリケーションサービス。"""
 
-    def __init__(self, economy: ICasinoPort, sessions: ISessionGuard, clock: IClock) -> None:
+    def __init__(
+        self,
+        economy: ICasinoPort,
+        sessions: ISessionGuard,
+        clock: IClock,
+        rtp_policy: IRtpPolicy = DEFAULT_RTP_POLICY,
+    ) -> None:
         self._economy = economy
         self._sessions = sessions
         self._clock = clock
+        self._rtp_policy = rtp_policy
 
     def for_guild(self, guild_id: int) -> ICasinoPort:
         return self._economy.for_guild(guild_id)
@@ -68,7 +75,7 @@ class CasinoService:
             return BeginGameResult(False, reason_kind="session", reason=reason)
         escrow: Optional[int] = None
         try:
-            if bet < rtplevel.MIN_BET:
+            if bet < self._rtp_policy.min_bet:
                 return BeginGameResult(False, reason_kind="min_bet")
             balance = eco.balance(user_id)
             if balance < bet * balance_factor:
@@ -104,8 +111,8 @@ class CasinoService:
         current_now = self._clock.now() if now is None else now
         rtp_shift = 0
         level = eco.rtp_level_get(game)
-        if level != rtplevel.DEFAULT_LEVEL and not rtp_done:
-            adjusted = rtplevel.adjust(game, level, eco.escrow_amount(escrow_id), payout, rtp_kind)
+        if level != self._rtp_policy.default_level and not rtp_done:
+            adjusted = self._rtp_policy.adjust(game, level, eco.escrow_amount(escrow_id), payout, rtp_kind)
             rtp_shift, payout = adjusted - payout, adjusted
         event_bonus = 0
         boost = events.best_boost(game, events.active(guild_id, current_now), eco.manual_event_get(time.time()))

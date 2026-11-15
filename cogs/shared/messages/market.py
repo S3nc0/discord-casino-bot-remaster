@@ -1,10 +1,12 @@
 """証券・信用取引・オプション・債券領域の失敗メッセージ定義。"""
 
-from typing import Any, Callable
+from typing import Any
 
+from cogs.shared.messages.base import MessageEntry
+from cogs.shared.messages.economy import MessageFormatter as BaseMessageFormatter
 from domain import market as market_mod
 
-FailureFormatter = str | Callable[[dict[str, Any]], str]
+FailureFormatter = MessageEntry
 
 PIN_ACTION_TEXT = {
     "sell_spot": "現物の売却",
@@ -86,3 +88,11 @@ MARKET_FAILURES: dict[str, FailureFormatter] = {
     "bond_not_found": "その番号の債券は持っていません。",
     "bond_not_sellable": lambda p: f"{p['name']}は売れません（満期まで持つだけです）。",
 }
+
+
+class MessageFormatter(BaseMessageFormatter):
+    """証券・信用取引・オプション・債券領域の失敗フォーマッタを重ねた実装。"""
+
+    def _register_entries(self) -> None:
+        super()._register_entries()
+        self.failures.update(MARKET_FAILURES)

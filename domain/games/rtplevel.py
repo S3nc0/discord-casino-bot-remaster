@@ -9,6 +9,7 @@ W は「賭けた額あたり、勝ち分が平均いくらか」。各ゲーム
 """
 
 import itertools
+from collections.abc import Mapping
 from typing import Optional
 
 from domain.games import pachinko, roulette, slot
@@ -87,28 +88,93 @@ PROFILES: dict[str, IRtpProfile] = {
 }
 
 
+class IRtpPolicy:
+    """還元率調整ポリシーの契約（Bridge Abstraction）。
+
+    不変条件:
+    - `default_level in levels`
+    - `step > 0`
+    """
+
+    games: tuple[str, ...]
+    levels: tuple[int, ...]
+    default_level: int
+    step: float
+    min_bet: int
+
+    def base_stats(self, game: str, kind: Optional[str] = None) -> tuple[float, float]:
+        raise NotImplementedError
+
+    def factor(self, game: str, level: int, kind: Optional[str] = None) -> float:
+        raise NotImplementedError
+
+    def approx_rtp(self, game: str, level: int, kind: Optional[str] = None) -> float:
+        raise NotImplementedError
+
+    def adjust(self, game: str, level: int, bet: int, payout: int, kind: Optional[str] = None) -> int:
+        raise NotImplementedError
+
+
+class RtpPolicy(IRtpPolicy):
+    """ゲーム別 `IRtpProfile` 群をコンストラクタ DI で束ねる還元率ポリシー実装。"""
+
+    def __init__(
+        self,
+        profiles: Mapping[str, IRtpProfile],
+        *,
+        games: tuple[str, ...] = GAMES,
+        levels: tuple[int, ...] = LEVELS,
+        default_level: int = DEFAULT_LEVEL,
+        step: float = STEP,
+        min_bet: int = MIN_BET,
+    ) -> None:
+        if default_level not in levels:
+            raise ValueError(f"default_level {default_level} must be in {levels}")
+        self._profiles = profiles
+        self.games = games
+        self.levels = levels
+        self.default_level = default_level
+        self.step = step
+        self.min_bet = min_bet
+
+    def base_stats(self, game: str, kind: Optional[str] = None) -> tuple[float, float]:
+        profile = self._profiles.get(game)
+        if profile is None:
+            raise KeyError(game)
+        return profile.stats(kind)
+
+    def factor(self, game: str, level: int, kind: Optional[str] = None) -> float:
+        _, w = self.base_stats(game, kind)
+        return 1 + (level - self.default_level) * self.step / w
+
+    def approx_rtp(self, game: str, level: int, kind: Optional[str] = None) -> float:
+        rtp, _ = self.base_stats(game, kind)
+        return rtp + (level - self.default_level) * self.step
+
+    def adjust(self, game: str, level: int, bet: int, payout: int, kind: Optional[str] = None) -> int:
+        if level == self.default_level or game not in self.games or payout <= bet:
+            return payout
+        return bet + max(0, int((payout - bet) * self.factor(game, level, kind)))
+
+
+DEFAULT_RTP_POLICY = RtpPolicy(PROFILES)
+
+
 def base_stats(game: str, kind: str | None = None) -> tuple[float, float]:
     """(いまの還元率, 勝ち分の平均 W)。"""
-    profile = PROFILES.get(game)
-    if profile is None:
-        raise KeyError(game)
-    return profile.stats(kind)
+    return DEFAULT_RTP_POLICY.base_stats(game, kind)
 
 
 def factor(game: str, level: int, kind: str | None = None) -> float:
     """勝ち分にかける倍率。"""
-    _, w = base_stats(game, kind)
-    return 1 + (level - DEFAULT_LEVEL) * STEP / w
+    return DEFAULT_RTP_POLICY.factor(game, level, kind)
 
 
 def approx_rtp(game: str, level: int, kind: str | None = None) -> float:
     """そのレベルでの還元率の目安。"""
-    rtp, _ = base_stats(game, kind)
-    return rtp + (level - DEFAULT_LEVEL) * STEP
+    return DEFAULT_RTP_POLICY.approx_rtp(game, level, kind)
 
 
 def adjust(game: str, level: int, bet: int, payout: int, kind: str | None = None) -> int:
     """勝ったときだけ、勝ち分（払い戻し - 賭け金）を倍率で増減した払い戻しを返す。負け・引き分け・レベル3は、そのまま。"""
-    if level == DEFAULT_LEVEL or game not in GAMES or payout <= bet:
-        return payout
-    return bet + max(0, int((payout - bet) * factor(game, level, kind)))
+    return DEFAULT_RTP_POLICY.adjust(game, level, bet, payout, kind)
