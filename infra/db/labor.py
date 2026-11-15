@@ -63,11 +63,12 @@ class LaborMixin(EcoBase):
             self._conn.execute("SELECT * FROM labor WHERE guild_id=? AND user_id=?", (self._g(), user_id)).fetchone()
         )
         buffs = self._relic_buffs(user_id)
+        row["_buffs"] = buffs
         row["fatigue"] = labor_mod.fatigue_now(row["fatigue"], row["fatigue_at"], now, buffs.get("recovery", 0.0))
         row["fatigue_at"] = now
         if row["day"] != day:
             row["day"], row["day_earned"], row["day_click"] = day, 0, 0
-        self._idle_settle(user_id, row, now, rng)
+        self._idle_settle(user_id, row, now, buffs, rng)
         return row
 
     def labor_donated_total(self) -> int:
@@ -114,7 +115,7 @@ class LaborMixin(EcoBase):
             )
         ]
 
-    def _idle_settle(self, user_id: int, row: dict, now: float, rng=None) -> None:
+    def _idle_settle(self, user_id: int, row: dict, now: float, buffs: dict, rng=None) -> None:
         """作業員の稼ぎを pot に足し、切れた契約を決算する（更新なら契約料を払い、払えなければ退職）。"""
         workers = self._workers_of(user_id)
         if workers:
@@ -129,8 +130,8 @@ class LaborMixin(EcoBase):
                 row["pot"],
                 bal["balance"] if bal else 0,
                 rng,
-                wage_bonus=self._relic_buffs(user_id).get("wage", 0.0),
-                luck_bonus=self._relic_buffs(user_id).get("luck", 0.0),
+                wage_bonus=buffs.get("wage", 0.0),
+                luck_bonus=buffs.get("luck", 0.0),
             )
             if plan["balance_spent"] > 0:
                 self._apply(user_id, -plan["balance_spent"], "地下作業:契約の更新")
@@ -334,7 +335,7 @@ class LaborMixin(EcoBase):
                 "pay": labor_mod.click_pay(row["pick"], row["fatigue"]),
                 "fatigue": min(labor_mod.FATIGUE_MAX, row["fatigue"] + gain),
             }
-            pay = max(1, relics_mod.chance_round(out["pay"] * (1 + self._relic_buffs(user_id).get("click", 0.0))))
+            pay = max(1, relics_mod.chance_round(out["pay"] * (1 + row["_buffs"].get("click", 0.0))))
             room = labor_mod.MAX_CLICKS_PER_DAY - row["day_click"]  # 今日、あと何回、「働く」を押せるか
             capped = room <= 0
             hour = int(now // 3600)
