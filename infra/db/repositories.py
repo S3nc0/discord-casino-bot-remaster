@@ -8,6 +8,7 @@ from dataclasses import dataclass
 from typing import Optional
 
 from domain.ports.bridges import CompositeAssetCollector, CompositeValuationSource
+from domain.ports.repos import IRepositoryBundle
 from infra.db import schema
 from infra.db.account import AccountCore
 from infra.db.assets import (
@@ -66,12 +67,10 @@ from infra.db.shop import ShopRepo
 from infra.db.wallet import WalletRepo
 
 
-@dataclass
-class RepositoryBundle:
+@dataclass(frozen=True)
+class RepositoryBundle(IRepositoryBundle):
     """1 つの SQLite DB に対する単一責務リポジトリ群の束。"""
 
-    db: EcoDb
-    account: AccountCore
     notices: NoticeRepo
     rtp: RtpRepo
     events: EventRepo
@@ -100,6 +99,8 @@ class RepositoryBundle:
     p2p: P2PRepo
     wallet: WalletRepo
     assets: AssetRepo
+    db: EcoDb
+    account: AccountCore
 
     def for_guild(self, guild_id: int) -> "RepositoryBundle":
         """指定サーバー（guild_id）にスコープされた各リポジトリのビュー束を返す（接続は共有）。"""

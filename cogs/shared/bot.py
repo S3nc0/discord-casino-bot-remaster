@@ -33,4 +33,6 @@ class CasinoBot(commands.Bot):
         self.config = config
         self.economy = economy
         self.sessions = sessions
-        self.services = services if services is not None else build_services(config, economy, sessions)
+        self.services = (
+            services if services is not None else build_services(config, getattr(economy, "_repos", economy), sessions)  # type: ignore[arg-type]
+        )
