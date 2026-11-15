@@ -4,12 +4,13 @@ from pathlib import Path
 from typing import TypeVar
 
 import yaml
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, TypeAdapter
 
 from infra.paths import CATALOGS_DIR
 
 CATALOG_DIR = CATALOGS_DIR
-T = TypeVar("T", bound=BaseModel)
+STRICT_CONFIG = ConfigDict(extra="forbid")
+T = TypeVar("T")
 
 
 class StrictModel(BaseModel):
@@ -25,4 +26,4 @@ def load_yaml_model(name: str, schema: type[T], *, root: Path | None = None) -> 
         raw = yaml.safe_load(fh)
     if raw is None:
         raw = {}
-    return schema.model_validate(raw)
+    return TypeAdapter(schema).validate_python(raw)

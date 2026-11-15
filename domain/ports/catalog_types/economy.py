@@ -1,256 +1,179 @@
-"""経済共通・帝愛・債券カタログの構造的契約。"""
+"""経済共通・帝愛・債券カタログの公称データ契約。"""
 
 from collections.abc import Mapping
-from typing import Protocol
+from dataclasses import dataclass
 
 
-class BondKindProto(Protocol):
-    @property
-    def key(self) -> str: ...
-    @property
-    def name(self) -> str: ...
-    @property
-    def emoji(self) -> str: ...
-    @property
-    def hours(self) -> int: ...
-    @property
-    def rate(self) -> int: ...
-    @property
-    def default_pct(self) -> int: ...
-    @property
-    def max_total(self) -> int: ...
-    @property
-    def sellable(self) -> bool: ...
+@dataclass(frozen=True)
+class BondKindContract:
+    key: str
+    name: str
+    emoji: str
+    hours: int
+    rate: int
+    default_pct: int
+    max_total: int
+    sellable: bool
 
 
-class BondsCatalogProto(Protocol):
-    @property
-    def min_amount(self) -> int: ...
-    @property
-    def sale_discount_per_hour(self) -> float: ...
-    @property
-    def kinds(self) -> tuple[BondKindProto, ...]: ...
+@dataclass(frozen=True)
+class BondsCatalogContract:
+    min_amount: int
+    sale_discount_per_hour: float
+    kinds: tuple[BondKindContract, ...]
 
 
-class TeiaiStatusProto(Protocol):
-    @property
-    def label(self) -> str: ...
-    @property
-    def mark(self) -> str | None: ...
-    @property
-    def name(self) -> str | None: ...
+@dataclass(frozen=True)
+class TeiaiStatusContract:
+    label: str
+    mark: str | None
+    name: str | None
 
 
-class TeiaiCatalogProto(Protocol):
-    @property
-    def seed(self) -> int: ...
-    @property
-    def labor_skim_rate(self) -> float: ...
-    @property
-    def horse_prize_skim_rate(self) -> float: ...
-    @property
-    def horse_rental_extra_skim_rate(self) -> float: ...
-    @property
-    def skim_rate(self) -> float: ...
-    @property
-    def repay_rate(self) -> float: ...
-    @property
-    def bankrupt_floor(self) -> int: ...
-    @property
-    def blacklist_days(self) -> int: ...
-    @property
-    def escape_chance(self) -> float: ...
-    @property
-    def escape_min_debt(self) -> int: ...
-    @property
-    def escape_fine_rate(self) -> float: ...
-    @property
-    def escape_fine_min(self) -> int: ...
-    @property
-    def escape_max_tries(self) -> int: ...
-    @property
-    def escape_cooldown_hours(self) -> int: ...
-    @property
-    def auction_start(self) -> float: ...
-    @property
-    def auction_step(self) -> float: ...
-    @property
-    def auction_floor(self) -> float: ...
-    @property
-    def auction_yield_share(self) -> float: ...
-    @property
-    def seize_rate(self) -> float: ...
-    @property
-    def debt_rate_per_day(self) -> float: ...
-    @property
-    def debt_interest_max_days(self) -> int: ...
-    @property
-    def grace_debt(self) -> int: ...
-    @property
-    def grace_hours(self) -> int: ...
-    @property
-    def bank_min_deposit(self) -> int: ...
-    @property
-    def reserve_ratio(self) -> float: ...
-    @property
-    def loan_recovery_per_hour(self) -> float: ...
-    @property
-    def lock_debt_rate(self) -> float: ...
-    @property
-    def loss_share(self) -> float: ...
-    @property
-    def premium_yield_share(self) -> float: ...
-    @property
-    def tax_yield_share(self) -> float: ...
-    @property
-    def skim_yield_share(self) -> float: ...
-    @property
-    def run_warn_ratio(self) -> float: ...
-    @property
-    def run_danger_ratio(self) -> float: ...
-    @property
-    def cds_min_stake(self) -> int: ...
-    @property
-    def cds_min_odds(self) -> float: ...
-    @property
-    def cds_max_odds(self) -> float: ...
-    @property
-    def cds_term_days(self) -> int: ...
-    @property
-    def cds_self_cap(self) -> int: ...
-    @property
-    def cds_payout_cap_rate(self) -> float: ...
-    @property
-    def wealthy_assets(self) -> int: ...
-    @property
-    def statuses(self) -> Mapping[str, TeiaiStatusProto]: ...
+@dataclass(frozen=True)
+class TeiaiCatalogContract:
+    seed: int
+    labor_skim_rate: float
+    horse_prize_skim_rate: float
+    horse_rental_extra_skim_rate: float
+    skim_rate: float
+    repay_rate: float
+    bankrupt_floor: int
+    blacklist_days: int
+    escape_chance: float
+    escape_min_debt: int
+    escape_fine_rate: float
+    escape_fine_min: int
+    escape_max_tries: int
+    escape_cooldown_hours: int
+    auction_start: float
+    auction_step: float
+    auction_floor: float
+    auction_yield_share: float
+    seize_rate: float
+    debt_rate_per_day: float
+    debt_interest_max_days: int
+    grace_debt: int
+    grace_hours: int
+    bank_min_deposit: int
+    reserve_ratio: float
+    loan_recovery_per_hour: float
+    lock_debt_rate: float
+    loss_share: float
+    premium_yield_share: float
+    tax_yield_share: float
+    skim_yield_share: float
+    run_warn_ratio: float
+    run_danger_ratio: float
+    cds_min_stake: int
+    cds_min_odds: float
+    cds_max_odds: float
+    cds_term_days: int
+    cds_self_cap: int
+    cds_payout_cap_rate: float
+    wealthy_assets: int
+    statuses: Mapping[str, TeiaiStatusContract]
 
 
-class WalletSectionProto(Protocol):
-    @property
-    def initial_balance(self) -> int: ...
-    @property
-    def daily_base(self) -> int: ...
-    @property
-    def daily_streak_bonus(self) -> int: ...
-    @property
-    def daily_streak_cap(self) -> int: ...
-    @property
-    def consumable_effects(self) -> Mapping[str, str]: ...
+@dataclass(frozen=True)
+class WalletSectionContract:
+    initial_balance: int
+    daily_base: int
+    daily_streak_bonus: int
+    daily_streak_cap: int
+    daily_slot_hours: int
+    max_notices: int
+    consumable_effects: Mapping[str, str]
 
 
-class LoansSectionProto(Protocol):
-    @property
-    def user_min_principal(self) -> int: ...
-    @property
-    def min_term_days(self) -> int: ...
-    @property
-    def max_term_days(self) -> int: ...
-    @property
-    def offer_hours(self) -> int: ...
-    @property
-    def max_borrower_open(self) -> int: ...
-    @property
-    def max_lender_open(self) -> int: ...
-    @property
-    def max_lender_active(self) -> int: ...
-    @property
-    def remind_hours(self) -> int: ...
-    @property
-    def late_min_rate_tenths(self) -> int: ...
-    @property
-    def late_cap(self) -> int: ...
+@dataclass(frozen=True)
+class TransferSectionContract:
+    fee_rate: float
+    daily_limit: int
+    confirm_from: int
+    min_games: int
+    board_interval_minutes: int
 
 
-class QuizpaySectionProto(Protocol):
-    @property
-    def user_min_minutes(self) -> int: ...
-    @property
-    def user_max_minutes(self) -> int: ...
-    @property
-    def user_default_minutes(self) -> int: ...
-    @property
-    def min_participants(self) -> int: ...
-    @property
-    def min_games_for_reward(self) -> int: ...
-    @property
-    def open_limit(self) -> int: ...
-    @property
-    def daily_limit(self) -> int: ...
-    @property
-    def base_reward(self) -> int: ...
-    @property
-    def max_bonus(self) -> int: ...
-    @property
-    def target_rate(self) -> float: ...
-    @property
-    def reward_scale_base(self) -> int: ...
-    @property
-    def participation_rate(self) -> float: ...
-    @property
-    def max_questions(self) -> int: ...
-    @property
-    def max_question_len(self) -> int: ...
-    @property
-    def max_choice_len(self) -> int: ...
-    @property
-    def max_explanation_len(self) -> int: ...
-    @property
-    def max_verdict_len(self) -> int: ...
-    @property
-    def max_minutes(self) -> int: ...
-    @property
-    def default_reward(self) -> int: ...
-    @property
-    def letters(self) -> str: ...
+@dataclass(frozen=True)
+class LoansSectionContract:
+    user_min_principal: int
+    min_term_days: int
+    max_term_days: int
+    offer_hours: int
+    max_borrower_open: int
+    max_lender_open: int
+    max_lender_active: int
+    remind_hours: int
+    late_min_rate_tenths: int
+    late_cap: int
 
 
-class WeeklySectionProto(Protocol):
-    @property
-    def min_plays(self) -> int: ...
-    @property
-    def announce_top(self) -> int: ...
+@dataclass(frozen=True)
+class QuizpaySectionContract:
+    user_min_minutes: int
+    user_max_minutes: int
+    user_default_minutes: int
+    min_participants: int
+    min_games_for_reward: int
+    open_limit: int
+    daily_limit: int
+    base_reward: int
+    max_bonus: int
+    target_rate: float
+    reward_scale_base: int
+    participation_rate: float
+    max_questions: int
+    max_question_len: int
+    max_choice_len: int
+    max_explanation_len: int
+    max_verdict_len: int
+    max_minutes: int
+    default_reward: int
+    letters: str
 
 
-class P2pSectionProto(Protocol):
-    @property
-    def fee_rate(self) -> float: ...
-    @property
-    def max_active(self) -> int: ...
-    @property
-    def fixed_days(self) -> int: ...
-    @property
-    def auction_hours(self) -> tuple[int, ...]: ...
-    @property
-    def min_increment_rate(self) -> float: ...
-    @property
-    def min_increment(self) -> int: ...
-    @property
-    def snipe_seconds(self) -> int: ...
-    @property
-    def pair_daily_limit(self) -> int: ...
-    @property
-    def min_price(self) -> int: ...
-    @property
-    def item_price_range(self) -> tuple[float, float]: ...
-    @property
-    def horse_price_range(self) -> tuple[int, int]: ...
-    @property
-    def escrow_owner(self) -> int: ...
-    @property
-    def tradable_kinds(self) -> tuple[str, ...]: ...
-    @property
-    def slot_of_kind(self) -> Mapping[str, str]: ...
+@dataclass(frozen=True)
+class RaffleSectionContract:
+    min_fee: int
+    random_fee_range: tuple[int, int]
+    default_minutes: int
+    max_minutes: int
+    shown_entrants: int
 
 
-class EconomyCatalogProto(Protocol):
-    @property
-    def wallet(self) -> WalletSectionProto: ...
-    @property
-    def loans(self) -> LoansSectionProto: ...
-    @property
-    def quizpay(self) -> QuizpaySectionProto: ...
-    @property
-    def weekly(self) -> WeeklySectionProto: ...
-    @property
-    def p2p(self) -> P2pSectionProto: ...
+@dataclass(frozen=True)
+class WeeklySectionContract:
+    min_plays: int
+    announce_top: int
+    check_minutes: int
+
+
+@dataclass(frozen=True)
+class P2pSectionContract:
+    fee_rate: float
+    max_active: int
+    fixed_days: int
+    auction_hours: tuple[int, ...]
+    min_increment_rate: float
+    min_increment: int
+    snipe_seconds: int
+    pair_daily_limit: int
+    min_price: int
+    item_price_range: tuple[float, float]
+    horse_price_range: tuple[int, int]
+    escrow_owner: int
+    confirm_from: int
+    tradable_kinds: tuple[str, ...]
+    slot_of_kind: Mapping[str, str]
+
+
+@dataclass(frozen=True)
+class EconomyCatalogContract:
+    wallet: WalletSectionContract
+    transfer: TransferSectionContract
+    loans: LoansSectionContract
+    quizpay: QuizpaySectionContract
+    raffle: RaffleSectionContract
+    weekly: WeeklySectionContract
+    p2p: P2pSectionContract

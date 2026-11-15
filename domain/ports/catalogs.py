@@ -1,58 +1,58 @@
 """カタログ提供の抽象契約（DIP: domain が infra.catalogs や YAML I/O に直接依存しないため）。"""
 
 from domain.ports.catalog_types import (
-    BondsCatalogProto,
-    EconomyCatalogProto,
-    EventsCatalogProto,
-    GamesCatalogProto,
-    HorseCatalogProto,
-    LaborCatalogProto,
-    MarketCatalogProto,
-    MissionsCatalogProto,
-    RelicsCatalogProto,
-    ShopCatalogProto,
-    SkinsCatalogProto,
-    TeiaiCatalogProto,
+    BondsCatalogContract,
+    EconomyCatalogContract,
+    EventsCatalogContract,
+    GamesCatalogContract,
+    HorseCatalogContract,
+    LaborCatalogContract,
+    MarketCatalogContract,
+    MissionsCatalogContract,
+    RelicsCatalogContract,
+    ShopCatalogContract,
+    SkinsCatalogContract,
+    TeiaiCatalogContract,
 )
 
 
 class ICatalogs:
     """ドメイン層が必要とするカタログ設定の読み取りインターフェース。"""
 
-    def shop(self) -> ShopCatalogProto:
+    def shop(self) -> ShopCatalogContract:
         raise NotImplementedError
 
-    def skins(self) -> SkinsCatalogProto:
+    def skins(self) -> SkinsCatalogContract:
         raise NotImplementedError
 
-    def relics(self) -> RelicsCatalogProto:
+    def relics(self) -> RelicsCatalogContract:
         raise NotImplementedError
 
-    def bonds(self) -> BondsCatalogProto:
+    def bonds(self) -> BondsCatalogContract:
         raise NotImplementedError
 
-    def missions(self) -> MissionsCatalogProto:
+    def missions(self) -> MissionsCatalogContract:
         raise NotImplementedError
 
-    def events(self) -> EventsCatalogProto:
+    def events(self) -> EventsCatalogContract:
         raise NotImplementedError
 
-    def labor(self) -> LaborCatalogProto:
+    def labor(self) -> LaborCatalogContract:
         raise NotImplementedError
 
-    def horse(self) -> HorseCatalogProto:
+    def horse(self) -> HorseCatalogContract:
         raise NotImplementedError
 
-    def market(self) -> MarketCatalogProto:
+    def market(self) -> MarketCatalogContract:
         raise NotImplementedError
 
-    def teiai(self) -> TeiaiCatalogProto:
+    def teiai(self) -> TeiaiCatalogContract:
         raise NotImplementedError
 
-    def economy(self) -> EconomyCatalogProto:
+    def economy(self) -> EconomyCatalogContract:
         raise NotImplementedError
 
-    def games(self) -> GamesCatalogProto:
+    def games(self) -> GamesCatalogContract:
         raise NotImplementedError
 
 

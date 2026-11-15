@@ -1,16 +1,33 @@
 """経済共通・帝愛・債券カタログの Pydantic スキーマ。"""
 
+from collections.abc import Mapping
 from functools import lru_cache
 
 from pydantic import Field
+from pydantic.dataclasses import dataclass as pydantic_dataclass
 
-from infra.catalogs.loader import StrictModel, load_yaml_model
+from domain.ports.catalog_types.economy import (
+    BondKindContract,
+    BondsCatalogContract,
+    EconomyCatalogContract,
+    LoansSectionContract,
+    P2pSectionContract,
+    QuizpaySectionContract,
+    RaffleSectionContract,
+    TeiaiCatalogContract,
+    TeiaiStatusContract,
+    TransferSectionContract,
+    WalletSectionContract,
+    WeeklySectionContract,
+)
+from infra.catalogs.loader import STRICT_CONFIG, load_yaml_model
 
 
 # ------------------------------------------------------------------ #
 # bonds.yaml
 # ------------------------------------------------------------------ #
-class BondKindConfig(StrictModel):
+@pydantic_dataclass(frozen=True, config=STRICT_CONFIG, kw_only=True)
+class BondKindConfig(BondKindContract):
     key: str = Field(min_length=1)
     name: str = Field(min_length=1)
     emoji: str = Field(min_length=1)
@@ -21,7 +38,8 @@ class BondKindConfig(StrictModel):
     sellable: bool
 
 
-class BondsCatalog(StrictModel):
+@pydantic_dataclass(frozen=True, config=STRICT_CONFIG, kw_only=True)
+class BondsCatalog(BondsCatalogContract):
     min_amount: int = Field(gt=0)
     sale_discount_per_hour: float = Field(ge=0)
     kinds: tuple[BondKindConfig, ...] = Field(min_length=1)
@@ -30,13 +48,15 @@ class BondsCatalog(StrictModel):
 # ------------------------------------------------------------------ #
 # teiai.yaml
 # ------------------------------------------------------------------ #
-class TeiaiStatusConfig(StrictModel):
+@pydantic_dataclass(frozen=True, config=STRICT_CONFIG, kw_only=True)
+class TeiaiStatusConfig(TeiaiStatusContract):
     label: str = Field(min_length=1)
     mark: str | None = None
     name: str | None = None
 
 
-class TeiaiCatalog(StrictModel):
+@pydantic_dataclass(frozen=True, config=STRICT_CONFIG, kw_only=True)
+class TeiaiCatalog(TeiaiCatalogContract):
     seed: int = Field(ge=0)
     labor_skim_rate: float = Field(ge=0, le=1)
     horse_prize_skim_rate: float = Field(ge=0, le=1)
@@ -77,23 +97,25 @@ class TeiaiCatalog(StrictModel):
     cds_self_cap: int = Field(gt=0)
     cds_payout_cap_rate: float = Field(gt=0)
     wealthy_assets: int = Field(gt=0)
-    statuses: dict[str, TeiaiStatusConfig]
+    statuses: Mapping[str, TeiaiStatusConfig]
 
 
 # ------------------------------------------------------------------ #
 # economy.yaml
 # ------------------------------------------------------------------ #
-class WalletSection(StrictModel):
+@pydantic_dataclass(frozen=True, config=STRICT_CONFIG, kw_only=True)
+class WalletSection(WalletSectionContract):
     initial_balance: int = Field(ge=0)
     daily_base: int = Field(gt=0)
     daily_streak_bonus: int = Field(ge=0)
     daily_streak_cap: int = Field(ge=0)
     daily_slot_hours: int = Field(gt=0)
     max_notices: int = Field(gt=0)
-    consumable_effects: dict[str, str]
+    consumable_effects: Mapping[str, str]
 
 
-class TransferSection(StrictModel):
+@pydantic_dataclass(frozen=True, config=STRICT_CONFIG, kw_only=True)
+class TransferSection(TransferSectionContract):
     fee_rate: float = Field(ge=0, lt=1)
     daily_limit: int = Field(gt=0)
     confirm_from: int = Field(ge=0)
@@ -101,7 +123,8 @@ class TransferSection(StrictModel):
     board_interval_minutes: int = Field(gt=0)
 
 
-class LoansSection(StrictModel):
+@pydantic_dataclass(frozen=True, config=STRICT_CONFIG, kw_only=True)
+class LoansSection(LoansSectionContract):
     user_min_principal: int = Field(gt=0)
     min_term_days: int = Field(gt=0)
     max_term_days: int = Field(gt=0)
@@ -114,7 +137,8 @@ class LoansSection(StrictModel):
     late_cap: int = Field(gt=0)
 
 
-class QuizpaySection(StrictModel):
+@pydantic_dataclass(frozen=True, config=STRICT_CONFIG, kw_only=True)
+class QuizpaySection(QuizpaySectionContract):
     user_min_minutes: int = Field(gt=0)
     user_max_minutes: int = Field(gt=0)
     user_default_minutes: int = Field(gt=0)
@@ -137,7 +161,8 @@ class QuizpaySection(StrictModel):
     letters: str = Field(min_length=4)
 
 
-class RaffleSection(StrictModel):
+@pydantic_dataclass(frozen=True, config=STRICT_CONFIG, kw_only=True)
+class RaffleSection(RaffleSectionContract):
     min_fee: int = Field(gt=0)
     random_fee_range: tuple[int, int]
     default_minutes: int = Field(gt=0)
@@ -145,13 +170,15 @@ class RaffleSection(StrictModel):
     shown_entrants: int = Field(gt=0)
 
 
-class WeeklySection(StrictModel):
+@pydantic_dataclass(frozen=True, config=STRICT_CONFIG, kw_only=True)
+class WeeklySection(WeeklySectionContract):
     min_plays: int = Field(gt=0)
     announce_top: int = Field(gt=0)
     check_minutes: int = Field(gt=0)
 
 
-class P2pSection(StrictModel):
+@pydantic_dataclass(frozen=True, config=STRICT_CONFIG, kw_only=True)
+class P2pSection(P2pSectionContract):
     fee_rate: float = Field(ge=0, lt=1)
     max_active: int = Field(gt=0)
     fixed_days: int = Field(gt=0)
@@ -166,10 +193,11 @@ class P2pSection(StrictModel):
     escrow_owner: int
     confirm_from: int = Field(ge=0)
     tradable_kinds: tuple[str, ...] = Field(min_length=1)
-    slot_of_kind: dict[str, str]
+    slot_of_kind: Mapping[str, str]
 
 
-class EconomyCatalog(StrictModel):
+@pydantic_dataclass(frozen=True, config=STRICT_CONFIG, kw_only=True)
+class EconomyCatalog(EconomyCatalogContract):
     wallet: WalletSection
     transfer: TransferSection
     loans: LoansSection

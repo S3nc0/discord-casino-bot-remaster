@@ -1,16 +1,31 @@
 """証券・オプション・市場イベント・決算カタログの Pydantic スキーマ。"""
 
+from collections.abc import Mapping
 from functools import lru_cache
 
 from pydantic import Field
+from pydantic.dataclasses import dataclass as pydantic_dataclass
 
-from infra.catalogs.loader import StrictModel, load_yaml_model
+from domain.ports.catalog_types.market import (
+    CorrelationContract,
+    EarningsSectionContract,
+    MarketCatalogContract,
+    MarketEventsSectionContract,
+    MarketSectionContract,
+    OptionKindContract,
+    OptionsSectionContract,
+    PeriodContract,
+    SymbolContract,
+    TaxBracketContract,
+)
+from infra.catalogs.loader import STRICT_CONFIG, load_yaml_model
 
 
 # ------------------------------------------------------------------ #
 # market.yaml
 # ------------------------------------------------------------------ #
-class SymbolConfig(StrictModel):
+@pydantic_dataclass(frozen=True, config=STRICT_CONFIG, kw_only=True)
+class SymbolConfig(SymbolContract):
     key: str = Field(min_length=1)
     name: str = Field(min_length=1)
     emoji: str = Field(min_length=1)
@@ -19,22 +34,26 @@ class SymbolConfig(StrictModel):
     drift: float = Field(ge=0)
 
 
-class CorrelationConfig(StrictModel):
+@pydantic_dataclass(frozen=True, config=STRICT_CONFIG, kw_only=True)
+class CorrelationConfig(CorrelationContract):
     pair: tuple[str, str]
     value: float = Field(ge=-1, le=1)
 
 
-class TaxBracketConfig(StrictModel):
+@pydantic_dataclass(frozen=True, config=STRICT_CONFIG, kw_only=True)
+class TaxBracketConfig(TaxBracketContract):
     limit: int | None = None
     rate: float = Field(ge=0, le=1)
 
 
-class PeriodConfig(StrictModel):
+@pydantic_dataclass(frozen=True, config=STRICT_CONFIG, kw_only=True)
+class PeriodConfig(PeriodContract):
     label: str = Field(min_length=1)
     seconds: int = Field(gt=0)
 
 
-class MarketSection(StrictModel):
+@pydantic_dataclass(frozen=True, config=STRICT_CONFIG, kw_only=True)
+class MarketSection(MarketSectionContract):
     min_price: int = Field(gt=0)
     max_price: int = Field(gt=0)
     keep_days: int = Field(gt=0)
@@ -45,33 +64,35 @@ class MarketSection(StrictModel):
     unit: int = Field(gt=0)
     fee_rate: float = Field(ge=0)
     unit_name: str = Field(min_length=1)
-    side_name: dict[str, str]
+    side_name: Mapping[str, str]
     symbols: tuple[SymbolConfig, ...] = Field(min_length=1)
     correlations: tuple[CorrelationConfig, ...]
     drift_band: float = Field(gt=1)
     daily_limit: float = Field(gt=0, lt=1)
-    pin_locks: dict[int, tuple[str, ...]]
-    pin_mark: dict[int, str]
+    pin_locks: Mapping[int, tuple[str, ...]]
+    pin_mark: Mapping[int, str]
     short_leverages: tuple[int, ...] = Field(min_length=1)
     short_min_margin: int = Field(gt=0)
     gains_tax_brackets: tuple[TaxBracketConfig, ...] = Field(min_length=1)
-    borrow_rate_per_day: dict[str, float]
+    borrow_rate_per_day: Mapping[str, float]
     interest_min_charge: int = Field(ge=0)
     risk_k: float = Field(gt=0)
     open_ratio: float = Field(gt=1)
     losscut_ratio: float = Field(gt=0)
-    collateral_haircut: dict[str, float]
+    collateral_haircut: Mapping[str, float]
     levels: str = Field(min_length=2)
-    periods: dict[str, PeriodConfig]
+    periods: Mapping[str, PeriodConfig]
 
 
-class OptionKindConfig(StrictModel):
+@pydantic_dataclass(frozen=True, config=STRICT_CONFIG, kw_only=True)
+class OptionKindConfig(OptionKindContract):
     name: str = Field(min_length=1)
     emoji: str = Field(min_length=1)
     desc: str = Field(min_length=1)
 
 
-class OptionsSection(StrictModel):
+@pydantic_dataclass(frozen=True, config=STRICT_CONFIG, kw_only=True)
+class OptionsSection(OptionsSectionContract):
     option_hours: int = Field(gt=0)
     strike_otm: float = Field(gt=0)
     tick_seconds: int = Field(gt=0)
@@ -82,13 +103,14 @@ class OptionsSection(StrictModel):
     yield_share: float = Field(ge=0, le=1)
     margin_rate: float = Field(gt=0)
     max_short_margin: int = Field(gt=0)
-    kinds: dict[str, OptionKindConfig]
-    short_names: dict[str, str]
-    strike_by_symbol: dict[str, float]
+    kinds: Mapping[str, OptionKindConfig]
+    short_names: Mapping[str, str]
+    strike_by_symbol: Mapping[str, float]
     max_target_pct: int = Field(gt=0)
 
 
-class MarketEventsSection(StrictModel):
+@pydantic_dataclass(frozen=True, config=STRICT_CONFIG, kw_only=True)
+class MarketEventsSection(MarketEventsSectionContract):
     lead_min: int = Field(gt=0)
     duration_min: int = Field(gt=0)
     factor: float = Field(gt=0)
@@ -101,7 +123,8 @@ class MarketEventsSection(StrictModel):
     min_abs_corr: float = Field(ge=0, le=1)
 
 
-class EarningsSection(StrictModel):
+@pydantic_dataclass(frozen=True, config=STRICT_CONFIG, kw_only=True)
+class EarningsSection(EarningsSectionContract):
     symbols: tuple[str, ...] = Field(min_length=1)
     release_weekday: int = Field(ge=0, le=6)
     release_time: tuple[int, int]
@@ -116,7 +139,8 @@ class EarningsSection(StrictModel):
     shop_stock: int = Field(gt=0)
 
 
-class MarketCatalog(StrictModel):
+@pydantic_dataclass(frozen=True, config=STRICT_CONFIG, kw_only=True)
+class MarketCatalog(MarketCatalogContract):
     market: MarketSection
     options: OptionsSection
     events: MarketEventsSection
