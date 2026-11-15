@@ -415,6 +415,7 @@ class RaceMixin(EcoBase):
                         self._bank_set(state["cash"] - topup, state["loaned"])
             scale = horse_mod.prize_pool_scale(real_entries, placed_total, topup)
             prizes, retired = {}, []
+            buffs_by_owner: dict[int, dict] = {}
             for place, idx in enumerate(order, start=1):
                 e = entries[idx]
                 e["finish"] = place
@@ -423,8 +424,10 @@ class RaceMixin(EcoBase):
                 if e["owner_id"]:
                     horse = self.horse_get(e["horse_id"])
                     if prize:
+                        if e["owner_id"] not in buffs_by_owner:
+                            buffs_by_owner[e["owner_id"]] = self._relic_buffs(e["owner_id"])
                         prize = round(
-                            prize * (1 + self._relic_buffs(e["owner_id"]).get("prize", 0.0))
+                            prize * (1 + buffs_by_owner[e["owner_id"]].get("prize", 0.0))
                         )  # 発掘品（竜の涙）の効果
                         rate = teiai.HORSE_PRIZE_SKIM_RATE
                         if horse is not None and horse["rented_day"]:
