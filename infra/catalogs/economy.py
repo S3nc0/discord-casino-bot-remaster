@@ -78,14 +78,6 @@ class TeiaiCatalog(StrictModel):
     cds_payout_cap_rate: float = Field(gt=0)
     wealthy_assets: int = Field(gt=0)
     statuses: dict[str, TeiaiStatusConfig]
-    escape_frame_seconds: float = Field(gt=0)
-    escape_ship: list[str] = Field(min_length=1)
-    escape_waves: list[str] = Field(min_length=2)
-    escape_progress: list[str] = Field(min_length=1)
-    escape_success_art: str
-    escape_fail_art: str
-    panel_level_mark: dict[str, str]
-    panel_level_text: dict[str, str]
 
 
 # ------------------------------------------------------------------ #
@@ -101,7 +93,6 @@ class WalletSection(StrictModel):
     consumable_effects: dict[str, str]
     medals: dict[int, str]
     part_labels: dict[str, str]
-    grace_lock_text: str = Field(min_length=1)
 
 
 class TransferSection(StrictModel):
@@ -164,11 +155,6 @@ class WeeklySection(StrictModel):
     check_minutes: int = Field(gt=0)
 
 
-class P2pEndedTextConfig(StrictModel):
-    title: str = Field(min_length=1)
-    body: str = Field(min_length=1)
-
-
 class P2pSection(StrictModel):
     fee_rate: float = Field(ge=0, lt=1)
     max_active: int = Field(gt=0)
@@ -185,7 +171,6 @@ class P2pSection(StrictModel):
     confirm_from: int = Field(ge=0)
     tradable_kinds: tuple[str, ...] = Field(min_length=1)
     slot_of_kind: dict[str, str]
-    ended_text: dict[str, P2pEndedTextConfig]
 
 
 class EconomyCatalog(StrictModel):

@@ -6,9 +6,12 @@ from cogs.shared import ui
 from cogs.shared.horse_display import stat_lines
 from domain import p2p
 from domain import shop as shop_mod
-from infra import catalogs
 
-ENDED_TEXT = {k: (v.title, v.body) for k, v in catalogs.economy().p2p.ended_text.items()}
+ENDED_TEXT = {
+    "sold": ("✅ 売れました", "{label} は、<@{buyer}> が **{price}** で買いました。"),
+    "expired": ("⏳ 終了（売れ残り）", "{label} は、買い手がつかず、終了しました。"),
+    "cancelled": ("🚫 取り消されました", "{label} の出品は、取り消されました。"),
+}
 
 
 def when(ts: float) -> str:

@@ -12,11 +12,19 @@ from cogs.shared.cog_ports import IShopCogPort, get_cog_port
 from cogs.shared.messages import format_failure
 from cogs.teiai.escape import run_escape
 from domain import teiai
-from infra import catalogs
 
-_TEIAI_CFG = catalogs.teiai()
-LEVEL_MARK = dict(_TEIAI_CFG.panel_level_mark)
-LEVEL_TEXT = dict(_TEIAI_CFG.panel_level_text)
+LEVEL_MARK = {
+    "safe": "🟢",
+    "warn": "🟡",
+    "danger": "🔴",
+    "frozen": "🚨",
+}
+LEVEL_TEXT = {
+    "safe": "余裕あり",
+    "warn": "取り付け警戒",
+    "danger": "取り付け危険水域！",
+    "frozen": "支払停止（預金封鎖）",
+}
 
 
 def meter(ratio, width: int = 10) -> str:

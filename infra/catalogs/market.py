@@ -51,8 +51,9 @@ class MarketSection(StrictModel):
     drift_band: float = Field(gt=1)
     daily_limit: float = Field(gt=0, lt=1)
     pin_locks: dict[int, tuple[str, ...]]
-    pin_action_text: dict[str, str]
     pin_mark: dict[int, str]
+    short_leverages: tuple[int, ...] = Field(min_length=1)
+    short_min_margin: int = Field(gt=0)
     gains_tax_brackets: tuple[TaxBracketConfig, ...] = Field(min_length=1)
     borrow_rate_per_day: dict[str, float]
     interest_min_charge: int = Field(ge=0)

@@ -56,16 +56,11 @@ market:
   pin_locks:
     -1: ["sell_spot", "close_long", "sell_call"]
     1: ["buy_spot", "open_long", "cover_short"]
-  pin_action_text:
-    sell_spot: "現物の売却"
-    close_long: "買い建て（ロング）の決済"
-    sell_call: "コールの売却"
-    buy_spot: "現物の買い"
-    open_long: "買い建て（ロング）の新規"
-    cover_short: "空売りの買い戻し"
   pin_mark:
     1: "🚀 ストップ高"
     -1: "🚨 ストップ安"
+  short_leverages: [1, 2, 3, 5]
+  short_min_margin: 10
   gains_tax_brackets:
     - limit: 10000
       rate: 0.0

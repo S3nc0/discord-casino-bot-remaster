@@ -14,11 +14,11 @@ from infra.db.base import EcoBase
 class MarginMixin(EcoBase):
     """空売り・信用買い・維持率管理・信用金利・連鎖ロスカット。"""
 
-    SHORT_LEVERAGES = (1, 2, 3, 5)
+    SHORT_LEVERAGES = market_mod.SHORT_LEVERAGES
     MARGIN_LEVERAGES = SHORT_LEVERAGES
-    SHORT_MIN_MARGIN = 10
+    SHORT_MIN_MARGIN = market_mod.SHORT_MIN_MARGIN
     _MARGIN_TABLE = {"short": "crypto_short", "long": "crypto_long"}  # 表の名前は固定の文字列だけ（SQL に埋め込むため）
-    SIDE_NAME = {"short": "空売り", "long": "信用買い"}
+    SIDE_NAME = market_mod.SIDE_NAME
 
     def margin_position(self, user_id: int, symbol: str, side: str) -> tuple:
         """(口数, 建てた総額, 担保)。建てていなければ (0, 0.0, 0)。"""

@@ -6,10 +6,19 @@ from domain import market as market_mod
 
 FailureFormatter = str | Callable[[dict[str, Any]], str]
 
+PIN_ACTION_TEXT = {
+    "sell_spot": "現物の売却",
+    "close_long": "買い建て（ロング）の決済",
+    "sell_call": "コールの売却",
+    "buy_spot": "現物の買い",
+    "open_long": "買い建て（ロング）の新規",
+    "cover_short": "空売りの買い戻し",
+}
+
 
 def _pin_limit_down(p: dict[str, Any]) -> str:
     name = market_mod.BY_KEY[p["symbol"]].name
-    act = market_mod.PIN_ACTION_TEXT[p["action"]]
+    act = PIN_ACTION_TEXT[p["action"]]
     return (
         f"🚨 {name} は**ストップ安に張り付いています**。{act}は、買い手がいなくて約定しません"
         "（下げが止まるまで、待つしかありません）。"
@@ -18,7 +27,7 @@ def _pin_limit_down(p: dict[str, Any]) -> str:
 
 def _pin_limit_up(p: dict[str, Any]) -> str:
     name = market_mod.BY_KEY[p["symbol"]].name
-    act = market_mod.PIN_ACTION_TEXT[p["action"]]
+    act = PIN_ACTION_TEXT[p["action"]]
     return (
         f"🚀 {name} は**ストップ高に張り付いています**。{act}は、売り手がいなくて約定しません"
         "（上げが止まるまで、待つしかありません）。"

@@ -11,13 +11,27 @@ from cogs.shared import ui
 from cogs.shared.confirm import confirm_action
 from cogs.shared.messages import format_failure
 from domain import teiai
-from infra import catalogs
 
-_CFG = catalogs.teiai()
-FRAME_SECONDS = _CFG.escape_frame_seconds
-SHIP = list(_CFG.escape_ship)
-WAVES = list(_CFG.escape_waves)
-PROGRESS = list(_CFG.escape_progress)
+FRAME_SECONDS = 1.4
+SHIP = [
+    "      |\\",
+    "      | \\",
+    " _____|__\\_____",
+    " \\  o  o  o   /",
+    "  \\___________/",
+]
+WAVES = [
+    "~^~^~^~^~^~^~^~^~^~^~^~^~^~^",
+    "^~^~^~^~^~^~^~^~^~^~^~^~^~^~",
+]
+PROGRESS = [
+    "🌃 夜の港から、こっそり出航…",
+    "🌊 沖へ…灯りが遠ざかる…",
+    "🌫️ 霧の中を進む…",
+    "💡 …遠くに、光が見える…？",
+    "🌅 公海が近い…！",
+    "⚓ 運命の瞬間…",
+]
 
 
 def ship_frame(step: int) -> str:
@@ -26,8 +40,25 @@ def ship_frame(step: int) -> str:
     return "\n".join(lines + [WAVES[step % 2], WAVES[(step + 1) % 2]])
 
 
-SUCCESS_ART = _CFG.escape_success_art
-FAIL_ART = _CFG.escape_fail_art
+SUCCESS_ART = """
+          \\  |  /
+        --  ( )  --      * * *
+          /  |  \\
+                |\\
+       _________| \\________
+       \\  o  o  o   /  ===> FREE!
+  ~~~~~~\\___________/~~~~~~~~~~~~
+  ^~^~^~^~^~^~^~^~^~^~^~^~^~^~^~^
+"""
+FAIL_ART = """
+     !!  KEIBI  !!       ___
+    =====[]=====       _|   |_
+     __|_____|__      |  o o |
+    /  KAIJO     \\     \\_____/
+    \\____________/   ~~ CAUGHT! ~~
+  ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+  ^~^~^~^~^~^~^~^~^~^~^~^~^~^~^~^~^
+"""
 
 
 def block(text: str) -> str:

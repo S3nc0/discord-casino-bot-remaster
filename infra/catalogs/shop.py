@@ -27,33 +27,6 @@ class StockRuleConfig(StrictModel):
     per_hour: float = Field(gt=0)
 
 
-class ShopTabConfig(StrictModel):
-    label: str = Field(min_length=1)
-    kinds: tuple[str, ...] = ()
-
-
-class ShopTierConfig(StrictModel):
-    max_price: int | None = None
-    label: str = Field(min_length=1)
-
-
-class P2pFilterConfig(StrictModel):
-    label: str = Field(min_length=1)
-    kind: str | None = None
-    mode: str | None = None
-
-
-class ShopUiConfig(StrictModel):
-    slot_of_kind: dict[str, str]
-    unequip_names: dict[str, str]
-    tabs: dict[str, ShopTabConfig]
-    tab_notes: dict[str, str]
-    tiers: tuple[ShopTierConfig, ...] = Field(min_length=1)
-    section_names: dict[str, str]
-    p2p_filters: dict[str, P2pFilterConfig]
-    p2p_orders: dict[str, str]
-
-
 class ShopCatalog(StrictModel):
     kind_labels: dict[str, str]
     role_prefix: str = Field(min_length=1)
@@ -64,7 +37,6 @@ class ShopCatalog(StrictModel):
     confirm_from: int = Field(ge=0)
     status_nick_minutes: int = Field(gt=0)
     status_nick_per_guild: int = Field(gt=0)
-    ui: ShopUiConfig
 
     @model_validator(mode="after")
     def _validate_items(self) -> Self:

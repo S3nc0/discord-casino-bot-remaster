@@ -22,7 +22,8 @@ EVENT_SCALE_MAX = _CFG.event_scale_max  # 有事の大きさにかける比の�
 UNIT = _CFG.unit  # 1枚 = 1000口。小数で買えるよう、保有は口で数える
 FEE_RATE = _CFG.fee_rate  # 買うときと売るときに、それぞれ取引額にかかる割合（今は無料）
 SIDE_NAME = dict(_CFG.side_name)
-SHORT_LEVERAGES = (1, 2, 3, 5)
+SHORT_LEVERAGES = tuple(_CFG.short_leverages)
+SHORT_MIN_MARGIN = _CFG.short_min_margin
 
 
 @dataclass(frozen=True)
@@ -81,7 +82,6 @@ def pin_states(fair: dict, reference: dict, limit: float = DAILY_LIMIT) -> dict:
 
 # 張り付き中に、約定しなくなる売買（買い手・売り手がいないため）。逆張りの売買と、利益確定は通る
 PIN_LOCKS = dict(_CFG.pin_locks)
-PIN_ACTION_TEXT = dict(_CFG.pin_action_text)
 
 
 def pin_lock_failure(symbol: str, pin: int, action: str) -> Optional[Failure]:

@@ -7,6 +7,7 @@ import discord
 
 from cogs.market.bond_embeds import describe_done, due_text
 from cogs.shared import ui
+from cogs.shared.messages.market import PIN_ACTION_TEXT
 from domain import bonds, market, market_events
 from domain import options as opt
 from domain.options import name_of
@@ -129,7 +130,7 @@ def pin_lines(pin: int) -> str:
     """ストップ高・ストップ安に張り付き中なら、その表示と、約定しない売買。"""
     if not pin:
         return ""
-    locked = "・".join(market.PIN_ACTION_TEXT[a] for a in market.PIN_LOCKS[pin])
+    locked = "・".join(PIN_ACTION_TEXT[a] for a in market.PIN_LOCKS[pin])
     return f"\n**{market.PIN_MARK[pin]}に張り付き中**　約定しない売買: {locked}"
 
 

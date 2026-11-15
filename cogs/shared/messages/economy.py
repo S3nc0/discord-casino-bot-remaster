@@ -2,13 +2,7 @@
 
 from typing import Any, Callable
 
-from infra import catalogs
-
 FailureFormatter = str | Callable[[dict[str, Any]], str]
-
-
-def _grace_lock(_p: dict[str, Any]) -> str:
-    return catalogs.economy().wallet.grace_lock_text
 
 
 def _shop_out_of_stock(p: dict[str, Any]) -> str:
@@ -37,7 +31,7 @@ ECONOMY_FAILURES: dict[str, FailureFormatter] = {
     "debt_blocks_transfer": lambda p: f"借金が {p['debt']:,}ペリカ 残っているので、送金はできません。",
     "debt_blocks_quiz": lambda p: f"借金が {p['debt']:,}ペリカ 残っているので、出題できません。",
     "debt_blocks_raffle": lambda p: f"借金が {p['debt']:,}ペリカ 残っているので、参加できません。",
-    "grace_lock": _grace_lock,
+    "grace_lock": "破産猶予中は、取引（出品・買う・入札）ができません（破産の前に、資産を移して、借金を踏み倒すのを防ぐためです）。",
     "user_not_registered": "その人は、まだこのサーバーで遊んでいません。",
     # 送金
     "transfer_self": "自分には送金できません。",
