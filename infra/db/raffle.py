@@ -70,7 +70,7 @@ class RaffleMixin(EcoBase):
             ).fetchone():
                 return False, fail("raffle_already_joined")
             if self._debt(user_id) > 0:
-                return False, fail("debt_blocks_raffle", debt=self._debt(user_id))
+                return False, fail("debt_blocks", debt=self._debt(user_id), verb="参加できません")
             if self._balance(user_id) < row["fee"]:
                 return False, fail("raffle_insufficient_balance", fee=row["fee"], balance=self._balance(user_id))
             self._apply(user_id, -row["fee"], "抽選参加費")

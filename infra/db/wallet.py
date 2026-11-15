@@ -285,7 +285,7 @@ class WalletMixin(EcoBase):
                     False, fail("transfer_daily_limit", daily_limit=daily_limit, sent_today=sent_today)
                 )
             if self._debt(sender) > 0:
-                return TransferResult(False, fail("debt_blocks_transfer", debt=self._debt(sender)))
+                return TransferResult(False, fail("debt_blocks", debt=self._debt(sender), verb="送金はできません"))
             if self._balance(sender) < amount + fee:
                 return TransferResult(False, fail("transfer_insufficient_balance", amount=amount, fee=fee))
             self._apply(

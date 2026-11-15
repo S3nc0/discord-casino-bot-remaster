@@ -56,7 +56,7 @@ class CryptoMixin(EcoBase):
             if self._debt(user_id) > 0:
                 return CryptoResult(
                     False,
-                    fail("debt_blocks_buy", debt=self._debt(user_id)),
+                    fail("debt_blocks", debt=self._debt(user_id), verb="買えません"),
                     balance=self._balance(user_id),
                 )
             if self._balance(user_id) < amount:

@@ -27,7 +27,7 @@ class BondMixin(EcoBase):
             if amount < bonds_mod.MIN_AMOUNT:
                 return False, fail("bond_min_amount", min_amount=bonds_mod.MIN_AMOUNT)
             if self._debt(user_id) > 0:
-                return False, fail("debt_blocks_buy", debt=self._debt(user_id))
+                return False, fail("debt_blocks", debt=self._debt(user_id), verb="買えません")
             if self._balance(user_id) < amount:
                 return False, fail("insufficient_balance", balance=self._balance(user_id))
             held = self._bond_held(user_id, kind_key)

@@ -80,7 +80,7 @@ class OptionMixin(EcoBase):
             if amount < opt.MIN_PREMIUM:
                 return False, fail("option_min_premium", min_premium=opt.MIN_PREMIUM)
             if self._debt(user_id) > 0:
-                return False, fail("debt_blocks_buy", debt=self._debt(user_id))
+                return False, fail("debt_blocks", debt=self._debt(user_id), verb="買えません")
             prices = self.latest_prices()
             spot = prices.get(symbol)
             spot2 = prices.get(symbol2) if kind == opt.PAIR and symbol2 is not None else None
@@ -153,7 +153,7 @@ class OptionMixin(EcoBase):
             if amount < opt.MIN_PREMIUM:
                 return False, fail("option_min_margin", min_premium=opt.MIN_PREMIUM)
             if self._debt(user_id) > 0:
-                return False, fail("debt_blocks_sell", debt=self._debt(user_id))
+                return False, fail("debt_blocks", debt=self._debt(user_id), verb="売れません")
             spot = self.latest_prices().get(symbol)
             if spot is None:
                 return False, fail("market_no_price")

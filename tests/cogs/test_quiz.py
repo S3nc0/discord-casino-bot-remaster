@@ -383,7 +383,7 @@ def test_debt_from_a_quiz_is_withheld_from_the_authors_income_and_blocks_new_que
     eco._apply(AUTHOR, 400, "収入", income=400)  # 収入の3割（120）が、天引きされる
     assert eco.debt(AUTHOR) == 1000 + teiai.SEED - 120
     ok_post, why_post = eco.quiz_post(AUTHOR, "問題", ["a", "b", "c", "d"], "", 100, 60, 1, NOW)
-    assert not ok_post and why_post.code == "debt_blocks_quiz"  # 借金中は出題できない
+    assert not ok_post and why_post.code == "debt_blocks"  # 借金中は出題できない
 
 
 def test_wrong_answers_never_create_debt(eco):

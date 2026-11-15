@@ -155,7 +155,7 @@ def test_write_rules(eco):
     assert not eco.option_write(U, opt.CALL, "cs", INITIAL_BALANCE + 1)[0]  # 残高不足
     with eco._lock, eco._conn:
         eco._conn.execute("UPDATE users SET debt=100 WHERE user_id=?", (U,))
-    assert eco.option_write(U, opt.CALL, "cs", 1_000)[1].code == "debt_blocks_sell"
+    assert eco.option_write(U, opt.CALL, "cs", 1_000)[1].code == "debt_blocks"
 
 
 def test_write_margin_cap(eco):

@@ -25,12 +25,7 @@ ECONOMY_FAILURES: dict[str, FailureFormatter] = {
     "insufficient_balance_need": lambda p: (
         f"ペリカが足りません（{p['need']:,}ペリカ必要・残高 {p['balance']:,}ペリカ）。"
     ),
-    "debt_blocks_buy": lambda p: f"借金が {p['debt']:,}ペリカ 残っているので、買えません。",
-    "debt_blocks_sell": lambda p: f"借金が {p['debt']:,}ペリカ 残っているので、売れません。",
-    "debt_blocks_shopping": lambda p: f"借金が {p['debt']:,}ペリカ 残っているので、買い物はできません。",
-    "debt_blocks_transfer": lambda p: f"借金が {p['debt']:,}ペリカ 残っているので、送金はできません。",
-    "debt_blocks_quiz": lambda p: f"借金が {p['debt']:,}ペリカ 残っているので、出題できません。",
-    "debt_blocks_raffle": lambda p: f"借金が {p['debt']:,}ペリカ 残っているので、参加できません。",
+    "debt_blocks": lambda p: f"借金が {p['debt']:,}ペリカ 残っているので、{p['verb']}。",
     "grace_lock": "破産猶予中は、取引（出品・買う・入札）ができません（破産の前に、資産を移して、借金を踏み倒すのを防ぐためです）。",
     "user_not_registered": "その人は、まだこのサーバーで遊んでいません。",
     # 送金

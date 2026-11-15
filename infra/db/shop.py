@@ -78,7 +78,7 @@ class ShopMixin(EcoBase):
             if self._debt(user_id) > 0:
                 return PurchaseResult(
                     False,
-                    fail("debt_blocks_shopping", debt=self._debt(user_id)),
+                    fail("debt_blocks", debt=self._debt(user_id), verb="買い物はできません"),
                     self._balance(user_id),
                 )
             if self._balance(user_id) < total:

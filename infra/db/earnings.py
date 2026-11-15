@@ -140,7 +140,7 @@ class EarningsMixin(EcoBase):
             if stock is None or stock["left"] <= 0:
                 return False, fail("insider_sold_out")
             if self._debt(user_id) > 0:
-                return False, fail("debt_blocks_shopping", debt=self._debt(user_id))
+                return False, fail("debt_blocks", debt=self._debt(user_id), verb="買い物はできません")
             if self._balance(user_id) < price:
                 return False, fail("insufficient_balance_need", need=price, balance=self._balance(user_id))
             hint = ea.memo_direction(ev["direction"], rng, ea.SHOP_TRUTH)

@@ -218,7 +218,7 @@ class QuizMixin(EcoBase):
         with self._lock, self._conn:
             self._ensure(author_id)
             if self._debt(author_id) > 0:
-                return False, fail("debt_blocks_quiz", debt=self._debt(author_id))
+                return False, fail("debt_blocks", debt=self._debt(author_id), verb="出題できません")
             mine = self._conn.execute(
                 "SELECT created, expires, settled FROM quiz_questions WHERE author_id=? AND guild_id=?",
                 (author_id, self._g()),

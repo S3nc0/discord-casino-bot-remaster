@@ -94,7 +94,7 @@ def test_buy_rules(eco):
     assert not eco.option_buy(U, "call", "cs", INITIAL_BALANCE + 1)[0]  # 残高不足
     with eco._lock, eco._conn:
         eco._conn.execute("UPDATE users SET debt=100 WHERE user_id=?", (U,))
-    assert eco.option_buy(U, "call", "cs", 1_000)[1].code == "debt_blocks_buy"
+    assert eco.option_buy(U, "call", "cs", 1_000)[1].code == "debt_blocks"
 
 
 def test_open_premium_cap(eco):
