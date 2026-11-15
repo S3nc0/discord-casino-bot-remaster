@@ -1,5 +1,6 @@
 """信用取引（空売り・信用買い）・クロスマージン・金利・ロスカット（Economy に混ぜ込む部品）。"""
 
+import logging
 import math
 from typing import Optional
 
@@ -9,6 +10,8 @@ from domain.errors import fail
 from domain.market import DEFAULT
 from domain.types import CryptoResult
 from infra.db.base import EcoBase
+
+_log = logging.getLogger(__name__)
 
 
 class MarginMixin(EcoBase):
@@ -394,7 +397,7 @@ class MarginMixin(EcoBase):
                 try:
                     view = self.for_guild(guild_id)
                 except ValueError:
-                    print(f"出どころ不明の建玉は、ロスカットできません: guild={guild_id} user={user_id}")
+                    _log.warning("出どころ不明の建玉は、ロスカットできません: guild=%s user=%s", guild_id, user_id)
                     continue
                 for symbol, side, loss in view._losscut_user_locked(user_id, prices):
                     done.append((guild_id, user_id, symbol, side, loss))

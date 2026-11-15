@@ -1,6 +1,7 @@
 """カジノゲームのユースケース調整（開始検証・escrow預かり・RTP/イベント計算・精算・通知・成績記録）。"""
 
 import datetime
+import logging
 import time
 from dataclasses import dataclass
 from typing import Any, Optional
@@ -8,6 +9,8 @@ from typing import Any, Optional
 from domain import events, skins
 from domain.games import rtplevel
 from domain.ports import IClock, IEconomy, ISessionGuard
+
+_log = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
@@ -116,15 +119,15 @@ class CasinoService:
         if not keep_session:
             self._sessions.end(user_id)
         if result is None:
-            print(f"警告: 精算済みの預かり金を再度精算しようとしました（{game}, escrow={escrow_id}）")
+            _log.warning("精算済みの預かり金を再度精算しようとしました（%s, escrow=%s）", game, escrow_id)
             return SettleGameResult(duplicate=True, event_bonus=event_bonus, rtp_shift=rtp_shift)
         net, penalty_taken, insured_refund = result
         notices = tuple(eco.take_notices(user_id))
         ev_result: dict[str, Any] = {}
         try:
             ev_result = eco.record_play(user_id, game, bet, net, current_now.date(), tags)
-        except Exception as exc:
-            print(f"連勝・ミッションの記録に失敗: {game}: {exc!r}")
+        except Exception:
+            _log.exception("連勝・ミッションの記録に失敗: %s", game)
         return SettleGameResult(
             duplicate=False,
             net=net,
