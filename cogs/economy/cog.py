@@ -1,7 +1,6 @@
 """/ペリカ — 残高・デイリー・ランキング・送金・履歴。"""
 
 import datetime
-import logging
 import math
 import time
 from typing import Optional
@@ -10,6 +9,8 @@ import discord
 from discord import app_commands
 from discord.ext import commands, tasks
 
+from cogs.economy import boards
+from cogs.economy.boards import RankingView as RankingView  # noqa: F401
 from cogs.shared import ranking, ui
 from cogs.shared.amount import balance_choices
 from cogs.shared.cog_ports import IShopCogPort, get_cog_port
@@ -19,7 +20,7 @@ from cogs.teiai.panel import TeiaiPanel, panel_embed
 from domain import approval, shop, teiai
 from domain import missions as missions_mod
 from domain.types import DAILY_BASE, DAILY_STREAK_BONUS, DAILY_STREAK_CAP
-from infra import catalogs, logthrottle
+from infra import catalogs
 from infra.clock import local_now, utc_offset_hours
 
 _ECON_CFG = catalogs.economy()
@@ -79,59 +80,6 @@ def manage_guild_or_owner():
         raise app_commands.MissingPermissions(["manage_guild"])
 
     return app_commands.check(predicate)
-
-
-class RankingView(ui.OwnerView):
-    """ランキングの切り替え（純資産 / 総資産）と、自分の資産の内訳。押せるのは、開いた本人だけ。"""
-
-    def __init__(self, eco, user_id: int):
-        super().__init__(
-            user_id,
-            timeout=300,
-            owner_message="これは他の人のランキングです。`/ペリカ ランキング` で自分のを開けます。",
-        )
-        self.eco, self.user_id = eco, user_id
-
-    def embed(self, mode: str) -> discord.Embed:
-        if mode == "final":
-            return ranking.build_final_embed(
-                self.eco,
-                None,
-                "🏆 このサーバーのランキング（総資産）",
-                self.user_id,
-                footer="総資産 = 純資産 + 馬・持ち物・発掘品・地下作業の工具・預かり中のお金・貸し借りなど、ペリカに換算できるもの全部",
-            )
-        return ranking.build_embed(
-            self.eco,
-            None,
-            "🏆 このサーバーのランキング（純資産）",
-            self.user_id,
-            footer="純資産 = 現金 − 借金 + 預金・株・債券・オプションの評価額 ｜ ペリカはサーバーごとに別々です",
-        )
-
-    async def _switch(self, interaction: discord.Interaction, mode: str) -> None:
-        # 全員分の資産の計算に時間がかかっても、3秒の期限で「失敗」にならないよう、先に応答してから書き換える
-        await interaction.response.defer()
-        self.normal.style = discord.ButtonStyle.primary if mode == "normal" else discord.ButtonStyle.secondary
-        self.final.style = discord.ButtonStyle.primary if mode == "final" else discord.ButtonStyle.secondary
-        embed = self.embed(mode)
-        await interaction.edit_original_response(embed=embed, view=self)
-
-    async def on_error(self, interaction: discord.Interaction, error: Exception, item) -> None:
-        logging.getLogger(__name__).exception("ランキングの切り替えに失敗しました: %r", error)
-
-    @discord.ui.button(label="純資産", emoji="🏆", style=discord.ButtonStyle.primary)
-    async def normal(self, interaction: discord.Interaction, _button: discord.ui.Button):
-        await self._switch(interaction, "normal")
-
-    @discord.ui.button(label="総資産", emoji="💎", style=discord.ButtonStyle.secondary)
-    async def final(self, interaction: discord.Interaction, _button: discord.ui.Button):
-        await self._switch(interaction, "final")
-
-    @discord.ui.button(label="自分の内訳", emoji="🧾", style=discord.ButtonStyle.secondary)
-    async def mine(self, interaction: discord.Interaction, _button: discord.ui.Button):
-        e = ranking.build_breakdown_embed(self.eco, self.user_id, interaction.user.display_name)
-        await interaction.response.send_message(embed=e, ephemeral=True)
 
 
 class EconomyCog(commands.Cog):
@@ -384,42 +332,12 @@ class EconomyCog(commands.Cog):
             embed=view.embed("normal"), view=view, allowed_mentions=discord.AllowedMentions.none()
         )
 
-    # ------------------- 自動で更新されるランキング掲示板 ------------------- #
+    # ------------------- 自動で更新されるランキング掲示板（boards.py へ委譲） ------------------- #
     def _board_embed(self, guild_id: int) -> discord.Embed:
-        ts = int(datetime.datetime.now().timestamp())
-        return ranking.build_embed(
-            self.bot.economy.for_guild(guild_id),
-            None,
-            "🏆 ペリカランキング（純資産）",
-            header=f"最終更新: <t:{ts}:R>\n\n",
-            footer=f"{BOARD_INTERVAL_MINUTES}分ごとに自動で更新されます",
-        )
+        return boards.board_embed(self.bot, guild_id, BOARD_INTERVAL_MINUTES)
 
     async def _refresh_board(self, board: dict) -> None:
-        """掲示板のメッセージを最新の順位に書き換える。消されていたら投稿し直す。"""
-        guild = self.bot.get_guild(board["guild_id"])
-        if guild is None:
-            return  # 一時的に見えないだけかもしれないので、記録は残す
-        channel = guild.get_channel(board["channel_id"])
-        if channel is None:
-            self.bot.economy.delete_leaderboard(guild.id)  # チャンネルが消えた
-            return
-        embed = self._board_embed(guild.id)
-        try:
-            # fetch_message は「メッセージ履歴を読む」権限が要る。自分の投稿の書き換えには要らないので、読まずに直接書き換える
-            await channel.get_partial_message(board["message_id"]).edit(embed=embed)
-        except discord.NotFound:
-            try:  # メッセージが消された: 投稿し直して、新しいIDを記録する
-                new = await channel.send(embed=embed, allowed_mentions=discord.AllowedMentions.none())
-                self.bot.economy.set_leaderboard(guild.id, channel.id, new.id)
-            except discord.HTTPException as exc:
-                logthrottle.warn(
-                    ("board-repost", guild.id), f"ランキング掲示板を投稿し直せません: guild={guild.id}: {exc!r}"
-                )
-        except discord.HTTPException as exc:
-            logthrottle.warn(
-                ("board", guild.id), f"ランキング掲示板を更新できません: guild={guild.id}: {exc!r}"
-            )  # 権限不足など。次の周期で再試行（ログは30分に1回）
+        await boards.refresh_board(self.bot, board, BOARD_INTERVAL_MINUTES)
 
     async def cog_load(self):
         self.refresh_boards.start()
@@ -444,14 +362,7 @@ class EconomyCog(commands.Cog):
         self.bot.economy.delete_leaderboard(guild.id)
 
     async def _delete_board_message(self, guild: discord.Guild, board: Optional[dict]) -> None:
-        if not board:
-            return
-        channel = guild.get_channel(board["channel_id"])
-        if channel is not None:
-            try:
-                await ui.partial_message(channel, board["message_id"]).delete()
-            except discord.HTTPException:
-                pass
+        await boards.delete_board_message(guild, board)
 
     @group.command(
         name="ランキング掲示", description="[管理者] ランキングを投稿して自動で更新する／止める（サーバー管理）"
@@ -465,58 +376,10 @@ class EconomyCog(commands.Cog):
     async def board_set(
         self, interaction: discord.Interaction, channel: Optional[discord.TextChannel] = None, stop: bool = False
     ):
-        if stop:
-            return await self._board_unset(interaction)
-        if channel is None:
-            return await interaction.response.send_message(
-                embed=ui.error_embed(
-                    "チャンネルを指定してください",
-                    "掲示するチャンネルを指定します。止めるときは「止める」を True にしてください。",
-                ),
-                ephemeral=True,
-            )
-        guild = interaction.guild
-        if guild is None:
-            return
-        perms = channel.permissions_for(guild.me)
-        if not (perms.view_channel and perms.send_messages and perms.embed_links):
-            return await interaction.response.send_message(
-                embed=ui.error_embed(
-                    "掲示できません",
-                    f"Bot が {channel.mention} に埋め込みを投稿できません。チャンネルの権限を確認してください。",
-                ),
-                ephemeral=True,
-            )
-        await interaction.response.defer(ephemeral=True)
-        old = self.bot.economy.get_leaderboard(guild.id)
-        message = await channel.send(embed=self._board_embed(guild.id), allowed_mentions=discord.AllowedMentions.none())
-        self.bot.economy.set_leaderboard(guild.id, channel.id, message.id)
-        await self._delete_board_message(guild, old)  # 前の掲示板があれば、新しいものと入れ替える
-        await interaction.followup.send(
-            embed=ui.ok_embed(
-                "ランキングを掲示しました",
-                f"{message.jump_url}\n{BOARD_INTERVAL_MINUTES}分ごとに、この投稿を自動で書き換えます。止めるときは `/ペリカ ランキング掲示` の「止める」を True にしてください。",
-            ),
-            ephemeral=True,
-        )
+        await boards.board_set(self, interaction, channel, stop, BOARD_INTERVAL_MINUTES)
 
     async def _board_unset(self, interaction: discord.Interaction):
-        guild = interaction.guild
-        if guild is None:
-            return
-        board = self.bot.economy.get_leaderboard(guild.id)
-        if board is None:
-            return await interaction.response.send_message(
-                embed=ui.warn_embed("掲示していません", "このサーバーには、ランキングの掲示がありません。"),
-                ephemeral=True,
-            )
-        await interaction.response.defer(ephemeral=True)
-        await self._delete_board_message(guild, board)
-        self.bot.economy.delete_leaderboard(guild.id)
-        await interaction.followup.send(
-            embed=ui.ok_embed("掲示を止めました", "自動の更新をやめて、ランキングの投稿を削除しました。"),
-            ephemeral=True,
-        )
+        await boards.board_unset(self, interaction)
 
     async def _transfer_autocomplete(self, interaction: discord.Interaction, current: str):
         """送る金額の欄に、残高を見せる。"""
