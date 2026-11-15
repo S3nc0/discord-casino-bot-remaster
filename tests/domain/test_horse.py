@@ -8,6 +8,7 @@ import pytest
 from domain import horse as h
 from domain import shop, teiai
 from infra.db.economy import INITIAL_BALANCE, Economy
+from infra.db.race import race_slots
 
 U, V, W = 1, 2, 3
 NOW = 1_000_000.0
@@ -148,7 +149,7 @@ def test_race_slots_are_five_a_day_on_weekdays_between_9_and_midnight_in_local_t
     tz = 9.0
     # 2026-11-9は月曜（平日）: 9時から3時間おき
     base = datetime.datetime(2026, 11, 9, 11, 0, tzinfo=datetime.timezone(datetime.timedelta(hours=tz))).timestamp()
-    slots = Economy.race_slots(base, tz)
+    slots = race_slots(base, tz)
     local = [datetime.datetime.fromtimestamp(s, datetime.timezone(datetime.timedelta(hours=tz))) for s in slots[:3]]
     assert [(x.day, x.hour) for x in local] == [(9, 12), (9, 15), (9, 18)]
     day = [
@@ -165,7 +166,7 @@ def test_race_slots_are_four_a_day_on_weekends():
     tz = 9.0
     # 2026-11-14は土曜（休日）: 9時から4時間おき
     base = datetime.datetime(2026, 11, 14, 0, 0, tzinfo=datetime.timezone(datetime.timedelta(hours=tz))).timestamp()
-    slots = Economy.race_slots(base, tz, days=0)
+    slots = race_slots(base, tz, days=0)
     hours = {datetime.datetime.fromtimestamp(s, datetime.timezone(datetime.timedelta(hours=tz))).hour for s in slots}
     assert hours == {9, 13, 17, 21} and len(slots) == 4
 
@@ -364,7 +365,7 @@ def test_registration_rules_withdraw_and_close(eco):
 
 
 def test_scheduled_race_opens_two_hours_before_the_start_and_is_created_once_per_slot(eco):
-    start = Economy.race_slots(NOW, 9.0)[0]
+    start = race_slots(NOW, 9.0)[0]
     assert (
         eco.race_ensure_scheduled(start - h.ENTRY_OPEN_MIN * 60 - 1, 9.0) is None
     )  # まだ、申し込みを始める時刻ではない
@@ -526,7 +527,7 @@ def test_auction_horse_price_falls_and_only_katagi_with_room_can_buy(eco):
 # ----------------------------- 臨時レースは、出走予定の馬も出せる ----------------------------- #
 def _regular_race(eco):
     """申し込みを始める時刻（発走の2時間前）の定時レースを作って、(レース番号, その時刻) を返す。"""
-    opens = Economy.race_slots(NOW, 9.0)[0] - h.ENTRY_OPEN_MIN * 60
+    opens = race_slots(NOW, 9.0)[0] - h.ENTRY_OPEN_MIN * 60
     race = eco.race_ensure_scheduled(opens, 9.0)
     assert race is not None
     return race, opens

@@ -18,16 +18,17 @@ from cogs.quiz.cog import (
 )
 from domain import teiai
 from infra.db.economy import INITIAL_BALANCE, Economy
+from infra.db.quiz import QuizRepo
 
 NOW = 1_000_000.0
-REAL_GAMES_PLAYED = Economy._games_played
+REAL_GAMES_PLAYED = QuizRepo._games_played
 
 
 @pytest.fixture(autouse=True)
 def experienced_players(request, monkeypatch):
     """ふつうのテストでは、回答者はゲームを何回も遊んだ人にする（報酬の条件は、専用のテストで確かめる）。"""
     if not request.node.get_closest_marker("new_players"):
-        monkeypatch.setattr(Economy, "_games_played", lambda self, user_id: 99)
+        monkeypatch.setattr(QuizRepo, "_games_played", lambda self, guild_id, user_id: 99)
 
 
 @pytest.fixture

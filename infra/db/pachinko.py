@@ -1,4 +1,4 @@
-"""パチンコの記録（Economy に混ぜ込む部品）。設計した数字と、実際の結果を比べて、数字を調整するため。
+"""パチンコの記録。設計した数字と、実際の結果を比べて、数字を調整するため。
 
 - pachinko_spins … 1回転ごと（予告の色・リーチの格・当たったか）
 - pachinko_sets  … 1セットごと（賭け金・打った玉・スタート入賞の数・大当たりの数・連チャンの数・払い戻しの倍数）
@@ -6,22 +6,27 @@
 """
 
 import time
-from typing import Optional
+from typing import Any, Optional
 
-from infra.db.base import EcoBase
+from domain.ports.repos import IPachinkoRepo
+from infra.db.base import EcoDb, ScopedRepo
 
 
-class PachinkoMixin(EcoBase):
+class PachinkoRepo(ScopedRepo, IPachinkoRepo):
     """パチンコの1セットの記録と、集計。"""
 
-    def pachinko_record_set(self, user_id: int, bet: int, balls: int, result, now: Optional[float] = None) -> None:
+    def __init__(self, db: EcoDb, guild_id: int = 0, strict: bool = False) -> None:
+        super().__init__(db, guild_id, strict)
+
+    def pachinko_record_set(self, user_id: int, bet: int, balls: int, result: Any, now: Optional[float] = None) -> None:
         """1セット（SetResult）を記録する。bet はそのセットの賭け金。"""
         ts = now if now is not None else time.time()
-        with self._lock, self._conn:
+        with self._db.tx():
+            gid = self._g()
             self._conn.execute(
                 "INSERT INTO pachinko_sets (guild_id, user_id, ts, bet, balls, starts, hits, chains, chain_max, mult) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 (
-                    self._g(),
+                    gid,
                     user_id,
                     ts,
                     bet,
@@ -35,20 +40,16 @@ class PachinkoMixin(EcoBase):
             )
             self._conn.executemany(
                 "INSERT INTO pachinko_spins (guild_id, user_id, ts, omen, tier, hit) VALUES (?, ?, ?, ?, ?, ?)",
-                [(self._g(), user_id, ts, s.omen, s.tier, int(s.hit)) for s in result.spins],
+                [(gid, user_id, ts, s.omen, s.tier, int(s.hit)) for s in result.spins],
             )
 
-    def pachinko_stats(self, guild_id: Optional[int] = None, since: Optional[float] = None) -> dict:
-        """予告の色・リーチの格ごとの（回転数, 当たり数）と、セット全体の集計。
-
-        "sets" は (セット数, 当たったセット数, 賭け金の合計, 払い戻しの合計, 打った玉の合計, スタート入賞の合計, 連チャンの最大)。
-        guild_id が None なら全サーバーの合計。since（epoch秒）を渡すと、それ以降だけ。
-        """
+    def pachinko_stats(self, guild_id: Optional[int] = None, since: Optional[float] = None) -> dict[str, Any]:
+        """予告の色・リーチの格ごとの（回転数, 当たり数）と、セット全体の集計。"""
         args = (guild_id, guild_id, since or 0)
         where = "WHERE (? IS NULL OR guild_id=?) AND ts>=?"
         with self._lock:
 
-            def group(col):
+            def group(col: str) -> dict[Any, tuple[int, int]]:
                 return {
                     r[0]: (r[1], r[2])
                     for r in self._conn.execute(

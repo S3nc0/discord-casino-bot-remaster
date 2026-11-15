@@ -1,18 +1,23 @@
-"""競馬のレース運営・出走・オッズ・馬券・発走精算（Economy に混ぜ込む部品）。"""
+"""競馬のレース運営・出走・オッズ・馬券・発走精算。"""
 
 import datetime
 import random
 import time
 from collections import Counter
-from typing import Optional
+from typing import Any, Optional
 
 from domain import horse as horse_mod
 from domain import teiai
 from domain.errors import fail
-from infra.db.base import EcoBase
+from domain.ports.bridges import IBankIncomeSink
+from domain.ports.repos import IRaceRepo
+from infra.db.account import AccountCore
+from infra.db.base import EcoDb, ScopedRepo
+from infra.db.horse import HorseRepo
+from infra.db.relics import RelicRepo
 
 
-def race_slots(now: float, tz_hours: float, days: int = 2) -> list:
+def race_slots(now: float, tz_hours: float, days: int = 2) -> list[float]:
     """now より後の、定時レースの発走時刻（早い順）。"""
     tz = datetime.timezone(datetime.timedelta(hours=tz_hours))
     today = datetime.datetime.fromtimestamp(now, tz).date()
@@ -27,12 +32,29 @@ def race_slots(now: float, tz_hours: float, days: int = 2) -> list:
     return sorted(out)
 
 
-class RaceMixin(EcoBase):
+class RaceRepo(ScopedRepo, IRaceRepo):
     """レースのスケジュール・出走登録・オッズ設定・馬券購入・レース実行と精算。"""
 
-    race_slots = staticmethod(race_slots)
+    def __init__(
+        self,
+        db: EcoDb,
+        account: AccountCore,
+        horses: HorseRepo,
+        relics: RelicRepo,
+        bank: IBankIncomeSink,
+        guild_id: int = 0,
+        strict: bool = False,
+    ) -> None:
+        super().__init__(db, guild_id, strict)
+        self._account = account
+        self._horses = horses
+        self._relics = relics
+        self._bank = bank
 
-    def race_get(self, race_id: int) -> Optional[dict]:
+    def race_slots(self, now: float, tz_hours: float, days: int = 2) -> list[float]:
+        return race_slots(now, tz_hours, days)
+
+    def race_get(self, race_id: int) -> Optional[dict[str, Any]]:
         with self._lock:
             r = self._conn.execute(
                 "SELECT * FROM horse_races WHERE id=? AND guild_id=?", (race_id, self._g())
@@ -46,7 +68,7 @@ class RaceMixin(EcoBase):
                 "SELECT COUNT(*) FROM horse_races WHERE guild_id=? AND id<=?", (self._g(), race_id)
             ).fetchone()[0]
 
-    def race_open(self) -> list:
+    def race_open(self) -> list[Any]:
         """まだ終わっていないレース（申し込み中・発売中）。発走の早い順。"""
         with self._lock:
             return [
@@ -59,19 +81,20 @@ class RaceMixin(EcoBase):
 
     def race_ensure_scheduled(self, now: float, tz_hours: float, channel_id: int = 0) -> Optional[int]:
         """次の定時レースが、申し込みを始める時刻になっていて、まだ無ければ作る（申し込み受付を始める）。作ったレースの番号を返す。"""
-        with self._lock, self._conn:
+        with self._db.tx():
+            gid = self._g()
             start = race_slots(now, tz_hours)[0]
             if now < start - horse_mod.ENTRY_OPEN_MIN * 60:  # まだ、申し込みを始める時刻ではない
                 return None
             if self._conn.execute(
-                "SELECT 1 FROM horse_races WHERE guild_id=? AND kind='regular' AND start_at=?", (self._g(), start)
+                "SELECT 1 FROM horse_races WHERE guild_id=? AND kind='regular' AND start_at=?", (gid, start)
             ).fetchone():
                 return None
             cur = self._conn.execute(
                 "INSERT INTO horse_races (guild_id, kind, start_at, entry_close, bet_close, status, channel_id, created) "
                 "VALUES (?, 'regular', ?, ?, ?, 'entry', ?, ?)",
                 (
-                    self._g(),
+                    gid,
                     start,
                     start - horse_mod.ENTRY_LEAD_MIN * 60,
                     start - horse_mod.BET_LEAD_SEC,
@@ -83,7 +106,7 @@ class RaceMixin(EcoBase):
 
     def race_create_special(self, now: float, entry_min: int, bet_min: int, channel_id: int = 0) -> int:
         """臨時レースを作る（管理者用）。申し込みを entry_min 分、そのあと馬券を bet_min 分売って、2分後に発走。"""
-        with self._lock, self._conn:
+        with self._db.tx():
             entry_close = now + entry_min * 60
             bet_close = entry_close + bet_min * 60
             cur = self._conn.execute(
@@ -95,12 +118,12 @@ class RaceMixin(EcoBase):
             return cur.lastrowid
 
     def race_set_message(self, race_id: int, channel_id: int, message_id: int) -> None:
-        with self._lock, self._conn:
+        with self._db.tx():
             self._conn.execute(
                 "UPDATE horse_races SET channel_id=?, message_id=? WHERE id=?", (channel_id, message_id, race_id)
             )
 
-    def race_entries(self, race_id: int, registered_only: bool = False) -> list:
+    def race_entries(self, race_id: int, registered_only: bool = False) -> list[Any]:
         with self._lock:
             return [
                 dict(r)
@@ -112,13 +135,14 @@ class RaceMixin(EcoBase):
                 )
             ]
 
-    def race_register(self, user_id: int, horse_id: int, race_id: int, now: float) -> tuple:
+    def race_register(self, user_id: int, horse_id: int, race_id: int, now: float) -> tuple[Any, ...]:
         """馬を出走させる（出走料がかかる）。(成功か, 理由)。1人1レースに1頭まで。"""
-        with self._lock, self._conn:
+        with self._db.tx():
+            gid = self._g()
             race = self.race_get(race_id)
             if race is None or race["status"] != "entry" or now >= race["entry_close"]:
                 return False, fail("race_entry_closed")
-            h = self.horse_get(horse_id)
+            h = self._horses.horse_get_for(gid, horse_id)
             if h is None or h["owner_id"] != user_id:
                 return False, fail("horse_select_own")
             if h["races"] >= horse_mod.MAX_RACES:
@@ -143,10 +167,11 @@ class RaceMixin(EcoBase):
             if busy:
                 return False, fail("race_horse_busy")
             fee = horse_mod.ENTRY_FEE
-            self._ensure(user_id)
-            if self._balance(user_id) < fee:
-                return False, fail("race_entry_fee_short", fee=fee, balance=self._balance(user_id))
-            self._apply(user_id, -fee, f"競馬:出走料（{h['name']}）")
+            self._account.ensure(gid, user_id)
+            bal = self._account.raw_balance(gid, user_id)
+            if bal < fee:
+                return False, fail("race_entry_fee_short", fee=fee, balance=bal)
+            self._account.apply(gid, user_id, -fee, f"競馬:出走料（{h['name']}）")
             self._conn.execute(
                 "INSERT INTO horse_entries (race_id, lane, horse_id, owner_id, name, coat, silks) "
                 "VALUES (?, -1, ?, ?, ?, ?, ?)",
@@ -154,9 +179,10 @@ class RaceMixin(EcoBase):
             )
             return True, ""
 
-    def race_withdraw(self, user_id: int, horse_id: int, race_id: int, now: float) -> tuple:
+    def race_withdraw(self, user_id: int, horse_id: int, race_id: int, now: float) -> tuple[Any, ...]:
         """締切前なら、申し込みを取り下げて、出走料を返す。"""
-        with self._lock, self._conn:
+        with self._db.tx():
+            gid = self._g()
             race = self.race_get(race_id)
             if race is None or race["status"] != "entry" or now >= race["entry_close"]:
                 return False, fail("race_entry_closed")
@@ -166,23 +192,24 @@ class RaceMixin(EcoBase):
             )
             if not cur.rowcount:
                 return False, fail("race_not_entered")
-            self._apply(user_id, horse_mod.ENTRY_FEE, "競馬:出走料の返金")
+            self._account.apply(gid, user_id, horse_mod.ENTRY_FEE, "競馬:出走料の返金")
             return True, ""
 
-    def race_close_entries(self, race_id: int, rng: Optional[random.Random] = None) -> Optional[dict]:
+    def race_close_entries(self, race_id: int, rng: Optional[random.Random] = None) -> Optional[dict[str, Any]]:
         """申し込みを締め切って、NPC で埋めた出走馬と、コースを決める（発売中にする）。{"runners", "track"} を返す。
 
         オッズは、シミュレーションに時間がかかるので、呼び出し側が計算して、race_set_odds で書く。
         """
         rng = rng or random.SystemRandom()
-        with self._lock, self._conn:
+        with self._db.tx():
+            gid = self._g()
             race = self.race_get(race_id)
             if race is None or race["status"] != "entry":
                 return None
             registered = self.race_entries(race_id, registered_only=True)
             rows = []
             for e in registered:  # 申し込み済みの馬は、いまのステータスをコピーする（締切のあとの、にんじんは効かない）
-                h = self.horse_get(e["horse_id"]) or e
+                h = self._horses.horse_get_for(gid, e["horse_id"]) or e
                 rows.append(
                     (e["horse_id"], e["owner_id"], h["name"], h["coat"], h["silks"])
                     + tuple(h[k] for k in horse_mod.STAT_KEYS)
@@ -228,7 +255,7 @@ class RaceMixin(EcoBase):
             )
             return {"runners": runners, "track": track}
 
-    def race_set_odds(self, race_id: int, odds) -> None:
+    def race_set_odds(self, race_id: int, odds: Any) -> None:
         """オッズを書く。odds は、domain/horse.py の make_all_odds の結果（{"win": {枠: オッズ}, "quinella": {キー: オッズ}, …}）。
 
         枠番の順の (単勝, 複勝) の並び（make_odds の結果）でもよい（組み合わせの馬券は、発売されない）。
@@ -238,7 +265,7 @@ class RaceMixin(EcoBase):
                 "win": {str(i): w for i, (w, _) in enumerate(odds, start=1)},
                 "place": {str(i): p for i, (_, p) in enumerate(odds, start=1)},
             }
-        with self._lock, self._conn:
+        with self._db.tx():
             for lane in odds["win"]:
                 self._conn.execute(
                     "UPDATE horse_entries SET odds_win=?, odds_place=? WHERE race_id=? AND lane=?",
@@ -251,7 +278,7 @@ class RaceMixin(EcoBase):
                     [(race_id, kind, key, o) for key, o in odds.get(kind, {}).items()],
                 )
 
-    def race_odds(self, race_id: int, kind: str, lanes) -> Optional[float]:
+    def race_odds(self, race_id: int, kind: str, lanes: Any) -> Optional[float]:
         """その馬券のオッズ（なければ None）。lanes は、選んだ枠の並び（単勝・複勝は1つ）。"""
         with self._lock:
             if kind in ("win", "place"):
@@ -266,7 +293,7 @@ class RaceMixin(EcoBase):
             ).fetchone()
             return r["odds"] if r else None
 
-    def race_bets(self, user_id: int, race_id: int) -> list:
+    def race_bets(self, user_id: int, race_id: int) -> list[Any]:
         with self._lock:
             return [
                 dict(r)
@@ -275,7 +302,7 @@ class RaceMixin(EcoBase):
                 )
             ]
 
-    def race_bet(self, user_id: int, race_id: int, kind: str, lane, stake: int, now: float) -> tuple:
+    def race_bet(self, user_id: int, race_id: int, kind: str, lane: Any, stake: int, now: float) -> tuple[Any, ...]:
         """馬券を買う。賭けた時点のオッズで確定する。(成功か, 理由か馬券の辞書)。賭け金は、その場で引かれる。
 
         lane は、単勝・複勝なら枠番、組み合わせの馬券（馬連・ワイド・馬単・三連複）なら、選んだ枠番の並び
@@ -289,7 +316,8 @@ class RaceMixin(EcoBase):
             return False, fail("race_select_distinct_horses", kind=kind, need=need)
         if not horse_mod.MIN_STAKE <= stake <= horse_mod.MAX_STAKE:
             return False, fail("race_stake_range", min_stake=horse_mod.MIN_STAKE, max_stake=horse_mod.MAX_STAKE)
-        with self._lock, self._conn:
+        with self._db.tx():
+            gid = self._g()
             race = self.race_get(race_id)
             if race is None or race["status"] != "betting":
                 return False, fail("race_bet_unavailable")
@@ -306,25 +334,26 @@ class RaceMixin(EcoBase):
             odds = self.race_odds(race_id, kind, lanes)
             if odds is None:
                 return False, fail("race_odds_pending")
-            self._ensure(user_id)
+            self._account.ensure(gid, user_id)
             spent = self._conn.execute(
                 "SELECT COALESCE(SUM(stake), 0) FROM horse_bets WHERE race_id=? AND user_id=?", (race_id, user_id)
             ).fetchone()[0]
             if spent + stake > horse_mod.MAX_RACE_STAKE:
                 return False, fail("race_max_stake", max_race_stake=horse_mod.MAX_RACE_STAKE)
-            if self._balance(user_id) < stake:
-                return False, fail("insufficient_balance", balance=self._balance(user_id))
+            bal = self._account.raw_balance(gid, user_id)
+            if bal < stake:
+                return False, fail("insufficient_balance", balance=bal)
             label = "・".join(names)
-            self._apply(user_id, -stake, f"競馬:馬券（{horse_mod.BET_KINDS[kind]}・{label}）")
+            self._account.apply(gid, user_id, -stake, f"競馬:馬券（{horse_mod.BET_KINDS[kind]}・{label}）")
             self._conn.execute(
                 "UPDATE users SET total_wagered = total_wagered + ? WHERE guild_id=? AND user_id=?",
-                (stake, self._g(), user_id),
+                (stake, gid, user_id),
             )
             picks = horse_mod.combo_key(kind, lanes) if kind in horse_mod.COMBO_SIZE else ""
             cur = self._conn.execute(
                 "INSERT INTO horse_bets (guild_id, race_id, user_id, kind, lane, picks, stake, odds, created) "
                 "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
-                (self._g(), race_id, user_id, kind, lanes[0], picks, stake, odds, now),
+                (gid, race_id, user_id, kind, lanes[0], picks, stake, odds, now),
             )
             return True, {
                 "id": cur.lastrowid,
@@ -336,7 +365,9 @@ class RaceMixin(EcoBase):
                 "name": label,
             }
 
-    def race_bet_many(self, user_id: int, race_id: int, kind: str, lanes: list, stake: int, now: float) -> tuple:
+    def race_bet_many(
+        self, user_id: int, race_id: int, kind: str, lanes: list[Any], stake: int, now: float
+    ) -> tuple[Any, ...]:
         """単勝・複勝を、何頭かまとめて買う（1頭ごとに stake ずつ、別々の馬券になる）。(成功か, 理由か馬券の辞書の並び)。
 
         先に、合計の賭け金（レースの上限・残高）を確かめてから買う。それでも途中で買えなくなったら、そこまでの馬券は残る。
@@ -348,8 +379,9 @@ class RaceMixin(EcoBase):
             return False, fail("race_select_horses")
         if not horse_mod.MIN_STAKE <= stake <= horse_mod.MAX_STAKE:
             return False, fail("race_stake_range", min_stake=horse_mod.MIN_STAKE, max_stake=horse_mod.MAX_STAKE)
-        with self._lock, self._conn:
-            self._ensure(user_id)
+        with self._db.tx():
+            gid = self._g()
+            self._account.ensure(gid, user_id)
             spent = self._conn.execute(
                 "SELECT COALESCE(SUM(stake), 0) FROM horse_bets WHERE race_id=? AND user_id=?", (race_id, user_id)
             ).fetchone()[0]
@@ -361,8 +393,9 @@ class RaceMixin(EcoBase):
                     total=total,
                     spent=spent,
                 )
-            if self._balance(user_id) < total:
-                return False, fail("race_insufficient_balance_many", total=total, balance=self._balance(user_id))
+            bal = self._account.raw_balance(gid, user_id)
+            if bal < total:
+                return False, fail("race_insufficient_balance_many", total=total, balance=bal)
             bought = []
             for lane in lanes:
                 ok, result = self.race_bet(user_id, race_id, kind, lane, stake, now)
@@ -371,13 +404,16 @@ class RaceMixin(EcoBase):
                 bought.append(result)
             return True, bought
 
-    def race_run(self, race_id: int, rng: Optional[random.Random] = None, tz_hours: float = 9.0) -> Optional[dict]:
+    def race_run(
+        self, race_id: int, rng: Optional[random.Random] = None, tz_hours: float = 9.0
+    ) -> Optional[dict[str, Any]]:
         """レースを走らせて、結果を決め、賞金と払い戻しを精算する。すでに終わっていれば None。
 
         結果は、ここで決まる（演出は、返した frames を見せるだけ）。(race, entries, order, frames, bets, prizes) を辞書で返す。
         """
         rng = rng or random.SystemRandom()
-        with self._lock, self._conn:
+        with self._db.tx():
+            gid = self._g()
             race = self.race_get(race_id)
             if race is None or race["status"] != "betting":
                 return None
@@ -387,7 +423,7 @@ class RaceMixin(EcoBase):
             entries = self.race_entries(race_id)
             styles = []
             for e in entries:
-                h = self.horse_get(e["horse_id"]) if e["horse_id"] else None
+                h = self._horses.horse_get_for(gid, e["horse_id"]) if e["horse_id"] else None
                 chosen = h["style"] if h is not None else None
                 styles.append(chosen or horse_mod.style_of({k: e[k] for k in horse_mod.STAT_KEYS}))
             runners = [
@@ -409,23 +445,24 @@ class RaceMixin(EcoBase):
             if is_major:
                 shortfall = max(0, placed_total - real_entries * horse_mod.ENTRY_FEE)
                 if shortfall:
-                    state = self._bank_sync(time.time())
+                    state = self._bank.bank_sync_for(gid, time.time())
                     topup = min(shortfall, int(state["cash"]), horse_mod.MAJOR_HOUSE_TOPUP)
                     if topup:
-                        self._bank_set(state["cash"] - topup, state["loaned"])
+                        self._bank.bank_set_for(gid, state["cash"] - topup, state["loaned"])
             scale = horse_mod.prize_pool_scale(real_entries, placed_total, topup)
-            prizes, retired = {}, []
-            buffs_by_owner: dict[int, dict] = {}
+            prizes: dict[int, int] = {}
+            retired = []
+            buffs_by_owner: dict[int, dict[str, float]] = {}
             for place, idx in enumerate(order, start=1):
                 e = entries[idx]
                 e["finish"] = place
                 self._conn.execute("UPDATE horse_entries SET finish=? WHERE id=?", (place, e["id"]))
                 prize = round((prizes_table[place - 1] if place <= len(prizes_table) else 0) * scale)
                 if e["owner_id"]:
-                    horse = self.horse_get(e["horse_id"])
+                    horse = self._horses.horse_get_for(gid, e["horse_id"])
                     if prize:
                         if e["owner_id"] not in buffs_by_owner:
-                            buffs_by_owner[e["owner_id"]] = self._relic_buffs(e["owner_id"])
+                            buffs_by_owner[e["owner_id"]] = self._relics.relic_buffs_for(gid, e["owner_id"])
                         prize = round(
                             prize * (1 + buffs_by_owner[e["owner_id"]].get("prize", 0.0))
                         )  # 発掘品（竜の涙）の効果
@@ -434,19 +471,20 @@ class RaceMixin(EcoBase):
                             rate += teiai.HORSE_RENTAL_EXTRA_SKIM_RATE  # レンタル馬は、持ち馬よりさらにピンハネされる
                         skim = round(prize * rate)
                         net = prize - skim
-                        self._apply(e["owner_id"], net, f"競馬賞金:{e['name']}（{place}着）", income=net)
+                        self._account.apply(gid, e["owner_id"], net, f"競馬賞金:{e['name']}（{place}着）", income=net)
                         prizes[e["owner_id"]] = prizes.get(e["owner_id"], 0) + net
                         prize = net  # 戦績・earnings には、手取り（ピンハネ後）を残す
                     self._conn.execute(
                         "UPDATE horses SET races=races+1, wins=wins+?, places=places+?, earnings=earnings+? WHERE id=?",
                         (1 if place == 1 else 0, 1 if place <= 3 else 0, prize, e["horse_id"]),
                     )
-                    horse = self.horse_get(e["horse_id"])
+                    horse = self._horses.horse_get_for(gid, e["horse_id"])
                     if horse is not None and horse["races"] >= horse_mod.MAX_RACES:  # 定年：自動で名誉引退
                         value = horse_mod.retire_value(horse["races"], horse["wins"], horse["places"])
-                        self._ensure(e["owner_id"])
+                        self._account.ensure(gid, e["owner_id"])
                         if value:
-                            self._apply(
+                            self._account.apply(
+                                gid,
                                 e["owner_id"],
                                 value,
                                 f"競馬:定年引退{'金' if value > 0 else '費用'}（{horse['name']}）",
@@ -470,19 +508,19 @@ class RaceMixin(EcoBase):
                     hit = horse_mod.combo_hit(b["kind"], [int(x) for x in b["picks"].split(sep)], order_lanes)
                 pay = horse_mod.payout(b["stake"], b["odds"]) if hit else 0
                 if pay:
-                    self._apply(b["user_id"], pay, "競馬:払い戻し", income=max(0, pay - b["stake"]))
+                    self._account.apply(gid, b["user_id"], pay, "競馬:払い戻し", income=max(0, pay - b["stake"]))
                 else:
                     lost += b["stake"]
                 self._conn.execute("UPDATE horse_bets SET payout=?, settled=1 WHERE id=?", (pay, b["id"]))
                 self._conn.execute(
                     "UPDATE users SET games_played = games_played + 1, total_won = total_won + ?, "
                     "biggest_win = MAX(biggest_win, ?) WHERE guild_id=? AND user_id=?",
-                    (pay, pay - b["stake"], self._g(), b["user_id"]),
+                    (pay, pay - b["stake"], gid, b["user_id"]),
                 )
                 b["payout"] = pay
                 bets.append(b)
-            self._bank_income(
-                int(lost * teiai.LOSS_SHARE), 1.0, needs_depositors=True
+            self._bank.bank_income_for(
+                gid, int(lost * teiai.LOSS_SHARE), 1.0, needs_depositors=True
             )  # 負けた額の一部が、預金者の利回り
             return {
                 "race": race,
