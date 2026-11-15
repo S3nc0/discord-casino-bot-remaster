@@ -16,6 +16,8 @@ GOLD = 0xF39C12
 DARK = 0x2C2F33  # 地下カジノ用の暗い色
 
 UNIT = "ペリカ"
+MEDALS = {1: "🥇", 2: "🥈", 3: "🥉"}
+MAX_IMAGE_BYTES = 8 * 1024 * 1024
 
 
 def bot_of(interaction: discord.Interaction) -> "CasinoBot":

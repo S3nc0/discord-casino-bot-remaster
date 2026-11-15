@@ -11,7 +11,7 @@ from cogs.shared import ui
 from cogs.shared.cog_ports import IHorseCogPort, IQuizCogPort, IRaffleCogPort, require_cog_port
 from domain import quizimport
 
-MAX_IMAGE_BYTES = 8 * 1024 * 1024
+MAX_IMAGE_BYTES = ui.MAX_IMAGE_BYTES
 MAX_IMPORT_BYTES = 200 * 1024
 
 

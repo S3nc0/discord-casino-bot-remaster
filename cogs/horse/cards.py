@@ -9,7 +9,7 @@ import discord
 from cogs.shared import ui
 from domain import horse as horse_mod
 
-MEDAL = {1: "🥇", 2: "🥈", 3: "🥉"}
+MEDAL = ui.MEDALS
 
 
 def record_text(e: dict) -> str:

@@ -11,7 +11,7 @@ from domain.duration import format_minutes
 from domain.games import pachinko, rtplevel
 from infra import catalogs
 
-MAX_IMAGE_BYTES = 8 * 1024 * 1024
+MAX_IMAGE_BYTES = ui.MAX_IMAGE_BYTES
 ANNOUNCE_TITLE = "📢 お知らせ"
 
 

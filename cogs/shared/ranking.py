@@ -8,9 +8,8 @@ from cogs.shared import ui
 from domain import teiai
 from domain.ports import IRankingReader
 from domain.types import PART_LABELS
-from infra import catalogs
 
-MEDALS = dict(catalogs.economy().wallet.medals)
+MEDALS = ui.MEDALS
 TOP_N = 10
 
 

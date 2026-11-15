@@ -163,7 +163,7 @@ def hire_embed(state: dict, note: str = "") -> discord.Embed:
     return e
 
 
-MEDALS = {1: "🥇", 2: "🥈", 3: "🥉"}
+MEDALS = ui.MEDALS
 
 
 def ranking_embed(data: dict, daily: bool) -> discord.Embed:
