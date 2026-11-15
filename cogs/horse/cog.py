@@ -18,9 +18,9 @@ from cogs.horse.views import RaceButton, Stable, card_embed, card_view, race_tit
 from cogs.shared import ui
 from cogs.shared.announce import announce_channel
 from domain import approval
-from domain import horse as horse_mod
+from domain import horse as horse_mod  # noqa: F401
 from infra import logthrottle
-from infra.clock import utc_offset_hours
+from services import services_of
 
 TRACK_W = 22  # アニメーションのコースの長さ（文字数）
 STEP = 1.4  # メッセージの書き換えの間隔（秒。レート制限に収まる）
@@ -172,7 +172,7 @@ class HorseCog(commands.Cog):
         eco = self.g(interaction)
         races = eco.race_open()
         if not races:
-            slots = eco.race_slots(time.time(), utc_offset_hours(self.bot))
+            slots = services_of(self.bot).horse.next_slots(ui.guild_id_of(interaction), time.time())
             return await interaction.response.send_message(
                 embed=ui.embed(
                     "🏇 競馬",
@@ -252,12 +252,11 @@ class HorseCog(commands.Cog):
                 logthrottle.warn(("horse-retire", channel.id), f"競馬の古い投稿を書き換えられません: {exc!r}")
 
     async def _close_entries(self, guild: discord.Guild, eco, race: dict) -> None:
-        field = eco.race_close_entries(race["id"])
-        if field is None:
+        updated = services_of(self.bot).horse.close_entries_and_set_odds(guild.id, race["id"])
+        if updated is None:
             return
         await self._retire(guild, eco, race)  # 申し込みの投稿（race は、まだ entry のときの値）
-        eco.race_set_odds(race["id"], horse_mod.make_all_odds(field["runners"]))  # 戦績から決める（計算は軽い）
-        race = eco.race_get(race["id"])
+        race = updated
         channel = await self._channel(guild, eco, race)
         if channel is not None:
             msg = await self._post(
@@ -270,7 +269,7 @@ class HorseCog(commands.Cog):
                 eco.race_set_message(race["id"], channel.id, msg.id)  # 発走で書き換えるために、こちらを覚える
 
     async def _run(self, guild: discord.Guild, eco, race: dict) -> None:
-        result = eco.race_run(race["id"])
+        result = services_of(self.bot).horse.run_race(guild.id, race["id"])
         if result is None:
             return
         await self._retire(guild, eco, race)  # 発売中の投稿（race は、まだ betting のときの値）
@@ -321,7 +320,7 @@ class HorseCog(commands.Cog):
 
     async def run_once(self) -> None:
         now = time.time()
-        tz = utc_offset_hours(self.bot)
+        horse_svc = services_of(self.bot).horse
         for guild in list(self.bot.guilds):
             if guild.id in self._busy or not approval.is_allowed(self.bot.economy, self.bot.config, guild.id, 0):
                 continue
@@ -329,7 +328,7 @@ class HorseCog(commands.Cog):
             try:
                 eco = self.bot.economy.for_guild(guild.id)
                 channel = announce_channel(guild, eco)
-                race_id = eco.race_ensure_scheduled(now, tz, channel.id if channel else 0)
+                race_id = horse_svc.ensure_scheduled(guild.id, now, channel.id if channel else 0)
                 if race_id:
                     await self._announce_entry(guild, eco, race_id)
                 for race in eco.race_open():

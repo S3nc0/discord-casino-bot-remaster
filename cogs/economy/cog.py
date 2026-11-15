@@ -2,7 +2,6 @@
 
 import datetime
 import math
-import time
 from typing import Optional
 
 import discord
@@ -21,7 +20,8 @@ from domain import approval, shop, teiai
 from domain import missions as missions_mod
 from domain.types import DAILY_BASE, DAILY_STREAK_BONUS, DAILY_STREAK_CAP
 from infra import catalogs
-from infra.clock import local_now, utc_offset_hours
+from infra.clock import local_now
+from services import services_of
 
 _ECON_CFG = catalogs.economy()
 _TRANSFER_CFG = _ECON_CFG.transfer
@@ -33,13 +33,13 @@ TRANSFER_MIN_GAMES = _TRANSFER_CFG.min_games  # 送金できるのは、ゲー�
 
 
 def tz_label(bot) -> str:
-    offset = utc_offset_hours(bot)
+    offset = services_of(bot).economy.utc_offset()
     return "日本時間" if offset == 9 else f"UTC{offset:+g}"
 
 
 def reset_label(bot) -> str:
     """日付が切り替わる（デイリーやミッションがリセットされる）時刻の表示。"""
-    offset = utc_offset_hours(bot)
+    offset = services_of(bot).economy.utc_offset()
     return f"{tz_label(bot)} 0:00" if offset == 9 else f"{tz_label(bot)} の 0:00"
 
 
@@ -178,7 +178,10 @@ class EconomyCog(commands.Cog):
     @group.command(name="デイリー", description="6時間ごとにもらえる無料ボーナス")
     async def daily(self, interaction: discord.Interaction):
         now = local_now(self.bot)
-        result = self.g(interaction).claim_daily(interaction.user.id, now.date(), slot_of(now))
+        outcome = services_of(self.bot).economy.claim_daily(
+            ui.guild_id_of(interaction), interaction.user.id, now, slot_of(now)
+        )
+        result = outcome.result
         if not result.ok:
             return await interaction.response.send_message(
                 embed=ui.warn_embed(
@@ -199,10 +202,7 @@ class EconomyCog(commands.Cog):
             debt_line += f"💸 借金の返済に天引きされた: **{ui.pelica(result.repaid)}**\n"
         if result.seed:
             debt_line += f"🕴️ 帝愛が種銭を貸し付けた: **{ui.pelica(result.seed)}**（借金に加わります）\n"
-        self.g(interaction).take_notices(
-            interaction.user.id
-        )  # 種銭などの一言は、上の行で出したので、たまらないように取り除く
-        memo = self.g(interaction).earnings_memo(interaction.user.id, time.time())  # 確率で、決算の裏情報メモが届く
+        memo = outcome.memo
         await interaction.response.send_message(
             embed=ui.ok_embed(
                 "デイリーボーナス",
@@ -421,9 +421,15 @@ class EconomyCog(commands.Cog):
             if reply is None:
                 return
             now = local_now(self.bot)
-            day_start = datetime.datetime.combine(now.date(), datetime.time(), tzinfo=now.tzinfo).timestamp()
-            res = self.g(interaction).transfer(
-                uid, member.id, amount, TRANSFER_FEE_RATE, TRANSFER_DAILY_LIMIT, day_start, TRANSFER_MIN_GAMES
+            res = services_of(self.bot).economy.transfer(
+                ui.guild_id_of(interaction),
+                uid,
+                member.id,
+                amount,
+                TRANSFER_FEE_RATE,
+                TRANSFER_DAILY_LIMIT,
+                TRANSFER_MIN_GAMES,
+                now=now,
             )
             if not res.ok:
                 return await reply(embed=ui.error_embed("送金できません", format_failure(res.reason)), ephemeral=True)

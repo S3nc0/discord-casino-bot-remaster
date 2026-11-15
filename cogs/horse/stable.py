@@ -10,7 +10,7 @@ from cogs.shared.horse_display import stat_lines
 from cogs.shared.messages import format_failure
 from domain import horse as horse_mod
 from domain import shop
-from infra.clock import utc_offset_hours
+from services import services_of
 
 
 class StyleView(discord.ui.View):
@@ -181,7 +181,7 @@ class Stable(ui.OwnerView):
         )
 
     def _tz(self) -> float:
-        return utc_offset_hours(self.bot)
+        return services_of(self.bot).horse.tz_hours()
 
     def eco_for(self):
         return self.bot.economy.for_guild(self.guild_id)

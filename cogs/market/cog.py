@@ -35,10 +35,10 @@ from cogs.shared import ui
 from cogs.shared.amount import balance_choices, own_balance, typed_amount
 from cogs.shared.announce import announce_channel
 from domain import approval as approval  # noqa: F401
-from domain import bonds, market, market_events
+from domain import market, market_events
 from domain import options as opt
-from domain.options import name_of
 from infra import catalogs, logthrottle
+from services import services_of
 
 RNG = random.SystemRandom()
 KEEP_DAYS = catalogs.market().market.keep_days  # 価格の履歴を残す日数
@@ -68,18 +68,18 @@ class MarketCog(commands.Cog):
         name="証券", description="📈 注文・保有・市況・決済（4銘柄と債券。ゲーム内の通貨・現実のお金とは無関係）"
     )
 
-    # ------------------------------ 価格の更新（feed.py へ委譲） ------------------------------ #
+    # ------------------------------ 価格の更新（MarketService へ委譲） ------------------------------ #
     def _price(self, symbol: str = market.DEFAULT) -> float:
-        return feed.price(self.bot, symbol)
+        return services_of(self.bot).market.latest_price(symbol)
 
     def _prices(self) -> dict[str, float]:
-        return feed.prices(self.bot)
+        return services_of(self.bot).market.latest_prices()
 
     def _day_reference(self, now: float) -> dict:
-        return feed.day_reference(self.bot, now)
+        return services_of(self.bot).market.day_reference(now)
 
     def step_prices(self) -> tuple:
-        return feed.step_prices(self.bot, self._earnings_results, RNG)
+        return services_of(self.bot).market.step_prices(self._earnings_results, RNG)
 
     async def cog_load(self):
         self._prices()  # 初回は開始価格を入れる（起動直後でもコマンドが使えるように）
@@ -124,8 +124,7 @@ class MarketCog(commands.Cog):
 
     # ------------------------------ 表示 ------------------------------ #
     def _histories_24h(self, now: float) -> dict[str, list]:
-        since = now - CORRELATION_MINUTES * 60
-        return {s.key: self.bot.economy.market_history(since, s.key) for s in market.SYMBOLS}
+        return services_of(self.bot).market.histories(CORRELATION_MINUTES, now)
 
     def correlation_lines(self, symbol: str) -> str:
         return correlation_lines(symbol, self._histories_24h(time.time()))
@@ -391,21 +390,7 @@ class MarketCog(commands.Cog):
 
     # ------------------------------ 保有・決済 ------------------------------ #
     def positions(self, uid: int, guild_id: int) -> list:
-        eco, out = self.bot.economy.for_guild(guild_id), []
-        for symbol, _units, _cost in eco.holdings(uid):
-            out.append((f"spot:{symbol}", f"{market.BY_KEY[symbol].emoji} {market.BY_KEY[symbol].name} 全売却"))
-        for side, symbol, *_ in eco.margin_positions(uid):
-            name = market.BY_KEY[symbol]
-            out.append((f"{side}:{symbol}", f"{name.emoji} {name.name} {market.SIDE_NAME[side]}全決済"))
-        for r in eco.option_list(uid)["active"]:
-            short = r["side"] == "short"
-            icon = "🎰" if short else opt.KINDS[r["kind"]][1]
-            out.append((f"opt:{r['id']}", f"{icon} {name_of(r)} #{r['id']} {'買い戻し' if short else '売却'}"))
-        for r in eco.bond_list(uid)["active"]:
-            k = bonds.KINDS[r["kind"]]
-            if k.sellable:
-                out.append((f"bond:{r['id']}", f"{k.emoji} {k.name} #{r['id']} 売却"))
-        return out
+        return services_of(self.bot).market.positions(guild_id, uid)
 
     async def settle_position(self, interaction: discord.Interaction, code: str, ratio=None) -> None:
         kind, _, target = code.partition(":")
@@ -422,31 +407,17 @@ class MarketCog(commands.Cog):
         )
 
     def holdings_embed(self, uid: int, guild_id: int) -> discord.Embed:
-        now = time.time()
-        guild_eco = self.bot.economy.for_guild(guild_id)
-        guild_eco.bond_settle(now, RNG)
-        guild_eco.option_settle(now)
-        prices = self._prices()
-        options = guild_eco.option_list(uid)
-        spots = {symbol: (units, cost) for symbol, units, cost in guild_eco.holdings(uid)}
-        margins = {
-            (side, symbol): (units, entry, margin)
-            for side, symbol, units, entry, margin in guild_eco.margin_positions(uid)
-        }
-        bond_data = guild_eco.bond_list(uid)
-        option_quotes = {
-            r["id"]: (
-                guild_eco.option_close_cost(r, now, prices)
-                if r["side"] == "short"
-                else guild_eco.option_value(r, now, prices)
-            )
-            for r in options["active"]
-        }
-        bond_quotes = {
-            r["id"]: guild_eco.bond_price(r, now) for r in bond_data["active"] if bonds.KINDS[r["kind"]].sellable
-        }
-        margin_status = guild_eco.margin_status(uid, prices) if margins else None
-        return holdings_embed(prices, spots, margins, options, bond_data, option_quotes, bond_quotes, margin_status)
+        snap = services_of(self.bot).market.holdings_snapshot(guild_id, uid, RNG)
+        return holdings_embed(
+            snap["prices"],
+            snap["spots"],
+            snap["margins"],
+            snap["options"],
+            snap["bond_data"],
+            snap["option_quotes"],
+            snap["bond_quotes"],
+            snap["margin_status"],
+        )
 
     @group.command(name="保有", description="現物・信用取引・債券をまとめて見る（ボタンで、すぐ決済できる）")
     async def holdings(self, interaction: discord.Interaction):

@@ -1,4 +1,4 @@
-"""証券市場の価格更新・決算告知・ライブチャート定期更新フィード。"""
+"""証券市場の定期告知・ライブチャート更新・古い掲示板の片付け（Discord 投稿層）。"""
 
 import time
 
@@ -7,60 +7,8 @@ import discord
 from cogs.market.embeds import LIVE_MINUTES, earnings_announce_embed, earnings_result_embed
 from cogs.shared import ui
 from cogs.shared.announce import announce_channel
-from domain import approval, earnings, market, market_events
+from domain import approval
 from infra import logthrottle
-from infra.clock import utc_offset_hours
-
-
-def price(bot, symbol: str = market.DEFAULT) -> float:
-    latest = bot.economy.market_latest(symbol)
-    if latest is None:
-        start = market.BY_KEY[symbol].start
-        bot.economy.market_set(time.time(), start, 0, symbol)
-        return start
-    return latest[1]
-
-
-def prices(bot) -> dict[str, float]:
-    return {s.key: price(bot, s.key) for s in market.SYMBOLS}
-
-
-def day_reference(bot, now: float) -> dict:
-    """値幅制限の基準になる、約24時間前の価格 {銘柄: 価格}。履歴がまだ無い銘柄は含めない。"""
-    out = {}
-    for sym in market.SYMBOLS:
-        hist = bot.economy.market_history(now - 86400, sym.key)
-        if hist:
-            out[sym.key] = hist[0][1]
-    return out
-
-
-def step_prices(bot, earnings_results: list, rng) -> tuple:
-    """全銘柄の価格を1つ進めて、(新しい価格 {銘柄: 価格}, 有事の出来事) を返す。"""
-    current = prices(bot)
-    fair = {k: bot.economy.market_fair_get(k) or p for k, p in current.items()}
-    last_ts = max((bot.economy.market_latest(k) or (0,))[0] for k in current)
-    now = time.time()
-    announced = bot.economy.event_step(now, rng)
-    if announced is not None:
-        print(
-            f"ボラティリティ予告: {announced['symbol']} {market_events.LEAD_MIN}分後から{market_events.DURATION_MIN}分"
-        )
-    tz = utc_offset_hours(bot)
-    bot.economy.earnings_ensure(now, tz)
-    new_fair, event = market.next_prices(fair, rng, bot.economy.vol_multipliers(now))
-    for r in bot.economy.earnings_release_due(now):
-        hit = new_fair[r["symbol"]] * earnings.factor(r["direction"], r["size"])
-        new_fair[r["symbol"]] = min(market.MAX_PRICE, max(market.MIN_PRICE, round(hit, 2)))
-        earnings_results.append(r)
-    ref = day_reference(bot, now)
-    new = {k: round(v, 2) for k, v in market.limit_to_day(new_fair, ref).items()}
-    pins = market.pin_states(new_fair, ref)
-    ts = max(time.time(), last_ts + 0.001)
-    for key, p in new.items():
-        bot.economy.market_set(ts, p, event, key)
-        bot.economy.market_fair_set(key, new_fair[key], pins.get(key, 0), ts)
-    return new, event
 
 
 async def earnings_posts(bot, earnings_results: list, *, announce_fn=announce_channel) -> None:

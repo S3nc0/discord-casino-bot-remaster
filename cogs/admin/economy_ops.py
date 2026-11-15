@@ -8,8 +8,7 @@ import discord
 from cogs.admin.embeds import LEVEL_NAME, click_history_embed, pachinko_stats_embed, rtp_table_embed
 from cogs.shared import ui
 from cogs.shared.cog_ports import IEventCogPort, require_cog_port
-from domain import labor as labor_mod
-from infra.clock import utc_offset_hours
+from services import services_of
 
 
 async def grant(cog, interaction: discord.Interaction, guild_id: str, user_id: str, amount: int, reason: str) -> None:
@@ -142,9 +141,9 @@ async def click_history(cog, interaction: discord.Interaction, guild_id: str, us
     if picked is None:
         return
     guild, member = picked
-    eco = cog.bot.economy.for_guild(guild.id)
-    report = labor_mod.click_report(eco.labor_click_hours(member.id, time.time() - hours * 3600))
-    tz = utc_offset_hours(cog.bot)
+    labor_svc = services_of(cog.bot).labor
+    report = labor_svc.click_report(guild.id, member.id, hours)
+    tz = labor_svc.utc_offset()
     await interaction.response.send_message(
         embed=click_history_embed(f"{guild.name} の {member.display_name}", report, tz, hours), ephemeral=True
     )

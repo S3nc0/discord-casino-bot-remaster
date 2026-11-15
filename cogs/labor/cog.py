@@ -14,13 +14,13 @@ from cogs.shared import ui
 from cogs.shared.messages import format_failure
 from domain import labor as lab
 from domain import relics, shop
-from infra.clock import local_today
+from services import services_of
 
 VIEW_TIMEOUT = 900  # 画面が反応する時間（秒）。過ぎたら、`/地下 作業` で開き直す
 
 
 def today(bot) -> str:
-    return local_today(bot).isoformat()
+    return services_of(bot).labor.today_key()
 
 
 def fatigue_label(fatigue: float) -> str:
