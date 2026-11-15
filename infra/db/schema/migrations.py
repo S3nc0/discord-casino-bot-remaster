@@ -58,6 +58,8 @@ def add_missing_columns(conn: sqlite3.Connection) -> None:
             conn.execute(f"ALTER TABLE horse_entries ADD COLUMN {col} INTEGER NOT NULL DEFAULT 0")
     if "tactic" not in he:
         conn.execute("ALTER TABLE horse_entries ADD COLUMN tactic TEXT NOT NULL DEFAULT 'pace'")
+    if "style" not in he:
+        conn.execute("ALTER TABLE horse_entries ADD COLUMN style TEXT")
     us = {r["name"] for r in conn.execute("PRAGMA table_info(users)")}
     if "last_slot" not in us:
         conn.execute("ALTER TABLE users ADD COLUMN last_slot INTEGER")

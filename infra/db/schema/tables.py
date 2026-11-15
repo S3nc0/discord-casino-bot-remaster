@@ -138,6 +138,7 @@ def create_tables(conn: sqlite3.Connection) -> None:
             power     INTEGER NOT NULL DEFAULT 50,
             guts      INTEGER NOT NULL DEFAULT 50,
             tactic    TEXT NOT NULL DEFAULT 'pace', -- 作戦のコピー
+            style     TEXT,                         -- 脚質のコピー（締切後のにんじん・脚質変更の影響を受けない）
             form      INTEGER NOT NULL DEFAULT 0,
             races     INTEGER NOT NULL DEFAULT 0,   -- 戦績のコピー（オッズに使う。帝愛の馬は作りもの）
             wins      INTEGER NOT NULL DEFAULT 0,

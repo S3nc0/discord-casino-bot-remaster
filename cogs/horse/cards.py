@@ -81,9 +81,7 @@ def card_embed(eco, race: dict, closed: bool = False) -> discord.Embed:
             ]
 
         def entry_style(e: dict) -> str:
-            h = eco.horse_get(e["horse_id"]) if e["horse_id"] else None
-            chosen = h["style"] if h is not None else None
-            return chosen or horse_mod.style_of({k: e[k] for k in horse_mod.STAT_KEYS})
+            return e["style"] or horse_mod.style_of({k: e[k] for k in horse_mod.STAT_KEYS})
 
         rows = [
             f"`{e['lane']}` {e['silks']} **{e['name']}** {horse_mod.FORM_MARK[e['form']]} "

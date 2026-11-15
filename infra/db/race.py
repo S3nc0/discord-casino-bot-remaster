@@ -181,12 +181,13 @@ class RaceMixin(EcoBase):
                 return None
             registered = self.race_entries(race_id, registered_only=True)
             rows = []
-            for e in registered:  # 申し込み済みの馬は、いまのステータスをコピーする（締切のあとの、にんじんは効かない）
+            for e in registered:  # 申し込み済みの馬は、いまのステータスをコピーする（締切のあとの、にんじん・脚質変更は効かない）
                 h = self.horse_get(e["horse_id"]) or e
                 rows.append(
                     (e["horse_id"], e["owner_id"], h["name"], h["coat"], h["silks"])
                     + tuple(h[k] for k in horse_mod.STAT_KEYS)
                     + (h.get("races", 0), h.get("wins", 0), h.get("places", 0))  # 戦績のコピー（オッズに使う）
+                    + (h.get("style"),)  # 脚質のコピー
                 )
             self._conn.execute("DELETE FROM horse_entries WHERE race_id=?", (race_id,))
             taken = {r[2] for r in rows}
@@ -208,6 +209,7 @@ class RaceMixin(EcoBase):
                     )
                     + tuple(s[k] for k in horse_mod.STAT_KEYS)
                     + horse_mod.npc_record(rng)
+                    + (None,)  # NPC に脚質の指定はない（レース時に自然に決める）
                 )
             rng.shuffle(rows)
             runners = []
@@ -215,11 +217,13 @@ class RaceMixin(EcoBase):
                 form = horse_mod.random_form(rng)
                 self._conn.execute(
                     "INSERT INTO horse_entries (race_id, lane, horse_id, owner_id, name, coat, silks, speed, stamina, power, guts, "
-                    "races, wins, places, form) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                    "races, wins, places, style, form) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                     (race_id, lane) + row + (form,),
                 )
                 runners.append(
-                    horse_mod.Runner(lane, row[2], row[5], row[6], row[7], row[8], form, row[9], row[10], row[11])
+                    horse_mod.Runner(
+                        lane, row[2], row[5], row[6], row[7], row[8], form, row[9], row[10], row[11], row[12]
+                    )
                 )
             track = horse_mod.random_track(rng)
             self._conn.execute(
@@ -385,11 +389,7 @@ class RaceMixin(EcoBase):
             is_major = horse_mod.is_major_race(race, tz_hours)
             prizes_table = horse_mod.MAJOR_PRIZES if is_major else horse_mod.PRIZES
             entries = self.race_entries(race_id)
-            styles = []
-            for e in entries:
-                h = self.horse_get(e["horse_id"]) if e["horse_id"] else None
-                chosen = h["style"] if h is not None else None
-                styles.append(chosen or horse_mod.style_of({k: e[k] for k in horse_mod.STAT_KEYS}))
+            styles = [e["style"] or horse_mod.style_of({k: e[k] for k in horse_mod.STAT_KEYS}) for e in entries]
             runners = [
                 horse_mod.Runner(
                     e["lane"], e["name"], e["speed"], e["stamina"], e["power"], e["guts"], e["form"], style=s
