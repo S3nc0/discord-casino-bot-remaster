@@ -63,9 +63,17 @@
 
 ## `services/` — アプリケーションサービス
 
+`cogs/` と `domain/`・`infra/` を仲介し、ユースケース単位のトランザクション・時間取得・状態遷移を調停します。
+
 | パス | 内容 |
 |---|---|
+| `container.py` / `__init__.py` | `ServiceRegistry`、`build_services()`、`services_of(bot)` |
 | `session.py` | `Sessions(ISessionGuard)`。同じ人が同時に複数のゲームを始めないようにする排他制御 |
+| `casino.py` | `CasinoService`。カジノ開始検証・escrow預かり・RTP/イベント補正・精算・記録 |
+| `market.py` | `MarketService`。市場価格進行・ボラティリティ/決算更新・保有スナップショット |
+| `horse.py` | `HorseService`。定時レース生成・締切オッズ確定・発走精算の調整 |
+| `economy.py` | `EconomyService`。デイリー受取・送金・週間ランキング補完の調整 |
+| `labor.py` | `LaborService`。地下作業の日次キー取得・クリック履歴レポート生成 |
 
 ## `domain/` — 純粋なルール・値型・ポート契約
 
