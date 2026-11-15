@@ -1,6 +1,6 @@
 """クイズの記録（Economy に混ぜ込む部品）。問題・回答・出題者への報酬の支払い。
 
-表の定義と移行は core/economy.py の _init_schema にある。
+表の定義と移行は infra/db/schema/tables.py・migrations.py にある。
 """
 
 import json

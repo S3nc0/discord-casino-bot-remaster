@@ -1,6 +1,6 @@
 """突発イベントの進み具合と、持ち主が開く特別イベント（Economy に混ぜ込む部品）。
 
-表の定義は core/economy.py の _init_schema にある。定例イベントの中身は core/events.py。
+表の定義は infra/db/schema/tables.py にある。定例イベントの中身は domain/events.py。
 """
 
 import datetime

@@ -22,7 +22,7 @@ LEVELS = _CFG.levels
 DEFAULT_LEVEL = _CFG.default_level
 STEP = _CFG.step  # 1レベルあたりの還元率の動き（4ポイント）
 
-# シミュレーションで求めた目安（tests/test_rtplevel.py で再計算して、近いことを確かめている）
+# シミュレーションで求めた目安（tests/domain/games/test_rtplevel.py で再計算して、近いことを確かめている）
 CHINCHIRO_RTP, CHINCHIRO_W = _CFG.chinchiro_rtp, _CFG.chinchiro_w
 BLACKJACK_RTP, BLACKJACK_W = _CFG.blackjack_rtp, _CFG.blackjack_w  # 「17まで引く」打ち方の場合
 ROULETTE_DEFAULT_KIND = _CFG.roulette_default_kind

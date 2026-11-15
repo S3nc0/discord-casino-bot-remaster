@@ -1,7 +1,7 @@
 """オプション（爆騰コール・暴落プット・ペア・ワラント）と裸売りの、購入・満期の決済・満期前の売却（Economy に混ぜ込む部品）。
 
-表の定義は core/schema.py の options。値付けと数字は core/options.py。
-相手は帝愛銀行（core/eco_bank.py）。
+表の定義は infra/db/schema/tables.py の options。値付けと数字は domain/options.py。
+相手は帝愛銀行（infra/db/bank.py）。
 
 - 買い（long）: 掛け金は銀行に入り、配当と売却代金は銀行が払う（銀行の手元と預金の範囲まで）。損失は掛け金だけ
 - 裸売り（short。コール・プットだけ）: 帝愛に売り、プレミアム（売値）を先にもらう。証拠金（行使価格×口数の20%）を預ける。

@@ -20,7 +20,7 @@ OPTION_HOURS = _CFG.option_hours  # 満期までの時間（固定）
 STRIKE_OTM = (
     _CFG.strike_otm
 )  # 権利行使価格のずれ（コール = 現在値 ×1.02、プット = 現在値 ×0.98）。6時間の値動き（CSで約2.3%）に合わせた大きさ
-TICK_SECONDS = _CFG.tick_seconds  # 価格が動く間隔（cogs/market_cog.py の TICK_MINUTES と同じ）
+TICK_SECONDS = _CFG.tick_seconds  # 価格が動く間隔（cogs/market/cog.py の TICK_MINUTES と同じ）
 SPREAD = _CFG.spread  # 買値は公正価格の +1.5%、売値は −1.5%（往復で約3%。ルーレット・パチンコ並みの控除）
 PAYOUT_CAP_MULT = _CFG.payout_cap_mult  # 配当の上限（掛け金の何倍までか）
 MIN_PREMIUM = _CFG.min_premium  # 1回の掛け金の下限
@@ -51,7 +51,7 @@ def jump_variance_per_tick(symbol: str) -> float:
 def total_variance(symbol: str, seconds: float, now: float = 0.0, events=()) -> float:
     """いまから seconds 秒後までの、対数価格の分散の合計（1分ごとの揺れ + 有事 + 市場イベント + 決算）。
 
-    events（core/market_events.py のボラティリティ予告）と時間が重なる分は、揺れが factor² 倍になる。
+    events（domain/market_events.py のボラティリティ予告）と時間が重なる分は、揺れが factor² 倍になる。
     予告が出た瞬間に、全部が値段に織り込まれる（公知の情報で儲けられない）。予告のない平時（events に予告がない）は、
     「これから予告が出る」期待の分（平均で EVENT_FACTOR²−1 倍の揺れを、expected_event_ticks 刻みぶん）を、最初から足す。
     """

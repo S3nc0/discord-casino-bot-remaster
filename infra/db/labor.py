@@ -1,4 +1,4 @@
-"""地下作業（Economy に混ぜ込む部品）。クリッカー。数字と計算は core/labor.py、表は core/schema.py の labor。
+"""地下作業（Economy に混ぜ込む部品）。クリッカー。数字と計算は domain/labor.py、表は infra/db/schema/tables.py の labor。
 
 稼ぎは、まず「受け取る前の稼ぎ（pot）」に貯まる。受け取りを押すと、まとめて残高に移る（収入なので、借金があれば天引き）。
 「働く」クリックには、1日に押せる回数の上限がある（MAX_CLICKS_PER_DAY。day_click で数える。超えたら1回 OVER_CAP_PAY）。day_earned は、画面に出す「今日の稼ぎ」。

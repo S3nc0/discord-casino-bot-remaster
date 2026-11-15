@@ -3,7 +3,7 @@
 流れ: 提案（offer）→ 借りる人が承諾（active、お金が移る）→ 返済（repaid）／期限に自動回収／足りなければ延滞（overdue）。
 延滞の残りは、借りた人に入ってくるお金から、借金の返済のあとで、古い順に自動で回収する。
 
-表の定義は core/economy.py の _init_schema にある。数字と計算は core/loans.py。
+表の定義は infra/db/schema/tables.py にある。数字と計算は domain/loans.py。
 """
 
 import time
@@ -43,7 +43,7 @@ class LoanMixin(EcoBase):
     def _collect_overdue_for(self, user_id: int, budget: int) -> int:
         """延滞中の貸付（ジュニア債権）を、この人の残高から、古い順に最大 budget まで回収する。回収した合計を返す。
 
-        帝愛への返済のあとの、天引きの残りで呼ばれる（core/eco_debt.py の _withhold）。
+        帝愛への返済のあとの、天引きの残りで呼ばれる（infra/db/debt.py の _withhold）。
         """
         total = 0
         now = time.time()

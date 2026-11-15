@@ -1,4 +1,4 @@
-"""地下作業（クリッカー）の数字と計算。DB にも Discord にも触らない（処理は core/eco_labor.py、画面は cogs/labor_cog.py）。
+"""地下作業（クリッカー）の数字と計算。DB にも Discord にも触らない（処理は infra/db/labor.py、画面は cogs/labor/cog.py）。
 
 ペリカが尽きた人の救済。元手は 0。「働く」ボタンを押すとペリカが貯まる。
 - 疲労: 押すたびに溜まり、溜まるほど1回の稼ぎが減る。時間で自然に回復する（事故も、休憩もない）
@@ -375,7 +375,7 @@ def is_mechanical_hour(h: dict) -> bool:
 def auto_click_suspected(hour_rows: list, current_hour: int) -> bool:
     """直近 SUSPECT_HOURS 時間（いまの時間は、まだ集計中なので含めない）、ずっと機械的に規則正しければ True。
 
-    hour_rows は、core/eco_labor.py の labor_click_hours() の結果（{hour, clicks, gaps, sum_gap, sum_gap2, ...} の並び）。
+    hour_rows は、infra/db/labor.py の labor_click_hours() の結果（{hour, clicks, gaps, sum_gap, sum_gap2, ...} の並び）。
     """
     by_hour = {r["hour"]: r for r in hour_rows}
     watch = range(current_hour - SUSPECT_HOURS, current_hour)

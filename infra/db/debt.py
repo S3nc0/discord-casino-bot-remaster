@@ -1,6 +1,6 @@
-"""帝愛ファイナンス: 借金・強制執行・種銭・身分・自己破産（Economy に混ぜ込む部品）。数字と考え方は core/teiai.py。
+"""帝愛ファイナンス: 借金・強制執行・種銭・身分・自己破産（Economy に混ぜ込む部品）。数字と考え方は domain/teiai.py。
 
-表の定義は core/schema.py（users の debt・bankrupt_at・blacklist_until）。
+表の定義は infra/db/schema/tables.py（users の debt・bankrupt_at・blacklist_until）。
 """
 
 import random

@@ -1,8 +1,8 @@
 """帝愛の競売（Economy に混ぜ込む部品）。破産で差し押さえたショップの品を、カタギが買えるようにする。
 
 出品されるのは、消耗品と見た目の品（称号・カード・演出・色ロール）。コレクションと限定品は出さない。
-値段は、定価の AUCTION_START から1日ごとに AUCTION_STEP ずつ下がり、AUCTION_FLOOR で止まる（core/teiai.py）。
-売上は帝愛銀行の収入になる。表は core/schema.py の seized_items。
+値段は、定価の AUCTION_START から1日ごとに AUCTION_STEP ずつ下がり、AUCTION_FLOOR で止まる（domain/teiai.py）。
+売上は帝愛銀行の収入になる。表は infra/db/schema/tables.py の seized_items。
 """
 
 import time

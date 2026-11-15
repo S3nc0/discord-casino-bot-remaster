@@ -1,6 +1,6 @@
 """債券の記録（Economy に混ぜ込む部品）。購入・満期の決着・倒産抽選・売却。
 
-表の定義は core/economy.py の _init_schema にある。利率などの数字は core/bonds.py。
+表の定義は infra/db/schema/tables.py にある。利率などの数字は domain/bonds.py。
 満期の利息は、帝愛の手元現金から払う（新しく作らない。現金が足りなければ利息が減る。元本は必ず全額返す）。
 """
 

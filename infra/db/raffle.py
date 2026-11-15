@@ -1,6 +1,6 @@
 """抽選の記録（Economy に混ぜ込む部品）。参加費の預かり・締切の当選／返金。
 
-表の定義は core/economy.py の _init_schema にある。
+表の定義は infra/db/schema/tables.py にある。
 """
 
 import random

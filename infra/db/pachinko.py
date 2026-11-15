@@ -2,7 +2,7 @@
 
 - pachinko_spins … 1回転ごと（予告の色・リーチの格・当たったか）
 - pachinko_sets  … 1セットごと（賭け金・打った玉・スタート入賞の数・大当たりの数・連チャンの数・払い戻しの倍数）
-表の定義は core/economy.py の _init_schema にある。記録は統計のためだけで、ゲームの結果には影響しない。
+表の定義は infra/db/schema/tables.py にある。記録は統計のためだけで、ゲームの結果には影響しない。
 """
 
 import time

@@ -229,7 +229,7 @@ class RaceMixin(EcoBase):
             return {"runners": runners, "track": track}
 
     def race_set_odds(self, race_id: int, odds) -> None:
-        """オッズを書く。odds は、core/horse.py の make_all_odds の結果（{"win": {枠: オッズ}, "quinella": {キー: オッズ}, …}）。
+        """オッズを書く。odds は、domain/horse.py の make_all_odds の結果（{"win": {枠: オッズ}, "quinella": {キー: オッズ}, …}）。
 
         枠番の順の (単勝, 複勝) の並び（make_odds の結果）でもよい（組み合わせの馬券は、発売されない）。
         """

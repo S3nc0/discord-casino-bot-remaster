@@ -1,6 +1,6 @@
-"""海外逃亡チャンス！！: 船の ASCII アートが進んで、数秒後に「成功！」か「失敗！」が出る（cogs/_teiai_panel.py から使う）。
+"""海外逃亡チャンス！！: 船の ASCII アートが進んで、数秒後に「成功！」か「失敗！」が出る（cogs/teiai/panel.py から使う）。
 
-当たり外れは、押した時点で core/eco_debt.py の escape_attempt が決める。ここは見せ方だけ（読み込まれる Cog ではない）。
+当たり外れは、押した時点で infra/db/debt.py の escape_attempt が決める。ここは見せ方だけ（読み込まれる Cog ではない）。
 """
 
 import asyncio

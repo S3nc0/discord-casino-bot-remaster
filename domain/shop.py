@@ -60,7 +60,7 @@ CATALOG = [
     )
     for i in _CFG.items
 ]
-# 発掘品（買えない限定品。ショップの値段は 0）。数字と出る確率は core/labor.py の RELICS。取引の値段の幅の目安は RELIC_VALUE
+# 発掘品（買えない限定品。ショップの値段は 0）。数字と出る確率は domain/labor.py の RELICS。取引の値段の幅の目安は RELIC_VALUE
 CATALOG += [
     Item(
         labor.RELIC_ID[rid],

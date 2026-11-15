@@ -1,6 +1,6 @@
-"""`/ペリカ 帝愛` のパネル: 帝愛銀行の金庫メーター・破産猶予の一覧・預金・種銭・CDS（cogs/economy_cog.py から使う）。
+"""`/ペリカ 帝愛` のパネル: 帝愛銀行の金庫メーター・破産猶予の一覧・預金・種銭・CDS（cogs/economy/cog.py から使う）。
 
-数字と考え方は core/teiai.py、処理は core/eco_bank.py。ここは画面の部品だけ（読み込まれる Cog ではない）。
+数字と考え方は domain/teiai.py、処理は infra/db/bank.py。ここは画面の部品だけ（読み込まれる Cog ではない）。
 """
 
 import time

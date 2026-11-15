@@ -1,6 +1,6 @@
 """帝愛銀行（預金・準備率・取り付け騒ぎ）、破産猶予、CDS（破綻保証）（Economy に混ぜ込む部品）。
 
-表の定義は core/schema.py（teiai_bank・teiai_deposits・cds、users.grace_until）。数字と考え方は core/teiai.py。
+表の定義は infra/db/schema/tables.py（teiai_bank・teiai_deposits・cds、users.grace_until）。数字と考え方は domain/teiai.py。
 
 - 預金: カタギだけが預けられる。預けた額の RESERVE_RATIO だけが手元の現金（cash）になり、残りは地下融資（loaned）に回る。
   地下融資は、時間がたつと、少しずつ現金に戻ってくる

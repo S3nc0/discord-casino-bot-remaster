@@ -1,6 +1,6 @@
 """市場イベント（ボラティリティ予告）の記録と、予告の抽選（Economy に混ぜ込む部品）。
 
-市場は全サーバー共通なので、イベントもサーバーに属さない（表は core/schema.py の market_events）。数字は core/market_events.py。
+市場は全サーバー共通なので、イベントもサーバーに属さない（表は infra/db/schema/tables.py の market_events）。数字は domain/market_events.py。
 """
 
 import random

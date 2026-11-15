@@ -1,4 +1,4 @@
-"""catalogs/*.yaml と core/catalogs.py の境界バリデーション・互換型テスト。"""
+"""catalogs/*.yaml と infra/catalogs/ の境界バリデーション・互換型テスト。"""
 
 from pathlib import Path
 

@@ -1,6 +1,6 @@
 """ゲームごとの還元率レベルの保存（Economy に混ぜ込む部品）。サーバーごとに、ゲームごとに1つ。
 
-表の定義は core/economy.py の _init_schema にある。レベルの意味と計算は games/rtplevel.py。
+表の定義は infra/db/schema/tables.py にある。レベルの意味と計算は domain/games/rtplevel.py。
 """
 
 from typing import Optional

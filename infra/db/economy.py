@@ -157,7 +157,7 @@ class Economy(
         """残高に delta を足す（0 未満にはならない）。実際に変化した量を返す。
 
         income は、delta のうち「収入」の部分（ゲームの純利益・デイリー・ミッション報酬など）。
-        借金があれば、その REPAY_RATE を、借金の返済へ天引きする（core/teiai.py）。賭け金の返金や、借りたお金などは、収入ではない。
+        借金があれば、その REPAY_RATE を、借金の返済へ天引きする（domain/teiai.py）。賭け金の返金や、借りたお金などは、収入ではない。
         """
         before = self._balance(user_id)
         after = max(0, before + delta)

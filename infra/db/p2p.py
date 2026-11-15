@@ -1,4 +1,4 @@
-"""プレイヤー間の取引（定価の市場と競り）（Economy に混ぜ込む部品）。数字と決まりは core/p2p.py、表は core/schema.py の market_listings。
+"""プレイヤー間の取引（定価の市場と競り）（Economy に混ぜ込む部品）。数字と決まりは domain/p2p.py、表は infra/db/schema/tables.py の market_listings。
 
 出品した品・馬は、出品の間、預かる（品は持ち物から出し、馬は owner_id を ESCROW_OWNER にする）。入札のお金も、預かる（残高から引く）。
 売れたら、売り手へ（手数料を引いて）、買い手へ品を渡す。取り消し・売れ残り・買い手が受け取れないときは、品を売り手へ戻し、入札のお金を返す。

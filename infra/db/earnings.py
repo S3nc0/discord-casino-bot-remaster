@@ -1,6 +1,6 @@
-"""定期決算イベントの記録と、裏情報メモ（Economy に混ぜ込む部品）。数字と抽選は core/earnings.py。
+"""定期決算イベントの記録と、裏情報メモ（Economy に混ぜ込む部品）。数字と抽選は domain/earnings.py。
 
-市場は全サーバー共通なので、決算の予定はサーバーに属さない（表は core/schema.py の earnings）。メモは、サーバーごと・人ごと。
+市場は全サーバー共通なので、決算の予定はサーバーに属さない（表は infra/db/schema/tables.py の earnings）。メモは、サーバーごと・人ごと。
 """
 
 import random

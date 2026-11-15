@@ -16,7 +16,7 @@ USERS_DDL = """
         biggest_win  INTEGER NOT NULL DEFAULT 0,
         created_at   REAL NOT NULL,
         last_slot    INTEGER,                 -- 最後にボーナスを受け取った「時間帯」の番号（6時間ごとの受け取り用）
-        debt         INTEGER NOT NULL DEFAULT 0,   -- 帝愛からの借金（シニア債権）。収入から天引きで返済する（core/teiai.py）
+        debt         INTEGER NOT NULL DEFAULT 0,   -- 帝愛からの借金（シニア債権）。収入から天引きで返済する（domain/teiai.py）
         bankrupt_at  REAL,                         -- 自己破産した時刻（NULL なら破産者ではない）
         blacklist_until REAL,                      -- 破産者の身分が終わる時刻（完済のときに、完済から7日後を入れる）
         PRIMARY KEY (guild_id, user_id)
@@ -30,7 +30,7 @@ INVENTORY_DDL = """
         PRIMARY KEY (guild_id, user_id, item_id)
     )"""
 SHOP_STOCK_DDL = """
-    CREATE TABLE IF NOT EXISTS shop_stock (        -- ショップの在庫（買える数）。1人ずつ別々。時間で補充される（core/shop.py の STOCK_RULES）
+    CREATE TABLE IF NOT EXISTS shop_stock (        -- ショップの在庫（買える数）。1人ずつ別々。時間で補充される（domain/shop.py の STOCK_RULES）
         guild_id INTEGER NOT NULL,
         user_id  INTEGER NOT NULL,
         item_id  TEXT    NOT NULL,
@@ -154,7 +154,7 @@ def create_tables(conn: sqlite3.Connection) -> None:
             user_id  INTEGER NOT NULL,
             kind     TEXT NOT NULL,                 -- win / place / quinella / wide / exacta / trio
             lane     INTEGER NOT NULL,              -- 単勝・複勝の枠（組み合わせの馬券では、最初の枠）
-            picks    TEXT NOT NULL DEFAULT '',      -- 組み合わせの馬券の選び方（core/horse.py の combo_key。例 "2-5"・"5>2"）
+            picks    TEXT NOT NULL DEFAULT '',      -- 組み合わせの馬券の選び方（domain/horse.py の combo_key。例 "2-5"・"5>2"）
             stake    INTEGER NOT NULL,
             odds     REAL NOT NULL,                 -- 賭けた時点のオッズ（確定）
             payout   INTEGER NOT NULL DEFAULT 0,

@@ -1,4 +1,4 @@
-"""共通部品（core/clock, core/ui.OwnerView, core/confirm ヘルパー, cogs/_shared）の単体テスト。"""
+"""共通部品（infra/clock, cogs/shared/ui.OwnerView, cogs/shared/confirm, cogs/shared）の単体テスト。"""
 
 import asyncio
 import datetime

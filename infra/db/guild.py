@@ -1,6 +1,6 @@
 """サーバーの承認・ランキング掲示・ニックネーム設定（Economy に混ぜ込む部品）。
 
-表の定義は core/economy.py の _init_schema にある。
+表の定義は infra/db/schema/tables.py にある。
 """
 
 import time
