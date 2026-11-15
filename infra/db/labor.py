@@ -319,7 +319,7 @@ class LaborMixin(EcoBase):
         return {"rows": rows, "me": me}
 
     def labor_click(self, user_id: int, now: Optional[float] = None, day: str = "", rng=None) -> dict:
-        """「働く」を1回押す。{ok, reason, pay, crit（鉱脈ヒットか）, ore（手掘りの鉱石。無ければ None）}。"""
+        """「働く」を1回押す。{ok, reason, pay, crit（鉱脈ヒットか）, ore（手掘りの鉱石。無ければ None）, combo（コンボ達成か）, terrain（今日の地層）}。"""
         now = time.time() if now is None else now
         rng = rng or random
         with self._lock, self._conn:
