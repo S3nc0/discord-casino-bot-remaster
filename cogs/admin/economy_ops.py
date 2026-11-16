@@ -146,7 +146,7 @@ async def click_history(cog, interaction: discord.Interaction, guild_id: str, us
         return
     guild, member = picked
     report = cog._labor_svc.click_report(guild.id, member.id, hours)
-    tz = cog._labor_svc.utc_offset()
+    tz = cog._labor_svc.clock.offset_hours()
     await interaction.response.send_message(
         embed=click_history_embed(f"{guild.name} の {member.display_name}", report, tz, hours), ephemeral=True
     )

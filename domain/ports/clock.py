@@ -11,3 +11,9 @@ class IClock:
 
     def today(self) -> datetime.date:
         raise NotImplementedError
+
+    def offset_hours(self) -> float:
+        raise NotImplementedError
+
+    def now_ts(self) -> float:
+        return self.now().timestamp()

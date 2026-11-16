@@ -233,7 +233,7 @@ class EconomyCog(commands.Cog):
         now = self._clock.now()
         outcome = self._economy_svc.claim_daily(ui.guild_id_of(interaction), interaction.user.id, now, slot_of(now))
         result = outcome.result
-        utc_offset = self._economy_svc.utc_offset()
+        utc_offset = self._clock.offset_hours()
         if not result.ok:
             return await interaction.response.send_message(
                 embed=ui.warn_embed(
@@ -376,9 +376,7 @@ class EconomyCog(commands.Cog):
         )
         lines.append(f"🎁 3つ全部で、さらに **+{ui.pelica(missions_mod.COMPLETE_BONUS)}**")
         lines.append(f"🔥 いまの連勝: **{streak}** ／ 自己ベスト: **{best}**")
-        lines.append(
-            f"🕛 次の更新: **{reset_label(self._economy_svc.utc_offset())}**（<t:{int(tomorrow.timestamp())}:R>）"
-        )
+        lines.append(f"🕛 次の更新: **{reset_label(self._clock.offset_hours())}**（<t:{int(tomorrow.timestamp())}:R>）")
         await interaction.response.send_message(
             embed=ui.embed("📜 今日のミッション", "\n".join(lines), ui.GOLD), ephemeral=True
         )

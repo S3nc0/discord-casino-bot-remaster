@@ -42,14 +42,18 @@ from services.shop import ShopService
 
 
 class FakeClock(IClock):
-    def __init__(self, dt: datetime.datetime) -> None:
+    def __init__(self, dt: datetime.datetime, offset: float = 9.0) -> None:
         self._dt = dt
+        self._offset = offset
 
     def now(self) -> datetime.datetime:
         return self._dt
 
     def today(self) -> datetime.date:
         return self._dt.date()
+
+    def offset_hours(self) -> float:
+        return self._offset
 
 
 class FakeSessions(ISessionGuard):
@@ -255,17 +259,17 @@ def test_casino_service_works_with_narrow_bridge_stubs():
 def test_economy_horse_and_labor_services_work_with_narrow_stubs():
     clock = FakeClock(datetime.datetime(2026, 11, 15, 12, 0))
     wallet = StubWallet({1: 5000})
-    econ_svc = EconomyService(wallet, StubNotices(), StubEarnings(), StubRecords(), clock, {"timezone_offset_hours": 9})
+    econ_svc = EconomyService(wallet, StubNotices(), StubEarnings(), StubRecords(), clock)
     assert econ_svc.claim_daily(10, 1, clock.now(), 0).result.ok
     assert econ_svc.backfill_weekly() == 7
     assert econ_svc.transfer(10, 1, 2, 1000, 0.1, 10_000, 3).ok and wallet.transfers
 
     races = StubRaces()
-    horse_svc = HorseService(races, {"timezone_offset_hours": 9})
+    horse_svc = HorseService(races, clock)
     assert horse_svc.close_entries_and_set_odds(10, 42) == {"id": 42, "status": "betting"}
     assert len(races.odds_set) == 1
 
-    labor_svc = LaborService(StubLabor(), clock, {"timezone_offset_hours": 9})
+    labor_svc = LaborService(StubLabor(), clock)
     assert labor_svc.today_key() == "2026-11-15"
     assert labor_svc.click_report(10, 1, 24)["clicks"] == 3
 

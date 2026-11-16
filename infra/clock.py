@@ -23,6 +23,9 @@ class ConfigClock(IClock):
     def today(self) -> datetime.date:
         return self.now().date()
 
+    def offset_hours(self) -> float:
+        return self._offset
+
 
 def utc_offset_hours(bot: Any) -> float:
     return offset_hours(getattr(bot, "config", {}) or {})

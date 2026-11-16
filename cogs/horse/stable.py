@@ -191,7 +191,7 @@ class Stable(ui.OwnerView):
         )
 
     def _tz(self) -> float:
-        return self._svc.tz_hours()
+        return self._svc.clock.offset_hours()
 
     def horses_for(self) -> IHorseRepo:
         return self._horses.for_guild(self.guild_id)

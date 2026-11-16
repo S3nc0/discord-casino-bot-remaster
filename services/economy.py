@@ -1,15 +1,13 @@
 """経済・デイリー・送金・週間ランキング補完のアプリケーションサービス。"""
 
 import datetime
-import time
 from dataclasses import dataclass
-from typing import Any, Optional
+from typing import Optional
 
 from domain.earnings import MemoInfo
 from domain.ports.clock import IClock
 from domain.ports.repos import IEarningsRepo, INoticeRepo, IRecordRepo, IWalletRepo
 from domain.types import DailyResult, TransferResult
-from infra.clock import offset_hours
 
 
 @dataclass(frozen=True)
@@ -28,17 +26,12 @@ class EconomyService:
         earnings: IEarningsRepo,
         records: IRecordRepo,
         clock: IClock,
-        config: dict[str, Any],
     ) -> None:
         self._wallet = wallet
         self._notices = notices
         self._earnings = earnings
         self._records = records
         self.clock = clock
-        self._config = config
-
-    def utc_offset(self) -> float:
-        return offset_hours(self._config)
 
     def claim_daily(self, guild_id: int, user_id: int, now: datetime.datetime, slot: int) -> DailyClaimOutcome:
         """デイリー受取・一時通知の掃き出し・裏情報メモ抽選を 1 ユースケースとして実行する。"""
@@ -46,7 +39,7 @@ class EconomyService:
         if not result.ok:
             return DailyClaimOutcome(result=result)
         self._notices.for_guild(guild_id).take_notices(user_id)
-        memo = self._earnings.for_guild(guild_id).earnings_memo(user_id, time.time())
+        memo = self._earnings.for_guild(guild_id).earnings_memo(user_id, now.timestamp())
         return DailyClaimOutcome(result=result, memo=memo)
 
     def transfer(
@@ -67,4 +60,4 @@ class EconomyService:
         )
 
     def backfill_weekly(self) -> int:
-        return self._records.backfill_weekly(self.utc_offset())
+        return self._records.backfill_weekly(self.clock.offset_hours())

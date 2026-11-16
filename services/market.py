@@ -1,11 +1,11 @@
 """証券・債券・オプション市場のアプリケーションサービス（価格進行・集計・スナップショット）。"""
 
-import time
 from typing import Any, Optional
 
 from domain import bonds, earnings, market, market_events
 from domain import options as opt
 from domain.options import name_of
+from domain.ports.clock import IClock
 from domain.ports.repos import (
     IBondRepo,
     ICryptoRepo,
@@ -15,7 +15,6 @@ from domain.ports.repos import (
     IMarketEventRepo,
     IOptionRepo,
 )
-from infra.clock import offset_hours
 
 
 class MarketService:
@@ -30,7 +29,7 @@ class MarketService:
         margin: IMarginRepo,
         bonds_repo: IBondRepo,
         options_repo: IOptionRepo,
-        config: dict[str, Any],
+        clock: IClock,
     ) -> None:
         self._market = market_data
         self._market_events = market_events_repo
@@ -39,13 +38,13 @@ class MarketService:
         self._margin = margin
         self._bonds = bonds_repo
         self._options = options_repo
-        self._config = config
+        self.clock = clock
 
     def latest_price(self, symbol: str = market.DEFAULT) -> float:
         latest = self._market.market_latest(symbol)
         if latest is None:
             start = market.BY_KEY[symbol].start
-            self._market.market_set(time.time(), start, 0, symbol)
+            self._market.market_set(self.clock.now_ts(), start, 0, symbol)
             return start
         return latest[1]
 
@@ -61,18 +60,18 @@ class MarketService:
                 out[sym.key] = hist[0][1]
         return out
 
-    def step_prices(self, earnings_results: list, rng) -> tuple:
+    def step_prices(self, earnings_results: list[Any], rng: Any) -> tuple[dict[str, float], int]:
         """全銘柄の価格を1ステップ進め、(新価格辞書, 有事フラグ) を返す。"""
         current = self.latest_prices()
         fair = {k: self._market.market_fair_get(k) or p for k, p in current.items()}
         last_ts = max((self._market.market_latest(k) or (0,))[0] for k in current)
-        now = time.time()
+        now = self.clock.now_ts()
         announced = self._market_events.event_step(now, rng)
         if announced is not None:
             print(
                 f"ボラティリティ予告: {announced['symbol']} {market_events.LEAD_MIN}分後から{market_events.DURATION_MIN}分"
             )
-        self._earnings.earnings_ensure(now, offset_hours(self._config))
+        self._earnings.earnings_ensure(now, self.clock.offset_hours())
         new_fair, event = market.next_prices(fair, rng, self._market_events.vol_multipliers(now))
         for r in self._earnings.earnings_release_due(now):
             hit = new_fair[r["symbol"]] * earnings.factor(r["direction"], r["size"])
@@ -81,14 +80,14 @@ class MarketService:
         ref = self.day_reference(now)
         new = {k: round(v, 2) for k, v in market.limit_to_day(new_fair, ref).items()}
         pins = market.pin_states(new_fair, ref)
-        ts = max(time.time(), last_ts + 0.001)
+        ts = max(self.clock.now_ts(), last_ts + 0.001)
         for key, p in new.items():
             self._market.market_set(ts, p, event, key)
             self._market.market_fair_set(key, new_fair[key], pins.get(key, 0), ts)
         return new, event
 
-    def histories(self, minutes: int, now: Optional[float] = None) -> dict[str, list]:
-        now = time.time() if now is None else now
+    def histories(self, minutes: int, now: Optional[float] = None) -> dict[str, list[Any]]:
+        now = self.clock.now_ts() if now is None else now
         since = now - minutes * 60
         return {s.key: self._market.market_history(since, s.key) for s in market.SYMBOLS}
 
@@ -114,9 +113,9 @@ class MarketService:
                 out.append((f"bond:{r['id']}", f"{k.emoji} {k.name} #{r['id']} 売却"))
         return out
 
-    def holdings_snapshot(self, guild_id: int, uid: int, rng) -> dict[str, Any]:
+    def holdings_snapshot(self, guild_id: int, uid: int, rng: Any) -> dict[str, Any]:
         """保有画面表示用に満期債券・オプションを決済したうえで全保有スナップショットを返す。"""
-        now = time.time()
+        now = self.clock.now_ts()
         crypto_g = self._crypto.for_guild(guild_id)
         margin_g = self._margin.for_guild(guild_id)
         bonds_g = self._bonds.for_guild(guild_id)

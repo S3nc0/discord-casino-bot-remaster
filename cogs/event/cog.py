@@ -5,7 +5,6 @@ Bot が止まっていて開始を逃しても、告知はやり直さない（�
 """
 
 import datetime
-import time
 from typing import TYPE_CHECKING, Any, Optional
 
 import discord
@@ -97,7 +96,7 @@ class EventCog(commands.Cog, IEventAdminBridge):
     ) -> tuple[bool, str]:
         """持ち主が開く特別イベント。いま開催中のものがあれば置き換える。channel を渡すと、そこに告知する（終了の告知も同じ所）。"""
         eco = self._events.for_guild(guild.id)
-        now = time.time()
+        now = self._clock.now_ts()
         replaced = eco.manual_event_get(now) is not None
         eco.manual_event_start(game, boost_pct, now, now + minutes * 60, getattr(channel, "id", 0) or 0)
         started = eco.manual_event_get(now)
@@ -110,7 +109,7 @@ class EventCog(commands.Cog, IEventAdminBridge):
 
     async def stop_manual(self, guild: discord.Guild) -> tuple[bool, str]:
         eco = self._events.for_guild(guild.id)
-        m = eco.manual_event_stop(time.time())
+        m = eco.manual_event_stop(self._clock.now_ts())
         if m is None:
             return False, f"{guild.name}: 開催中の特別イベントはありません"
         await self._post(guild, self.manual_embed(m, True), _event_channel(guild, m))
@@ -130,7 +129,7 @@ class EventCog(commands.Cog, IEventAdminBridge):
     async def _run_guild(self, guild: discord.Guild, now: datetime.datetime) -> None:
         minutes = now.hour * 60 + now.minute
         eco = self._events.for_guild(guild.id)
-        done = eco.manual_event_finish_due(time.time())  # 時間が来た特別イベントの終了を、1回だけ告知する
+        done = eco.manual_event_finish_due(now.timestamp())  # 時間が来た特別イベントの終了を、1回だけ告知する
         if done is not None:
             await self._post(guild, self.manual_embed(done, True), _event_channel(guild, done))
         ev = events.schedule(guild.id, now.date())

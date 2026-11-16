@@ -2,7 +2,6 @@
 
 import datetime
 import logging
-import time
 from collections.abc import Iterable
 from dataclasses import dataclass
 from typing import Any, Optional
@@ -174,7 +173,7 @@ class CasinoService:
             rtp_shift, payout = adjusted - payout, adjusted
         event_bonus = 0
         boost = events_mod.best_boost(
-            game, events_mod.active(guild_id, current_now), event_repo.manual_event_get(time.time())
+            game, events_mod.active(guild_id, current_now), event_repo.manual_event_get(current_now.timestamp())
         )
         if boost:
             event_bonus = events_mod.bonus(bet, payout, boost)
