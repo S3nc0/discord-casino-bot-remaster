@@ -18,8 +18,7 @@ _CFG = get_catalogs().teiai()
 
 SEED = _CFG.seed  # 帝愛が貸し付ける種銭の枠（手元がこの額になるまで補充する）
 LABOR_SKIM_RATE = _CFG.labor_skim_rate  # 地下作業の稼ぎを受け取るときに、ピンハネされる割合
-HORSE_PRIZE_SKIM_RATE = _CFG.horse_prize_skim_rate  # 競馬の賞金が出たときに、ピンハネされる割合（買った馬は撤廃）
-HORSE_RENTAL_EXTRA_SKIM_RATE = _CFG.horse_rental_extra_skim_rate  # レンタル馬の賞金に加わる割合
+HORSE_PRIZE_SKIM_RATE = _CFG.horse_prize_skim_rate  # 競馬の賞金が出たときに、ピンハネされる割合
 SKIM_RATE = _CFG.skim_rate  # 借金中のデイリーから、帝愛が没収する割合
 REPAY_RATE = _CFG.repay_rate  # 収入から、借金の返済へ天引きする割合
 BANKRUPT_FLOOR = _CFG.bankrupt_floor  # 自己破産のあとに残る、帝愛の借金の上限

@@ -18,7 +18,6 @@ stats:
     style: oikomi
 
 stat_total: 200
-rental_stat_penalty: 10
 stat_min: 20
 stat_max: 80
 carrot_points: 5

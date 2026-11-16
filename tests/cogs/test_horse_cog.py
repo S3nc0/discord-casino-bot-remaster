@@ -442,6 +442,26 @@ def _stable_with_horse(setup):
     return eco, bot, views.Stable(bot, U, 0), hid
 
 
+def test_name_modal_then_appearance_view_creates_a_horse_and_consumes_a_voucher(setup):
+    eco, chan, guild, bot, cog = setup
+    eco._conn.execute(
+        "INSERT INTO inventory (guild_id, user_id, item_id, qty) VALUES (?, ?, ?, 1)", (eco._g(), U, shop.HORSE_VOUCHER)
+    )
+    stable = views.Stable(bot, U, 0)
+    name_modal = views.NameModal(stable)
+    name_modal.name._value = "新しい馬"
+    it = _It(U)
+    asyncio.run(name_modal.on_submit(it))
+    appearance = next(kw["view"] for kw in it.sent if "view" in kw)
+    assert isinstance(appearance, views.AppearanceView)
+    it2 = _It(U)
+    asyncio.run(appearance._on_go(it2))
+    assert "迎えました" in it2.edited[0]["embed"].title
+    horses = eco.horse_list(U)
+    assert len(horses) == 1 and horses[0]["name"] == "新しい馬"
+    assert eco.inventory(U).get(shop.HORSE_VOUCHER, 0) == 0  # 購入券を1枚使った
+
+
 def test_gold_carrot_view_applies_only_when_use_is_pressed(setup):
     eco, bot, stable, hid = _stable_with_horse(setup)
     eco._conn.execute(
@@ -474,5 +494,5 @@ def test_retire_view_charges_or_pays_and_updates_the_stable(setup):
     asyncio.run(view._on_ok(it))
     assert eco.balance(U) == before + value and "引退しました" in it.edited[0]["embed"].title
     remaining = eco.horse_list(U)
-    assert [h for h in remaining if not h["rented_day"]] == []  # 持ち馬はもういない（レンタルだけ残る）
-    assert stable.horse_id == remaining[0]["id"]
+    assert remaining == []  # 持ち馬はもういない
+    assert stable.horse_id is None

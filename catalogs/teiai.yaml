@@ -2,7 +2,6 @@
 seed: 3000
 labor_skim_rate: 0.03
 horse_prize_skim_rate: 0.0
-horse_rental_extra_skim_rate: 0.20
 skim_rate: 0.20
 repay_rate: 0.30
 bankrupt_floor: 10000

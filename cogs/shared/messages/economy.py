@@ -124,7 +124,6 @@ ECONOMY_FAILURES: dict[str, FailureFormatter] = {
     "p2p_max_active": lambda p: f"同時に出せるのは {p['max_active']} 件までです。",
     "p2p_item_not_tradable": "その品は、取引できません（称号・コレクション・限定品・帝愛市の品は不可）。",
     "p2p_insufficient_qty": "その数は、持っていません。",
-    "p2p_rental_not_tradable": "レンタル馬は出品できません。",
     "p2p_horse_in_race": "出走予定のレースが終わるまで、出品できません。",
     "p2p_price_range": lambda p: f"値段は {p['lo']:,}〜{p['hi']:,}ペリカ にしてください（定価の幅に収めます）。",
     "p2p_not_found": "その出品は、もうありません。",

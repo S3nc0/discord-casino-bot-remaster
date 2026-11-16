@@ -160,6 +160,11 @@ def add_missing_columns(conn: sqlite3.Connection) -> None:
     if idx and idx["sql"] and "format" not in idx["sql"]:  # 1日1形式だった頃の索引（同日に両形式を両立できなかった）
         conn.execute("DROP INDEX idx_arena_tournaments_day")
         conn.execute("CREATE UNIQUE INDEX idx_arena_tournaments_day ON arena_tournaments (guild_id, day, format)")
+    conn.execute(  # レンタル制の廃止：買わずに残っている当日のレンタル馬を消す（出走予定のものは残す）
+        "DELETE FROM horses WHERE rented_day IS NOT NULL AND id NOT IN "
+        "(SELECT e.horse_id FROM horse_entries e JOIN horse_races r ON r.id=e.race_id "
+        "WHERE r.status IN ('entry','betting'))"
+    )
 
 
 # 銘柄を足す前の表（主キーに symbol がない）。CSトークンだけだった頃の記録は、すべて symbol='cs' として移す

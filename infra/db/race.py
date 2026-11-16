@@ -424,17 +424,13 @@ class RaceMixin(EcoBase):
                 self._conn.execute("UPDATE horse_entries SET finish=? WHERE id=?", (place, e["id"]))
                 prize = round((prizes_table[place - 1] if place <= len(prizes_table) else 0) * scale)
                 if e["owner_id"]:
-                    horse = self.horse_get(e["horse_id"])
                     if prize:
                         if e["owner_id"] not in buffs_by_owner:
                             buffs_by_owner[e["owner_id"]] = self._relic_buffs(e["owner_id"])
                         prize = round(
                             prize * (1 + buffs_by_owner[e["owner_id"]].get("prize", 0.0))
                         )  # 発掘品（竜の涙）の効果
-                        rate = teiai.HORSE_PRIZE_SKIM_RATE
-                        if horse is not None and horse["rented_day"]:
-                            rate += teiai.HORSE_RENTAL_EXTRA_SKIM_RATE  # レンタル馬は、持ち馬よりさらにピンハネされる
-                        skim = round(prize * rate)
+                        skim = round(prize * teiai.HORSE_PRIZE_SKIM_RATE)
                         net = prize - skim
                         self._apply(e["owner_id"], net, f"競馬賞金:{e['name']}（{place}着）", income=net)
                         prizes[e["owner_id"]] = prizes.get(e["owner_id"], 0) + net

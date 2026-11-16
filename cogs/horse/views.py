@@ -16,14 +16,16 @@ from cogs.horse.cards import (
     stat_short,
     when,
 )
-from cogs.horse.stable import GoldCarrotView, RetireView, Stable, StyleView
+from cogs.horse.stable import AppearanceView, GoldCarrotView, NameModal, RetireView, Stable, StyleView
 from cogs.shared.horse_display import bar as bar  # noqa: F401
 from cogs.shared.horse_display import stat_lines as stat_lines  # noqa: F401
 
 __all__ = [
     "MEDAL",
+    "AppearanceView",
     "BetPanel",
     "GoldCarrotView",
+    "NameModal",
     "RaceButton",
     "RetireView",
     "Stable",

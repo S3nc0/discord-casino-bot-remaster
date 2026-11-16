@@ -24,7 +24,6 @@ _CFG = get_catalogs().horse()
 STAT_KEYS = tuple(s.key for s in _CFG.stats)
 STAT_NAMES = {s.key: s.name for s in _CFG.stats}
 STAT_TOTAL = _CFG.stat_total
-RENTAL_STAT_TOTAL = STAT_TOTAL - _CFG.rental_stat_penalty
 STAT_MIN, STAT_MAX = _CFG.stat_min, _CFG.stat_max
 DEFAULT_STATS = {s.key: s.default for s in _CFG.stats}
 CARROT_POINTS = _CFG.carrot_points
@@ -178,7 +177,7 @@ def move_points(stats: dict, src: str, dst: str, carrots: int = 1) -> tuple:
 
 
 def random_stats(rng: random.Random, total: int = STAT_TOTAL) -> dict:
-    """範囲内で、合計が total になる、ランダムな配分（NPC・レンタル馬用）。"""
+    """範囲内で、合計が total になる、ランダムな配分（NPC馬用）。"""
     while True:
         raw = [rng.random() ** 0.8 + 0.25 for _ in STAT_KEYS]
         scale = (total - STAT_MIN * len(STAT_KEYS)) / sum(raw)

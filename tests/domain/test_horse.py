@@ -611,75 +611,12 @@ def test_horse_at_max_races_cannot_enter_and_auto_retires_on_the_final_race(eco)
     assert eco.race_register(U, hid, rid3, NOW + 1)[1].code == "horse_select_own"  # もう自分の馬ではない（引退済み）
 
 
-# ----------------------------- レンタル ----------------------------- #
-def test_rental_is_free_random_and_one_per_day(eco):
-    before = eco.balance(U)
-    row = eco.rental_ensure(U, NOW, 9.0)
-    assert row["owner_id"] == U and row["rented_day"]
-    assert sum(row[k] for k in h.STAT_KEYS) == h.RENTAL_STAT_TOTAL  # 買った馬より合計が10低い
-    same = eco.rental_ensure(U, NOW + 1, 9.0)
-    assert same["id"] == row["id"]  # 同じ日なら、同じ馬
-    assert eco.horse_list(U) == [row]
-    assert eco.balance(U) == before  # レンタル自体は無料
-
-
-def test_rental_does_not_count_toward_max_horses(eco):
-    eco.rental_ensure(U, NOW, 9.0)
-    for i in range(h.MAX_HORSES):
-        make_horse(eco, U, f"馬{i}")  # レンタルがあっても、3頭まで買える
-    ok, reason = eco.horse_create(U, "もう1頭", "栗毛", "🟥")
-    assert not ok and reason.code == "horse_max_owned"
-
-
-def test_buying_the_rental_needs_a_voucher_and_keeps_its_stats(eco):
-    rental = eco.rental_ensure(U, NOW, 9.0)
-    ok, reason = eco.horse_buy_rental(U, NOW, 9.0)
-    assert not ok and reason.code == "horse_no_voucher"
-    give(eco, U, shop.HORSE_VOUCHER)
-    ok, hid = eco.horse_buy_rental(U, NOW, 9.0)
-    assert ok and hid == rental["id"]
-    bought = eco.horse_get(hid)
-    assert bought["rented_day"] is None and all(bought[k] == rental[k] for k in h.STAT_KEYS)
-    assert eco.horse_buy_rental(U, NOW, 9.0)[0] is False  # もうレンタル馬がいない
-
-
-def test_rental_horse_cannot_be_adjusted_or_retired_or_listed(eco):
-    rental = eco.rental_ensure(U, NOW, 9.0)
-    assert not eco.horse_carrot(U, rental["id"], "speed", "guts")[0]
-    assert not eco.horse_gold_carrot(U, rental["id"], "speed", "guts")[0]
-    assert not eco.horse_retire(U, rental["id"])[0]
-    ok, reason = eco.p2p_list(U, "horse", str(rental["id"]), 1, "fixed", 30_000, None, NOW)
-    assert not ok and reason.code == "p2p_rental_not_tradable"
-
-
-def test_unbought_rental_is_replaced_the_next_day(eco):
-    rental = eco.rental_ensure(U, NOW, 9.0)
-    tomorrow = eco.rental_ensure(U, NOW + 86400, 9.0)
-    assert tomorrow["id"] != rental["id"]
-    assert eco.horse_get(rental["id"]) is None  # 買わなかった分は消える
-
-
 # ----------------------------- 賞金の原資（新しいペリカを生まない） ----------------------------- #
 def test_prize_pool_scale_caps_at_the_entry_fees_collected():
     assert h.prize_pool_scale(0, 0) == 1.0
     assert h.prize_pool_scale(5, 0) == 1.0  # 誰も入賞しなければ、削る必要がない
     assert h.prize_pool_scale(1, h.PRIZES[0]) == h.ENTRY_FEE / h.PRIZES[0]
     assert h.prize_pool_scale(100, h.PRIZES[0]) == 1.0  # 出走料が十分あれば、そのまま
-
-
-def test_rental_horse_prize_gets_an_extra_skim(eco):
-    rental = eco.rental_ensure(U, NOW, 9.0)
-    rid = open_race(eco)
-    assert eco.race_register(U, rental["id"], rid, NOW + 1) == (True, "")
-    field_ = eco.race_close_entries(rid, random.Random(1))
-    eco.race_set_odds(rid, h.make_odds(field_["runners"]))
-    result = eco.race_run(rid, random.Random(5))
-    mine = next(e for e in result["entries"] if e["owner_id"] == U)
-    if mine["finish"] <= 3:
-        gross = h.PRIZES[mine["finish"] - 1]
-        scale = h.prize_pool_scale(1, gross)
-        rate = teiai.HORSE_PRIZE_SKIM_RATE + teiai.HORSE_RENTAL_EXTRA_SKIM_RATE
-        assert result["prizes"].get(U, 0) == round(round(gross * scale) * (1 - rate))
 
 
 # ----------------------------- 脚質・展開・重賞（#39） ----------------------------- #
@@ -737,15 +674,13 @@ def test_style_change_after_entries_close_does_not_affect_the_already_closed_rac
     assert result["styles"][mine_lane] == "nige"  # 締切後の変更に引っぱられず、締切時点の脚質で走る
 
 
-def test_horse_set_style_overrides_the_automatic_one_and_rejects_rentals(eco):
+def test_horse_set_style_overrides_the_automatic_one(eco):
     hid = make_horse(eco, U)
     ok, reason = eco.horse_set_style(U, hid, "oikomi")
     assert ok and eco.horse_get(hid)["style"] == "oikomi"
     assert eco.horse_set_style(U, hid, None) == (True, "")  # 自動に戻せる
     assert eco.horse_get(hid)["style"] is None
     assert not eco.horse_set_style(U, hid, "bogus")[0]
-    rental = eco.rental_ensure(U, NOW, 9.0)
-    assert not eco.horse_set_style(U, rental["id"], "nige")[0]
 
 
 def test_ability_prior_tilts_odds_for_shallow_records():

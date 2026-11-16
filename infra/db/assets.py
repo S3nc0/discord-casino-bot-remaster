@@ -124,7 +124,7 @@ class LaborAssetCollector(IAssetCollector):
 class HorseAssetCollector(IAssetCollector):
     def collect(self, eco: "AssetMixin", guild_id: int, add: AddPart, now: float) -> None:
         for r in eco._conn.execute(
-            "SELECT owner_id, races, wins, places FROM horses WHERE guild_id=? AND owner_id>0 AND rented_day IS NULL",
+            "SELECT owner_id, races, wins, places FROM horses WHERE guild_id=? AND owner_id>0",
             (guild_id,),
         ):
             add(r["owner_id"], "horses", eco.horse_worth(r["races"], r["wins"], r["places"]))

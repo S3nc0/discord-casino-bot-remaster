@@ -1,7 +1,5 @@
-"""競走馬・レンタル・競売（Economy に混ぜ込む部品）。"""
+"""競走馬・競売（Economy に混ぜ込む部品）。"""
 
-import datetime
-import random
 import time
 from typing import Optional
 
@@ -14,13 +12,8 @@ from domain.types import PurchaseResult
 from infra.db.base import EcoBase
 
 
-def _today(now: float, tz_hours: float) -> str:
-    tz = datetime.timezone(datetime.timedelta(hours=tz_hours))
-    return datetime.datetime.fromtimestamp(now, tz).date().isoformat()
-
-
 class HorseMixin(EcoBase):
-    """競走馬の作成・レンタル・調教・引退・競売。"""
+    """競走馬の作成・調教・引退・競売。"""
 
     def _consume(self, user_id: int, item_id: str) -> bool:
         cur = self._conn.execute(
@@ -30,10 +23,7 @@ class HorseMixin(EcoBase):
         return bool(cur.rowcount)
 
     def horse_create(self, user_id: int, name: str, coat: str, silks: str) -> tuple:
-        """購入券を1枚使って、競走馬を迎える。(成功か, 理由か馬の番号)。ステータスは、全部 50 から始まる。
-
-        いまはプレイヤー向けの入口ではない（`/競馬 厩舎` は horse_buy_rental に一本化）。テスト・管理用に残す。
-        """
+        """購入券を1枚使って、競走馬を迎える。(成功か, 理由か馬の番号)。ステータスは、全部 50 から始まる。"""
         ok, name = horse_mod.check_name(name)
         if not ok:
             return False, name
@@ -53,54 +43,6 @@ class HorseMixin(EcoBase):
                 (self._g(), user_id, name, coat, silks, s["speed"], s["stamina"], s["power"], s["guts"], time.time()),
             )
             return True, cur.lastrowid
-
-    def rental_ensure(self, user_id: int, now: float, tz_hours: float, rng=None) -> dict:
-        """今日のレンタル馬（帝愛から、その日だけ借りる馬）。無ければランダムなステータスで1頭作る。
-
-        古い日のレンタル（買わなかった分）は消す（出走予定で未精算のものは残す）。誰でも、1日1頭まで。
-        """
-        rng = rng or random.SystemRandom()
-        day = _today(now, tz_hours)
-        with self._lock, self._conn:
-            self._ensure(user_id)
-            cur = self._conn.execute(
-                "SELECT * FROM horses WHERE guild_id=? AND owner_id=? AND rented_day=?", (self._g(), user_id, day)
-            ).fetchone()
-            if cur:
-                return dict(cur)
-            self._conn.execute(
-                "DELETE FROM horses WHERE guild_id=? AND owner_id=? AND rented_day IS NOT NULL AND rented_day!=? "
-                "AND id NOT IN (SELECT e.horse_id FROM horse_entries e JOIN horse_races r ON r.id=e.race_id "
-                "WHERE r.status IN ('entry','betting'))",
-                (self._g(), user_id, day),
-            )
-            s = horse_mod.random_stats(rng, horse_mod.RENTAL_STAT_TOTAL)  # 買った馬より、合計を10低くする
-            name = rng.choice(horse_mod.NPC_NAMES)
-            coat, silks = rng.choice(horse_mod.COATS), rng.choice(horse_mod.SILKS)
-            ins = self._conn.execute(
-                "INSERT INTO horses (guild_id, owner_id, name, coat, silks, speed, stamina, power, guts, created, rented_day) "
-                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-                (self._g(), user_id, name, coat, silks, s["speed"], s["stamina"], s["power"], s["guts"], now, day),
-            )
-            return dict(self._conn.execute("SELECT * FROM horses WHERE id=?", (ins.lastrowid,)).fetchone())
-
-    def horse_buy_rental(self, user_id: int, now: float, tz_hours: float) -> tuple:
-        """いまレンタルしている馬を、購入券1枚で自分の馬にする（ステータス・名前・戦績はそのまま）。馬を増やす唯一の方法。"""
-        day = _today(now, tz_hours)
-        with self._lock, self._conn:
-            self._ensure(user_id)
-            row = self._conn.execute(
-                "SELECT * FROM horses WHERE guild_id=? AND owner_id=? AND rented_day=?", (self._g(), user_id, day)
-            ).fetchone()
-            if row is None:
-                return False, fail("horse_no_rental")
-            owned = self._horse_count(user_id)
-            if owned >= horse_mod.MAX_HORSES:
-                return False, fail("horse_max_owned", max_horses=horse_mod.MAX_HORSES)
-            if not self._consume(user_id, HORSE_VOUCHER):
-                return False, fail("horse_no_voucher")
-            self._conn.execute("UPDATE horses SET rented_day=NULL WHERE id=?", (row["id"],))
-            return True, row["id"]
 
     def horse_list(self, user_id: int) -> list:
         with self._lock:
@@ -122,8 +64,6 @@ class HorseMixin(EcoBase):
             h = self.horse_get(horse_id)
             if h is None or h["owner_id"] != user_id:
                 return False, fail("horse_select_own")
-            if h["rented_day"] is not None:
-                return False, fail("horse_rental_no_stats")
             ok, result = horse_mod.move_points({k: h[k] for k in horse_mod.STAT_KEYS}, src, dst)
             if not ok:
                 return False, result
@@ -144,8 +84,6 @@ class HorseMixin(EcoBase):
             h = self.horse_get(horse_id)
             if h is None or h["owner_id"] != user_id:
                 return False, fail("horse_select_own")
-            if h["rented_day"] is not None:
-                return False, fail("horse_rental_no_retire")
             busy = self._conn.execute(
                 "SELECT 1 FROM horse_entries e JOIN horse_races r ON r.id=e.race_id "
                 "WHERE e.horse_id=? AND r.status IN ('entry','betting')",
@@ -175,8 +113,6 @@ class HorseMixin(EcoBase):
             h = self.horse_get(horse_id)
             if h is None or h["owner_id"] != user_id:
                 return False, fail("horse_select_own")
-            if h["rented_day"] is not None:
-                return False, fail("horse_rental_no_style")
             self._conn.execute("UPDATE horses SET style=? WHERE id=?", (style, horse_id))
             return True, ""
 
@@ -186,8 +122,6 @@ class HorseMixin(EcoBase):
             h = self.horse_get(horse_id)
             if h is None or h["owner_id"] != user_id:
                 return False, fail("horse_select_own")
-            if h["rented_day"] is not None:
-                return False, fail("horse_rental_no_stats")
             if h["bonus"] >= horse_mod.GOLD_CARROT_MAX * 2 * horse_mod.GOLD_CARROT_POINTS:
                 return False, fail("horse_gold_carrot_max", max_count=horse_mod.GOLD_CARROT_MAX)
             ok, result = horse_mod.add_points({k: h[k] for k in horse_mod.STAT_KEYS}, first, second)
@@ -219,7 +153,7 @@ class HorseMixin(EcoBase):
         出走の申し込み中の馬は取り下げ（出走料は戻らない）。すでに出走馬に決まっている馬は、帝愛の馬（NPC）に替わる。
         """
         rows = self._conn.execute(
-            "SELECT id FROM horses WHERE guild_id=? AND owner_id=? AND rented_day IS NULL", (self._g(), user_id)
+            "SELECT id FROM horses WHERE guild_id=? AND owner_id=?", (self._g(), user_id)
         ).fetchall()
         for r in rows:
             self._conn.execute("UPDATE horses SET owner_id=-1, listed_at=? WHERE id=?", (now, r["id"]))

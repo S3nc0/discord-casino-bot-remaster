@@ -104,7 +104,7 @@ def create_tables(conn: sqlite3.Connection) -> None:
             bonus     INTEGER NOT NULL DEFAULT 0,   -- 金にんじんで増えた、ステータス合計の増加分
             created   REAL NOT NULL,
             listed_at REAL,                         -- 破産で差し押さえられて、帝愛の競売に出た時刻（owner_id=-1 のとき）
-            rented_day TEXT,                         -- 帝愛からの、その日だけのレンタル馬なら、その日付。買うと NULL に戻る
+            rented_day TEXT,                         -- 廃止したレンタル制の名残り（互換のため列は残す）。常に NULL
             style     TEXT                           -- 選んだ脚質（nige/senko/sashi/oikomi）。NULL なら、ステータスから自動
         );
         CREATE INDEX IF NOT EXISTS horses_owner ON horses (guild_id, owner_id);

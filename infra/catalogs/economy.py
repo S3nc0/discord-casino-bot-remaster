@@ -40,7 +40,6 @@ class TeiaiCatalog(StrictModel):
     seed: int = Field(ge=0)
     labor_skim_rate: float = Field(ge=0, le=1)
     horse_prize_skim_rate: float = Field(ge=0, le=1)
-    horse_rental_extra_skim_rate: float = Field(ge=0, le=1)
     skim_rate: float = Field(ge=0, le=1)
     repay_rate: float = Field(ge=0, le=1)
     bankrupt_floor: int = Field(ge=0)

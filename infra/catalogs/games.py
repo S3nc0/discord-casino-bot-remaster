@@ -195,7 +195,6 @@ class StyleConfig(StrictModel):
 class HorseCatalog(StrictModel):
     stats: tuple[HorseStatConfig, ...] = Field(min_length=1)
     stat_total: int = Field(gt=0)
-    rental_stat_penalty: int = Field(ge=0)
     stat_min: int = Field(gt=0)
     stat_max: int = Field(gt=0)
     carrot_points: int = Field(gt=0)
