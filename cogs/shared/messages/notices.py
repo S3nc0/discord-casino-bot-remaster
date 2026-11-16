@@ -18,6 +18,10 @@ NOTICE_FORMATTERS: dict[str, NoticeFormatter] = {
     ),
     "debt_interest": lambda p: f"🕴️ 帝愛の利息が付きました（+{p['add']:,}ペリカ。日利{p['rate']:.0%}）。",
     "seize_deposit": lambda p: f"💥 帝愛への預金が差し押さえられました（{p['taken']:,}ペリカ）。",
+    "seize_company": lambda p: f"💥 会社資金が差し押さえられました（{p['taken']:,}ペリカ）。",
+    "company_bankrupt": lambda p: (
+        f"🏚️ **{p['name']}** は、維持費を払えない日が続いたため**倒産**しました。事業所・在庫・会社資金を失いました。"
+    ),
     "seize_margin": lambda p: (
         f"💥 {p['symbol_name']}の{p['side_label']}が強制決済されました（戻り {p['money']:,}ペリカ）。"
     ),

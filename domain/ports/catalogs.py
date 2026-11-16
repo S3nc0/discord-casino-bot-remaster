@@ -3,6 +3,7 @@
 from domain.ports.catalog_types import (
     ArenaCatalogContract,
     BondsCatalogContract,
+    CompanyCatalogContract,
     EconomyCatalogContract,
     EventsCatalogContract,
     GamesCatalogContract,
@@ -57,6 +58,9 @@ class ICatalogs:
         raise NotImplementedError
 
     def arena(self) -> ArenaCatalogContract:
+        raise NotImplementedError
+
+    def company(self) -> CompanyCatalogContract:
         raise NotImplementedError
 
 

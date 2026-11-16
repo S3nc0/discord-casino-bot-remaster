@@ -255,3 +255,31 @@ class IP2PRepo(IGuildScopedRepo):
 
     def p2p_mine(self, user_id: int, now: Optional[float] = None) -> dict[str, Any]:
         raise NotImplementedError
+
+
+class ICompanyRepo(IGuildScopedRepo):
+    def company_get(self, user_id: int, now: Optional[float] = None) -> Optional[dict[str, Any]]:
+        raise NotImplementedError
+
+    def company_found(self, user_id: int, name: str, kind: str, now: Optional[float] = None) -> tuple[Any, ...]:
+        raise NotImplementedError
+
+    def company_invest(self, user_id: int, amount: int, now: Optional[float] = None) -> tuple[Any, ...]:
+        raise NotImplementedError
+
+    def company_withdraw(
+        self, user_id: int, amount: Optional[int] = None, now: Optional[float] = None
+    ) -> tuple[Any, ...]:
+        raise NotImplementedError
+
+    def company_ship(self, user_id: int, now: Optional[float] = None) -> tuple[Any, ...]:
+        raise NotImplementedError
+
+    def company_upgrade(self, user_id: int, now: Optional[float] = None) -> tuple[Any, ...]:
+        raise NotImplementedError
+
+    def company_change_kind(self, user_id: int, kind: str, now: Optional[float] = None) -> tuple[Any, ...]:
+        raise NotImplementedError
+
+    def company_settle_all(self, now: Optional[float] = None) -> list[dict[str, Any]]:
+        raise NotImplementedError

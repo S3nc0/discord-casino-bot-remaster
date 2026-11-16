@@ -187,6 +187,15 @@ class IBankIncomeSink:
     def house_income_for(self, guild_id: int, amount: int) -> None:
         raise NotImplementedError
 
+    def house_balance_for(self, guild_id: int) -> int:
+        raise NotImplementedError
+
+    def house_receive_for(self, guild_id: int, amount: int) -> None:
+        raise NotImplementedError
+
+    def house_pay_for(self, guild_id: int, amount: int) -> int:
+        raise NotImplementedError
+
     def charge_gains_tax_for(self, guild_id: int, user_id: int, profit: int, taxable: bool, what: str) -> int:
         raise NotImplementedError
 

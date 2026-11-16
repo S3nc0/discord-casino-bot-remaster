@@ -19,6 +19,24 @@ ECONOMY_FAILURES: dict[str, FailureFormatter] = {
     "invalid_spec": "指定が正しくありません。",
     "amount_must_be_positive": "金額は1以上にしてください。",
     "insufficient_balance": lambda p: f"残高が足りません（いまの残高: {p['balance']:,}ペリカ）。",
+    # 会社
+    "company_name_empty": "社名を入れてください。",
+    "company_name_too_long": lambda p: f"社名は {p['max']} 文字までです。",
+    "company_name_invalid_chars": "社名に使えない文字（@ < > ` * _ ~ | # : / など）か、リンクが入っています。",
+    "company_kind_unknown": "事業所の種類を、選び直してください。",
+    "company_exists": "会社は、1人1社までです。",
+    "company_none": "会社を持っていません。`/会社 設立` で作れます。",
+    "company_katagi_only": "帝愛への借金や、延滞中の貸付がある間は、会社の設立と出資はできません。",
+    "company_found_short": lambda p: (
+        f"設立には {p['cost']:,}ペリカ（設立費と建設費）が必要です（いまの残高: {p['balance']:,}ペリカ）。"
+    ),
+    "company_amount_invalid": "金額は、1ペリカ以上で入れてください。",
+    "company_no_funds": "会社資金がありません。",
+    "company_funds_short": lambda p: f"会社資金が足りません（{p['need']:,}ペリカ 必要・いま {p['funds']:,}ペリカ）。",
+    "company_nothing_to_ship": "出荷できる在庫が、まだありません。",
+    "company_no_budget": "帝愛の買取予算（胴元の口座）が空で、いまは買い取ってもらえません。",
+    "company_max_level": lambda p: f"事業所は、もう最大（Lv{p['max']}）です。",
+    "company_same_kind": "いまと同じ種類です。",
     "insufficient_balance_need": lambda p: (
         f"ペリカが足りません（{p['need']:,}ペリカ必要・残高 {p['balance']:,}ペリカ）。"
     ),

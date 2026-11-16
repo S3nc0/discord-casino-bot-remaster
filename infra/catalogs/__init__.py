@@ -2,6 +2,7 @@
 
 from domain.ports.catalogs import ICatalogs, configure_catalogs
 from infra.catalogs.arena import ArenaCatalog, arena
+from infra.catalogs.company import CompanyCatalog, company
 from infra.catalogs.economy import BondsCatalog, EconomyCatalog, TeiaiCatalog, bonds, economy, teiai
 from infra.catalogs.games import (
     EventsCatalog,
@@ -62,6 +63,9 @@ class YamlCatalogs(ICatalogs):
     def arena(self) -> ArenaCatalog:
         return arena()
 
+    def company(self) -> CompanyCatalog:
+        return company()
+
 
 def bind_catalogs() -> ICatalogs:
     """YAML カタログプロバイダをドメイン境界へ登録する。"""
@@ -74,6 +78,7 @@ __all__ = [
     "CATALOG_DIR",
     "ArenaCatalog",
     "BondsCatalog",
+    "CompanyCatalog",
     "EconomyCatalog",
     "EventsCatalog",
     "GamesCatalog",
@@ -90,6 +95,7 @@ __all__ = [
     "arena",
     "bind_catalogs",
     "bonds",
+    "company",
     "economy",
     "events",
     "games",

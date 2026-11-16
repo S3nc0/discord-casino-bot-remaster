@@ -24,6 +24,7 @@ from domain.ports.repos.market import (
 )
 from domain.ports.repos.social import (
     IAuctionRepo,
+    ICompanyRepo,
     IEscrowRepo,
     ILaborRepo,
     IP2PRepo,
@@ -59,6 +60,7 @@ class IRepositoryBundle(IGuildScopedRepo):
     races: IRaceRepo
     labor: ILaborRepo
     arena: IArenaRepo
+    company: ICompanyRepo
     earnings: IEarningsRepo
     crypto: ICryptoRepo
     margin: IMarginRepo

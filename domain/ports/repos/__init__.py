@@ -23,6 +23,7 @@ from domain.ports.repos.market import (
 )
 from domain.ports.repos.social import (
     IAuctionRepo,
+    ICompanyRepo,
     IEscrowRepo,
     ILaborRepo,
     IP2PRepo,
@@ -36,6 +37,7 @@ __all__ = [
     "IArenaRepo",
     "IAssetRepo",
     "IAuctionRepo",
+    "ICompanyRepo",
     "IBankRepo",
     "IBondRepo",
     "ICryptoRepo",

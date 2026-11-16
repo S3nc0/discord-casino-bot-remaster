@@ -13,6 +13,7 @@ COG_MODULES: tuple[str, ...] = (
     "cogs.shop.cog",
     # "cogs.arena.cog",  # 地下闘技場は外している（コードは残す。再開するときはここを戻す）
     "cogs.casino.cog",
+    "cogs.company.cog",
     "cogs.economy.cog",
     "cogs.event.cog",
     "cogs.help.cog",

@@ -207,6 +207,27 @@ class BankRepo(ScopedRepo, IBankRepo):
             (guild_id, amount, amount),
         )
 
+    def house_balance_for(self, guild_id: int) -> int:
+        row = self._conn.execute("SELECT balance FROM teiai_house WHERE guild_id=?", (guild_id,)).fetchone()
+        return row["balance"] if row else 0
+
+    def house_receive_for(self, guild_id: int, amount: int) -> None:
+        """胴元の口座に、ピンハネ以外の amount を入れる（ピンハネの合計には数えない）。"""
+        if amount <= 0:
+            return
+        self._conn.execute(
+            "INSERT INTO teiai_house (guild_id, balance, skimmed) VALUES (?, ?, 0) "
+            "ON CONFLICT(guild_id) DO UPDATE SET balance=balance+excluded.balance",
+            (guild_id, amount),
+        )
+
+    def house_pay_for(self, guild_id: int, amount: int) -> int:
+        """胴元の口座から amount を払う。残高を超えては払わない。払えた額を返す。"""
+        paid = max(0, min(amount, self.house_balance_for(guild_id)))
+        if paid:
+            self._conn.execute("UPDATE teiai_house SET balance=balance-? WHERE guild_id=?", (paid, guild_id))
+        return paid
+
     def house_account(self) -> dict[str, Any]:
         """帝愛の胴元の口座 {balance: いまの残高, skimmed: これまでのピンハネの合計}。読み取りだけ（なければ 0）。"""
         with self._lock:

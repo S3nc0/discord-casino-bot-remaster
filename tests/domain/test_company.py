@@ -1,0 +1,252 @@
+"""会社（#30）: 数字のロジックと、設立・出資・生産・出荷・増築・維持費・倒産・差し押さえ。"""
+
+import pytest
+
+from domain import company as co
+from domain import teiai
+from infra.db.repositories import open_repositories
+
+pytestmark = pytest.mark.real_scope
+
+G, U, V = 10, 1, 2
+DAY = 86400
+NOON = co.day_start("2026-11-17") + DAY / 2  # ある日の正午（現地時間）
+FOUND_COST = co.FOUND_FEE + co.BUILD_COSTS[0]
+
+
+@pytest.fixture
+def eco(tmp_path):
+    return open_repositories(str(tmp_path / "t.db"), strict=True).for_guild(G)
+
+
+def rich(eco, uid, amount=5_000_000):
+    eco.wallet.credit(uid, amount, "テスト")
+
+
+def found(eco, uid=U, kind="mine", now=NOON):
+    rich(eco, uid)
+    ok, c = eco.company.company_found(uid, "テスト商事", kind, now)
+    assert ok, c
+    return c
+
+
+def house(eco):
+    return eco.bank.house_account()["balance"]
+
+
+# ----------------------------- 数字 ----------------------------- #
+def test_check_name_rejects_empty_long_and_markup():
+    assert co.check_name("  帝愛商事 ") == (True, "帝愛商事")
+    assert co.check_name("")[1].code == "company_name_empty"
+    assert co.check_name("あ" * (co.NAME_MAX + 1))[1].code == "company_name_too_long"
+    assert co.check_name("@everyone")[1].code == "company_name_invalid_chars"
+
+
+def test_invested_and_upgrade_cost_follow_the_build_table():
+    assert co.invested(1) == 300_000 and co.invested(5) == 9_300_000
+    assert co.upgrade_cost(1) == 600_000 and co.upgrade_cost(co.MAX_LEVEL) is None
+    assert co.daily_upkeep(1) == int(300_000 * co.UPKEEP_RATE)
+
+
+def test_day_state_is_the_same_for_everyone_on_a_day_and_within_its_price_range():
+    a, b = co.day_state("farm", G, "2026-11-17"), co.day_state("farm", G, "2026-11-17")
+    assert a == b
+    seen = {co.day_state("farm", G, f"2026-{m:02d}-{d:02d}").condition.key for m in (1, 2, 3, 4) for d in range(1, 29)}
+    assert len(seen) >= 4  # 日によって、状態が変わる
+    for d in range(1, 29):
+        s = co.day_state("farm", G, f"2026-05-{d:02d}")
+        assert s.condition.price_lo <= s.price <= s.condition.price_hi
+
+
+def test_produce_accrues_by_time_and_stops_at_the_storage_cap():
+    half = co.produce("mine", 1, G, 0.0, NOON, NOON + DAY / 2)
+    assert half == pytest.approx(co.daily_output("mine", 1) / 2)  # 採掘場は、いつも生産 1.0 倍
+    assert co.produce("mine", 1, G, 0.0, NOON, NOON + 30 * DAY) == pytest.approx(co.storage_cap("mine", 1))
+    assert co.produce("mine", 1, G, 5.0, NOON, NOON - 10) == 5.0  # 時刻が戻っても、減らない
+
+
+def test_farm_production_follows_each_days_yield():
+    start = co.day_start("2026-11-17")
+    total = co.produce("farm", 5, G, 0.0, start, start + 2 * DAY)
+    expected = sum(
+        co.daily_output("farm", 5) * co.day_state("farm", G, d).yield_mult for d in ("2026-11-17", "2026-11-18")
+    )
+    assert total == pytest.approx(min(expected, co.storage_cap("farm", 5)))
+
+
+def test_sale_takes_pinhane_and_never_pays_more_than_the_budget():
+    paid, pinhane, left = co.sale(10_000.0, 1.0, 1_000_000)
+    assert paid + pinhane == 10_000 and pinhane == int(10_000 * co.PINHANE_RATE) and left == 0.0
+    paid, pinhane, left = co.sale(10_000.0, 1.0, 4_000)
+    assert paid <= 4_000 and 0 < left < 10_000  # 払える分だけ出荷し、残りは在庫に残る
+    assert co.sale(10_000.0, 1.0, 0) == (0, 0, 10_000.0)
+    assert co.sale(0.0, 1.5, 1_000) == (0, 0, 0.0)
+
+
+# ----------------------------- 設立・資金 ----------------------------- #
+def test_found_charges_fee_and_build_cost_and_routes_them_to_teiai(eco):
+    rich(eco, U)
+    before, bank_before = eco.wallet.balance(U), eco.bank.bank_status(NOON)["cash"]
+    ok, c = eco.company.company_found(U, "帝愛商事", "farm", NOON)
+    assert ok and c["name"] == "帝愛商事" and c["kind"] == "farm" and c["level"] == 1 and c["funds"] == 0
+    assert eco.wallet.balance(U) == before - FOUND_COST
+    assert eco.bank.bank_status(NOON)["cash"] == pytest.approx(bank_before + co.FOUND_FEE)  # 設立費は銀行へ
+    assert house(eco) == co.BUILD_COSTS[0]  # 建設費は、買取の原資（胴元の口座）へ
+    assert eco.company.company_found(U, "二社目", "mine", NOON)[1].code == "company_exists"
+
+
+def test_found_needs_money_a_valid_name_and_no_debt(eco):
+    assert eco.company.company_found(U, "貧乏商事", "mine", NOON)[1].code == "company_found_short"
+    rich(eco, U)
+    assert eco.company.company_found(U, "<@1>", "mine", NOON)[1].code == "company_name_invalid_chars"
+    assert eco.company.company_found(U, "謎の会社", "casino", NOON)[1].code == "company_kind_unknown"
+    rich(eco, V)
+    with eco.db.tx():
+        eco.debt.owe_for(G, V, 10_000_000, "テスト")
+    assert eco.debt.status(V) != teiai.KATAGI
+    assert eco.company.company_found(V, "借金商事", "mine", NOON)[1].code == "company_katagi_only"
+
+
+def test_invest_and_withdraw_move_money_between_person_and_company(eco):
+    found(eco)
+    before = eco.wallet.balance(U)
+    assert eco.company.company_invest(U, 50_000, NOON) == (True, 50_000)
+    assert eco.wallet.balance(U) == before - 50_000
+    assert eco.company.company_withdraw(U, 20_000, NOON) == (True, 20_000)
+    assert eco.company.company_withdraw(U, 99_999, NOON)[1].code == "company_funds_short"
+    assert eco.company.company_withdraw(U, None, NOON) == (True, 30_000)  # 空なら全額
+    assert eco.wallet.balance(U) == before
+    assert eco.company.company_withdraw(U, None, NOON)[1].code == "company_no_funds"
+    assert eco.company.company_invest(U, 0, NOON)[1].code == "company_amount_invalid"
+    assert eco.company.company_invest(V, 100, NOON)[1].code == "company_none"
+
+
+# ----------------------------- 生産・出荷 ----------------------------- #
+def test_ship_sells_stock_at_todays_price_from_the_house_account(eco):
+    found(eco)
+    later = NOON + DAY / 2  # 翌日の 0時ちょうど（維持費の未払いが1日つくが、まだ倒産しない）
+    c = eco.company.company_get(U, later)
+    assert c["stock"] == pytest.approx(co.daily_output("mine", 1) / 2)
+    budget = house(eco)
+    ok, r = eco.company.company_ship(U, later)
+    assert ok and r["paid"] + r["pinhane"] == int(c["stock"] * c["price"]) and r["left"] == 0
+    after = eco.company.company_get(U, later)
+    assert after["funds"] == r["paid"] and after["stock"] == 0 and after["sold_total"] == r["paid"]
+    assert house(eco) == budget - r["paid"]  # 代金は、胴元の口座から出る（新しく作らない）
+    assert eco.company.company_ship(U, later)[1].code == "company_nothing_to_ship"
+
+
+def test_ship_is_limited_by_the_house_budget(eco):
+    found(eco)
+    with eco.db.tx():
+        eco.bank.house_pay_for(G, house(eco) - 500)  # 買取予算を 500 だけ残す
+    ok, r = eco.company.company_ship(U, NOON + DAY / 2)
+    assert ok and r["paid"] <= 500 and r["left"] > 0
+    with eco.db.tx():
+        eco.bank.house_pay_for(G, house(eco))
+    assert eco.company.company_ship(U, NOON + DAY / 2)[1].code == "company_no_budget"
+
+
+def test_company_operations_never_create_pelica(eco):
+    """個人の残高・会社資金・胴元の口座・銀行の現金の合計は、会社の操作では増えない。"""
+
+    def total():
+        c = eco.company.company_get(U, t) or {"funds": 0}
+        return eco.wallet.balance(U) + c["funds"] + house(eco) + eco.bank.bank_status(t)["cash"]
+
+    t = NOON
+    rich(eco, U, 20_000_000)
+    start = total()
+    eco.company.company_found(U, "循環商事", "farm", t)
+    eco.company.company_invest(U, 5_000_000, t)
+    for day in range(1, 40):
+        t = NOON + day * DAY
+        eco.company.company_ship(U, t)
+        if day in (5, 12):
+            eco.company.company_upgrade(U, t)
+        if day == 20:
+            eco.company.company_change_kind(U, "mine", t)
+    eco.company.company_withdraw(U, None, t)
+    assert total() == pytest.approx(start)  # 行き先が変わるだけ。1ペリカも増えも減りもしない
+
+
+# ----------------------------- 増築・種類の変更 ----------------------------- #
+def test_upgrade_spends_company_funds_and_raises_output(eco):
+    found(eco)
+    assert eco.company.company_upgrade(U, NOON)[1].code == "company_funds_short"
+    eco.company.company_invest(U, 600_000, NOON)
+    budget = house(eco)
+    assert eco.company.company_upgrade(U, NOON) == (True, 2)
+    c = eco.company.company_get(U, NOON)
+    assert c["funds"] == 0 and c["invested"] == 900_000 and house(eco) == budget + 600_000
+    assert c["daily_output"] == pytest.approx(900_000 * co.KINDS["mine"].yield_rate)
+
+
+def test_upgrade_stops_at_max_level(eco):
+    found(eco)
+    rich(eco, U, 10_000_000)
+    assert eco.company.company_invest(U, 9_000_000, NOON)[0]  # Lv2〜5 の建設費の合計
+    for level in range(2, co.MAX_LEVEL + 1):
+        assert eco.company.company_upgrade(U, NOON) == (True, level)
+    assert eco.company.company_upgrade(U, NOON)[1].code == "company_max_level"
+
+
+def test_change_kind_resets_level_and_stock(eco):
+    found(eco)
+    eco.company.company_invest(U, 1_000_000, NOON)
+    eco.company.company_upgrade(U, NOON)
+    later = NOON + DAY / 4
+    assert eco.company.company_change_kind(U, "mine", later)[1].code == "company_same_kind"
+    assert eco.company.company_change_kind(U, "farm", later) == (True, "")
+    c = eco.company.company_get(U, later)
+    assert c["kind"] == "farm" and c["level"] == 1 and c["stock"] == 0
+    assert c["funds"] == 1_000_000 - 600_000 - co.BUILD_COSTS[0]
+
+
+# ----------------------------- 維持費・倒産 ----------------------------- #
+def test_upkeep_is_charged_each_day_from_company_funds(eco):
+    found(eco)
+    eco.company.company_invest(U, 10_000, NOON)
+    budget = house(eco)
+    c = eco.company.company_get(U, NOON + 2 * DAY)
+    fee = co.daily_upkeep(1)
+    assert c["funds"] == 10_000 - 2 * fee and c["unpaid_days"] == 0 and house(eco) == budget + 2 * fee
+
+
+def test_three_unpaid_days_bankrupt_the_company_but_not_the_person(eco):
+    found(eco)
+    eco.company.company_invest(U, 100, NOON)  # 維持費1日分にも足りない
+    personal = eco.wallet.balance(U)
+    assert eco.company.company_get(U, NOON + 2 * DAY)["unpaid_days"] == 2
+    gone = eco.company.company_settle_all(NOON + 3 * DAY)
+    assert gone == [{"user_id": U, "name": "テスト商事"}]
+    assert eco.company.company_get(U, NOON + 3 * DAY) is None
+    assert eco.wallet.balance(U) == personal  # 個人の資産は巻き込まない
+    assert any(n.code == "company_bankrupt" for n in eco.notices.take_notices(U))
+    assert eco.company.company_found(U, "再起商事", "mine", NOON + 3 * DAY)[0]  # もう一度作れる
+
+
+def test_paying_again_clears_the_unpaid_streak(eco):
+    found(eco)
+    assert eco.company.company_get(U, NOON + 2 * DAY)["unpaid_days"] == 2
+    eco.company.company_invest(U, 50_000, NOON + 2 * DAY)
+    assert eco.company.company_get(U, NOON + 3 * DAY)["unpaid_days"] == 0
+
+
+# ----------------------------- 純資産・差し押さえ ----------------------------- #
+def test_company_counts_toward_net_worth_at_funds_plus_build_cost(eco):
+    rich(eco, U)
+    before = eco.wallet.rank_of(U)[1]
+    eco.company.company_found(U, "資産商事", "mine", NOON)
+    eco.company.company_invest(U, 200_000, NOON)
+    assert eco.wallet.rank_of(U)[1] == before - co.FOUND_FEE  # 減るのは設立費だけ。建設費と会社資金は資産に数える
+
+
+def test_forced_execution_takes_company_funds_before_the_rest_becomes_debt(eco):
+    found(eco)
+    eco.company.company_invest(U, 300_000, NOON)
+    cash = eco.wallet.balance(U)
+    with eco.db.tx():
+        eco.debt.owe_for(G, U, cash + 100_000, "テスト")
+    c = eco.company.company_get(U, NOON)
+    assert c is not None and c["funds"] == 200_000 and c["level"] == 1  # 会社資金から 10万。事業所は残る

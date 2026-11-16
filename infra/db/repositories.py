@@ -34,6 +34,7 @@ from infra.db.auction import AuctionRepo
 from infra.db.bank import BankRepo
 from infra.db.base import EcoDb
 from infra.db.bonds import BondRepo
+from infra.db.company import CompanyLiquidationStep, CompanyRepo, CompanySeizureStep
 from infra.db.crypto import CryptoRepo
 from infra.db.debt import (
     BondLiquidationStep,
@@ -112,6 +113,7 @@ class RepositoryBundle(IRepositoryBundle):
     races: RaceRepo
     labor: LaborRepo
     arena: ArenaRepo
+    company: CompanyRepo
     earnings: EarningsRepo
     crypto: CryptoRepo
     margin: MarginRepo
@@ -149,6 +151,7 @@ class RepositoryBundle(IRepositoryBundle):
             races=self.races.for_guild(guild_id),
             labor=self.labor.for_guild(guild_id),
             arena=self.arena.for_guild(guild_id),
+            company=self.company.for_guild(guild_id),
             earnings=self.earnings.for_guild(guild_id),
             crypto=self.crypto.for_guild(guild_id),
             margin=self.margin.for_guild(guild_id),
@@ -212,6 +215,7 @@ def open_repositories(db_path: str, legacy_guild_id: Optional[int] = None, stric
     races = RaceRepo(db, account, horses, relics, bank, strict=strict)
     labor = LaborRepo(db, account, relics, bank, strict=strict)
     arena = ArenaRepo(db, account, bank, strict=strict)
+    company = CompanyRepo(db, account, debt, bank, notices, strict=strict)
     earnings = EarningsRepo(db, account, bank, strict=strict)
 
     crypto = CryptoRepo(
@@ -231,6 +235,7 @@ def open_repositories(db_path: str, legacy_guild_id: Optional[int] = None, stric
     seizure_step = CompositeAssetSeizureStep(
         (
             DepositSeizureStep(account, bank, notices),
+            CompanySeizureStep(account, company, notices),
             MarginSeizureStep(account, market, margin, notices),
             CryptoSeizureStep(account, market, crypto, notices),
             OptionSeizureStep(db, account, options, notices),
@@ -244,12 +249,13 @@ def open_repositories(db_path: str, legacy_guild_id: Optional[int] = None, stric
             BondLiquidationStep(db, account, bonds),
             OptionLiquidationStep(db, options),
             DepositLiquidationStep(account, bank),
+            CompanyLiquidationStep(account, company),
         )
     )
     seizure_value_step = CompositeSeizureValueStep((ShopAndHorseSeizureStep(db, auction, horses),))
     bankrupt_prep_hook = CompositeBankruptPrepHook((p2p,))
 
-    valuation_source = CompositeValuationSource((crypto, margin, bonds, bank, options))
+    valuation_source = CompositeValuationSource((crypto, margin, bonds, bank, options, company))
     wallet = WalletRepo(db, account, bank, debt, debt, relics, valuation_source, strict=strict)
 
     asset_collector = CompositeAssetCollector(
@@ -259,6 +265,7 @@ def open_repositories(db_path: str, legacy_guild_id: Optional[int] = None, stric
             ValuationSourceCollector("crypto", CompositeValuationSource((crypto, margin))),
             ValuationSourceCollector("bonds", bonds),
             ValuationSourceCollector("options", options),
+            ValuationSourceCollector("company", company),
             InventoryAssetCollector(db),
             LaborAssetCollector(db),
             HorseAssetCollector(db, horses.horse_worth),
@@ -299,6 +306,7 @@ def open_repositories(db_path: str, legacy_guild_id: Optional[int] = None, stric
         races=races,
         labor=labor,
         arena=arena,
+        company=company,
         earnings=earnings,
         crypto=crypto,
         margin=margin,
