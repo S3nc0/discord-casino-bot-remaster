@@ -6,20 +6,15 @@ import discord
 
 from cogs.admin.embeds import bulk_preview_lines
 from cogs.admin.purge import can_read_history
+from cogs.admin.targets import pick_channel, pick_guild
 from cogs.admin.views import AnnounceModal, PurgeConfirm, QuizBulkConfirm
 from cogs.shared import ui
+from cogs.shared.bridges import IHorseAdminBridge, IQuizAdminBridge, IRaffleAdminBridge, require_bridge
+from cogs.shared.tasks import allowed_guilds
 from domain import quizimport
 
 MAX_IMAGE_BYTES = ui.MAX_IMAGE_BYTES
 MAX_IMPORT_BYTES = 200 * 1024
-
-
-async def _require_bridge(interaction: discord.Interaction, bridge, feature_label: str):
-    if bridge is None:
-        await interaction.response.send_message(
-            embed=ui.error_embed(f"{feature_label}が読み込まれていません"), ephemeral=True
-        )
-    return bridge
 
 
 async def special_race(
@@ -30,13 +25,13 @@ async def special_race(
     bet_min: int,
     channel_id: Optional[str],
 ) -> None:
-    guild = await cog._pick_guild(interaction, guild_id)
+    guild = await pick_guild(cog.bot, interaction, guild_id)
     if guild is None:
         return
-    ok, channel = await cog._pick_channel(interaction, guild, channel_id)
+    ok, channel = await pick_channel(interaction, guild, channel_id)
     if not ok:
         return
-    horse_bridge = await _require_bridge(interaction, cog.horse_bridge(), "競馬")
+    horse_bridge = await require_bridge(interaction, cog.bot, IHorseAdminBridge, "競馬", cog._horse_bridge)
     if horse_bridge is None:
         return
     race_id = await horse_bridge.start_special(guild, entry_min, bet_min, channel)
@@ -63,13 +58,13 @@ async def announce(
         )
         return
     if guild_id:
-        guild = await cog._pick_guild(interaction, guild_id)
+        guild = await pick_guild(cog.bot, interaction, guild_id)
         if guild is None:
             return
         guilds = [guild]
     else:
-        guilds = cog._allowed_guilds()
-    ok, channel = await cog._pick_channel(interaction, guilds[0] if guild_id else None, channel_id)
+        guilds = allowed_guilds(cog.bot, cog._guild_repo, cog._config)
+    ok, channel = await pick_channel(interaction, guilds[0] if guild_id else None, channel_id)
     if not ok:
         return
     if not guilds:
@@ -81,10 +76,10 @@ async def announce(
 
 
 async def purge_own_messages(cog, interaction: discord.Interaction, guild_id: str, channel_id: str) -> None:
-    guild = await cog._pick_guild(interaction, guild_id)
+    guild = await pick_guild(cog.bot, interaction, guild_id)
     if guild is None:
         return
-    ok, channel = await cog._pick_channel(interaction, guild, channel_id)
+    ok, channel = await pick_channel(interaction, guild, channel_id)
     if not ok:
         return
     if not can_read_history(channel, guild):
@@ -116,13 +111,13 @@ async def raffle_start(
     minutes: int,
     channel_id: Optional[str],
 ) -> None:
-    guild = await cog._pick_guild(interaction, guild_id)
+    guild = await pick_guild(cog.bot, interaction, guild_id)
     if guild is None:
         return
-    ok, channel = await cog._pick_channel(interaction, guild, channel_id)
+    ok, channel = await pick_channel(interaction, guild, channel_id)
     if not ok:
         return
-    raffle_bridge = await _require_bridge(interaction, cog.raffle_bridge(), "抽選機能")
+    raffle_bridge = await require_bridge(interaction, cog.bot, IRaffleAdminBridge, "抽選機能", cog._raffle_bridge)
     if raffle_bridge is None:
         return
     await interaction.response.defer(ephemeral=True)
@@ -134,13 +129,13 @@ async def raffle_start(
 
 
 async def raffle_repost(cog, interaction: discord.Interaction, guild_id: str, channel_id: Optional[str]) -> None:
-    guild = await cog._pick_guild(interaction, guild_id)
+    guild = await pick_guild(cog.bot, interaction, guild_id)
     if guild is None:
         return
-    ok, channel = await cog._pick_channel(interaction, guild, channel_id)
+    ok, channel = await pick_channel(interaction, guild, channel_id)
     if not ok:
         return
-    raffle_bridge = await _require_bridge(interaction, cog.raffle_bridge(), "抽選機能")
+    raffle_bridge = await require_bridge(interaction, cog.bot, IRaffleAdminBridge, "抽選機能", cog._raffle_bridge)
     if raffle_bridge is None:
         return
     await interaction.response.defer(ephemeral=True)
@@ -151,10 +146,10 @@ async def raffle_repost(cog, interaction: discord.Interaction, guild_id: str, ch
 
 
 async def raffle_cancel(cog, interaction: discord.Interaction, guild_id: str) -> None:
-    guild = await cog._pick_guild(interaction, guild_id)
+    guild = await pick_guild(cog.bot, interaction, guild_id)
     if guild is None:
         return
-    raffle_bridge = await _require_bridge(interaction, cog.raffle_bridge(), "抽選機能")
+    raffle_bridge = await require_bridge(interaction, cog.bot, IRaffleAdminBridge, "抽選機能", cog._raffle_bridge)
     if raffle_bridge is None:
         return
     await interaction.response.defer(ephemeral=True)
@@ -171,13 +166,13 @@ async def quiz_add(
     guild_id: Optional[str],
     channel_id: Optional[str],
 ) -> None:
-    guild = await cog._pick_guild(interaction, guild_id) if guild_id else None
+    guild = await pick_guild(cog.bot, interaction, guild_id) if guild_id else None
     if guild_id and guild is None:
         return
-    ok, channel = await cog._pick_channel(interaction, guild, channel_id)
+    ok, channel = await pick_channel(interaction, guild, channel_id)
     if not ok:
         return
-    quiz_bridge = await _require_bridge(interaction, cog.quiz_bridge(), "クイズ機能")
+    quiz_bridge = await require_bridge(interaction, cog.bot, IQuizAdminBridge, "クイズ機能", cog._quiz_bridge)
     if quiz_bridge is None:
         return
     await interaction.response.send_modal(quiz_bridge.add_modal(announce_flag, guild, channel))
@@ -191,10 +186,10 @@ async def quiz_bulk(
     guild_id: Optional[str],
     channel_id: Optional[str],
 ) -> None:
-    guild = await cog._pick_guild(interaction, guild_id) if guild_id else None
+    guild = await pick_guild(cog.bot, interaction, guild_id) if guild_id else None
     if guild_id and guild is None:
         return
-    ok, channel = await cog._pick_channel(interaction, guild, channel_id)
+    ok, channel = await pick_channel(interaction, guild, channel_id)
     if not ok:
         return
     if file.size > MAX_IMPORT_BYTES or not (
@@ -246,14 +241,14 @@ async def quiz_bulk(
 
 
 async def quiz_list(cog, interaction: discord.Interaction) -> None:
-    quiz_bridge = await _require_bridge(interaction, cog.quiz_bridge(), "クイズ機能")
+    quiz_bridge = await require_bridge(interaction, cog.bot, IQuizAdminBridge, "クイズ機能", cog._quiz_bridge)
     if quiz_bridge is None:
         return
     await interaction.response.send_message(embed=quiz_bridge.listing_embed(), ephemeral=True)
 
 
 async def quiz_delete(cog, interaction: discord.Interaction, quiz_id: int) -> None:
-    quiz_bridge = await _require_bridge(interaction, cog.quiz_bridge(), "クイズ機能")
+    quiz_bridge = await require_bridge(interaction, cog.bot, IQuizAdminBridge, "クイズ機能", cog._quiz_bridge)
     if quiz_bridge is None:
         return
     if not quiz_bridge.remove(quiz_id):

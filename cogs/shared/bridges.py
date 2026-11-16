@@ -225,6 +225,32 @@ class BotBridges:
         return fallback if impl is None else cast(T, impl)
 
 
+def resolve_bridge(bot: Any, contract: type[T], override: Optional[T] = None) -> Optional[T]:
+    """明示注入されたブリッジ、または BotBridges レジストリから指定契約を解決する。"""
+    if override is not None:
+        return override
+    bridges = getattr(bot, "bridges", None)
+    return bridges.resolve(contract) if isinstance(bridges, BotBridges) else None
+
+
+async def require_bridge(
+    interaction: discord.Interaction,
+    bot: Any,
+    contract: type[T],
+    feature_label: str,
+    override: Optional[T] = None,
+) -> Optional[T]:
+    """指定契約のブリッジを解決し、未ロードならエラーを返信して None を返す。"""
+    bridge = resolve_bridge(bot, contract, override)
+    if bridge is None:
+        from cogs.shared import ui
+
+        await interaction.response.send_message(
+            embed=ui.error_embed(f"{feature_label}が読み込まれていません"), ephemeral=True
+        )
+    return bridge
+
+
 class DeferredShopTitleBridge(IShopTitleBridge):
     """呼び出し時に BotBridges から最新の IShopTitleBridge を解決する遅延プロキシ（ロード順非依存）。"""
 

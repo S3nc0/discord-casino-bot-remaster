@@ -10,7 +10,7 @@ from cogs.admin.embeds import announce_embed
 from cogs.admin.purge import PurgeResult, delete_own_messages
 from cogs.shared import ui
 from cogs.shared.announce import announce_channel
-from cogs.shared.bridges import IApprovalBridge, NoOpApprovalBridge
+from cogs.shared.bridges import IApprovalBridge, IQuizAdminBridge, NoOpApprovalBridge, resolve_bridge
 from domain import approval
 
 if TYPE_CHECKING:
@@ -129,7 +129,7 @@ class QuizBulkConfirm(ui.OwnerView):
         ids = self.cog._quiz.quiz_add_many(self.quizzes, time.time(), interaction.user.display_name)
         note = "告知はしていません。`/クイズ 挑戦` に出ます。"
         if self.announce:
-            quiz_bridge = self.cog.quiz_bridge()
+            quiz_bridge = resolve_bridge(self.cog.bot, IQuizAdminBridge, self.cog._quiz_bridge)
             if quiz_bridge is None:
                 note = "クイズ機能が読み込まれていないため、告知できませんでした。"
             else:

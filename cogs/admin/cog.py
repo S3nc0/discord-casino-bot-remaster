@@ -4,7 +4,7 @@ Bot が新しいサーバーに追加されると、持ち主（owner_ids）に 
 コマンドの業務ロジックは approval_ops / economy_ops / content_ops へ分離し、ここはコマンド定義と委譲のみを持つ。
 """
 
-from typing import TYPE_CHECKING, Any, Optional, TypeVar
+from typing import TYPE_CHECKING, Any, Optional
 
 import discord
 from discord import app_commands
@@ -15,16 +15,8 @@ from cogs.admin.embeds import LEVEL_NAME as LEVEL_NAME  # noqa: F401
 from cogs.admin.embeds import bulk_preview_lines as bulk_preview_lines  # noqa: F401
 from cogs.admin.embeds import pachinko_stats_embed as pachinko_stats_embed  # noqa: F401
 from cogs.admin.embeds import rtp_table_embed as rtp_table_embed  # noqa: F401
-from cogs.admin.targets import (
-    channel_choices,
-    guild_choices,
-    namespace_guild,
-    pick_guild,
-    pick_member,
-    user_choices,
-)
+from cogs.admin.targets import channel_choices, guild_choices, namespace_guild, user_choices
 from cogs.admin.targets import parse_user_id as parse_user_id  # noqa: F401
-from cogs.admin.targets import pick_channel as _pick_channel_impl
 from cogs.admin.targets import postable as postable  # noqa: F401
 from cogs.admin.views import AnnounceModal as AnnounceModal  # noqa: F401
 from cogs.admin.views import ApprovalButton
@@ -37,6 +29,7 @@ from cogs.shared.bridges import (
     IQuizAdminBridge,
     IRaffleAdminBridge,
 )
+from cogs.shared.tasks import allowed_guilds
 from domain import approval, events
 from domain.games import rtplevel
 from domain.ports.repos import IGuildRepo, IPachinkoRepo, IQuizRepo, IRtpRepo, IWalletRepo
@@ -44,8 +37,6 @@ from services.labor import LaborService
 
 if TYPE_CHECKING:
     from cogs.shared.bot import CasinoBot
-
-_T = TypeVar("_T")
 
 MAX_IMAGE_BYTES = content_ops.MAX_IMAGE_BYTES
 MAX_IMPORT_BYTES = content_ops.MAX_IMPORT_BYTES
@@ -91,28 +82,7 @@ class ApprovalCog(commands.Cog, IApprovalBridge):
         if isinstance(bridges, BotBridges):
             bridges.unregister(IApprovalBridge, self)
 
-    def _resolve_bridge(self, override: Optional[_T], contract: type[_T]) -> Optional[_T]:
-        if override is not None:
-            return override
-        bridges = getattr(self.bot, "bridges", None)
-        return bridges.resolve(contract) if isinstance(bridges, BotBridges) else None
-
-    def event_bridge(self) -> Optional[IEventAdminBridge]:
-        return self._resolve_bridge(self._event_bridge, IEventAdminBridge)
-
-    def horse_bridge(self) -> Optional[IHorseAdminBridge]:
-        return self._resolve_bridge(self._horse_bridge, IHorseAdminBridge)
-
-    def raffle_bridge(self) -> Optional[IRaffleAdminBridge]:
-        return self._resolve_bridge(self._raffle_bridge, IRaffleAdminBridge)
-
-    def quiz_bridge(self) -> Optional[IQuizAdminBridge]:
-        return self._resolve_bridge(self._quiz_bridge, IQuizAdminBridge)
-
     # --------------------------- 依頼の送信・承認イベント --------------------------- #
-    async def request_approval(self, guild: discord.Guild) -> int:
-        return await approval_ops.request_approval(self, guild, RENOTIFY_AFTER)
-
     async def ensure_requested(self, guild: discord.Guild, reset_denied: bool = False) -> None:
         await approval_ops.ensure_requested(self, guild, RENOTIFY_AFTER, reset_denied=reset_denied)
 
@@ -171,45 +141,25 @@ class ApprovalCog(commands.Cog, IApprovalBridge):
             return False
         return True
 
-    def _allowed_guilds(self) -> list:
-        from cogs.shared.tasks import allowed_guilds
-
+    def _event_targets(self, guild_id: Optional[str]) -> list:
+        if guild_id:
+            return [self.bot.get_guild(int(guild_id))]
         return allowed_guilds(self.bot, self._guild_repo, self._config)
 
-    def _event_targets(self, guild_id: Optional[str]) -> list:
-        return [self.bot.get_guild(int(guild_id))] if guild_id else self._allowed_guilds()
-
-    def _guild_choices(self, current: str) -> list:
-        return guild_choices(self.bot, current)
-
     async def guild_autocomplete(self, interaction: discord.Interaction, current: str):
-        return self._guild_choices(current) if interaction.user.id in approval.owner_ids(self._config) else []
-
-    async def _pick_guild(self, interaction: discord.Interaction, guild_id: str) -> Optional[discord.Guild]:
-        return await pick_guild(self.bot, interaction, guild_id)
-
-    def _namespace_guild(self, interaction: discord.Interaction) -> Optional[discord.Guild]:
-        return namespace_guild(self.bot, interaction)
+        return guild_choices(self.bot, current) if interaction.user.id in approval.owner_ids(self._config) else []
 
     async def channel_autocomplete(self, interaction: discord.Interaction, current: str):
-        guild = self._namespace_guild(interaction)
+        guild = namespace_guild(self.bot, interaction)
         if interaction.user.id not in approval.owner_ids(self._config) or guild is None:
             return []
         return channel_choices(guild, current)
 
-    async def _pick_channel(
-        self, interaction: discord.Interaction, guild: Optional[discord.Guild], channel_id: Optional[str]
-    ) -> tuple:
-        return await _pick_channel_impl(interaction, guild, channel_id)
-
     async def user_autocomplete(self, interaction: discord.Interaction, current: str):
         if interaction.user.id not in approval.owner_ids(self._config):
             return []
-        guild = self._namespace_guild(interaction)
+        guild = namespace_guild(self.bot, interaction)
         return [] if guild is None else user_choices(guild, current)
-
-    async def _pick_member(self, interaction: discord.Interaction, guild_id: str, user_id: str, verb: str):
-        return await pick_member(self.bot, interaction, guild_id, user_id, verb)
 
     # ---- 経済・イベント・還元率・統計・履歴 ---- #
     @group.command(name="付与", description="[管理者] 指定したサーバーの指定した人に、ペリカを付与する")
