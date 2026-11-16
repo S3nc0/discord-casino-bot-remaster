@@ -7,7 +7,6 @@ from types import SimpleNamespace
 import pytest
 
 from cogs.admin.cog import AnnounceModal, postable
-from cogs.event import cog as event_cog
 from infra.db.repositories import open_repositories
 from tests.support import make_approval_cog, make_event_cog, make_quiz_cog, make_raffle_cog, make_test_bot
 
@@ -167,7 +166,7 @@ def test_announce_goes_to_the_chosen_channel_only(tmp_path, monkeypatch):
 def test_command_requires_a_guild_with_a_channel_and_passes_it_on(tmp_path, monkeypatch):
     guild, chans = make_guild()
     cog, eco, bot = make_admin(tmp_path, [guild])
-    monkeypatch.setattr("cogs.admin.cog.approval.is_allowed", lambda *a: True)
+    monkeypatch.setattr("domain.approval.is_allowed", lambda *a: True)
     log = []
     asyncio.run(cog.announce.callback(cog, dm(OWNER, log), None, None, None, "11"))  # サーバーなしでチャンネルだけ
     assert log[-1][0] == "send" and "チャンネルを使えません" in log[-1][1]
@@ -198,7 +197,7 @@ def test_manual_event_announces_start_and_end_in_the_chosen_channel(tmp_path, mo
     bot = make_test_bot(db_path=str(tmp_path / "t.db"))
     bot.guilds = [guild]
     eco = bot.repos
-    monkeypatch.setattr(event_cog.approval, "is_allowed", lambda *a: True)
+    monkeypatch.setattr("domain.approval.is_allowed", lambda *a: True)
     cog = make_event_cog(bot)
     asyncio.run(cog.start_manual(guild, "スロット", 80, 45, chans[11]))
     assert (
@@ -235,7 +234,7 @@ def test_quiz_broadcast_can_target_one_guild_and_channel(tmp_path, monkeypatch):
     bot.guilds = [g1, g2]
     qid = bot.repos.quiz.quiz_add("問", ["a", "b", "c", "d"], "", 100, None, 0.0)
     cog = make_quiz_cog(bot)
-    monkeypatch.setattr("cogs.quiz.cog.approval.is_allowed", lambda e, c, gid, uid: gid == 5)  # 6 は許可されていない
+    monkeypatch.setattr("domain.approval.is_allowed", lambda e, c, gid, uid: gid == 5)  # 6 は許可されていない
     monkeypatch.setattr("cogs.quiz.cog.announce_channel", lambda g, e: (c1 if g.id == 5 else c2)[10])
     assert (
         asyncio.run(cog.broadcast(qid)) == 1 and len(c1[10].sent) == 1 and c2[10].sent == []

@@ -196,7 +196,7 @@ def test_roulette_passes_its_bet_kind_and_the_result_text_shows_the_adjusted_pay
 # ----------------------------- コマンド ----------------------------- #
 def make_admin(tmp_path, monkeypatch):
     guild = SimpleNamespace(id=5, name="友達鯖", members=[])
-    monkeypatch.setattr("cogs.admin.cog.approval.is_allowed", lambda *a: True)
+    monkeypatch.setattr("domain.approval.is_allowed", lambda *a: True)
     bot = make_test_bot(str(tmp_path / "t.db"), config={"owner_ids": [OWNER]})
     bot.guilds = [guild]
     bot.get_guild = lambda gid: guild if gid == 5 else None

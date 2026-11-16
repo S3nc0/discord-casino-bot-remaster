@@ -176,7 +176,7 @@ def test_bonds_survive_a_restart_and_list_shows_recent_results(tmp_path):
 
 
 def test_cog_run_once_settles_every_guild(eco, monkeypatch):
-    monkeypatch.setattr("cogs.market.bond_cog.approval.is_allowed", lambda *a: True)
+    monkeypatch.setattr("domain.approval.is_allowed", lambda *a: True)
     bot = make_test_bot(repos=eco)
     bot.guilds = [SimpleNamespace(id=1)]
     eco.bonds.bond_buy(1, "normal", 1000, 1.0)  # とっくに満期

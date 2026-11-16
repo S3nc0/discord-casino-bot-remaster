@@ -8,7 +8,7 @@ import discord
 from cogs.market.embeds import LIVE_MINUTES, earnings_announce_embed, earnings_result_embed
 from cogs.shared import ui
 from cogs.shared.announce import announce_channel
-from domain import approval
+from cogs.shared.tasks import allowed_guilds
 from domain.ports.repos import IEarningsRepo, IGuildRepo, IMarketDataRepo
 from infra import logthrottle
 
@@ -31,9 +31,7 @@ async def earnings_posts(
         embeds.append(earnings_result_embed(r, market_data.market_pin(r["symbol"])))
     if not embeds:
         return
-    for guild in list(bot.guilds):
-        if not approval.is_allowed(guild_repo, config, guild.id, 0):
-            continue
+    for guild in allowed_guilds(bot, guild_repo, config):
         channel = announce_fn(guild, guild_repo.for_guild(guild.id))
         if channel is None:
             continue

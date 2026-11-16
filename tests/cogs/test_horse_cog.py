@@ -51,7 +51,7 @@ def setup(tmp_path, monkeypatch):
     guild = SimpleNamespace(id=0, me=object(), system_channel=chan, get_channel=lambda cid: chan, name="g")
     bot.guilds = [guild]
     bot.get_guild = lambda gid: guild if gid == 0 else None
-    monkeypatch.setattr(horse_cog.approval, "is_allowed", lambda *a: True)
+    monkeypatch.setattr("domain.approval.is_allowed", lambda *a: True)
     monkeypatch.setattr("cogs.horse.cog.announce_channel", lambda g, e: chan)
 
     async def nap(_):

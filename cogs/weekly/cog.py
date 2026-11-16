@@ -13,7 +13,8 @@ from cogs.shared import ui
 from cogs.shared.announce import announce_channel
 from cogs.shared.bridges import DeferredShopTitleBridge, IShopTitleBridge
 from cogs.shared.messages import format_standings_lines
-from domain import approval, shop, weekly
+from cogs.shared.tasks import run_for_allowed_guilds
+from domain import shop, weekly
 from domain.ports import get_catalogs
 from domain.ports.clock import IClock
 from domain.ports.repos import IGuildRepo, IRecordRepo
@@ -69,9 +70,8 @@ class WeeklyCog(commands.Cog):
     async def run_once(self) -> None:
         today = self._clock.today()
         prev_week = weekly.previous_week_id(today)
-        for guild in list(self.bot.guilds):
-            if not approval.is_allowed(self._guild_repo, self._config, guild.id, 0):
-                continue
+
+        async def _handle(guild: discord.Guild) -> None:
             eco = self._records.for_guild(guild.id)
             last = eco.weekly_last_announced()
             if last is None:
@@ -79,10 +79,15 @@ class WeeklyCog(commands.Cog):
                     prev_week
                 )  # 初めて動いたときは、先週までを発表済みとして、次の月曜から発表する
             elif last < prev_week:
-                try:
-                    await self.announce(guild, eco, prev_week)
-                except Exception as exc:  # 1つのサーバーの失敗で、他のサーバーの発表を止めない
-                    print(f"週間ランキングの発表に失敗: guild={guild.id}: {exc!r}")
+                await self.announce(guild, eco, prev_week)
+
+        await run_for_allowed_guilds(
+            self.bot,
+            self._guild_repo,
+            self._config,
+            _handle,
+            error_label="週間ランキングの発表に失敗",
+        )
 
     def _channel(self, guild: discord.Guild):
         return announce_channel(guild, self._guild_repo)

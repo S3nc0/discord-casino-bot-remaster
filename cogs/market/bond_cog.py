@@ -13,7 +13,7 @@ from typing import TYPE_CHECKING, Any
 from discord.ext import commands, tasks
 
 from cogs.market.bond_embeds import KIND_CHOICES, describe_done, due_text  # noqa: F401
-from domain import approval
+from cogs.shared.tasks import run_sync_for_allowed_guilds
 from domain.ports.repos import IBankRepo, IBondRepo, IGuildRepo, IOptionRepo
 
 if TYPE_CHECKING:
@@ -59,20 +59,24 @@ class BondCog(commands.Cog):
 
     def run_once(self) -> None:
         now = time.time()
-        for guild in list(self.bot.guilds):
-            if not approval.is_allowed(self._guild_repo, self._config, guild.id, 0):
-                continue
-            try:
-                self._bonds.for_guild(guild.id).bond_settle(now, RNG)
-                self._options.for_guild(guild.id).option_settle(now)  # 満期のオプションの決済
-                for user_id, result in self._bank.for_guild(guild.id).grace_expire(
-                    now
-                ):  # 破産猶予の時間切れ（強制破産と、CDS の配当）
-                    print(
-                        f"強制破産: guild={guild.id} user={user_id} 差し押さえ={result['seized']:,} CDS配当={result['cds_paid']:,}"
-                    )
-            except Exception as exc:  # 1サーバーの失敗で、ほかを止めない
-                print(f"債券の決着・破産猶予の確認に失敗: guild={guild.id}: {exc!r}")
+
+        def handle_guild(guild) -> None:
+            self._bonds.for_guild(guild.id).bond_settle(now, RNG)
+            self._options.for_guild(guild.id).option_settle(now)  # 満期のオプションの決済
+            for user_id, result in self._bank.for_guild(guild.id).grace_expire(
+                now
+            ):  # 破産猶予の時間切れ（強制破産と、CDS の配当）
+                print(
+                    f"強制破産: guild={guild.id} user={user_id} 差し押さえ={result['seized']:,} CDS配当={result['cds_paid']:,}"
+                )
+
+        run_sync_for_allowed_guilds(
+            self.bot,
+            self._guild_repo,
+            self._config,
+            handle_guild,
+            error_label="債券の決着・破産猶予の確認に失敗",
+        )
 
 
 async def setup(bot: "CasinoBot"):

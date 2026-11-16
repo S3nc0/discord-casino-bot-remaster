@@ -13,6 +13,7 @@ from discord.ext import commands, tasks
 from cogs.shared import ui
 from cogs.shared.bridges import BotBridges, IP2PNavigationBridge, IShopTitleBridge
 from cogs.shared.confirm import confirm_action as confirm_action  # noqa: F401
+from cogs.shared.tasks import allowed_guilds
 from cogs.shop import actions
 from cogs.shop.discord_ops import ShopError, apply_title_nick, set_color_role
 from cogs.shop.embeds import (  # noqa: F401
@@ -36,7 +37,7 @@ from cogs.shop.embeds import (  # noqa: F401
     tab_items,
 )
 from cogs.shop.views import ShopView
-from domain import approval, shop, teiai
+from domain import shop, teiai
 from domain.ports import get_catalogs
 from domain.ports.repos import (
     IAuctionRepo,
@@ -223,9 +224,7 @@ class ShopCog(commands.Cog, IShopTitleBridge):
 
     async def run_status_nick(self) -> None:
         """借金・延滞・破産者の人のニックネームに【地下労働者】などを付け、カタギに戻った人から外す。"""
-        for guild in list(self.bot.guilds):
-            if not approval.is_allowed(self._guild_repo, self._config, guild.id, 0):
-                continue
+        for guild in allowed_guilds(self.bot, self._guild_repo, self._config):
             for user_id in self._guild_repo.for_guild(guild.id).status_nick_targets()[:STATUS_NICK_PER_GUILD]:
                 member = guild.get_member(user_id)
                 if member is None:

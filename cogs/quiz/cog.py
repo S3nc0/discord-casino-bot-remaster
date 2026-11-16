@@ -77,7 +77,7 @@ from cogs.quiz.views import (
 from cogs.shared import ui
 from cogs.shared.announce import announce_channel
 from cogs.shared.bridges import BotBridges, IQuizAdminBridge, IQuizButtonBridge
-from domain import approval
+from cogs.shared.tasks import allowed_guilds, run_for_allowed_guilds
 from domain.duration import format_minutes
 from domain.ports.repos import IGuildRepo, IQuizRepo
 from infra import logthrottle
@@ -127,14 +127,18 @@ class QuizCog(commands.Cog, IQuizAdminBridge, IQuizButtonBridge):
 
     async def run_once(self) -> None:
         now = time.time()
-        for guild in list(self.bot.guilds):
-            if not approval.is_allowed(self._guild_repo, self._config, guild.id, 0):
-                continue
-            try:
-                for q in self._quiz.for_guild(guild.id).quiz_settle(now):
-                    await self.announce_settle(guild, q)
-            except Exception as exc:  # 1サーバーの失敗で、ほかを止めない
-                print(f"クイズを精算できません: guild={guild.id}: {exc!r}")
+
+        async def _handle(guild: discord.Guild) -> None:
+            for q in self._quiz.for_guild(guild.id).quiz_settle(now):
+                await self.announce_settle(guild, q)
+
+        await run_for_allowed_guilds(
+            self.bot,
+            self._guild_repo,
+            self._config,
+            _handle,
+            error_label="クイズを精算できません",
+        )
 
     async def announce_settle(self, guild: discord.Guild, q: dict) -> None:
         """出題の投稿からボタンを外し、結果と出題報酬を同じチャンネルに出す（出題者にはメンションする）。"""
@@ -171,9 +175,8 @@ class QuizCog(commands.Cog, IQuizAdminBridge, IQuizButtonBridge):
         if quiz is None:
             return 0
         count = 0
-        for g in [guild] if guild is not None else list(self.bot.guilds):
-            if guild is None and not approval.is_allowed(self._guild_repo, self._config, g.id, 0):
-                continue
+        guilds = [guild] if guild is not None else allowed_guilds(self.bot, self._guild_repo, self._config)
+        for g in guilds:
             target = channel or announce_channel(g, self._guild_repo)
             if target is None:
                 continue

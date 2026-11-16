@@ -172,7 +172,9 @@ class ApprovalCog(commands.Cog, IApprovalBridge):
         return True
 
     def _allowed_guilds(self) -> list:
-        return [g for g in self.bot.guilds if approval.is_allowed(self._guild_repo, self._config, g.id, 0)]
+        from cogs.shared.tasks import allowed_guilds
+
+        return allowed_guilds(self.bot, self._guild_repo, self._config)
 
     def _event_targets(self, guild_id: Optional[str]) -> list:
         return [self.bot.get_guild(int(guild_id))] if guild_id else self._allowed_guilds()

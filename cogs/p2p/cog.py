@@ -27,7 +27,8 @@ from cogs.shared.announce import announce_channel
 from cogs.shared.bridges import BotBridges, IP2PListingBridge, IP2PNavigationBridge
 from cogs.shared.confirm import confirm_action, confirmed_reply, user_session
 from cogs.shared.messages import format_failure
-from domain import approval, p2p
+from cogs.shared.tasks import run_for_allowed_guilds
+from domain import p2p
 from domain import shop as shop_mod
 from domain.ports import get_catalogs
 from domain.ports.repos import IGuildRepo, IHorseRepo, IP2PRepo, IShopRepo, IWalletRepo
@@ -488,13 +489,13 @@ class P2PCog(commands.Cog, IP2PNavigationBridge):
     # ------------------------------ 締切の精算 ------------------------------ #
     @tasks.loop(seconds=30)
     async def tick(self):
-        for guild in list(self.bot.guilds):
-            if not approval.is_allowed(self._guild_repo, self._config, guild.id, 0):
-                continue
-            try:
-                await self._settle_guild(guild)
-            except Exception as exc:  # 1サーバーの失敗で、ほかを止めない
-                print(f"取引の精算に失敗: guild={guild.id}: {exc!r}")
+        await run_for_allowed_guilds(
+            self.bot,
+            self._guild_repo,
+            self._config,
+            self._settle_guild,
+            error_label="取引の精算に失敗",
+        )
 
     @tick.before_loop
     async def _before_tick(self):

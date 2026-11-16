@@ -275,7 +275,7 @@ def click(uid, log):
 
 
 def test_buttons_accept_decline_cancel_with_the_right_people(eco, monkeypatch):
-    monkeypatch.setattr("cogs.loan.cog.approval.is_allowed", lambda *a: True)
+    monkeypatch.setattr("domain.approval.is_allowed", lambda *a: True)
     monkeypatch.setattr("cogs.loan.cog.time.time", lambda: NOW + 5)
     config = {"owner_ids": [OWNER]}
     lid = offer(eco)
@@ -345,7 +345,7 @@ class Chan:
 
 
 def test_run_once_collects_notifies_and_expires(eco, monkeypatch):
-    monkeypatch.setattr("cogs.loan.cog.approval.is_allowed", lambda *a: True)
+    monkeypatch.setattr("domain.approval.is_allowed", lambda *a: True)
     chan = Chan()
     guild = SimpleNamespace(id=0, me=object(), system_channel=chan, get_channel=lambda cid: chan)
     bot = make_test_bot(repos=eco)
@@ -375,7 +375,7 @@ def test_run_once_collects_notifies_and_expires(eco, monkeypatch):
 
 
 def test_commands_offer_repay_and_list(eco, monkeypatch):
-    monkeypatch.setattr("cogs.loan.cog.approval.is_allowed", lambda *a: True)
+    monkeypatch.setattr("domain.approval.is_allowed", lambda *a: True)
     bot = make_test_bot(repos=eco)
     cog = make_loan_cog(bot)
     log = []

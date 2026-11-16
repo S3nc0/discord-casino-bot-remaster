@@ -21,6 +21,7 @@ from cogs.shared.announce import announce_channel
 from cogs.shared.bridges import BotBridges, ILoanButtonBridge, NoOpLoanButtonBridge
 from cogs.shared.confirm import confirm_action
 from cogs.shared.messages import format_failure
+from cogs.shared.tasks import run_for_allowed_guilds
 from domain import approval, loans, teiai
 from domain.duration import format_minutes
 from domain.ports.repos import IGuildRepo, ILoanRepo, IWalletRepo
@@ -429,43 +430,47 @@ class LoanCog(commands.Cog, ILoanButtonBridge):
 
     async def run_once(self) -> None:
         now = time.time()
-        for guild in list(self.bot.guilds):
-            if not approval.is_allowed(self._guild_repo, self._config, guild.id, 0):
-                continue
-            try:
-                eco = self._loans.for_guild(guild.id)
-                for loan in eco.loan_expire_offers(now):
-                    await self._edit_offer(
-                        guild,
+
+        async def _handle(guild: discord.Guild) -> None:
+            eco = self._loans.for_guild(guild.id)
+            for loan in eco.loan_expire_offers(now):
+                await self._edit_offer(
+                    guild,
+                    loan,
+                    state_embed(
                         loan,
-                        state_embed(
-                            loan,
-                            "募集の期限が切れました" if loan["lender_id"] == 0 else "承諾の期限が切れました",
-                            "",
-                            ui.INFO,
-                        ),
-                    )
-                for loan in eco.loan_due_soon(now):
+                        "募集の期限が切れました" if loan["lender_id"] == 0 else "承諾の期限が切れました",
+                        "",
+                        ui.INFO,
+                    ),
+                )
+            for loan in eco.loan_due_soon(now):
+                await self._say(
+                    guild,
+                    loan,
+                    f"⏰ 貸付 #{loan['id']} の返済の期限は <t:{int(loan['due'])}:R> です。<@{loan['borrower_id']}> さん、`/貸付 返済` で返せます（期限には、残高から自動で回収します）。",
+                )
+            for loan in eco.loan_collect_due(now):
+                if loan["status"] == "repaid":
                     await self._say(
                         guild,
                         loan,
-                        f"⏰ 貸付 #{loan['id']} の返済の期限は <t:{int(loan['due'])}:R> です。<@{loan['borrower_id']}> さん、`/貸付 返済` で返せます（期限には、残高から自動で回収します）。",
+                        f"✅ 貸付 #{loan['id']} の期限が来て、{ui.pelica(loan['collected'])}を回収し、返済が終わりました。",
                     )
-                for loan in eco.loan_collect_due(now):
-                    if loan["status"] == "repaid":
-                        await self._say(
-                            guild,
-                            loan,
-                            f"✅ 貸付 #{loan['id']} の期限が来て、{ui.pelica(loan['collected'])}を回収し、返済が終わりました。",
-                        )
-                    else:
-                        await self._say(
-                            guild,
-                            loan,
-                            f"⚠️ 貸付 #{loan['id']} は延滞です。{ui.pelica(loan['collected'])}を回収しましたが、残り {ui.pelica(loan['left'])} があります。<@{loan['borrower_id']}> さんに入るお金から、自動で回収していきます。",
-                        )
-            except Exception as exc:  # 1サーバーの失敗で、ほかを止めない
-                print(f"貸付を処理できません: guild={guild.id}: {exc!r}")
+                else:
+                    await self._say(
+                        guild,
+                        loan,
+                        f"⚠️ 貸付 #{loan['id']} は延滞です。{ui.pelica(loan['collected'])}を回収しましたが、残り {ui.pelica(loan['left'])} があります。<@{loan['borrower_id']}> さんに入るお金から、自動で回収していきます。",
+                    )
+
+        await run_for_allowed_guilds(
+            self.bot,
+            self._guild_repo,
+            self._config,
+            _handle,
+            error_label="貸付を処理できません",
+        )
 
     async def _edit_offer(self, guild: discord.Guild, loan: dict, embed: discord.Embed) -> None:
         channel = guild.get_channel(loan["channel_id"]) if loan["channel_id"] else None

@@ -15,7 +15,8 @@ from cogs.event.texts import event_copy
 from cogs.shared import ui
 from cogs.shared.announce import announce_channel
 from cogs.shared.bridges import BotBridges, IEventAdminBridge
-from domain import approval, events
+from cogs.shared.tasks import run_for_allowed_guilds
+from domain import events
 from domain.ports.clock import IClock
 from domain.ports.repos import IEventRepo, IGuildRepo
 from infra import logthrottle
@@ -118,13 +119,13 @@ class EventCog(commands.Cog, IEventAdminBridge):
 
     async def run_once(self) -> None:
         now = self._clock.now()
-        for guild in list(self.bot.guilds):
-            if not approval.is_allowed(self._guild_repo, self._config, guild.id, 0):
-                continue
-            try:
-                await self._run_guild(guild, now)
-            except Exception as exc:  # 1サーバーの失敗で、ほかのサーバーを止めない
-                print(f"イベントの進行に失敗: guild={guild.id}: {exc!r}")
+        await run_for_allowed_guilds(
+            self.bot,
+            self._guild_repo,
+            self._config,
+            lambda guild: self._run_guild(guild, now),
+            error_label="イベントの進行に失敗",
+        )
 
     async def _run_guild(self, guild: discord.Guild, now: datetime.datetime) -> None:
         minutes = now.hour * 60 + now.minute

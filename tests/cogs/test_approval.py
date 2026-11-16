@@ -624,7 +624,7 @@ def make_announce(tmp_path, monkeypatch, guild_ids=(5, 6), no_channel=(), fail=(
         guilds[gid] = SimpleNamespace(id=gid, name=f"鯖{gid}", members=[])
     cog, eco, _, bot = make_admin(tmp_path, guilds=guilds)
     monkeypatch.setattr("cogs.admin.views.announce_channel", lambda g, e: None if g.id in no_channel else Chan(g.id))
-    monkeypatch.setattr("cogs.admin.cog.approval.is_allowed", lambda e, c, gid, uid: gid != 6 or uid != 0)
+    monkeypatch.setattr("domain.approval.is_allowed", lambda e, c, gid, uid: gid != 6 or uid != 0)
     return cog, guilds, posts
 
 
@@ -737,7 +737,7 @@ def test_event_admin_commands_target_one_or_all_allowed_guilds_and_are_owner_onl
 
     guilds = {5: SimpleNamespace(id=5, name="鯖5", members=[]), 6: SimpleNamespace(id=6, name="鯖6", members=[])}
     cog, eco, _, bot = make_admin(tmp_path, guilds=guilds, extra_cogs={"EventCog": FakeEvent()})
-    monkeypatch.setattr("cogs.admin.cog.approval.is_allowed", lambda e, c, gid, uid: gid != 6)  # 6 は許可されていない
+    monkeypatch.setattr("domain.approval.is_allowed", lambda e, c, gid, uid: gid != 6)  # 6 は許可されていない
     log = []
     game = SimpleNamespace(value="スロット")
     asyncio.run(cog.event_start.callback(cog, dm(FRIEND, log), game, 30, 50, None))

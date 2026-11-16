@@ -17,6 +17,7 @@ from cogs.shared import ui
 from cogs.shared.announce import announce_channel
 from cogs.shared.bridges import BotBridges, IRaffleAdminBridge
 from cogs.shared.messages import format_failure
+from cogs.shared.tasks import run_for_allowed_guilds
 from domain import approval
 from domain.ports import get_catalogs
 from domain.ports.repos import IGuildRepo, IRaffleRepo
@@ -234,19 +235,23 @@ class RaffleCog(commands.Cog, IRaffleAdminBridge):
 
     async def run_once(self) -> None:
         now = time.time()
-        for guild in list(self.bot.guilds):
-            if not approval.is_allowed(self._guild_repo, self._config, guild.id, 0):
-                continue
+
+        async def _handle(guild: discord.Guild) -> None:
             eco = self._raffle.for_guild(guild.id)
             raffle = eco.raffle_get()
             if raffle is None or now < raffle["closes"]:
-                continue
-            try:
-                done = eco.raffle_close()
-                if done is not None:
-                    await self._finish_message(guild, done, result_embed(done))
-            except Exception as exc:  # 1サーバーの失敗で、ほかを止めない
-                print(f"抽選を締められません: guild={guild.id}: {exc!r}")
+                return
+            done = eco.raffle_close()
+            if done is not None:
+                await self._finish_message(guild, done, result_embed(done))
+
+        await run_for_allowed_guilds(
+            self.bot,
+            self._guild_repo,
+            self._config,
+            _handle,
+            error_label="抽選を締められません",
+        )
 
     async def _finish_message(self, guild: discord.Guild, raffle: dict, embed: discord.Embed) -> None:
         """募集の投稿からボタンを外し、結果を同じチャンネルへ出す（当選者にはメンションする）。"""

@@ -131,7 +131,7 @@ def make_cog(eco, owners=(99,)):
 
 
 def test_run_once_closes_only_overdue_raffles_and_announces(eco, monkeypatch):
-    monkeypatch.setattr("cogs.raffle.cog.approval.is_allowed", lambda *a: True)
+    monkeypatch.setattr("domain.approval.is_allowed", lambda *a: True)
     cog, ch = make_cog(eco)
     open_raffle(eco, closes=9e12)  # まだ先
     eco.raffle.raffle_set_message(eco.raffle.raffle_get()["id"], 4242)
@@ -201,7 +201,7 @@ def test_cancel_refunds_and_reports(eco, monkeypatch):
 
 
 def test_join_button_charges_updates_the_post_and_rejects_repeats(eco, monkeypatch):
-    monkeypatch.setattr("cogs.raffle.cog.approval.is_allowed", lambda *a: True)
+    monkeypatch.setattr("domain.approval.is_allowed", lambda *a: True)
     cog, _ = make_cog(eco)
     open_raffle(eco, closes=9e12)
     eco.raffle.raffle_set_message(eco.raffle.raffle_get()["id"], 4242)

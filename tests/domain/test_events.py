@@ -214,7 +214,7 @@ def make_cog(tmp_path, monkeypatch):
     now = [at(DAY, 60)]
     bot = make_bot(tmp_path, monkeypatch, now)
     bot.guilds = [guild]
-    monkeypatch.setattr("cogs.event.cog.approval.is_allowed", lambda *a: True)
+    monkeypatch.setattr("domain.approval.is_allowed", lambda *a: True)
     return make_event_cog(bot), bot, guild, chan
 
 

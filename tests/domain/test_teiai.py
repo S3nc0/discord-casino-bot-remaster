@@ -388,7 +388,7 @@ def test_run_status_nick_skips_people_it_cannot_change_and_keeps_going(eco, monk
     bot = make_test_bot(repos=eco)
     bot.guilds = [guild]
     cog = make_shop_cog(bot)
-    monkeypatch.setattr("cogs.shop.cog.approval.is_allowed", lambda *a: True)
+    monkeypatch.setattr("domain.approval.is_allowed", lambda *a: True)
     indebt(eco, user_id=U, debt=500)
     indebt(eco, user_id=A, debt=500)
     asyncio.run(cog.run_status_nick())

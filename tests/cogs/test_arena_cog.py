@@ -50,7 +50,7 @@ def setup(tmp_path, monkeypatch):
     chan = Chan()
     guild = SimpleNamespace(id=0, me=object(), system_channel=chan, get_channel=lambda cid: chan, name="g")
     bot.guilds = [guild]
-    monkeypatch.setattr(arena_cog.approval, "is_allowed", lambda *a: True)
+    monkeypatch.setattr("domain.approval.is_allowed", lambda *a: True)
     monkeypatch.setattr("cogs.arena.cog.announce_channel", lambda g, e: chan)
 
     async def nap(_):

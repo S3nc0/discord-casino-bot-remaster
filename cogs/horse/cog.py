@@ -20,7 +20,7 @@ from cogs.horse.stable import Stable
 from cogs.shared import ui
 from cogs.shared.announce import announce_channel
 from cogs.shared.bridges import BotBridges, IHorseAdminBridge, IHorseButtonBridge
-from domain import approval
+from cogs.shared.tasks import run_for_allowed_guilds
 from domain import horse as horse_mod  # noqa: F401
 from domain.ports.repos import IGuildRepo, IHorseRepo, IRaceRepo, IShopRepo
 from infra import logthrottle
@@ -381,33 +381,33 @@ class HorseCog(commands.Cog, IHorseAdminBridge, IHorseButtonBridge):
 
     async def run_once(self) -> None:
         now = time.time()
-        for guild in list(self.bot.guilds):
-            if guild.id in self._busy or not approval.is_allowed(self._guild_repo, self._config, guild.id, 0):
-                continue
-            self._busy.add(guild.id)
-            try:
-                horses = self._horses.for_guild(guild.id)
-                races = self._races.for_guild(guild.id)
-                channel = announce_channel(guild, self._guild_repo)
-                race_id = self._horse_svc.ensure_scheduled(guild.id, now, channel.id if channel else 0)
-                if race_id:
-                    await self._announce_entry(guild, horses, races, race_id)
-                for race in races.race_open():
-                    if race["status"] == "entry" and now >= race["entry_close"]:
-                        await self._close_entries(guild, horses, races, race)
-                    elif race["status"] == "betting" and now >= race["start_at"]:
-                        await self._run(guild, horses, races, race)
-                    elif (
-                        race["status"] == "betting" and now >= race["bet_close"] and race["id"] not in self._bet_closed
-                    ):
-                        self._bet_closed.add(
-                            race["id"]
-                        )  # 馬券の締切で、投稿を「締め切りました」に書き換える（発走まで、「◯秒前」が増えるのを防ぐ）
-                        await self._retire(guild, horses, races, race)
-            except Exception as exc:  # 1サーバーの失敗で、ほかを止めない
-                print(f"競馬を処理できません: guild={guild.id}: {exc!r}")
-            finally:
-                self._busy.discard(guild.id)
+
+        async def _handle(guild: discord.Guild) -> None:
+            horses = self._horses.for_guild(guild.id)
+            races = self._races.for_guild(guild.id)
+            channel = announce_channel(guild, self._guild_repo)
+            race_id = self._horse_svc.ensure_scheduled(guild.id, now, channel.id if channel else 0)
+            if race_id:
+                await self._announce_entry(guild, horses, races, race_id)
+            for race in races.race_open():
+                if race["status"] == "entry" and now >= race["entry_close"]:
+                    await self._close_entries(guild, horses, races, race)
+                elif race["status"] == "betting" and now >= race["start_at"]:
+                    await self._run(guild, horses, races, race)
+                elif race["status"] == "betting" and now >= race["bet_close"] and race["id"] not in self._bet_closed:
+                    self._bet_closed.add(
+                        race["id"]
+                    )  # 馬券の締切で、投稿を「締め切りました」に書き換える（発走まで、「◯秒前」が増えるのを防ぐ）
+                    await self._retire(guild, horses, races, race)
+
+        await run_for_allowed_guilds(
+            self.bot,
+            self._guild_repo,
+            self._config,
+            _handle,
+            error_label="競馬を処理できません",
+            busy=self._busy,
+        )
 
 
 async def setup(bot: "CasinoBot") -> None:
