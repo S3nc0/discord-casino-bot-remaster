@@ -318,3 +318,92 @@ def test_panel_shows_frozen_state(eco):
     eco.bank.bank_deposit(A, 10_000, NOW)
     go_into_debt(eco, B, 200_000)  # 巨額の借金で、ロックが現金を超える
     assert "支払停止" in panel_embed(eco.bank, eco.debt, eco.wallet, A).description
+
+
+# ----------------------------- 最前線サーモスタット（#32） ----------------------------- #
+def _thermo(eco):
+    return eco.bank.bank_status(NOW)["thermostat"]
+
+
+def test_thermostat_only_observes_by_default_and_leaves_bank_cash_alone(eco):
+    from domain import thermostat
+
+    assert thermostat.ENFORCE is False
+    with eco.db.tx():
+        eco.bank.bank_income_for(G, 5_000_000, 0.0, NOW)
+    s = eco.bank.bank_status(NOW)
+    assert s["cash"] == pytest.approx(5_000_000)  # 現金には全額入る
+    t = s["thermostat"]
+    assert (
+        t["enforce"] is False and t["burned"] > 4_000_000
+    )  # 器（下限 30万）を超えた分は、消えるはずだった額として記録
+    assert t["load"] == pytest.approx(5_000_000 - t["burned"]) and t["room"] == pytest.approx(0.0, abs=1.0)
+    with eco.db.tx():
+        assert eco.bank.bank_pay_for(G, 1_000_000, NOW) == 1_000_000
+    s = eco.bank.bank_status(NOW)
+    assert s["cash"] == pytest.approx(4_000_000)  # 肩代わりは、現金に注入されない
+    assert s["thermostat"]["bailed"] > 0 and s["thermostat"]["bailout_debt"] == pytest.approx(s["thermostat"]["bailed"])
+
+
+def test_thermostat_enforced_burns_the_excess_inflow_and_shares_only_what_arrived(eco, monkeypatch):
+    monkeypatch.setattr("domain.thermostat.ENFORCE", True)
+    eco.wallet.credit(A, 20_000, "テスト")
+    eco.bank.bank_deposit(A, 10_000, NOW)
+    cash_before = eco.bank.bank_status(NOW)["cash"]
+    with eco.db.tx():
+        eco.bank.bank_income_for(G, 12_000_000, 0.5, NOW)
+    s = eco.bank.bank_status(NOW)
+    net = s["cash"] - cash_before
+    assert net == pytest.approx(300_000, rel=0.001)  # 器の下限で頭打ち。残りは熱浴へ消える
+    assert s["thermostat"]["burned"] == pytest.approx(12_000_000 - net)
+    assert eco.bank.deposit_of(A) == 10_000 + int(net * 0.5)  # 預金者への分配は、届いた分だけが元
+
+
+def test_thermostat_enforced_bails_out_a_shock_so_deposits_are_not_wiped(eco, monkeypatch):
+    monkeypatch.setattr("domain.thermostat.ENFORCE", True)
+    eco.wallet.credit(A, 2_000_000, "テスト")
+    eco.bank.bank_deposit(A, 1_000_000, NOW)  # 手元 20万・地下融資 80万
+    with eco.db.tx():
+        paid = eco.bank.bank_pay_for(G, 5_000_000, NOW)
+    assert paid == 5_000_000
+    t = _thermo(eco)
+    assert t["bailed"] == pytest.approx(5_000_000 - 300_000, rel=0.001)  # 銀行が負うのは、器の分（30万）まで
+    assert t["bailout_debt"] == pytest.approx(t["bailed"]) and t["payout_ratio"] == 0.0
+    # 肩代わりが無ければ預金は全滅する額。負う 30万のうち、手元 20万で足りない 10万だけが預金から減る
+    assert eco.bank.deposit_of(A) == pytest.approx(900_000, rel=0.001)
+
+
+def test_thermostat_state_cools_down_over_time(eco):
+    with eco.db.tx():
+        eco.bank.bank_income_for(G, 100_000, 0.0, NOW)
+    hot = _thermo(eco)["load"]
+    later = eco.bank.bank_status(NOW + 7 * 86400)["thermostat"]
+    assert later["load"] == pytest.approx(hot / 10) and later["capacity"] > 300_000  # 7日で 1/10。器は遅れて育つ
+
+
+def test_thermostat_columns_are_added_to_an_existing_database(tmp_path):
+    import sqlite3
+
+    path = str(tmp_path / "old.db")
+    repos = open_repositories(path, strict=True).for_guild(G)
+    with repos.db.tx():
+        repos.bank.bank_income_for(G, 1_000, 0.0, NOW)
+    repos.db.conn.close()
+    conn = sqlite3.connect(path)
+    for col in ("thermo_load", "thermo_capacity", "thermo_ts", "bailout_debt", "thermo_burned", "thermo_bailed"):
+        conn.execute(f"ALTER TABLE teiai_bank DROP COLUMN {col}")  # サーモスタット導入前の表に戻す
+    conn.commit()
+    conn.close()
+    reopened = open_repositories(path, strict=True).for_guild(G)
+    s = reopened.bank.bank_status(NOW)
+    assert s["cash"] == pytest.approx(1_000)  # 既存の現金はそのまま
+    assert s["thermostat"]["load"] == 0.0 and s["thermostat"]["capacity"] == pytest.approx(300_000)
+
+
+def test_panel_shows_the_thermostat_and_that_it_is_only_observing(eco):
+    from cogs.teiai.panel import panel_embed
+
+    with eco.db.tx():
+        eco.bank.bank_income_for(G, 50_000, 0.0, NOW)
+    field = next(f for f in panel_embed(eco.bank, eco.debt, eco.wallet, A).fields if "サーモスタット" in f.name)
+    assert "熱量" in field.value and "観測だけ" in field.value

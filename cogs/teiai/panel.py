@@ -14,6 +14,7 @@ from cogs.shared.messages import format_failure
 from cogs.teiai.escape import run_escape
 from cogs.teiai.texts import LEVEL_MARK as LEVEL_MARK
 from cogs.teiai.texts import LEVEL_TEXT as LEVEL_TEXT
+from cogs.teiai.texts import THERMOSTAT_OBSERVING, THERMOSTAT_TITLE
 from domain import teiai
 from domain.ports.repos import IBankRepo, IDebtRepo, INoticeRepo, IWalletRepo
 
@@ -24,6 +25,21 @@ def meter(ratio, width: int = 10) -> str:
         return "─" * width
     filled = max(0, min(width, round(ratio / 0.30 * width)))
     return "█" * filled + "░" * (width - filled)
+
+
+def thermostat_lines(thermo: dict) -> str:
+    """サーモスタットの状態（熱量・器・熱浴とのやりとりの累計）。"""
+    lines = [
+        f"熱量 {ui.pelica(int(thermo['load']))}　器 {ui.pelica(int(thermo['capacity']))}　（空き {ui.pelica(int(thermo['room']))}）",
+        f"熱浴へ消えた額 {ui.pelica(int(thermo['burned']))}　熱浴の肩代わり {ui.pelica(int(thermo['bailed']))}",
+    ]
+    if thermo["bailout_debt"] >= 1:
+        lines.append(
+            f"熱浴への借り {ui.pelica(int(thermo['bailout_debt']))}（余剰の還元 {thermo['payout_ratio']:.0%}）"
+        )
+    if not thermo["enforce"]:
+        lines.append(THERMOSTAT_OBSERVING)
+    return "\n".join(lines)
 
 
 def bank_lines(bank: dict) -> str:
@@ -62,6 +78,9 @@ def render_teiai_panel_embed(
         value=f"**{ui.pelica(house['balance'])}**　（ピンハネの合計 {ui.pelica(house['skimmed'])}。デイリーと地下作業から入る）",
         inline=False,
     )
+    thermo = bank.get("thermostat")
+    if thermo:
+        e.add_field(name=THERMOSTAT_TITLE, value=thermostat_lines(thermo), inline=False)
     if graced:
         e.add_field(
             name="⚠️ 破産猶予のカウントダウン中",

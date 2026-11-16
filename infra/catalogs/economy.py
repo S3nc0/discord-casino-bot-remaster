@@ -16,6 +16,7 @@ from domain.ports.catalog_types.economy import (
     RaffleSectionContract,
     TeiaiCatalogContract,
     TeiaiStatusContract,
+    ThermostatSectionContract,
     TransferSectionContract,
     WalletSectionContract,
     WeeklySectionContract,
@@ -53,6 +54,17 @@ class TeiaiStatusConfig(TeiaiStatusContract):
     label: str = Field(min_length=1)
     mark: str | None = None
     name: str | None = None
+
+
+@pydantic_dataclass(frozen=True, config=STRICT_CONFIG, kw_only=True)
+class ThermostatSection(ThermostatSectionContract):
+    enforce: bool
+    cool_days: float = Field(gt=0)
+    memory_ratio: float = Field(ge=1)
+    capacity_min: int = Field(gt=0)
+    coupling: float = Field(gt=0)
+    bailout_scale: int = Field(gt=0)
+    payout_max: float = Field(ge=0, le=1)
 
 
 @pydantic_dataclass(frozen=True, config=STRICT_CONFIG, kw_only=True)
@@ -97,6 +109,7 @@ class TeiaiCatalog(TeiaiCatalogContract):
     cds_payout_cap_rate: float = Field(gt=0)
     wealthy_assets: int = Field(gt=0)
     statuses: Mapping[str, TeiaiStatusConfig]
+    thermostat: ThermostatSection
 
 
 # ------------------------------------------------------------------ #

@@ -31,6 +31,17 @@ class TeiaiStatusContract:
 
 
 @dataclass(frozen=True)
+class ThermostatSectionContract:
+    enforce: bool
+    cool_days: float
+    memory_ratio: float
+    capacity_min: int
+    coupling: float
+    bailout_scale: int
+    payout_max: float
+
+
+@dataclass(frozen=True)
 class TeiaiCatalogContract:
     seed: int
     labor_skim_rate: float
@@ -72,6 +83,7 @@ class TeiaiCatalogContract:
     cds_payout_cap_rate: float
     wealthy_assets: int
     statuses: Mapping[str, TeiaiStatusContract]
+    thermostat: ThermostatSectionContract
 
 
 @dataclass(frozen=True)

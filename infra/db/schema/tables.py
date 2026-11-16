@@ -347,7 +347,13 @@ def create_tables(conn: sqlite3.Connection) -> None:
             guild_id INTEGER PRIMARY KEY,
             cash     REAL NOT NULL DEFAULT 0,          -- すぐ払い出せる現金
             loaned   REAL NOT NULL DEFAULT 0,          -- 地下融資に回している額（時間がたつと現金に戻る）
-            ts       REAL NOT NULL DEFAULT 0           -- 融資の回収を、ここまで反映した時刻
+            ts       REAL NOT NULL DEFAULT 0,          -- 融資の回収を、ここまで反映した時刻
+            thermo_load     REAL NOT NULL DEFAULT 0,   -- サーモスタットの短期熱量 L
+            thermo_capacity REAL NOT NULL DEFAULT 0,   -- サーモスタットの長期キャパシティ E（0 は未初期化。下限から始める）
+            thermo_ts       REAL NOT NULL DEFAULT 0,   -- L・E を、ここまで冷ました時刻
+            bailout_debt    REAL NOT NULL DEFAULT 0,   -- 熱浴が肩代わりした額のうち、未返済の分 D
+            thermo_burned   REAL NOT NULL DEFAULT 0,   -- 熱浴へ消えた（観測中は、消えるはずだった）額の累計
+            thermo_bailed   REAL NOT NULL DEFAULT 0    -- 熱浴が肩代わりした（観測中は、するはずだった）額の累計
         );
         CREATE TABLE IF NOT EXISTS teiai_house (       -- 帝愛の胴元の口座（サーバーごとに1行）。ピンハネが入る。銀行の手元（預金の準備）とは別
             guild_id INTEGER PRIMARY KEY,

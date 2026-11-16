@@ -7,7 +7,7 @@ import time
 from typing import Any, Optional
 
 from domain import market as market_mod
-from domain import teiai
+from domain import teiai, thermostat
 from domain.errors import fail
 from domain.ports.bridges import (
     IBankruptExecutor,
@@ -73,6 +73,43 @@ class BankRepo(ScopedRepo, IBankRepo):
     def bank_set_for(self, guild_id: int, cash: float, loaned: float) -> None:
         self._conn.execute("UPDATE teiai_bank SET cash=?, loaned=? WHERE guild_id=?", (cash, loaned, guild_id))
 
+    # ------------------------------------------------------------------ #
+    # 最前線サーモスタット（数字と考え方は domain/thermostat.py）
+    # ------------------------------------------------------------------ #
+    def _thermo_state_for(self, guild_id: int, now: float) -> thermostat.State:
+        """いまの時刻まで冷ました状態（銀行の行がある前提。bank_sync_for のあとで呼ぶ）。"""
+        row = self._conn.execute(
+            "SELECT thermo_load, thermo_capacity, thermo_ts, bailout_debt FROM teiai_bank WHERE guild_id=?",
+            (guild_id,),
+        ).fetchone()
+        state = thermostat.State(
+            load=row["thermo_load"],
+            capacity=max(row["thermo_capacity"], thermostat.E_MIN),
+            bailout_debt=row["bailout_debt"],
+        )
+        return thermostat.decay(state, (now - row["thermo_ts"]) / 86400)
+
+    def _thermo_save_for(
+        self, guild_id: int, state: thermostat.State, now: float, burned: float = 0.0, bailed: float = 0.0
+    ) -> None:
+        self._conn.execute(
+            "UPDATE teiai_bank SET thermo_load=?, thermo_capacity=?, thermo_ts=?, bailout_debt=?, "
+            "thermo_burned=thermo_burned+?, thermo_bailed=thermo_bailed+? WHERE guild_id=?",
+            (state.load, state.capacity, now, state.bailout_debt, burned, bailed, guild_id),
+        )
+
+    def _thermo_inflow_for(self, guild_id: int, amount: int, now: float) -> float:
+        """流入を通し、銀行に入れてよい額を返す（観測だけの間は、全額）。"""
+        state, net, burn = thermostat.absorb_inflow(self._thermo_state_for(guild_id, now), amount)
+        self._thermo_save_for(guild_id, state, now, burned=burn)
+        return net if thermostat.ENFORCE else float(amount)
+
+    def _thermo_shock_for(self, guild_id: int, amount: int, now: float) -> float:
+        """損失を通し、熱浴から銀行へ注入する額を返す（観測だけの間は、0）。"""
+        state, _effective, bailout = thermostat.absorb_shock(self._thermo_state_for(guild_id, now), amount)
+        self._thermo_save_for(guild_id, state, now, bailed=bailout)
+        return bailout if thermostat.ENFORCE else 0.0
+
     def _deposits_for(self, guild_id: int) -> list[tuple[int, int]]:
         return [
             (r["user_id"], r["amount"])
@@ -136,6 +173,10 @@ class BankRepo(ScopedRepo, IBankRepo):
                 level = "warn"
             else:
                 level = "danger"
+            thermo = self._thermo_state_for(gid, now)
+            totals = self._conn.execute(
+                "SELECT thermo_burned, thermo_bailed FROM teiai_bank WHERE guild_id=?", (gid,)
+            ).fetchone()
             return {
                 "cash": state["cash"],
                 "loaned": state["loaned"],
@@ -144,6 +185,16 @@ class BankRepo(ScopedRepo, IBankRepo):
                 "available": available,
                 "ratio": ratio,
                 "level": level,
+                "thermostat": {
+                    "enforce": thermostat.ENFORCE,
+                    "load": thermo.load,
+                    "capacity": thermo.capacity,
+                    "room": max(thermo.capacity - thermostat.COUPLING * thermo.load, 0.0) / thermostat.COUPLING,
+                    "bailout_debt": thermo.bailout_debt,
+                    "payout_ratio": thermostat.payout_ratio(thermo.bailout_debt),
+                    "burned": totals["thermo_burned"],
+                    "bailed": totals["thermo_bailed"],
+                },
             }
 
     def house_income_for(self, guild_id: int, amount: int) -> None:
@@ -176,8 +227,9 @@ class BankRepo(ScopedRepo, IBankRepo):
         if needs_depositors and total <= 0:
             return
         state = self.bank_sync_for(guild_id, now)
-        self.bank_set_for(guild_id, state["cash"] + amount, state["loaned"])
-        distribute = int(amount * share)
+        received = self._thermo_inflow_for(guild_id, amount, now)
+        self.bank_set_for(guild_id, state["cash"] + received, state["loaned"])
+        distribute = int(received * share)
         if total <= 0 or distribute <= 0:
             return
         for uid, amt in deposits:
@@ -193,6 +245,7 @@ class BankRepo(ScopedRepo, IBankRepo):
             return 0
         now = time.time() if now is None else now
         state = self.bank_sync_for(guild_id, now)
+        state["cash"] += self._thermo_shock_for(guild_id, amount, now)  # 熱浴の肩代わり分は、先に手元へ入れる
         deposits = self._deposits_for(guild_id)
         total = sum(a for _, a in deposits)
         paid = int(min(amount, state["cash"] + total))

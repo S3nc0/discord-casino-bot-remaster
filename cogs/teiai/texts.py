@@ -58,3 +58,6 @@ LEVEL_TEXT: dict[str, str] = {
     "danger": "取り付け危険水域！",
     "frozen": "支払停止（預金封鎖）",
 }
+
+THERMOSTAT_TITLE = "🌡️ サーモスタット"
+THERMOSTAT_OBSERVING = "（いまは観測だけ。銀行の現金には、まだ反映していません）"

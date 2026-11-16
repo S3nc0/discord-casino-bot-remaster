@@ -45,6 +45,16 @@ cds_payout_cap_rate: 0.50
 
 wealthy_assets: 1000000
 
+# 最前線サーモスタット（#32）。銀行に出入りするペリカを、金庫の手前で受け止める器
+thermostat:
+  enforce: false         # false の間は観測だけ（現金には手を付けず、消える額・肩代わりの額を記録する）
+  cool_days: 7           # 短期熱量 L が 1/10 に冷めるまでの日数
+  memory_ratio: 4        # 長期キャパシティ E は、L の何倍ゆっくり縮むか（7日 × 4 = 28日）
+  capacity_min: 300000   # E の下限（流入がまったく無くても残る器）
+  coupling: 1.0          # c。L が器を塞ぐ強さ（1.0 で、平時の流入のおよそ 3/4 が銀行に入る）
+  bailout_scale: 1000000 # K。熱浴への債務がこの額に達すると、余剰の還元が止まる
+  payout_max: 1.0        # 債務がないときの、余剰の還元率
+
 statuses:
   katagi:
     label: "🟢 カタギ"
