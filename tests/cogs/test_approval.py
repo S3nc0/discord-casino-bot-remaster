@@ -358,6 +358,7 @@ def test_owner_commands_are_dm_only_and_not_in_other_groups():
         "付与",
         "残高設定",
         "競馬開催",
+        "闘技場開催",
         "お知らせ",
         "発言削除",
         "抽選",

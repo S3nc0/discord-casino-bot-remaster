@@ -99,6 +99,26 @@ def test_run_once_does_not_re_announce_after_a_bot_restart(setup, monkeypatch):
     assert len(chan.sent) == 1  # 再起動後、同じ大会をもう一度告知しない
 
 
+def test_host_now_creates_and_posts_without_waiting_for_the_scheduled_hour(setup, monkeypatch):
+    eco, chan, guild, bot, cog = setup
+    _at(monkeypatch, jst(3.0))  # 準決勝の時刻(SEMI_HOUR)より前
+    status = asyncio.run(cog.host_now(guild, None, advance=False))
+    assert status == "準決勝・受付中"
+    assert "今日の大会です" in chan.sent[0]["content"]
+    t = eco.arena_tournament_get_by_day(eco._arena_today(jst(3.0)))
+    assert t is not None and t["status"] == "semi_betting"  # まだ決着させていない
+
+
+def test_host_now_with_advance_settles_the_current_stage_right_away(setup, monkeypatch):
+    eco, chan, guild, bot, cog = setup
+    _at(monkeypatch, jst(3.0))  # 準決勝の時刻より前でも、advance なら決着させる
+    status = asyncio.run(cog.host_now(guild, None, advance=True))
+    assert status == "終了"  # 準決勝・決勝とも、間を置かず決着させる
+    assert any("準決勝、決着" in s.get("embed", SimpleNamespace(title="")).title for s in chan.sent)
+    assert any("決勝、決着" in s.get("embed", SimpleNamespace(title="")).title for s in chan.sent)
+    assert any("開戦！" in s.get("embed", SimpleNamespace(title="")).title for s in chan.sent)
+
+
 def test_bet_panel_select_and_stake_modal_place_a_real_bet(setup, monkeypatch):
     eco, chan, guild, bot, cog = setup
     eco.credit(V, 10_000, "テスト")

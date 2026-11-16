@@ -10,12 +10,13 @@ import asyncio
 import datetime
 import random
 import time
+from typing import Optional
 
 import discord
 from discord import app_commands
 from discord.ext import commands, tasks
 
-from cogs.arena.embeds import battle_embed
+from cogs.arena.embeds import STAGE_LABEL, battle_embed
 from cogs.arena.views import BetPanel
 from cogs.shared import ui
 from cogs.shared.announce import announce_channel
@@ -93,6 +94,77 @@ class ArenaCog(commands.Cog):
         except discord.HTTPException as exc:
             logthrottle.warn(("arena-anim", channel.id), f"闘技場の演出を表示できません: {exc!r}")
 
+    async def _advance_semis(self, guild: discord.Guild, eco, t: dict, day_key: tuple) -> Optional[dict]:
+        """準決勝を決着させ、演出・結果投稿・パネル更新まで行う（時刻は見ない。呼ぶ側が判断する）。"""
+        pre_fighters = t["fighters"]
+        result = eco.arena_run_semis(t["id"])
+        if result:
+            channel = await self._channel(guild, eco)
+            if channel is not None:
+                for group_no, info in result["groups"].items():
+                    group_fighters = [f for f in pre_fighters if f["group_no"] == group_no]
+                    winner_idx = next(i for i, f in enumerate(group_fighters) if f["name"] == info["winner"])
+                    await self._animate_match(channel, group_fighters, winner_idx, f"⏳ 準決勝 第{group_no}組、開戦！")
+                lines = [
+                    f"第{g}組: **{r['winner']}** が勝利（敗: {'・'.join(r['losers'])}）"
+                    for g, r in result["groups"].items()
+                ]
+                await self._post(
+                    channel,
+                    embed=ui.embed(
+                        "🏛️ 準決勝、決着！",
+                        "\n".join(lines) + f"\n\n決勝は **{' vs '.join(result['finalists'])}**",
+                        ui.GOLD,
+                    ),
+                )
+            if day_key in self._panels:
+                await self._panels[day_key].refresh()
+        return result
+
+    async def _advance_final(self, guild: discord.Guild, eco, t: dict, day_key: tuple) -> Optional[dict]:
+        """決勝を決着させ、演出・結果投稿・パネル更新まで行う（時刻は見ない。呼ぶ側が判断する）。"""
+        pre_finalists = [f for f in t["fighters"] if f["stage"] == "final"]
+        result = eco.arena_run_final(t["id"])
+        if result:
+            channel = await self._channel(guild, eco)
+            if channel is not None and len(pre_finalists) == 2:
+                winner_idx = 0 if result["champion"] == pre_finalists[0]["name"] else 1
+                await self._animate_match(channel, pre_finalists, winner_idx, "👑 決勝、開戦！")
+            if channel is not None:
+                await self._post(
+                    channel,
+                    embed=ui.embed(
+                        "👑 決勝、決着！",
+                        f"優勝: **{result['champion']}**（準優勝: {result['runner_up']}）",
+                        ui.GOLD,
+                    ),
+                )
+            if day_key in self._panels:
+                await self._panels[day_key].refresh()
+                del self._panels[day_key]  # 大会は終わったので、以後は書き換えない
+        return result
+
+    async def host_now(self, guild: discord.Guild, channel: Optional[discord.abc.Messageable], advance: bool) -> str:
+        """[管理者用] 今日の大会を、時刻を待たずに出す（無ければ作成）。advance なら、現在の段をすぐ決着させる。"""
+        eco = self.bot.economy.for_guild(guild.id)
+        now = time.time()
+        t = eco.arena_tournament_ensure(now)
+        day_key = (guild.id, t["day"])
+        target = channel or await self._channel(guild, eco)
+        panel = BetPanel(self.bot, t)
+        msg = await self._post(target, content="🏛️ **地下闘技場** 今日の大会です！", embed=panel.embed(), view=panel)
+        panel.message = msg
+        self._panels[day_key] = panel
+        if advance:
+            if t["status"] == "semi_betting":
+                await self._advance_semis(guild, eco, t, day_key)
+                t = eco.arena_tournament_ensure(now)
+            if t["status"] == "final_betting":
+                await self._advance_final(guild, eco, t, day_key)
+                t = eco.arena_tournament_ensure(now)
+        status: str = t["status"]
+        return STAGE_LABEL.get(status, status)
+
     async def run_once(self) -> None:
         now = time.time()
         for guild in list(self.bot.guilds):
@@ -118,54 +190,10 @@ class ArenaCog(commands.Cog):
                         panel.message = msg
                         self._panels[day_key] = panel
                 if t["status"] == "semi_betting" and tz_hour >= arena_mod.SEMI_HOUR:
-                    pre_fighters = t["fighters"]
-                    result = eco.arena_run_semis(t["id"])
-                    if result:
-                        channel = await self._channel(guild, eco)
-                        if channel is not None:
-                            for group_no, info in result["groups"].items():
-                                group_fighters = [f for f in pre_fighters if f["group_no"] == group_no]
-                                winner_idx = next(
-                                    i for i, f in enumerate(group_fighters) if f["name"] == info["winner"]
-                                )
-                                await self._animate_match(
-                                    channel, group_fighters, winner_idx, f"⏳ 準決勝 第{group_no}組、開戦！"
-                                )
-                            lines = [
-                                f"第{g}組: **{r['winner']}** が勝利（敗: {'・'.join(r['losers'])}）"
-                                for g, r in result["groups"].items()
-                            ]
-                            await self._post(
-                                channel,
-                                embed=ui.embed(
-                                    "🏛️ 準決勝、決着！",
-                                    "\n".join(lines) + f"\n\n決勝は **{' vs '.join(result['finalists'])}**",
-                                    ui.GOLD,
-                                ),
-                            )
-                        if day_key in self._panels:
-                            await self._panels[day_key].refresh()
+                    await self._advance_semis(guild, eco, t, day_key)
                 t = eco.arena_tournament_ensure(now)  # 準決勝の決着を反映して読み直す
                 if t["status"] == "final_betting" and tz_hour >= arena_mod.FINAL_HOUR:
-                    pre_finalists = [f for f in t["fighters"] if f["stage"] == "final"]
-                    result = eco.arena_run_final(t["id"])
-                    if result:
-                        channel = await self._channel(guild, eco)
-                        if channel is not None and len(pre_finalists) == 2:
-                            winner_idx = 0 if result["champion"] == pre_finalists[0]["name"] else 1
-                            await self._animate_match(channel, pre_finalists, winner_idx, "👑 決勝、開戦！")
-                        if channel is not None:
-                            await self._post(
-                                channel,
-                                embed=ui.embed(
-                                    "👑 決勝、決着！",
-                                    f"優勝: **{result['champion']}**（準優勝: {result['runner_up']}）",
-                                    ui.GOLD,
-                                ),
-                            )
-                        if day_key in self._panels:
-                            await self._panels[day_key].refresh()
-                            del self._panels[day_key]  # 大会は終わったので、以後は書き換えない
+                    await self._advance_final(guild, eco, t, day_key)
             except Exception as exc:  # 1サーバーの失敗で、ほかを止めない
                 print(f"地下闘技場を処理できません: guild={guild.id}: {exc!r}")
             finally:

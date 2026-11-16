@@ -425,6 +425,7 @@ def test_all_commands_load_and_follow_discord_rules(bot, tmp_path):
         "付与",
         "残高設定",
         "競馬開催",
+        "闘技場開催",
         "お知らせ",
         "発言削除",
         "抽選",

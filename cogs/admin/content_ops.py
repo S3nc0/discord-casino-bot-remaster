@@ -8,7 +8,7 @@ from cogs.admin.embeds import bulk_preview_lines
 from cogs.admin.purge import can_read_history
 from cogs.admin.views import AnnounceModal, PurgeConfirm, QuizBulkConfirm
 from cogs.shared import ui
-from cogs.shared.cog_ports import IHorseCogPort, IQuizCogPort, IRaffleCogPort, require_cog_port
+from cogs.shared.cog_ports import IArenaCogPort, IHorseCogPort, IQuizCogPort, IRaffleCogPort, require_cog_port
 from domain import quizimport
 
 MAX_IMAGE_BYTES = ui.MAX_IMAGE_BYTES
@@ -37,6 +37,32 @@ async def special_race(
         embed=ui.ok_embed(
             "臨時レースを開催しました",
             f"{guild.name} で、臨時レース（#{race_id}）の申し込みを始めました（掲示は{channel.mention if channel else '告知チャンネル'}）。申し込み {entry_min}分 → 馬券 {bet_min}分 → 発走（2分後）。",
+        ),
+        ephemeral=True,
+    )
+
+
+async def host_arena(
+    cog,
+    interaction: discord.Interaction,
+    guild_id: str,
+    advance: bool,
+    channel_id: Optional[str],
+) -> None:
+    guild = await cog._pick_guild(interaction, guild_id)
+    if guild is None:
+        return
+    ok, channel = await cog._pick_channel(interaction, guild, channel_id)
+    if not ok:
+        return
+    arena_cog = await require_cog_port(cog.bot, interaction, "ArenaCog", IArenaCogPort, "闘技場")
+    if arena_cog is None:
+        return
+    status = await arena_cog.host_now(guild, channel, advance)
+    await interaction.response.send_message(
+        embed=ui.ok_embed(
+            "闘技場を開催しました",
+            f"{guild.name} で、今日の大会を出しました（掲示は{channel.mention if channel else '告知チャンネル'}）。状態: {status}",
         ),
         ephemeral=True,
     )

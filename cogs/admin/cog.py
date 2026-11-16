@@ -306,6 +306,26 @@ class ApprovalCog(commands.Cog):
     special_race.autocomplete("guild_id")(guild_autocomplete)
     special_race.autocomplete("channel_id")(channel_autocomplete)
 
+    @group.command(name="闘技場開催", description="[管理者] 今日の地下闘技場を、時刻を待たずに出す（無ければ作成）")
+    @app_commands.rename(guild_id="サーバー", advance="即決着", channel_id="チャンネル")
+    @app_commands.describe(
+        guild_id="開催するサーバー（候補から選ぶ）",
+        advance="いまの段（準決勝・決勝）を、時刻を待たずにすぐ決着させる",
+        channel_id="掲示を出すチャンネル（候補から選ぶ。空なら告知チャンネル）",
+    )
+    async def host_arena(
+        self,
+        interaction: discord.Interaction,
+        guild_id: str,
+        advance: bool = False,
+        channel_id: Optional[str] = None,
+    ):
+        if await self._owner_only(interaction):
+            await content_ops.host_arena(self, interaction, guild_id, advance, channel_id)
+
+    host_arena.autocomplete("guild_id")(guild_autocomplete)
+    host_arena.autocomplete("channel_id")(channel_autocomplete)
+
     @group.command(name="お知らせ", description="[管理者] Bot から、文字や画像をお知らせとして告知チャンネルに出す")
     @app_commands.rename(guild_id="サーバー", image="画像", title="見出し", channel_id="チャンネル")
     @app_commands.describe(

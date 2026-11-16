@@ -46,6 +46,12 @@ class IHorseCogPort(Protocol):
     async def post_bet_announcement(self, guild: discord.Guild, eco: Any, race: dict, content: str) -> None: ...
 
 
+class IArenaCogPort(Protocol):
+    async def host_now(
+        self, guild: discord.Guild, channel: Optional[discord.abc.Messageable], advance: bool
+    ) -> str: ...
+
+
 class IRaffleCogPort(Protocol):
     async def host(
         self,
