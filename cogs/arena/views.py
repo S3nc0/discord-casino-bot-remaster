@@ -86,7 +86,7 @@ class BetPanel(discord.ui.View):
 
     async def refresh(self) -> None:
         """最新のDB状態を読み直し、掲示メッセージを書き換える（賭けが入るたび・段が進むたび）。"""
-        fresh = self._eco().arena_tournament_get_by_day(self.tournament["day"])
+        fresh = self._eco().arena_tournament_get_by_day(self.tournament["day"], self.tournament["format"])
         if fresh is not None:
             self.tournament = fresh
         self.clear_items()

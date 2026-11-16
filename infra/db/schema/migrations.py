@@ -154,6 +154,12 @@ def add_missing_columns(conn: sqlite3.Connection) -> None:
         if cols and col not in cols:
             conn.execute(f"ALTER TABLE {table} ADD COLUMN {col} {ddl}")
     _add_symbol_columns(conn)
+    idx = conn.execute(
+        "SELECT sql FROM sqlite_master WHERE type='index' AND name='idx_arena_tournaments_day'"
+    ).fetchone()
+    if idx and idx["sql"] and "format" not in idx["sql"]:  # 1日1形式だった頃の索引（同日に両形式を両立できなかった）
+        conn.execute("DROP INDEX idx_arena_tournaments_day")
+        conn.execute("CREATE UNIQUE INDEX idx_arena_tournaments_day ON arena_tournaments (guild_id, day, format)")
 
 
 # 銘柄を足す前の表（主キーに symbol がない）。CSトークンだけだった頃の記録は、すべて symbol='cs' として移す

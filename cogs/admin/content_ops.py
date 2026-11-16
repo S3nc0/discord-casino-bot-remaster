@@ -47,6 +47,7 @@ async def host_arena(
     interaction: discord.Interaction,
     guild_id: str,
     advance: bool,
+    fmt: Optional[str],
     channel_id: Optional[str],
 ) -> None:
     guild = await cog._pick_guild(interaction, guild_id)
@@ -58,7 +59,7 @@ async def host_arena(
     arena_cog = await require_cog_port(cog.bot, interaction, "ArenaCog", IArenaCogPort, "闘技場")
     if arena_cog is None:
         return
-    status = await arena_cog.host_now(guild, channel, advance)
+    status = await arena_cog.host_now(guild, channel, advance, fmt)
     await interaction.response.send_message(
         embed=ui.ok_embed(
             "闘技場を開催しました",

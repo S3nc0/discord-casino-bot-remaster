@@ -584,7 +584,7 @@ def create_tables(conn: sqlite3.Connection) -> None:
             enabled INTEGER NOT NULL DEFAULT 1,   -- 1: 称号の表示を、自分で選んだ人。0: 身分の【地下労働者】だけを、Bot が付けている人
             PRIMARY KEY (guild_id, user_id)
         );
-        CREATE TABLE IF NOT EXISTS arena_tournaments (  -- 地下闘技場の、1日1回の大会
+        CREATE TABLE IF NOT EXISTS arena_tournaments (  -- 地下闘技場の、1日1回の大会（形式ごとに別の大会として、毎日両方開く）
             id       INTEGER PRIMARY KEY AUTOINCREMENT,
             guild_id INTEGER NOT NULL,
             day      TEXT    NOT NULL,
@@ -592,13 +592,13 @@ def create_tables(conn: sqlite3.Connection) -> None:
             status   TEXT    NOT NULL DEFAULT 'semi_betting',  -- semi_betting -> semi_done -> final_betting -> done
             created  REAL    NOT NULL
         );
-        CREATE UNIQUE INDEX IF NOT EXISTS idx_arena_tournaments_day ON arena_tournaments (guild_id, day);
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_arena_tournaments_day ON arena_tournaments (guild_id, day, format);
         CREATE TABLE IF NOT EXISTS arena_fighters (     -- 戦士（NPC。大会ごとに生成）
             id            INTEGER PRIMARY KEY AUTOINCREMENT,
             tournament_id INTEGER NOT NULL,
             name          TEXT    NOT NULL,
             base_power    INTEGER NOT NULL,
-            group_no      INTEGER NOT NULL,          -- 準決勝の組（1 か 2）
+            group_no      INTEGER NOT NULL,          -- 準決勝の組（1on1は1〜2・バトロワは1〜4）
             stage         TEXT    NOT NULL DEFAULT 'semi',  -- semi / final / out（脱落）
             bet_total     INTEGER NOT NULL DEFAULT 0, -- 大会を通じた、この戦士への賭け総額（武器の強さに使う）
             result        TEXT                       -- いまの段の結果（NULL 未決着 / won / lost）

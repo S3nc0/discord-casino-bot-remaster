@@ -11,25 +11,24 @@ from infra.db.base import EcoBase
 
 
 class ArenaMixin(EcoBase):
-    """地下闘技場：1日1回の大会の生成・賭け・精算。"""
+    """地下闘技場：1日1回、1on1とバトロワを両方開催する大会の生成・賭け・精算。"""
 
     def _arena_today(self, now: float, tz_hours: float = 9.0) -> str:
         tz = datetime.timezone(datetime.timedelta(hours=tz_hours))
         return datetime.datetime.fromtimestamp(now, tz).date().isoformat()
 
     def arena_tournament_ensure(
-        self, now: Optional[float] = None, tz_hours: float = 9.0, rng: Optional[random.Random] = None
+        self, fmt: str, now: Optional[float] = None, tz_hours: float = 9.0, rng: Optional[random.Random] = None
     ) -> dict:
-        """今日の大会を用意する（無ければ作る）。すでにあれば、そのまま返す。"""
+        """今日の、指定した形式の大会を用意する（無ければ作る）。すでにあれば、そのまま返す。"""
         now = time.time() if now is None else now
         rng = rng or random.SystemRandom()
         day = self._arena_today(now, tz_hours)
         with self._lock, self._conn:
             row = self._conn.execute(
-                "SELECT id FROM arena_tournaments WHERE guild_id=? AND day=?", (self._g(), day)
+                "SELECT id FROM arena_tournaments WHERE guild_id=? AND day=? AND format=?", (self._g(), day, fmt)
             ).fetchone()
             if row is None:
-                fmt = arena_mod.format_today(day)
                 cur = self._conn.execute(
                     "INSERT INTO arena_tournaments (guild_id, day, format, status, created) "
                     "VALUES (?, ?, ?, 'semi_betting', ?)",
@@ -38,22 +37,28 @@ class ArenaMixin(EcoBase):
                 tid = cur.lastrowid
                 assert tid is not None
                 fighters = arena_mod.generate_fighters(fmt, rng)
-                half = len(fighters) // 2
+                block = arena_mod.group_size(fmt)
                 for i, f in enumerate(fighters):
                     self._conn.execute(
                         "INSERT INTO arena_fighters (tournament_id, name, base_power, group_no, stage) "
                         "VALUES (?, ?, ?, ?, 'semi')",
-                        (tid, f["name"], f["base_power"], 1 if i < half else 2),
+                        (tid, f["name"], f["base_power"], i // block + 1),
                     )
                 self._arena_seed_spectators(tid, now, rng)
-            result = self.arena_tournament_get_by_day(day)
+            result = self.arena_tournament_get_by_day(day, fmt)
             assert result is not None
             return result
 
-    def arena_tournament_get_by_day(self, day: str) -> Optional[dict]:
+    def arena_tournaments_ensure_today(
+        self, now: Optional[float] = None, tz_hours: float = 9.0, rng: Optional[random.Random] = None
+    ) -> list:
+        """今日の大会を、1on1・バトロワの両方そろえて返す（無ければ作る）。"""
+        return [self.arena_tournament_ensure(fmt, now, tz_hours, rng) for fmt in arena_mod.FORMATS]
+
+    def arena_tournament_get_by_day(self, day: str, fmt: str) -> Optional[dict]:
         with self._lock:
             row = self._conn.execute(
-                "SELECT * FROM arena_tournaments WHERE guild_id=? AND day=?", (self._g(), day)
+                "SELECT * FROM arena_tournaments WHERE guild_id=? AND day=? AND format=?", (self._g(), day, fmt)
             ).fetchone()
             if row is None:
                 return None
@@ -157,7 +162,7 @@ class ArenaMixin(EcoBase):
         self._conn.execute("UPDATE arena_fighters SET result='won' WHERE id=?", (winner["id"],))
 
     def arena_run_semis(self, tournament_id: int, rng: Optional[random.Random] = None) -> Optional[dict]:
-        """2組の準決勝を同時に決着させ、決勝へ進む2人を決める。"""
+        """準決勝の全組を同時に決着させ、決勝へ進む人（組の数ぶん）を決める。"""
         rng = rng or random.SystemRandom()
         with self._lock, self._conn:
             t = self._conn.execute("SELECT * FROM arena_tournaments WHERE id=?", (tournament_id,)).fetchone()
@@ -166,7 +171,7 @@ class ArenaMixin(EcoBase):
             fighters = self.arena_fighters(tournament_id)
             finalists = []
             groups = {}
-            for group_no in (1, 2):
+            for group_no in range(1, arena_mod.semi_groups(t["format"]) + 1):
                 group = [f for f in fighters if f["group_no"] == group_no]
                 bet_totals = {f["name"]: f["bet_total"] for f in group}
                 win_idx = arena_mod.simulate_match(group, bet_totals, rng)
@@ -181,22 +186,23 @@ class ArenaMixin(EcoBase):
             return {"groups": groups, "finalists": [w["name"] for w in finalists]}
 
     def arena_run_final(self, tournament_id: int, rng: Optional[random.Random] = None) -> Optional[dict]:
-        """決勝を決着させ、優勝者を決める。"""
+        """決勝を決着させ、優勝者を決める（準決勝の勝者全員で、同時に戦う）。"""
         rng = rng or random.SystemRandom()
         with self._lock, self._conn:
             t = self._conn.execute("SELECT * FROM arena_tournaments WHERE id=?", (tournament_id,)).fetchone()
             if t is None or t["status"] != "final_betting":
                 return None
             finalists = [f for f in self.arena_fighters(tournament_id) if f["stage"] == "final"]
-            if len(finalists) != 2:
+            if len(finalists) != arena_mod.semi_groups(t["format"]):
                 return None
             bet_totals = {f["name"]: f["bet_total"] for f in finalists}
             win_idx = arena_mod.simulate_match(finalists, bet_totals, rng)
-            champion, runner_up = finalists[win_idx], finalists[1 - win_idx]
-            win_odds = arena_mod.match_odds(finalists)[champion["name"]]
-            self._arena_settle_group(tournament_id, "final", champion, [runner_up], win_odds)
+            champion = finalists[win_idx]
+            losers = [f for i, f in enumerate(finalists) if i != win_idx]
+            win_odds = arena_mod.match_odds(finalists, boost=arena_mod.FINAL_ODDS_BOOST)[champion["name"]]
+            self._arena_settle_group(tournament_id, "final", champion, losers, win_odds)
             self._conn.execute("UPDATE arena_tournaments SET status='done' WHERE id=?", (tournament_id,))
-            return {"champion": champion["name"], "runner_up": runner_up["name"]}
+            return {"champion": champion["name"], "runner_up": [f["name"] for f in losers]}
 
     def arena_my_bets(self, tournament_id: int, user_id: int) -> list:
         with self._lock:

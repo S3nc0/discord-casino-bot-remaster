@@ -17,6 +17,7 @@ class ArenaCatalog(StrictModel):
     weapon_scale: int = Field(gt=0)
     takeout: float = Field(ge=0, lt=1)
     max_odds: float = Field(gt=1)
+    final_odds_boost: float = Field(ge=1)
     luck: float = Field(ge=0)
     min_stake: int = Field(gt=0)
     max_stake: int = Field(gt=0)

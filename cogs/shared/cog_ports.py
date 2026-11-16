@@ -48,7 +48,11 @@ class IHorseCogPort(Protocol):
 
 class IArenaCogPort(Protocol):
     async def host_now(
-        self, guild: discord.Guild, channel: Optional[discord.abc.Messageable], advance: bool
+        self,
+        guild: discord.Guild,
+        channel: Optional[discord.abc.Messageable],
+        advance: bool,
+        fmt: Optional[str] = None,
     ) -> str: ...
 
 

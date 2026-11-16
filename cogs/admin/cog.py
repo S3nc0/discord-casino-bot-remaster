@@ -307,21 +307,26 @@ class ApprovalCog(commands.Cog):
     special_race.autocomplete("channel_id")(channel_autocomplete)
 
     @group.command(name="闘技場開催", description="[管理者] 今日の地下闘技場を、時刻を待たずに出す（無ければ作成）")
-    @app_commands.rename(guild_id="サーバー", advance="即決着", channel_id="チャンネル")
+    @app_commands.rename(guild_id="サーバー", advance="即決着", fmt="形式", channel_id="チャンネル")
     @app_commands.describe(
         guild_id="開催するサーバー（候補から選ぶ）",
         advance="いまの段（準決勝・決勝）を、時刻を待たずにすぐ決着させる",
+        fmt="対象の形式（空なら1on1・バトロワの両方）",
         channel_id="掲示を出すチャンネル（候補から選ぶ。空なら告知チャンネル）",
+    )
+    @app_commands.choices(
+        fmt=[app_commands.Choice(name="1on1", value="duel"), app_commands.Choice(name="バトロワ", value="royale")]
     )
     async def host_arena(
         self,
         interaction: discord.Interaction,
         guild_id: str,
         advance: bool = False,
+        fmt: Optional[app_commands.Choice[str]] = None,
         channel_id: Optional[str] = None,
     ):
         if await self._owner_only(interaction):
-            await content_ops.host_arena(self, interaction, guild_id, advance, channel_id)
+            await content_ops.host_arena(self, interaction, guild_id, advance, fmt.value if fmt else None, channel_id)
 
     host_arena.autocomplete("guild_id")(guild_autocomplete)
     host_arena.autocomplete("channel_id")(channel_autocomplete)

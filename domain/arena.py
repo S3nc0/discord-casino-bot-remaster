@@ -1,13 +1,14 @@
 """地下闘技場（NPC戦士どうしの賭け対戦）の数字と計算。Discord と DB に依存しない純粋なロジック。
 
-- 戦士はプレイヤーが所有しない、観戦・賭け専用のNPC。日替わりで、その日の大会ぶんだけ生成される。
-- 1日1大会。形式（1on1／バトロワ）は、日付だけで決まる（サーバー・人を問わず共通）。
-  - 1on1の日: 準決勝2試合（各2人）→ 決勝1試合（準決勝の勝者2人）。
-  - バトロワの日: 準決勝2試合（各4人）→ 決勝1試合（準決勝の勝者2人、1on1）。
+- 戦士はプレイヤーが所有しない、観戦・賭け専用のNPC。1日に、1on1とバトロワの**両方**を同時開催する
+  （別々の大会として、それぞれ生成・進行・精算する）。
+  - 1on1: 準決勝2試合（各2人）→ 決勝1試合（準決勝の勝者2人、1on1）。
+  - バトロワ: 準決勝4試合（各4人）→ 決勝1試合（準決勝の勝者4人による、4人同時の戦い）。
 - 戦士への賭け総額（大会を通じて累積）に応じて、その戦士は「武器」で強くなる（上限あり。必ず勝てるわけではない）。
 - 配当は、戦士の強さ（武器込み）だけから見積もった勝率にもとづくオッズ制（horse.pyの単勝オッズと同方式）。
   賭け総額の人数には左右されない。ただし、その試合に集まった賭け金（負けた側の賭け＋観客の初期ランダム分）を
   超えて配当しない（新しくペリカを作らない。原資が足りなければ、配当は比例して減る）。
+- 決勝は、準決勝より賭けたくなるよう、オッズに FINAL_ODDS_BOOST をかけて高くする（控除は同じ。上限は変わらない）。
 """
 
 import math
@@ -29,6 +30,7 @@ WEAPON_SCALE = _CFG.weapon_scale  # この賭け総額で、上限に達する
 
 TAKEOUT = _CFG.takeout  # オッズから引く控除
 MAX_ODDS = _CFG.max_odds  # 単勝オッズの上限
+FINAL_ODDS_BOOST = _CFG.final_odds_boost  # 決勝のオッズに掛けるブースト（1.0 なら準決勝と同じ）
 LUCK = _CFG.luck  # 試合ごとの運（強さだけで決まらないようにする）
 
 MIN_STAKE = _CFG.min_stake
@@ -39,18 +41,17 @@ SPECTATOR_BET = (_CFG.spectator_min_bet, _CFG.spectator_max_bet)
 HOUSE_TOPUP_MAX = _CFG.house_topup_max  # 観客の初期ランダム分を、帝愛の手元現金から補う上限（1試合あたり）
 
 FORMATS = ("duel", "royale")
-DUEL_GROUP = 2  # 1on1の日の、準決勝1試合の人数
-ROYALE_GROUP = 4  # バトロワの日の、準決勝1試合の人数
+GROUP_SIZE = {"duel": 2, "royale": 4}  # 1試合（準決勝1組・決勝）の人数
+SEMI_GROUPS = {"duel": 2, "royale": 4}  # 準決勝の組数（＝決勝に進む人数）
 NPC_SPECTATOR = -5  # 観客（プレイヤー以外）のNPC賭けを表す user_id
 
 
-def format_today(day: str) -> str:
-    """日替わりの大会形式（"duel" か "royale"）。サーバー・人を問わず、日付だけで決まる。"""
-    return random.Random(f"arena:{day}").choice(FORMATS)
-
-
 def group_size(fmt: str) -> int:
-    return ROYALE_GROUP if fmt == "royale" else DUEL_GROUP
+    return GROUP_SIZE[fmt]
+
+
+def semi_groups(fmt: str) -> int:
+    return SEMI_GROUPS[fmt]
 
 
 def win_weights(fighters: list[dict]) -> list[float]:
@@ -67,15 +68,15 @@ def _odds(prob: float, takeout: float, cap: float) -> float:
     return max(1.0, min(cap, math.floor((1 - takeout) / prob * 10) / 10))
 
 
-def match_odds(fighters: list[dict]) -> dict:
-    """試合に出る戦士ごとの単勝オッズ（{名前: 倍率}）。"""
+def match_odds(fighters: list[dict], boost: float = 1.0) -> dict:
+    """試合に出る戦士ごとの単勝オッズ（{名前: 倍率}）。boost は、決勝で賭けたくなるよう高くする倍率。"""
     probs = win_weights(fighters)
-    return {f["name"]: _odds(p, TAKEOUT, MAX_ODDS) for f, p in zip(fighters, probs)}
+    return {f["name"]: min(MAX_ODDS, _odds(p, TAKEOUT, MAX_ODDS) * boost) for f, p in zip(fighters, probs)}
 
 
 def generate_fighters(fmt: str, rng: random.Random) -> list[dict]:
-    """その日の戦士を生成する。[{name, base_power}]。人数は、形式の準決勝ぶん（1on1=4人・バトロワ=8人）。"""
-    n = group_size(fmt) * 2
+    """その日の戦士を生成する。[{name, base_power}]。人数は、形式の準決勝ぶん（1on1=4人・バトロワ=16人）。"""
+    n = group_size(fmt) * semi_groups(fmt)
     names = rng.sample(FIGHTER_NAMES, min(n, len(FIGHTER_NAMES)))
     while len(names) < n:  # 名前の在庫が足りなければ、連番で埋める
         names.append(f"無名の戦士{len(names) + 1}")

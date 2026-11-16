@@ -1,6 +1,6 @@
-"""/闘技場 — 地下闘技場。1日1回の大会（準決勝2試合→決勝1試合）。NPCの戦士どうしが戦い、賭ける。
+"""/闘技場 — 地下闘技場。1日1回、1on1とバトロワの両方を同時開催する（それぞれ別の大会）。
 
-形式（1on1／バトロワ）は日替わり。戦士への賭け総額に応じて武器で強くなるが、必ず勝てるとは限らない。
+戦士への賭け総額に応じて武器で強くなるが、必ず勝てるとは限らない。決勝は準決勝よりオッズが高い。
 数字とシミュレーションは domain/arena.py、処理は infra/db/arena.py、画面の部品は cogs/arena/*.py。
 
 既知の制限: 掲示パネルの賭けボタンは、Bot再起動をまたぐと動かなくなる（再起動後は `/闘技場 大会` で出し直す）。
@@ -16,7 +16,7 @@ import discord
 from discord import app_commands
 from discord.ext import commands, tasks
 
-from cogs.arena.embeds import STAGE_LABEL, battle_embed
+from cogs.arena.embeds import FORMAT_NAME, STAGE_LABEL, battle_embed
 from cogs.arena.views import BetPanel
 from cogs.shared import ui
 from cogs.shared.announce import announce_channel
@@ -42,16 +42,20 @@ class ArenaCog(commands.Cog):
         self.tick.cancel()
 
     group = app_commands.Group(
-        name="闘技場", description="🏛️ 地下闘技場（1日1回の大会・NPC戦士に賭ける）", guild_only=True
+        name="闘技場",
+        description="🏛️ 地下闘技場（1日1回、1on1・バトロワの両方を開催・NPC戦士に賭ける）",
+        guild_only=True,
     )
 
     def g(self, interaction: discord.Interaction):
         return self.bot.economy.for_guild(ui.guild_id_of(interaction))
 
     @group.command(name="大会", description="今日の大会の状況を見る・賭ける")
-    async def tournament(self, interaction: discord.Interaction):
+    @app_commands.rename(fmt="形式")
+    @app_commands.choices(fmt=[app_commands.Choice(name=name, value=key) for key, name in FORMAT_NAME.items()])
+    async def tournament(self, interaction: discord.Interaction, fmt: app_commands.Choice[str]):
         eco = self.g(interaction)
-        t = eco.arena_tournament_ensure(time.time())
+        t = eco.arena_tournament_ensure(fmt.value, time.time())
         panel = BetPanel(self.bot, t)
         await interaction.response.send_message(embed=panel.embed(), view=panel)
         try:
@@ -135,7 +139,7 @@ class ArenaCog(commands.Cog):
                     channel,
                     embed=ui.embed(
                         "👑 決勝、決着！",
-                        f"優勝: **{result['champion']}**（準優勝: {result['runner_up']}）",
+                        f"優勝: **{result['champion']}**（他: {'・'.join(result['runner_up'])}）",
                         ui.GOLD,
                     ),
                 )
@@ -144,26 +148,65 @@ class ArenaCog(commands.Cog):
                 del self._panels[day_key]  # 大会は終わったので、以後は書き換えない
         return result
 
-    async def host_now(self, guild: discord.Guild, channel: Optional[discord.abc.Messageable], advance: bool) -> str:
-        """[管理者用] 今日の大会を、時刻を待たずに出す（無ければ作成）。advance なら、現在の段をすぐ決着させる。"""
+    async def host_now(
+        self,
+        guild: discord.Guild,
+        channel: Optional[discord.abc.Messageable],
+        advance: bool,
+        fmt: Optional[str] = None,
+    ) -> str:
+        """[管理者用] 今日の大会を、時刻を待たずに出す（無ければ作成）。advance なら、現在の段をすぐ決着させる。
+
+        fmt を省略すると、1on1・バトロワの両方を対象にする。
+        """
         eco = self.bot.economy.for_guild(guild.id)
         now = time.time()
-        t = eco.arena_tournament_ensure(now)
-        day_key = (guild.id, t["day"])
-        target = channel or await self._channel(guild, eco)
-        panel = BetPanel(self.bot, t)
-        msg = await self._post(target, content="🏛️ **地下闘技場** 今日の大会です！", embed=panel.embed(), view=panel)
-        panel.message = msg
-        self._panels[day_key] = panel
-        if advance:
-            if t["status"] == "semi_betting":
-                await self._advance_semis(guild, eco, t, day_key)
-                t = eco.arena_tournament_ensure(now)
-            if t["status"] == "final_betting":
-                await self._advance_final(guild, eco, t, day_key)
-                t = eco.arena_tournament_ensure(now)
-        status: str = t["status"]
-        return STAGE_LABEL.get(status, status)
+        results = []
+        for f in arena_mod.FORMATS if fmt is None else [fmt]:
+            t = eco.arena_tournament_ensure(f, now)
+            day_key = (guild.id, t["day"], f)
+            target = channel or await self._channel(guild, eco)
+            panel = BetPanel(self.bot, t)
+            msg = await self._post(
+                target,
+                content=f"🏛️ **地下闘技場** 今日の{FORMAT_NAME.get(f, f)}の大会です！",
+                embed=panel.embed(),
+                view=panel,
+            )
+            panel.message = msg
+            self._panels[day_key] = panel
+            if advance:
+                if t["status"] == "semi_betting":
+                    await self._advance_semis(guild, eco, t, day_key)
+                    t = eco.arena_tournament_ensure(f, now)
+                if t["status"] == "final_betting":
+                    await self._advance_final(guild, eco, t, day_key)
+                    t = eco.arena_tournament_ensure(f, now)
+            status: str = t["status"]
+            results.append(f"{FORMAT_NAME.get(f, f)}: {STAGE_LABEL.get(status, status)}")
+        return "　".join(results)
+
+    async def _process(self, guild: discord.Guild, eco, now: float, fmt: str, tz_hour: int) -> None:
+        """1形式ぶんの、告知・準決勝・決勝の定時進行。"""
+        t = eco.arena_tournament_ensure(fmt, now)
+        day_key = (guild.id, t["day"], fmt)
+        if t["created"] == now:  # このBotプロセスで初めてではなく、大会そのものが今できたときだけ告知する
+            channel = await self._channel(guild, eco)
+            if channel is not None:
+                panel = BetPanel(self.bot, t)
+                msg = await self._post(
+                    channel,
+                    content=f"🏛️ **地下闘技場** 今日の{FORMAT_NAME.get(fmt, fmt)}の大会が始まりました！",
+                    embed=panel.embed(),
+                    view=panel,
+                )
+                panel.message = msg
+                self._panels[day_key] = panel
+        if t["status"] == "semi_betting" and tz_hour >= arena_mod.SEMI_HOUR:
+            await self._advance_semis(guild, eco, t, day_key)
+        t = eco.arena_tournament_ensure(fmt, now)  # 準決勝の決着を反映して読み直す
+        if t["status"] == "final_betting" and tz_hour >= arena_mod.FINAL_HOUR:
+            await self._advance_final(guild, eco, t, day_key)
 
     async def run_once(self) -> None:
         now = time.time()
@@ -173,27 +216,10 @@ class ArenaCog(commands.Cog):
             self._busy.add(guild.id)
             try:
                 eco = self.bot.economy.for_guild(guild.id)
-                t = eco.arena_tournament_ensure(now)
-                day_key = (guild.id, t["day"])
                 tz = datetime.timezone(datetime.timedelta(hours=9))
                 tz_hour = datetime.datetime.fromtimestamp(now, tz).hour
-                if t["created"] == now:  # このBotプロセスで初めてではなく、大会そのものが今できたときだけ告知する
-                    channel = await self._channel(guild, eco)
-                    if channel is not None:
-                        panel = BetPanel(self.bot, t)
-                        msg = await self._post(
-                            channel,
-                            content="🏛️ **地下闘技場** 今日の大会が始まりました！",
-                            embed=panel.embed(),
-                            view=panel,
-                        )
-                        panel.message = msg
-                        self._panels[day_key] = panel
-                if t["status"] == "semi_betting" and tz_hour >= arena_mod.SEMI_HOUR:
-                    await self._advance_semis(guild, eco, t, day_key)
-                t = eco.arena_tournament_ensure(now)  # 準決勝の決着を反映して読み直す
-                if t["status"] == "final_betting" and tz_hour >= arena_mod.FINAL_HOUR:
-                    await self._advance_final(guild, eco, t, day_key)
+                for fmt in arena_mod.FORMATS:
+                    await self._process(guild, eco, now, fmt, tz_hour)
             except Exception as exc:  # 1サーバーの失敗で、ほかを止めない
                 print(f"地下闘技場を処理できません: guild={guild.id}: {exc!r}")
             finally:
