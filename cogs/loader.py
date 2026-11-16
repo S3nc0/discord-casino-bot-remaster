@@ -6,7 +6,7 @@ from discord.ext import commands
 
 COG_MODULES: tuple[str, ...] = (
     "cogs.admin.cog",
-    "cogs.arena.cog",
+    # "cogs.arena.cog",  # 地下闘技場は外している（コードは残す。再開するときはここを戻す）
     "cogs.casino.cog",
     "cogs.economy.cog",
     "cogs.event.cog",
