@@ -85,6 +85,7 @@ def test_repository_bundle_satisfies_nominal_repo_ports():
         assert isinstance(repos.p2p, repo_ports.IP2PRepo)
         assert isinstance(repos.horses, repo_ports.IHorseRepo)
         assert isinstance(repos.races, repo_ports.IRaceRepo)
+        assert isinstance(repos.arena, repo_ports.IArenaRepo)
 
         scoped = repos.for_guild(1)
         assert scoped.wallet.balance(1) > 0

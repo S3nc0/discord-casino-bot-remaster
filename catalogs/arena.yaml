@@ -1,0 +1,33 @@
+semi_hour: 9
+final_hour: 13
+base_power_min: 20
+base_power_max: 80
+weapon_cap: 1.0
+weapon_scale: 50000
+takeout: 0.15
+max_odds: 20.0
+luck: 0.25
+min_stake: 100
+max_stake: 20000
+spectator_count_min: 3
+spectator_count_max: 8
+spectator_min_bet: 100
+spectator_max_bet: 3000
+house_topup_max: 5000
+fighter_names:
+  - 鉄拳のゴウ
+  - 灼熱のレイジ
+  - 黒影のクロウ
+  - 修羅のバキ
+  - 氷牙のユキ
+  - 雷鳴のライ
+  - 鬼哭のオニマル
+  - 疾風のハヤテ
+  - 剛腕のゴリウス
+  - 影狼のシノビ
+  - 爆砕のデストロ
+  - 不死身のゾンバ
+  - 蛇瞳のメデューサ
+  - 怒髪のバーサーカー
+  - 無敵のタイタン
+  - 影帝のシャドウキング

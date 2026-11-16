@@ -138,6 +138,7 @@ def create_tables(conn: sqlite3.Connection) -> None:
             power     INTEGER NOT NULL DEFAULT 50,
             guts      INTEGER NOT NULL DEFAULT 50,
             tactic    TEXT NOT NULL DEFAULT 'pace', -- 作戦のコピー
+            style     TEXT,                         -- 脚質のコピー（締切後のにんじん・脚質変更の影響を受けない）
             form      INTEGER NOT NULL DEFAULT 0,
             races     INTEGER NOT NULL DEFAULT 0,   -- 戦績のコピー（オッズに使う。帝愛の馬は作りもの）
             wins      INTEGER NOT NULL DEFAULT 0,
@@ -583,5 +584,38 @@ def create_tables(conn: sqlite3.Connection) -> None:
             enabled INTEGER NOT NULL DEFAULT 1,   -- 1: 称号の表示を、自分で選んだ人。0: 身分の【地下労働者】だけを、Bot が付けている人
             PRIMARY KEY (guild_id, user_id)
         );
+        CREATE TABLE IF NOT EXISTS arena_tournaments (  -- 地下闘技場の、1日1回の大会
+            id       INTEGER PRIMARY KEY AUTOINCREMENT,
+            guild_id INTEGER NOT NULL,
+            day      TEXT    NOT NULL,
+            format   TEXT    NOT NULL,              -- duel（1on1）/ royale（バトロワ）
+            status   TEXT    NOT NULL DEFAULT 'semi_betting',  -- semi_betting -> semi_done -> final_betting -> done
+            created  REAL    NOT NULL
+        );
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_arena_tournaments_day ON arena_tournaments (guild_id, day);
+        CREATE TABLE IF NOT EXISTS arena_fighters (     -- 戦士（NPC。大会ごとに生成）
+            id            INTEGER PRIMARY KEY AUTOINCREMENT,
+            tournament_id INTEGER NOT NULL,
+            name          TEXT    NOT NULL,
+            base_power    INTEGER NOT NULL,
+            group_no      INTEGER NOT NULL,          -- 準決勝の組（1 か 2）
+            stage         TEXT    NOT NULL DEFAULT 'semi',  -- semi / final / out（脱落）
+            bet_total     INTEGER NOT NULL DEFAULT 0, -- 大会を通じた、この戦士への賭け総額（武器の強さに使う）
+            result        TEXT                       -- いまの段の結果（NULL 未決着 / won / lost）
+        );
+        CREATE INDEX IF NOT EXISTS idx_arena_fighters ON arena_fighters (tournament_id);
+        CREATE TABLE IF NOT EXISTS arena_bets (         -- 戦士への賭け（観客＝NPCの分は user_id が負の特定値）
+            id            INTEGER PRIMARY KEY AUTOINCREMENT,
+            tournament_id INTEGER NOT NULL,
+            stage         TEXT    NOT NULL,           -- semi / final（どの段への賭けか）
+            fighter_id    INTEGER NOT NULL,
+            user_id       INTEGER NOT NULL,
+            amount        INTEGER NOT NULL,
+            payout        INTEGER NOT NULL DEFAULT 0,
+            settled       INTEGER NOT NULL DEFAULT 0,
+            created       REAL    NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_arena_bets ON arena_bets (tournament_id, stage, fighter_id);
+        CREATE INDEX IF NOT EXISTS idx_arena_bets_user ON arena_bets (tournament_id, user_id);
         """
     )

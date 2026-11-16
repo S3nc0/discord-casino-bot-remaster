@@ -4,8 +4,8 @@
   にんじん1本で、CARROT_POINTS 点を、あるステータスから別のステータスへ動かせる。
 - コースは、距離（短・中・長）と馬場（良・稍重・重）。短距離はスピード、長距離はスタミナ、重い馬場はパワーが効く。
 - レースは、1ティックごとに全馬が進み、毎ティックの運（ノイズ）と、レース全体の運がある。結果は、シード（乱数）で決まる。
-- オッズは、出走馬の**戦績**（出走数・勝ち数・3着以内の数）で決める。出走が少ない馬は平均に寄せ、初出走は高めにし、調子（◎○△）で動かす。
-  ステータスはオッズに入らない（実際の強さと戦績のずれが、狙い目になる）。控除（TAKEOUT）を引く。
+- オッズは、出走馬の**戦績**（出走数・勝ち数・3着以内の数）を軸に決める。出走が少ない馬は平均に寄せ、初出走は高めにし、調子（◎○△）で動かす。
+  ステータス合計の傾向も緩やかに織り込む（ABILITY_PRIOR_WEIGHT）が、完全には反映されないため、実際の強さと戦績・調子のずれが狙い目になる。控除（TAKEOUT）を引く。
   レースの結果は、ステータスのシミュレーションで決まる（estimate は、その本当の確率を調べる検証用）。
 """
 
@@ -236,14 +236,13 @@ def style_curve(style: str, p: float, pace_shift: float) -> float:
 def _mult(r: Runner, p: float, track: Track, luck: float, spurt: float, style: str, pace_shift: float) -> float:
     dfac = track.distance / 1800
     m = 1 + (r.speed - 50) / 50 * speed_coef(track.distance)
-    m *= 1 + (r.power - 50) / 50 * 0.05 * max(0.0, 1 - p / 0.2)  # 出足（パワー）
+    m *= 1 + (r.power - 50) / 50 * 0.12 * max(0.0, 1 - p / 0.3)  # 出足（パワー）
     reach = min(1.0, max(0.25, 0.8 * (r.stamina / 50) / dfac))  # ここまでは、バテずに走れる
     if p > reach and reach < 1.0:
         m *= 1 - FATIGUE_MAX * (p - reach) / (1 - reach)
-    if p >= 0.75:
-        m *= 1 + spurt  # ラストスパート（根性）
+        m *= 1 + spurt  # スタミナが切れた分を、根性のラストスパートで補う
     m *= 1 + style_curve(style, p, pace_shift)  # 脚質・展開
-    m *= 1 - GOING_PENALTY[track.going] * (1 - (r.power - 20) / 60 * 0.7)  # 馬場
+    m *= 1 - GOING_PENALTY[track.going] * (1 - (r.power - 20) / 60)  # 馬場
     return m * FORM_MULT[r.form] * (1 + luck)
 
 
@@ -253,7 +252,7 @@ def simulate(runners: list, track: Track, rng: random.Random, keep_frames: bool 
     pos = [0.0] * n
     finish: list[Optional[float]] = [None] * n
     luck = [rng.gauss(0, LUCK) for _ in runners]
-    spurt = [max(0.0, (r.guts - 20) / 60 * 0.08 * rng.uniform(0.5, 1.5)) for r in runners]  # ラストスパート（根性）
+    spurt = [max(0.0, (r.guts - 20) / 60 * 0.12 * rng.uniform(0.5, 1.5)) for r in runners]  # ラストスパート（根性）
     styles = [r.effective_style for r in runners]
     pace = sum(1 for s in styles if s in ("nige", "senko")) / n if n else 0.5
     pace_shift = (pace - 0.5) * PACE_FACTOR

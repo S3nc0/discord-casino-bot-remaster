@@ -19,6 +19,7 @@ from domain.ports.bridges import (
 from domain.ports.repos import IRepositoryBundle
 from infra.db import schema
 from infra.db.account import AccountCore
+from infra.db.arena import ArenaRepo
 from infra.db.assets import (
     AssetRepo,
     CashAndDebtCollector,
@@ -110,6 +111,7 @@ class RepositoryBundle(IRepositoryBundle):
     horses: HorseRepo
     races: RaceRepo
     labor: LaborRepo
+    arena: ArenaRepo
     earnings: EarningsRepo
     crypto: CryptoRepo
     margin: MarginRepo
@@ -146,6 +148,7 @@ class RepositoryBundle(IRepositoryBundle):
             horses=self.horses.for_guild(guild_id),
             races=self.races.for_guild(guild_id),
             labor=self.labor.for_guild(guild_id),
+            arena=self.arena.for_guild(guild_id),
             earnings=self.earnings.for_guild(guild_id),
             crypto=self.crypto.for_guild(guild_id),
             margin=self.margin.for_guild(guild_id),
@@ -208,6 +211,7 @@ def open_repositories(db_path: str, legacy_guild_id: Optional[int] = None, stric
     horses = HorseRepo(db, account, debt, bank, strict=strict)
     races = RaceRepo(db, account, horses, relics, bank, strict=strict)
     labor = LaborRepo(db, account, relics, bank, strict=strict)
+    arena = ArenaRepo(db, account, bank, strict=strict)
     earnings = EarningsRepo(db, account, bank, strict=strict)
 
     crypto = CryptoRepo(
@@ -294,6 +298,7 @@ def open_repositories(db_path: str, legacy_guild_id: Optional[int] = None, stric
         horses=horses,
         races=races,
         labor=labor,
+        arena=arena,
         earnings=earnings,
         crypto=crypto,
         margin=margin,

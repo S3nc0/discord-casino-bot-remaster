@@ -745,6 +745,21 @@ def test_major_race_at_21_doubles_prizes_and_tops_up_from_house_cash(eco):
         assert result["prizes"].get(U, 0) > 0  # 原資が少なくても、手元現金から補われて出る
 
 
+def test_style_change_after_entries_close_does_not_affect_the_already_closed_race(eco):
+    hid = make_horse(eco, U)
+    assert eco.horses.horse_set_style(U, hid, "nige")[0]
+    rid = eco.races.race_create_special(NOW, 10, 10)
+    assert eco.races.race_register(U, hid, rid, NOW + 1)[0]
+    field_ = eco.races.race_close_entries(rid, random.Random(1))
+    mine = next(r for r in field_["runners"] if r.name == "テストホース")
+    assert mine.style == "nige"  # 締切時点の脚質がランナーにもコピーされている
+    assert eco.horses.horse_set_style(U, hid, "oikomi")[0]  # 締切後に脚質を変える
+    eco.races.race_set_odds(rid, h.make_odds(field_["runners"]))
+    result = eco.races.race_run(rid, random.Random(2))
+    mine_lane = next(e for e in result["entries"] if e["owner_id"] == U)["lane"]
+    assert result["styles"][mine_lane] == "nige"  # 締切後の変更に引っぱられず、締切時点の脚質で走る
+
+
 def test_horse_set_style_overrides_the_automatic_one_and_rejects_rentals(eco):
     hid = make_horse(eco, U)
     ok, reason = eco.horses.horse_set_style(U, hid, "oikomi")

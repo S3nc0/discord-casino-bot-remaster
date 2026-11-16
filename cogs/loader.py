@@ -11,6 +11,7 @@ from discord.ext import commands
 COG_MODULES: tuple[str, ...] = (
     "cogs.p2p.cog",
     "cogs.shop.cog",
+    "cogs.arena.cog",
     "cogs.casino.cog",
     "cogs.economy.cog",
     "cogs.event.cog",

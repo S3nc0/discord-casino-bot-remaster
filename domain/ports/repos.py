@@ -970,6 +970,37 @@ class IAssetRepo(IGuildScopedRepo):
         raise NotImplementedError
 
 
+class IArenaRepo(IGuildScopedRepo):
+    def arena_today(self, now: float, tz_hours: float = 9.0) -> str:
+        raise NotImplementedError
+
+    def arena_tournament_ensure(
+        self, now: Optional[float] = None, tz_hours: float = 9.0, rng: Optional[random.Random] = None
+    ) -> dict[str, Any]:
+        raise NotImplementedError
+
+    def arena_tournament_get_by_day(self, day: str) -> Optional[dict[str, Any]]:
+        raise NotImplementedError
+
+    def arena_fighters(self, tournament_id: int) -> list[Any]:
+        raise NotImplementedError
+
+    def arena_bet(self, user_id: int, fighter_id: int, amount: int, now: Optional[float] = None) -> tuple[Any, ...]:
+        raise NotImplementedError
+
+    def arena_run_semis(self, tournament_id: int, rng: Optional[random.Random] = None) -> Optional[dict[str, Any]]:
+        raise NotImplementedError
+
+    def arena_run_final(self, tournament_id: int, rng: Optional[random.Random] = None) -> Optional[dict[str, Any]]:
+        raise NotImplementedError
+
+    def arena_my_bets(self, tournament_id: int, user_id: int) -> list[Any]:
+        raise NotImplementedError
+
+    def arena_bets_breakdown(self, tournament_id: int) -> dict[int, list[Any]]:
+        raise NotImplementedError
+
+
 @dataclass(frozen=True)
 class IRepositoryBundle(IGuildScopedRepo):
     """単一責務（SRP）の抽象リポジトリ群を束ねる Composition Root 用契約。"""
@@ -994,6 +1025,7 @@ class IRepositoryBundle(IGuildScopedRepo):
     horses: IHorseRepo
     races: IRaceRepo
     labor: ILaborRepo
+    arena: IArenaRepo
     earnings: IEarningsRepo
     crypto: ICryptoRepo
     margin: IMarginRepo

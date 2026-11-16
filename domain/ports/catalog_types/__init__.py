@@ -1,5 +1,6 @@
 """ドメイン層が参照するカタログ設定の公称データ契約（責務別サブモジュール集約）。"""
 
+from domain.ports.catalog_types.arena import ArenaCatalogContract
 from domain.ports.catalog_types.economy import (
     BondKindContract,
     BondsCatalogContract,
@@ -66,6 +67,7 @@ from domain.ports.catalog_types.shop import (
 )
 
 __all__ = [
+    "ArenaCatalogContract",
     "BlackjackSectionContract",
     "BondKindContract",
     "BondsCatalogContract",

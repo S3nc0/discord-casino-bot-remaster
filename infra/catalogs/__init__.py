@@ -1,6 +1,7 @@
 """YAML カタログパッケージ（責務別スキーマと ICatalogs 実装）。"""
 
 from domain.ports.catalogs import ICatalogs, configure_catalogs
+from infra.catalogs.arena import ArenaCatalog, arena
 from infra.catalogs.economy import BondsCatalog, EconomyCatalog, TeiaiCatalog, bonds, economy, teiai
 from infra.catalogs.games import (
     EventsCatalog,
@@ -58,6 +59,9 @@ class YamlCatalogs(ICatalogs):
     def games(self) -> GamesCatalog:
         return games()
 
+    def arena(self) -> ArenaCatalog:
+        return arena()
+
 
 def bind_catalogs() -> ICatalogs:
     """YAML カタログプロバイダをドメイン境界へ登録する。"""
@@ -68,6 +72,7 @@ def bind_catalogs() -> ICatalogs:
 
 __all__ = [
     "CATALOG_DIR",
+    "ArenaCatalog",
     "BondsCatalog",
     "EconomyCatalog",
     "EventsCatalog",
@@ -82,6 +87,7 @@ __all__ = [
     "StrictModel",
     "TeiaiCatalog",
     "YamlCatalogs",
+    "arena",
     "bind_catalogs",
     "bonds",
     "economy",

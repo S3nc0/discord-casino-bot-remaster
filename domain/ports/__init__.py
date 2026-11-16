@@ -52,6 +52,7 @@ from domain.ports.bridges import (
 from domain.ports.catalogs import ICatalogs, configure_catalogs, get_catalogs
 from domain.ports.clock import IClock
 from domain.ports.repos import (
+    IArenaRepo,
     IAssetRepo,
     IAuctionRepo,
     IBankRepo,
@@ -92,6 +93,7 @@ __all__ = [
     "CompositeLiquidationStep",
     "CompositeSeizureValueStep",
     "CompositeValuationSource",
+    "IArenaRepo",
     "IAssetCollector",
     "IAssetRepo",
     "IAssetSeizureStep",
