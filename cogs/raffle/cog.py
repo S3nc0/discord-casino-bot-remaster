@@ -15,7 +15,7 @@ from discord.ext import commands, tasks
 
 from cogs.shared import ui
 from cogs.shared.announce import announce_channel
-from cogs.shared.bridges import IRaffleAdminBridge
+from cogs.shared.bridges import BotBridges, IRaffleAdminBridge
 from cogs.shared.messages import format_failure
 from domain import approval
 from domain.ports.repos import IGuildRepo, IRaffleRepo
@@ -96,6 +96,9 @@ class RaffleCog(commands.Cog, IRaffleAdminBridge):
 
     async def cog_unload(self) -> None:
         self.tick.cancel()
+        bridges = getattr(self.bot, "bridges", None)
+        if isinstance(bridges, BotBridges):
+            bridges.unregister(IRaffleAdminBridge, self)
 
     def g(self, interaction: discord.Interaction) -> IRaffleRepo:
         return self._raffle.for_guild(ui.guild_id_of(interaction))
@@ -272,5 +275,5 @@ class RaffleCog(commands.Cog, IRaffleAdminBridge):
 
 async def setup(bot: "CasinoBot") -> None:
     cog = RaffleCog(bot, bot.config, bot.repos.raffle, bot.repos.guild)
-    bot.bridges.raffle = cog
+    bot.bridges.register(IRaffleAdminBridge, cog)
     await bot.add_cog(cog)

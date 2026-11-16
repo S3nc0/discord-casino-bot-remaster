@@ -1,9 +1,10 @@
-"""Cog 間・DynamicItem 間の疎結合ブリッジ契約（名前的基底クラス）とレジストリ。"""
+"""Cog 間・DynamicItem 間の疎結合ブリッジ契約（名目的基底クラス）とオープンレジストリ。"""
 
-from dataclasses import dataclass
-from typing import Optional
+from typing import Any, Optional, TypeVar, cast
 
 import discord
+
+T = TypeVar("T")
 
 
 class IApprovalBridge:
@@ -19,6 +20,19 @@ class IApprovalBridge:
         raise NotImplementedError
 
 
+class NoOpApprovalBridge(IApprovalBridge):
+    """ApprovalCog 未ロード時に LSP 準拠の無害な動作を提供する既定実装。"""
+
+    async def ensure_requested(self, guild: discord.Guild, reset_denied: bool = False) -> None:
+        return None
+
+    async def announce_approved(self, guild: discord.Guild) -> None:
+        return None
+
+    async def handle_button(self, interaction: discord.Interaction, allow: bool, guild_id: int) -> None:
+        return None
+
+
 class IShopTitleBridge:
     """ショップの称号・ニックネーム同期（Economy / Weekly → ShopCog）のブリッジ契約。"""
 
@@ -32,6 +46,21 @@ class IShopTitleBridge:
 
     async def after_bankruptcy(self, guild: discord.Guild, member: discord.Member) -> None:
         raise NotImplementedError
+
+
+class NoOpShopTitleBridge(IShopTitleBridge):
+    """ShopCog 未ロード時に LSP 準拠の無害な動作を提供する既定実装。"""
+
+    async def sync_title_nick(
+        self,
+        user_id: int,
+        here: Optional[discord.Guild] = None,
+        member: Optional[discord.Member] = None,
+    ) -> tuple[str, int]:
+        return ("", 0)
+
+    async def after_bankruptcy(self, guild: discord.Guild, member: discord.Member) -> None:
+        return None
 
 
 class IEventAdminBridge:
@@ -51,8 +80,8 @@ class IEventAdminBridge:
         raise NotImplementedError
 
 
-class IHorseRaceBridge:
-    """競馬操作とレースボタン（Admin / RaceButton / BetPanel → HorseCog）のブリッジ契約。"""
+class IHorseAdminBridge:
+    """運営向け競馬開催操作（Admin → HorseCog）のブリッジ契約（ISP 分離）。"""
 
     async def start_special(
         self,
@@ -63,8 +92,19 @@ class IHorseRaceBridge:
     ) -> int:
         raise NotImplementedError
 
+
+class IHorseButtonBridge:
+    """競馬レースカードボタン（RaceButton → HorseCog）のブリッジ契約（ISP 分離）。"""
+
     async def handle_button(self, interaction: discord.Interaction, action: str, race_id: int) -> None:
         raise NotImplementedError
+
+
+class NoOpHorseButtonBridge(IHorseButtonBridge):
+    """HorseCog 未ロード時の既定ボタンハンドラ（LSP 準拠）。"""
+
+    async def handle_button(self, interaction: discord.Interaction, action: str, race_id: int) -> None:
+        return None
 
 
 class IRaffleAdminBridge:
@@ -88,7 +128,7 @@ class IRaffleAdminBridge:
 
 
 class IQuizAdminBridge:
-    """運営向けクイズ操作と公開回答ボタン（Admin / PublicButton → QuizCog）のブリッジ契約。"""
+    """運営向けクイズ操作（Admin → QuizCog）のブリッジ契約（ISP 分離）。"""
 
     def add_modal(
         self,
@@ -112,15 +152,30 @@ class IQuizAdminBridge:
     def remove(self, quiz_id: int) -> bool:
         raise NotImplementedError
 
+
+class IQuizButtonBridge:
+    """クイズ公開回答ボタン（PublicButton → QuizCog）のブリッジ契約（ISP 分離）。"""
+
     async def handle_button(self, interaction: discord.Interaction, quiz_id: int, pos: int) -> None:
         raise NotImplementedError
 
 
-class IP2PNavigationBridge:
-    """P2P 画面遷移と出品カードボタン（Shop / ListingButton → P2PCog）のブリッジ契約。"""
+class NoOpQuizButtonBridge(IQuizButtonBridge):
+    """QuizCog 未ロード時の既定ボタンハンドラ（LSP 準拠）。"""
+
+    async def handle_button(self, interaction: discord.Interaction, quiz_id: int, pos: int) -> None:
+        return None
+
+
+class IP2PListingBridge:
+    """P2P 出品カードボタン（ListingButton → P2PCog）のブリッジ契約（ISP 分離）。"""
 
     async def open_detail(self, interaction: discord.Interaction, listing_id: int) -> None:
         raise NotImplementedError
+
+
+class IP2PNavigationBridge(IP2PListingBridge):
+    """P2P 画面遷移（Shop → P2PCog）のブリッジ契約（詳細 + 出品・取引管理）。"""
 
     async def open_sell(self, interaction: discord.Interaction) -> None:
         raise NotImplementedError
@@ -136,15 +191,60 @@ class ILoanButtonBridge:
         raise NotImplementedError
 
 
-@dataclass
-class BotBridges:
-    """Bot 実行時にロードされた各 Cog のブリッジ実装を束ねるコンテナ。"""
+class NoOpLoanButtonBridge(ILoanButtonBridge):
+    """LoanCog 未ロード時の既定ボタンハンドラ（LSP 準拠）。"""
 
-    approval: Optional[IApprovalBridge] = None
-    shop: Optional[IShopTitleBridge] = None
-    event: Optional[IEventAdminBridge] = None
-    horse: Optional[IHorseRaceBridge] = None
-    raffle: Optional[IRaffleAdminBridge] = None
-    quiz: Optional[IQuizAdminBridge] = None
-    p2p: Optional[IP2PNavigationBridge] = None
-    loan: Optional[ILoanButtonBridge] = None
+    async def handle_button(self, interaction: discord.Interaction, action: str, loan_id: int) -> None:
+        return None
+
+
+class BotBridges:
+    """Bot 実行時にロードされた各 Cog のブリッジ実装を契約型で登録・解決するオープンレジストリ（OCP）。"""
+
+    def __init__(self) -> None:
+        self._entries: dict[type[Any], Any] = {}
+
+    def register(self, contract: type[T], impl: T) -> None:
+        if not isinstance(impl, contract):
+            raise TypeError(f"{type(impl).__name__} は {contract.__name__} を継承している必要があります。")
+        self._entries[contract] = impl
+
+    def unregister(self, contract: type[Any], expected: Any = None) -> None:
+        if expected is not None and self._entries.get(contract) is not expected:
+            return
+        self._entries.pop(contract, None)
+
+    def has(self, contract: type[Any]) -> bool:
+        return contract in self._entries
+
+    def resolve(self, contract: type[T]) -> Optional[T]:
+        return cast(Optional[T], self._entries.get(contract))
+
+    def resolve_or(self, contract: type[T], fallback: T) -> T:
+        impl = self._entries.get(contract)
+        return fallback if impl is None else cast(T, impl)
+
+
+class DeferredShopTitleBridge(IShopTitleBridge):
+    """呼び出し時に BotBridges から最新の IShopTitleBridge を解決する遅延プロキシ（ロード順非依存）。"""
+
+    def __init__(self, bot: Any, fallback: Optional[IShopTitleBridge] = None) -> None:
+        self._bot = bot
+        self._fallback: IShopTitleBridge = fallback if fallback is not None else NoOpShopTitleBridge()
+
+    def _current(self) -> IShopTitleBridge:
+        bridges = getattr(self._bot, "bridges", None)
+        if isinstance(bridges, BotBridges):
+            return bridges.resolve_or(IShopTitleBridge, self._fallback)
+        return self._fallback
+
+    async def sync_title_nick(
+        self,
+        user_id: int,
+        here: Optional[discord.Guild] = None,
+        member: Optional[discord.Member] = None,
+    ) -> tuple[str, int]:
+        return await self._current().sync_title_nick(user_id, here=here, member=member)
+
+    async def after_bankruptcy(self, guild: discord.Guild, member: discord.Member) -> None:
+        await self._current().after_bankruptcy(guild, member)

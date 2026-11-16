@@ -18,7 +18,7 @@ from cogs.quiz.embeds import (
     verdict,
 )
 from cogs.shared import ui
-from cogs.shared.bridges import IQuizAdminBridge
+from cogs.shared.bridges import IQuizAdminBridge, IQuizButtonBridge, NoOpQuizButtonBridge
 from cogs.shared.messages import format_failure
 from domain import approval, quizpay
 from domain.duration import format_minutes, parse_duration
@@ -92,9 +92,8 @@ class PublicButton(discord.ui.DynamicItem[discord.ui.Button], template=r"quiz:(?
 
     async def callback(self, interaction: discord.Interaction):
         bot = cast("CasinoBot", interaction.client)
-        bridge = bot.bridges.quiz
-        if bridge is not None:
-            await bridge.handle_button(interaction, self.qid, self.pos)
+        bridge = bot.bridges.resolve_or(IQuizButtonBridge, NoOpQuizButtonBridge())
+        await bridge.handle_button(interaction, self.qid, self.pos)
 
 
 def public_view(qid: int) -> discord.ui.View:

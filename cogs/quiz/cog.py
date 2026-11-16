@@ -76,7 +76,7 @@ from cogs.quiz.views import (
 )
 from cogs.shared import ui
 from cogs.shared.announce import announce_channel
-from cogs.shared.bridges import IQuizAdminBridge
+from cogs.shared.bridges import BotBridges, IQuizAdminBridge, IQuizButtonBridge
 from domain import approval
 from domain.duration import format_minutes
 from domain.ports.repos import IGuildRepo, IQuizRepo
@@ -86,7 +86,7 @@ if TYPE_CHECKING:
     from cogs.shared.bot import CasinoBot
 
 
-class QuizCog(commands.Cog, IQuizAdminBridge):
+class QuizCog(commands.Cog, IQuizAdminBridge, IQuizButtonBridge):
     def __init__(
         self,
         bot: commands.Bot,
@@ -105,6 +105,10 @@ class QuizCog(commands.Cog, IQuizAdminBridge):
 
     async def cog_unload(self) -> None:
         self.tick.cancel()
+        bridges = getattr(self.bot, "bridges", None)
+        if isinstance(bridges, BotBridges):
+            bridges.unregister(IQuizAdminBridge, self)
+            bridges.unregister(IQuizButtonBridge, self)
 
     async def handle_button(self, interaction: discord.Interaction, quiz_id: int, pos: int) -> None:
         await record_answer(self._quiz, self._guild_repo, self._config, interaction, quiz_id, pos)
@@ -270,5 +274,6 @@ class QuizCog(commands.Cog, IQuizAdminBridge):
 
 async def setup(bot: "CasinoBot") -> None:
     cog = QuizCog(bot, bot.config, bot.repos.quiz, bot.repos.guild)
-    bot.bridges.quiz = cog
+    bot.bridges.register(IQuizAdminBridge, cog)
+    bot.bridges.register(IQuizButtonBridge, cog)
     await bot.add_cog(cog)

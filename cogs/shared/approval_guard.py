@@ -5,6 +5,7 @@ from typing import TYPE_CHECKING, cast
 import discord
 
 from cogs.shared import ui
+from cogs.shared.bridges import IApprovalBridge, NoOpApprovalBridge
 from domain.approval import DENIED, DM_GROUP, is_allowed, owner_ids, requires_approval
 
 if TYPE_CHECKING:
@@ -39,8 +40,8 @@ async def guard(interaction: discord.Interaction) -> bool:
         )
         return False
     row = guild_repo.get_guild_status(guild_id)
-    bridge = bot.bridges.approval
-    if bridge is not None and interaction.guild is not None:
+    bridge = bot.bridges.resolve_or(IApprovalBridge, NoOpApprovalBridge())
+    if interaction.guild is not None:
         await bridge.ensure_requested(interaction.guild)  # 未登録なら承認を依頼する／しばらくたっていれば催促する
     if row and row["status"] == DENIED:
         msg = "このサーバーでの利用は、Bot の持ち主に許可されていません。"

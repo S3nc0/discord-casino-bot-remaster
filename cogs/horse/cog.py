@@ -19,7 +19,7 @@ from cogs.horse.cards import RaceButton, card_embed, card_view, race_title
 from cogs.horse.stable import Stable
 from cogs.shared import ui
 from cogs.shared.announce import announce_channel
-from cogs.shared.bridges import IHorseRaceBridge
+from cogs.shared.bridges import BotBridges, IHorseAdminBridge, IHorseButtonBridge
 from domain import approval
 from domain import horse as horse_mod  # noqa: F401
 from domain.ports.repos import IGuildRepo, IHorseRepo, IRaceRepo, IShopRepo
@@ -147,7 +147,7 @@ def result_embed(horses: IHorseRepo, races: IRaceRepo, result: dict) -> discord.
     return e
 
 
-class HorseCog(commands.Cog, IHorseRaceBridge):
+class HorseCog(commands.Cog, IHorseAdminBridge, IHorseButtonBridge):
     def __init__(
         self,
         bot: commands.Bot,
@@ -175,6 +175,10 @@ class HorseCog(commands.Cog, IHorseRaceBridge):
 
     async def cog_unload(self) -> None:
         self.tick.cancel()
+        bridges = getattr(self.bot, "bridges", None)
+        if isinstance(bridges, BotBridges):
+            bridges.unregister(IHorseAdminBridge, self)
+            bridges.unregister(IHorseButtonBridge, self)
 
     group = app_commands.Group(
         name="競馬", description="🏇 競走馬を育てて走らせる・馬券を買う（毎日2回）", guild_only=True
@@ -416,5 +420,6 @@ async def setup(bot: "CasinoBot") -> None:
         bot.repos.shop,
         bot.repos.guild,
     )
-    bot.bridges.horse = cog
+    bot.bridges.register(IHorseAdminBridge, cog)
+    bot.bridges.register(IHorseButtonBridge, cog)
     await bot.add_cog(cog)

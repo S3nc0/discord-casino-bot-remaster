@@ -76,7 +76,7 @@ async def event_start(
             embed=ui.error_embed("開く先がありません", "許可されているサーバーがありません。"), ephemeral=True
         )
         return
-    event_bridge = await _require_bridge(interaction, cog._event_bridge, "イベント機能")
+    event_bridge = await _require_bridge(interaction, cog.event_bridge(), "イベント機能")
     if event_bridge is None:
         return
     await interaction.response.defer(ephemeral=True)
@@ -90,7 +90,7 @@ async def event_start(
 async def event_stop(cog, interaction: discord.Interaction, guild_id: Optional[str]) -> None:
     if guild_id and await cog._pick_guild(interaction, guild_id) is None:
         return
-    event_bridge = await _require_bridge(interaction, cog._event_bridge, "イベント機能")
+    event_bridge = await _require_bridge(interaction, cog.event_bridge(), "イベント機能")
     if event_bridge is None:
         return
     await interaction.response.defer(ephemeral=True)

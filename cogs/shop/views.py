@@ -136,7 +136,7 @@ class ShopView(ui.OwnerView):
 
     def _p2p(self) -> Optional[IP2PNavigationBridge]:
         """プレイヤー間の取引ブリッジ。読み込まれていなければ None（画面に出さない）。"""
-        return self.cog._p2p_bridge
+        return self.cog.p2p_bridge()
 
     async def _on_player(self, interaction: discord.Interaction):
         p2p = self._p2p()

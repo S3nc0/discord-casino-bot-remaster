@@ -18,7 +18,7 @@ from discord.ext import commands, tasks
 from cogs.shared import ui
 from cogs.shared.amount import balance_choices
 from cogs.shared.announce import announce_channel
-from cogs.shared.bridges import ILoanButtonBridge
+from cogs.shared.bridges import BotBridges, ILoanButtonBridge, NoOpLoanButtonBridge
 from cogs.shared.confirm import confirm_action
 from cogs.shared.messages import format_failure
 from domain import approval, loans, teiai
@@ -94,7 +94,7 @@ def state_embed(loan: dict, title: str, note: str, color: int = ui.INFO) -> disc
 class LoanButton(
     discord.ui.DynamicItem[discord.ui.Button], template=r"loan:(?P<act>accept|decline|cancel|lend):(?P<id>\d+)"
 ):
-    """提案の投稿のボタン。再起動しても動くように、貸付の番号を custom_id に入れている。"""
+    """提案の投稿のボタン。再起動しても動くよう、貸付の番号を custom_id に入れている。"""
 
     LABEL = {
         "accept": ("承諾", discord.ButtonStyle.success),
@@ -114,9 +114,8 @@ class LoanButton(
 
     async def callback(self, interaction: discord.Interaction):
         bot = cast("CasinoBot", interaction.client)
-        bridge = bot.bridges.loan
-        if bridge is not None:
-            await bridge.handle_button(interaction, self.act, self.loan_id)
+        bridge = bot.bridges.resolve_or(ILoanButtonBridge, NoOpLoanButtonBridge())
+        await bridge.handle_button(interaction, self.act, self.loan_id)
 
 
 def offer_view(loan_id: int) -> discord.ui.View:
@@ -244,6 +243,9 @@ class LoanCog(commands.Cog, ILoanButtonBridge):
 
     async def cog_unload(self) -> None:
         self.tick.cancel()
+        bridges = getattr(self.bot, "bridges", None)
+        if isinstance(bridges, BotBridges):
+            bridges.unregister(ILoanButtonBridge, self)
 
     group = app_commands.Group(name="貸付", description="🤝 ペリカの貸し借り（日割りの単利つき）", guild_only=True)
 
@@ -496,5 +498,5 @@ class LoanCog(commands.Cog, ILoanButtonBridge):
 
 async def setup(bot: "CasinoBot") -> None:
     cog = LoanCog(bot, bot.config, bot.repos.loans, bot.repos.wallet, bot.repos.guild)
-    bot.bridges.loan = cog
+    bot.bridges.register(ILoanButtonBridge, cog)
     await bot.add_cog(cog)

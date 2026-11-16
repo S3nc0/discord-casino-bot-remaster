@@ -24,7 +24,7 @@ from cogs.p2p.embeds import (  # noqa: F401
 )
 from cogs.shared import ui
 from cogs.shared.announce import announce_channel
-from cogs.shared.bridges import IP2PNavigationBridge
+from cogs.shared.bridges import BotBridges, IP2PListingBridge, IP2PNavigationBridge
 from cogs.shared.confirm import confirm_action, confirmed_reply, user_session
 from cogs.shared.messages import format_failure
 from domain import approval, p2p
@@ -58,7 +58,7 @@ class ListingButton(discord.ui.DynamicItem[discord.ui.Button], template=r"p2p:op
 
     async def callback(self, interaction: discord.Interaction):
         bot = cast("CasinoBot", interaction.client)
-        bridge = bot.bridges.p2p
+        bridge = bot.bridges.resolve(IP2PListingBridge)
         if bridge is None:
             return await interaction.response.send_message(
                 embed=ui.error_embed("いまは使えません", "しばらくしてから、もう一度試してください。"), ephemeral=True
@@ -310,6 +310,10 @@ class P2PCog(commands.Cog, IP2PNavigationBridge):
 
     async def cog_unload(self) -> None:
         self.tick.cancel()
+        bridges = getattr(self.bot, "bridges", None)
+        if isinstance(bridges, BotBridges):
+            bridges.unregister(IP2PListingBridge, self)
+            bridges.unregister(IP2PNavigationBridge, self)
 
     def p2p_of(self, interaction: discord.Interaction) -> IP2PRepo:
         return self._p2p.for_guild(ui.guild_id_of(interaction))
@@ -538,5 +542,6 @@ async def setup(bot: "CasinoBot") -> None:
         bot.repos.guild,
         bot.sessions,
     )
-    bot.bridges.p2p = cog
+    bot.bridges.register(IP2PListingBridge, cog)
+    bot.bridges.register(IP2PNavigationBridge, cog)
     await bot.add_cog(cog)

@@ -9,7 +9,7 @@ from typing import Optional
 import discord
 
 from cogs.shared import ui
-from cogs.shared.bridges import IShopTitleBridge
+from cogs.shared.bridges import IShopTitleBridge, NoOpShopTitleBridge
 from cogs.shared.messages import format_failure
 from cogs.teiai.escape import run_escape
 from cogs.teiai.texts import LEVEL_MARK as LEVEL_MARK
@@ -238,7 +238,7 @@ class TeiaiPanel(ui.OwnerView):
         self._debt = debt
         self._wallet = wallet
         self._notices = notices
-        self._shop_bridge = shop_bridge
+        self._shop_bridge: IShopTitleBridge = shop_bridge if shop_bridge is not None else NoOpShopTitleBridge()
         self.uid = uid
 
     def bank_for(self, interaction: discord.Interaction) -> IBankRepo:
@@ -302,7 +302,7 @@ class TeiaiPanel(ui.OwnerView):
             )
 
         async def after_success(inter: discord.Interaction):
-            if inter.guild is None or self._shop_bridge is None:
+            if inter.guild is None:
                 return
             member = inter.guild.get_member(inter.user.id) or inter.user
             if isinstance(member, discord.Member):

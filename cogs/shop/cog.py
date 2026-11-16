@@ -11,7 +11,7 @@ from discord import app_commands
 from discord.ext import commands, tasks
 
 from cogs.shared import ui
-from cogs.shared.bridges import IP2PNavigationBridge, IShopTitleBridge
+from cogs.shared.bridges import BotBridges, IP2PNavigationBridge, IShopTitleBridge
 from cogs.shared.confirm import confirm_action as confirm_action  # noqa: F401
 from cogs.shop import actions
 from cogs.shop.discord_ops import ShopError, apply_title_nick, set_color_role
@@ -93,6 +93,12 @@ class ShopCog(commands.Cog, IShopTitleBridge):
         self._nick_locks: dict[
             int, asyncio.Lock
         ] = {}  # 利用者ごとのニックネーム操作の鍵（連打で古い名前を元に計算しない）
+
+    def p2p_bridge(self) -> Optional[IP2PNavigationBridge]:
+        if self._p2p_bridge is not None:
+            return self._p2p_bridge
+        bridges = getattr(self.bot, "bridges", None)
+        return bridges.resolve(IP2PNavigationBridge) if isinstance(bridges, BotBridges) else None
 
     def _role_lock(self, guild_id: int) -> asyncio.Lock:
         return self._role_locks.setdefault(guild_id, asyncio.Lock())
@@ -185,6 +191,9 @@ class ShopCog(commands.Cog, IShopTitleBridge):
 
     async def cog_unload(self) -> None:
         self.status_nick_tick.cancel()
+        bridges = getattr(self.bot, "bridges", None)
+        if isinstance(bridges, BotBridges):
+            bridges.unregister(IShopTitleBridge, self)
 
     @tasks.loop(minutes=STATUS_NICK_MINUTES)
     async def status_nick_tick(self):
@@ -326,7 +335,6 @@ async def setup(bot: "CasinoBot") -> None:
         bot.repos.wallet,
         bot.repos.guild,
         bot.sessions,
-        p2p_bridge=bot.bridges.p2p,
     )
-    bot.bridges.shop = cog
+    bot.bridges.register(IShopTitleBridge, cog)
     await bot.add_cog(cog)

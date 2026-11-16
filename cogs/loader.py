@@ -1,8 +1,7 @@
 """Cog 拡張モジュールの一覧管理とロード（main.py とテストで単一正本を共有）。
 
-依存解決（トポロジカル順）に従って、Bridge 提供側を先に・利用側を後に読み込む:
-- `cogs.p2p.cog` (`IP2PNavigationBridge`) → `cogs.shop.cog` (`IShopTitleBridge`) → `cogs.economy.cog` / `cogs.weekly.cog`
-- `cogs.event.cog` / `cogs.horse.cog` / `cogs.raffle.cog` / `cogs.quiz.cog` → `cogs.admin.cog` (`IApprovalBridge`)
+各 Cog は起動時に `BotBridges` へ自身のブリッジ契約を登録し、利用側は呼び出し時に解決する
+（ロード順に依存しない構成）。
 """
 
 import traceback

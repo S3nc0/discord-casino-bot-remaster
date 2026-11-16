@@ -11,7 +11,7 @@ from discord.ext import commands, tasks
 
 from cogs.shared import ui
 from cogs.shared.announce import announce_channel
-from cogs.shared.bridges import IShopTitleBridge
+from cogs.shared.bridges import DeferredShopTitleBridge, IShopTitleBridge
 from cogs.shared.messages import format_standings_lines
 from domain import approval, shop, weekly
 from domain.ports.clock import IClock
@@ -43,7 +43,7 @@ class WeeklyCog(commands.Cog):
         self._economy_svc = economy_svc
         self._records = records
         self._guild_repo = guild_repo
-        self._shop_bridge = shop_bridge
+        self._shop_bridge: IShopTitleBridge = shop_bridge if shop_bridge is not None else DeferredShopTitleBridge(bot)
         self._clock: IClock = clock if clock is not None else ConfigClock(config)
 
     async def cog_load(self) -> None:
@@ -127,11 +127,10 @@ class WeeklyCog(commands.Cog):
             except discord.HTTPException as exc:
                 logthrottle.warn(("weekly", guild.id), f"週間ランキングを投稿できません: guild={guild.id}: {exc!r}")
         for uid in result["previous"]:  # 外れた称号をニックネームからも消す
-            if self._shop_bridge is not None:
-                try:
-                    await self._shop_bridge.sync_title_nick(uid, guild)
-                except Exception as exc:
-                    print(f"称号の取り消しをニックネームに反映できません: guild={guild.id} user={uid}: {exc!r}")
+            try:
+                await self._shop_bridge.sync_title_nick(uid, guild)
+            except Exception as exc:
+                print(f"称号の取り消しをニックネームに反映できません: guild={guild.id} user={uid}: {exc!r}")
 
 
 async def setup(bot: "CasinoBot") -> None:
@@ -142,6 +141,5 @@ async def setup(bot: "CasinoBot") -> None:
             bot.services.economy,
             bot.repos.records,
             bot.repos.guild,
-            shop_bridge=bot.bridges.shop,
         )
     )

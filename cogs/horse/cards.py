@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING, Any, cast
 import discord
 
 from cogs.shared import ui
+from cogs.shared.bridges import IHorseButtonBridge, NoOpHorseButtonBridge
 from domain import horse as horse_mod
 from domain.ports.repos import IHorseRepo, IRaceRepo
 
@@ -138,9 +139,8 @@ class RaceButton(discord.ui.DynamicItem[discord.ui.Button], template=r"horse:(?P
 
     async def callback(self, interaction: discord.Interaction):
         bot = cast("CasinoBot", interaction.client)
-        bridge = bot.bridges.horse
-        if bridge is not None:
-            await bridge.handle_button(interaction, self.act, self.race_id)
+        bridge = bot.bridges.resolve_or(IHorseButtonBridge, NoOpHorseButtonBridge())
+        await bridge.handle_button(interaction, self.act, self.race_id)
 
 
 def card_view(race_id: int, betting: bool) -> discord.ui.View:

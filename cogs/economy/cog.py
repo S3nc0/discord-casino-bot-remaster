@@ -12,7 +12,7 @@ from cogs.economy import boards
 from cogs.economy.boards import RankingView as RankingView  # noqa: F401
 from cogs.shared import ranking, ui
 from cogs.shared.amount import balance_choices
-from cogs.shared.bridges import IShopTitleBridge
+from cogs.shared.bridges import DeferredShopTitleBridge, IShopTitleBridge
 from cogs.shared.confirm import confirm_action, confirmed_reply, user_session
 from cogs.shared.messages import format_failure, format_history, format_memo
 from cogs.shared.ranking import RankingRepos
@@ -136,7 +136,7 @@ class EconomyCog(commands.Cog):
         self._guild_repo = guild_repo
         self._sessions = sessions
         self._clock = clock
-        self._shop_bridge = shop_bridge
+        self._shop_bridge: IShopTitleBridge = shop_bridge if shop_bridge is not None else DeferredShopTitleBridge(bot)
         self._ranking_repos = RankingRepos(
             wallet=wallet,
             crypto=crypto,
@@ -351,7 +351,7 @@ class EconomyCog(commands.Cog):
         )
         self._notices.for_guild(gid).take_notices(uid)
         guild = interaction.guild
-        if self._shop_bridge is not None and guild is not None:
+        if guild is not None:
             member = guild.get_member(uid) or interaction.user
             if isinstance(member, discord.Member):
                 await self._shop_bridge.after_bankruptcy(guild, member)  # 色ロールとニックネームを、すぐに反映する
@@ -546,6 +546,5 @@ async def setup(bot: "CasinoBot"):
             guild_repo=bot.repos.guild,
             sessions=bot.sessions,
             clock=bot.services.clock,
-            shop_bridge=bot.bridges.shop,
         )
     )

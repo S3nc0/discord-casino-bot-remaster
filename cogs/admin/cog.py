@@ -4,7 +4,7 @@ Bot が新しいサーバーに追加されると、持ち主（owner_ids）に 
 コマンドの業務ロジックは approval_ops / economy_ops / content_ops へ分離し、ここはコマンド定義と委譲のみを持つ。
 """
 
-from typing import TYPE_CHECKING, Any, Optional
+from typing import TYPE_CHECKING, Any, Optional, TypeVar
 
 import discord
 from discord import app_commands
@@ -30,9 +30,10 @@ from cogs.admin.views import AnnounceModal as AnnounceModal  # noqa: F401
 from cogs.admin.views import ApprovalButton
 from cogs.shared import ui
 from cogs.shared.bridges import (
+    BotBridges,
     IApprovalBridge,
     IEventAdminBridge,
-    IHorseRaceBridge,
+    IHorseAdminBridge,
     IQuizAdminBridge,
     IRaffleAdminBridge,
 )
@@ -43,6 +44,8 @@ from services.labor import LaborService
 
 if TYPE_CHECKING:
     from cogs.shared.bot import CasinoBot
+
+_T = TypeVar("_T")
 
 MAX_IMAGE_BYTES = content_ops.MAX_IMAGE_BYTES
 MAX_IMPORT_BYTES = content_ops.MAX_IMPORT_BYTES
@@ -62,7 +65,7 @@ class ApprovalCog(commands.Cog, IApprovalBridge):
         labor_svc: LaborService,
         *,
         event_bridge: Optional[IEventAdminBridge] = None,
-        horse_bridge: Optional[IHorseRaceBridge] = None,
+        horse_bridge: Optional[IHorseAdminBridge] = None,
         raffle_bridge: Optional[IRaffleAdminBridge] = None,
         quiz_bridge: Optional[IQuizAdminBridge] = None,
     ):
@@ -82,6 +85,29 @@ class ApprovalCog(commands.Cog, IApprovalBridge):
 
     async def cog_load(self):
         self.bot.add_dynamic_items(ApprovalButton)
+
+    async def cog_unload(self) -> None:
+        bridges = getattr(self.bot, "bridges", None)
+        if isinstance(bridges, BotBridges):
+            bridges.unregister(IApprovalBridge, self)
+
+    def _resolve_bridge(self, override: Optional[_T], contract: type[_T]) -> Optional[_T]:
+        if override is not None:
+            return override
+        bridges = getattr(self.bot, "bridges", None)
+        return bridges.resolve(contract) if isinstance(bridges, BotBridges) else None
+
+    def event_bridge(self) -> Optional[IEventAdminBridge]:
+        return self._resolve_bridge(self._event_bridge, IEventAdminBridge)
+
+    def horse_bridge(self) -> Optional[IHorseAdminBridge]:
+        return self._resolve_bridge(self._horse_bridge, IHorseAdminBridge)
+
+    def raffle_bridge(self) -> Optional[IRaffleAdminBridge]:
+        return self._resolve_bridge(self._raffle_bridge, IRaffleAdminBridge)
+
+    def quiz_bridge(self) -> Optional[IQuizAdminBridge]:
+        return self._resolve_bridge(self._quiz_bridge, IQuizAdminBridge)
 
     # --------------------------- 依頼の送信・承認イベント --------------------------- #
     async def request_approval(self, guild: discord.Guild) -> int:
@@ -546,10 +572,6 @@ async def setup(bot: "CasinoBot"):
         pachinko=bot.repos.pachinko,
         quiz_repo=bot.repos.quiz,
         labor_svc=bot.services.labor,
-        event_bridge=bot.bridges.event,
-        horse_bridge=bot.bridges.horse,
-        raffle_bridge=bot.bridges.raffle,
-        quiz_bridge=bot.bridges.quiz,
     )
-    bot.bridges.approval = cog
+    bot.bridges.register(IApprovalBridge, cog)
     await bot.add_cog(cog)

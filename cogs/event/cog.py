@@ -14,7 +14,7 @@ from discord.ext import commands, tasks
 from cogs.event.texts import event_copy
 from cogs.shared import ui
 from cogs.shared.announce import announce_channel
-from cogs.shared.bridges import IEventAdminBridge
+from cogs.shared.bridges import BotBridges, IEventAdminBridge
 from domain import approval, events
 from domain.ports.clock import IClock
 from domain.ports.repos import IEventRepo, IGuildRepo
@@ -50,6 +50,9 @@ class EventCog(commands.Cog, IEventAdminBridge):
 
     async def cog_unload(self) -> None:
         self.tick.cancel()
+        bridges = getattr(self.bot, "bridges", None)
+        if isinstance(bridges, BotBridges):
+            bridges.unregister(IEventAdminBridge, self)
 
     @tasks.loop(minutes=1)
     async def tick(self) -> None:
@@ -157,5 +160,5 @@ class EventCog(commands.Cog, IEventAdminBridge):
 
 async def setup(bot: "CasinoBot") -> None:
     cog = EventCog(bot, bot.config, bot.repos.events, bot.repos.guild)
-    bot.bridges.event = cog
+    bot.bridges.register(IEventAdminBridge, cog)
     await bot.add_cog(cog)
