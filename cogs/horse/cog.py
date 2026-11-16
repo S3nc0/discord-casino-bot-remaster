@@ -85,7 +85,7 @@ def lane_text(entries: list, positions: list, laps: int = 1) -> str:
     return "```\n" + head + "\n".join(rows) + "\n```"
 
 
-def comment(entries: list, positions: list, previous_leader, final: bool, winner=None):
+def comment(entries: list, positions: list, previous_leader, final: bool, winner=None, distance: Optional[int] = None):
     """実況の一言と、いまの先頭（馬の添字）。final のときは、winner（1着の馬の添字）を名指しする。"""
     leader = max(range(len(positions)), key=lambda i: positions[i])
     top = positions[leader]
@@ -96,6 +96,10 @@ def comment(entries: list, positions: list, previous_leader, final: bool, winner
     if top < 0.06:
         return "🔔 ゲートが開いた！ **スタート！**", leader
     if previous_leader is not None and leader != previous_leader:
+        e = entries[leader]
+        is_spurt = distance is not None and e["guts"] > 20 and top > horse_mod.reach_for(e["stamina"], distance)
+        if is_spurt:
+            return f"💪 **{name}** が根性のラストスパートで逆転！！", leader
         return f"🔥 **{name}** が先頭に立った！", leader
     if top >= 0.85:
         return f"📣 ゴール前の叩き合い！ **{name}** 先頭！", leader
@@ -288,7 +292,7 @@ class HorseCog(commands.Cog):
         def frame_embed(i: int, leader):
             positions = frames[i]
             final = i == len(frames) - 1
-            text, new_leader = comment(entries, positions, leader, final, winner)
+            text, new_leader = comment(entries, positions, leader, final, winner, result["track"].distance)
             return ui.embed(
                 title, f"{text}\n{lane_text(entries, positions, laps)}", ui.GOLD if final else ui.INFO
             ), new_leader

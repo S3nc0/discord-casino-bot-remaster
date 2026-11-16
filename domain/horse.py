@@ -233,11 +233,16 @@ def style_curve(style: str, p: float, pace_shift: float) -> float:
     return STYLE_EARLY[style] * (1 - t) + STYLE_LATE[style] * t
 
 
+def reach_for(stamina: int, distance: int) -> float:
+    """このスタミナ・距離だと、どこまではバテずに走れるか（進捗の割合。1.0 ならバテない）。"""
+    dfac = distance / 1800
+    return min(1.0, max(0.25, 0.8 * (stamina / 50) / dfac))
+
+
 def _mult(r: Runner, p: float, track: Track, luck: float, spurt: float, style: str, pace_shift: float) -> float:
-    dfac = track.distance / 1800
     m = 1 + (r.speed - 50) / 50 * speed_coef(track.distance)
     m *= 1 + (r.power - 50) / 50 * 0.10 * max(0.0, 1 - p / 0.3)  # 出足（パワー）
-    reach = min(1.0, max(0.25, 0.8 * (r.stamina / 50) / dfac))  # ここまでは、バテずに走れる
+    reach = reach_for(r.stamina, track.distance)  # ここまでは、バテずに走れる
     if p > reach and reach < 1.0:
         fatigue = FATIGUE_MAX * (p - reach) / (1 - reach)
         m *= 1 - fatigue
