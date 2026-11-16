@@ -99,7 +99,7 @@ major_house_topup: 10000
 
 ticks: 60
 max_ticks: 140
-fatigue_max: 0.18
+fatigue_max: 0.22
 noise: 0.03
 luck: 0.020
 

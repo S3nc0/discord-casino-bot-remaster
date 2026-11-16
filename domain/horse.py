@@ -202,8 +202,8 @@ def random_form(rng: random.Random) -> int:
 
 # ---- シミュレーション ---- #
 def speed_coef(distance: int) -> float:
-    """距離ごとの、スピードの効き（短いほど効く）。1800m で 0.05。"""
-    return min(0.09, 0.05 * 1800 / distance)
+    """距離ごとの、スピードの効き（短いほど効く）。1800m で 0.042。"""
+    return min(0.09, 0.042 * 1800 / distance)
 
 
 FATIGUE_MAX = _CFG.fatigue_max
@@ -235,11 +235,12 @@ def style_curve(style: str, p: float, pace_shift: float) -> float:
 def _mult(r: Runner, p: float, track: Track, luck: float, spurt: float, style: str, pace_shift: float) -> float:
     dfac = track.distance / 1800
     m = 1 + (r.speed - 50) / 50 * speed_coef(track.distance)
-    m *= 1 + (r.power - 50) / 50 * 0.12 * max(0.0, 1 - p / 0.3)  # 出足（パワー）
+    m *= 1 + (r.power - 50) / 50 * 0.10 * max(0.0, 1 - p / 0.3)  # 出足（パワー）
     reach = min(1.0, max(0.25, 0.8 * (r.stamina / 50) / dfac))  # ここまでは、バテずに走れる
     if p > reach and reach < 1.0:
-        m *= 1 - FATIGUE_MAX * (p - reach) / (1 - reach)
-        m *= 1 + spurt  # スタミナが切れた分を、根性のラストスパートで補う
+        fatigue = FATIGUE_MAX * (p - reach) / (1 - reach)
+        m *= 1 - fatigue
+        m *= 1 + min(spurt, fatigue)  # 根性のラストスパートは、バテの罰を打ち消す分までで頭打ち
     m *= 1 + style_curve(style, p, pace_shift)  # 脚質・展開
     m *= 1 - GOING_PENALTY[track.going] * (1 - (r.power - 20) / 60)  # 馬場
     return m * FORM_MULT[r.form] * (1 + luck)
