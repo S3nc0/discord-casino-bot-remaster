@@ -699,6 +699,19 @@ def test_interest_stops_just_before_the_bankruptcy_grace_line(eco, monkeypatch):
     assert eco.debt(U) == teiai.DEBT_INTEREST_CEILING
 
 
+def test_net_worth_ranking_accrues_untouched_debt_interest_so_it_matches_the_balance_display(eco, monkeypatch):
+    now = [1_800_000_000.0]
+    _interest_clock(monkeypatch, now)
+    indebt(eco, U, debt=5_000, balance=5_000)
+    eco.debt(U)  # 借金ができた時点を記録（まだ利息は付かない）
+    now[0] += 3 * DAY  # 本人は、しばらく残高を見ていない
+    rank = eco.rank_of(U)
+    assert rank is not None
+    expected_debt = 5_000 + int(5_000 * 0.01 * 3)  # 3日ぶんの利息（日利1%）
+    assert rank[1] == eco.balance(U) - expected_debt  # 利息を加える前の、古い借金で計算していない
+    assert eco.debt(U) == expected_debt  # 残高表示側（/ペリカ 残高）と、二重に利息を付けていない
+
+
 def test_a_paid_off_debt_forgets_the_interest_clock(eco, monkeypatch):
     now = [1_800_000_000.0]
     _interest_clock(monkeypatch, now)

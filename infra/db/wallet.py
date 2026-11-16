@@ -166,7 +166,17 @@ class WalletMixin(EcoBase):
 
     def _ranked(self, user_ids: Optional[set]) -> list:
         """[(ユーザーID, 純資産)] を多い順に。純資産は、残高から借金を引き、CS・預金・債券・オプションの評価額を足したもの。"""
-        with self._lock:
+        with self._lock, self._conn:
+            targets = (
+                [
+                    r["user_id"]
+                    for r in self._conn.execute("SELECT user_id FROM users WHERE guild_id=? AND debt>0", (self._g(),))
+                ]
+                if user_ids is None
+                else user_ids
+            )
+            for uid in targets:
+                self._accrue_debt_interest(uid)  # 残高表示と同じく、純資産にも溜まった利息（トイチ）を反映する
             rows = self._conn.execute(
                 "SELECT user_id, balance - debt AS balance FROM users WHERE guild_id=?", (self._g(),)
             ).fetchall()
