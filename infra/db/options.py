@@ -12,7 +12,7 @@ from domain import market as market_mod
 from domain import options as opt
 from domain.errors import fail
 from domain.options import name_of as name_of  # noqa: F401
-from domain.ports.bridges import IBankIncomeSink, IDebtOps
+from domain.ports.bridges import IBankIncomeSink, IDebtOps, NoOpDebtOps
 from domain.ports.repos import IOptionRepo
 from infra.db.account import AccountCore
 from infra.db.base import EcoDb, ScopedRepo
@@ -42,11 +42,7 @@ class OptionRepo(ScopedRepo, IOptionRepo):
         self._market_events = market_events
         self._earnings = earnings
         self._bank = bank
-        self._debt: IDebtOps = debt or IDebtOps()
-
-    def bind_debt(self, debt: IDebtOps) -> None:
-        """Composition Root で循環する借金ポートを接続する。"""
-        self._debt = debt
+        self._debt: IDebtOps = debt or NoOpDebtOps()
 
     def _option_events(self, now: float) -> list[Any]:
         """オプションの値付けに入れる出来事: ボラティリティ予告 + 満期までにある決算の発表（OPTION_HOURS の間）。"""

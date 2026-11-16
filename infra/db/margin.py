@@ -8,13 +8,20 @@ from domain import market as market_mod
 from domain import teiai
 from domain.errors import Failure, fail
 from domain.market import DEFAULT
-from domain.ports.bridges import IBankIncomeSink, IDebtOps, ISpotCollateralReader
+from domain.ports.bridges import (
+    IBankIncomeSink,
+    IDebtOps,
+    INoticeSink,
+    ISpotCollateralReader,
+    NoOpDebtOps,
+    NoOpNoticeSink,
+    NoOpSpotCollateralReader,
+)
 from domain.ports.repos import IMarginRepo
 from domain.types import CryptoResult
 from infra.db.account import AccountCore
-from infra.db.base import EcoDb, ScopedRepo
+from infra.db.base import EcoDb, ScopedRepo, validate_guild_id
 from infra.db.market import MarketDataRepo
-from infra.db.notices import NoticeRepo
 
 _log = logging.getLogger(__name__)
 
@@ -33,8 +40,8 @@ class MarginRepo(ScopedRepo, IMarginRepo):
         account: AccountCore,
         market: MarketDataRepo,
         bank: IBankIncomeSink,
-        notices: NoticeRepo,
-        crypto: ISpotCollateralReader,
+        notices: Optional[INoticeSink] = None,
+        crypto: Optional[ISpotCollateralReader] = None,
         debt: Optional[IDebtOps] = None,
         guild_id: int = 0,
         strict: bool = False,
@@ -43,13 +50,9 @@ class MarginRepo(ScopedRepo, IMarginRepo):
         self._account = account
         self._market = market
         self._bank = bank
-        self._notices = notices
-        self._crypto = crypto
-        self._debt: IDebtOps = debt or IDebtOps()
-
-    def bind_debt(self, debt: IDebtOps) -> None:
-        """Composition Root で循環する借金ポートを接続する。"""
-        self._debt = debt
+        self._notices: INoticeSink = notices or NoOpNoticeSink()
+        self._crypto: ISpotCollateralReader = crypto or NoOpSpotCollateralReader()
+        self._debt: IDebtOps = debt or NoOpDebtOps()
 
     def _margin_position_for(self, guild_id: int, user_id: int, symbol: str, side: str) -> tuple[int, float, int]:
         r = self._conn.execute(
@@ -436,7 +439,7 @@ class MarginRepo(ScopedRepo, IMarginRepo):
                     )
                     if charge > 0:
                         try:
-                            gid = self._validate_guild_id(r["guild_id"])
+                            gid = validate_guild_id(r["guild_id"])
                         except ValueError:
                             continue
                         name = market_mod.BY_KEY[r["symbol"]].name
@@ -462,7 +465,7 @@ class MarginRepo(ScopedRepo, IMarginRepo):
                 )
             for guild_id, user_id in sorted(accounts):
                 try:
-                    gid = self._validate_guild_id(guild_id)
+                    gid = validate_guild_id(guild_id)
                 except ValueError:
                     _log.warning("出どころ不明の建玉は、ロスカットできません: guild=%s user=%s", guild_id, user_id)
                     continue

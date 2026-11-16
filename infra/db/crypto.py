@@ -5,7 +5,7 @@ from typing import Any, Optional
 from domain import market as market_mod
 from domain.errors import fail
 from domain.market import DEFAULT
-from domain.ports.bridges import IBankIncomeSink, IMarginCollateralGuard
+from domain.ports.bridges import IBankIncomeSink, IMarginCollateralGuard, NoOpMarginCollateralGuard
 from domain.ports.repos import ICryptoRepo
 from domain.types import CryptoResult
 from infra.db.account import AccountCore
@@ -30,11 +30,7 @@ class CryptoRepo(ScopedRepo, ICryptoRepo):
         self._account = account
         self._market = market
         self._bank = bank
-        self._collateral_guard: IMarginCollateralGuard = collateral_guard or IMarginCollateralGuard()
-
-    def bind_collateral_guard(self, guard: IMarginCollateralGuard) -> None:
-        """Composition Root で信用担保ガードを接続する。"""
-        self._collateral_guard = guard
+        self._collateral_guard: IMarginCollateralGuard = collateral_guard or NoOpMarginCollateralGuard()
 
     def _crypto_holding_for(self, guild_id: int, user_id: int, symbol: str = DEFAULT) -> tuple[int, int]:
         r = self._conn.execute(

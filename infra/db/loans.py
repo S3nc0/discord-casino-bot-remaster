@@ -11,7 +11,7 @@ from typing import Any, Optional
 
 from domain import loans as loans_mod
 from domain.errors import Failure, fail
-from domain.ports.bridges import IGraceReader, IStatusReader
+from domain.ports.bridges import IGraceReader, IStatusReader, NoOpGraceReader, NoOpStatusReader
 from domain.ports.repos import ILoanRepo
 from infra.db.account import AccountCore
 from infra.db.base import EcoDb, ScopedRepo
@@ -28,15 +28,15 @@ class LoanRepo(ScopedRepo, ILoanRepo):
         self,
         db: EcoDb,
         account: AccountCore,
-        status_reader: IStatusReader,
-        bank: IGraceReader,
+        status_reader: Optional[IStatusReader] = None,
+        bank: Optional[IGraceReader] = None,
         guild_id: int = 0,
         strict: bool = False,
     ) -> None:
         super().__init__(db, guild_id, strict)
         self._account = account
-        self._status_reader = status_reader
-        self._bank = bank
+        self._status_reader: IStatusReader = status_reader or NoOpStatusReader()
+        self._bank: IGraceReader = bank or NoOpGraceReader()
 
     def _loan_owed(self, loan: dict[str, Any], now: float) -> int:
         """いまの返済総額（利息つき）。承諾前は 0。"""
@@ -46,6 +46,30 @@ class LoanRepo(ScopedRepo, ILoanRepo):
 
     def loan_remaining(self, loan: dict[str, Any], now: float) -> int:
         return max(0, self._loan_owed(loan, now) - loan["paid"])
+
+    def has_overdue_for(self, guild_id: int, user_id: int) -> bool:
+        return (
+            self._conn.execute(
+                "SELECT 1 FROM loans WHERE guild_id=? AND borrower_id=? AND status='overdue' LIMIT 1",
+                (guild_id, user_id),
+            ).fetchone()
+            is not None
+        )
+
+    def active_loans_for(self, guild_id: int, user_id: int) -> list[dict[str, Any]]:
+        return [
+            dict(r)
+            for r in self._conn.execute(
+                "SELECT * FROM loans WHERE guild_id=? AND borrower_id=? AND status IN ('active','overdue') ORDER BY id",
+                (guild_id, user_id),
+            )
+        ]
+
+    def record_bankrupt_payment_for(self, loan_id: int, paid: int) -> None:
+        self._conn.execute("UPDATE loans SET paid=? WHERE id=?", (paid, loan_id))
+
+    def finalize_bankrupt_loan_for(self, loan_id: int, repaid: bool) -> None:
+        self._conn.execute("UPDATE loans SET status=? WHERE id=?", ("repaid" if repaid else "discharged", loan_id))
 
     def _loan_pay_for(self, guild_id: int, loan: dict[str, Any], amount: int) -> None:
         """借りた人 → 貸した人へ amount を動かす（借りた人の残高は、呼び出し側が確かめておく）。"""

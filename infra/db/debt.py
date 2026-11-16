@@ -15,10 +15,20 @@ from domain import teiai
 from domain.errors import fail
 from domain.ports.bridges import (
     IAssetSeizureStep,
+    IBankCdsBridge,
     IBankruptPrepHook,
     ILiquidationStep,
+    IMarketPriceReader,
+    INoticeSink,
     IOverdueLoanCollector,
     ISeizureValueStep,
+    NoOpAssetSeizureStep,
+    NoOpBankCdsBridge,
+    NoOpBankruptPrepHook,
+    NoOpLiquidationStep,
+    NoOpNoticeSink,
+    NoOpOverdueLoanCollector,
+    NoOpSeizureValueStep,
 )
 from domain.ports.repos import IDebtRepo
 from infra.db.account import AccountCore
@@ -29,8 +39,6 @@ from infra.db.bonds import BondRepo
 from infra.db.crypto import CryptoRepo
 from infra.db.horse import HorseRepo
 from infra.db.margin import MarginRepo
-from infra.db.market import MarketDataRepo
-from infra.db.notices import NoticeRepo
 from infra.db.options import OptionRepo
 
 
@@ -46,7 +54,7 @@ def _take_cash(account: AccountCore, guild_id: int, user_id: int, need: int, rea
 # 強制執行（ファーストロス差し押さえ）ステップ（OCP）                 #
 # ------------------------------------------------------------------ #
 class DepositSeizureStep(IAssetSeizureStep):
-    def __init__(self, account: AccountCore, bank: BankRepo, notices: NoticeRepo) -> None:
+    def __init__(self, account: AccountCore, bank: BankRepo, notices: INoticeSink) -> None:
         self._account = account
         self._bank = bank
         self._notices = notices
@@ -66,7 +74,9 @@ class DepositSeizureStep(IAssetSeizureStep):
 
 
 class MarginSeizureStep(IAssetSeizureStep):
-    def __init__(self, account: AccountCore, market: MarketDataRepo, margin: MarginRepo, notices: NoticeRepo) -> None:
+    def __init__(
+        self, account: AccountCore, market: IMarketPriceReader, margin: MarginRepo, notices: INoticeSink
+    ) -> None:
         self._account = account
         self._market = market
         self._margin = margin
@@ -95,7 +105,9 @@ class MarginSeizureStep(IAssetSeizureStep):
 
 
 class CryptoSeizureStep(IAssetSeizureStep):
-    def __init__(self, account: AccountCore, market: MarketDataRepo, crypto: CryptoRepo, notices: NoticeRepo) -> None:
+    def __init__(
+        self, account: AccountCore, market: IMarketPriceReader, crypto: CryptoRepo, notices: INoticeSink
+    ) -> None:
         self._account = account
         self._market = market
         self._crypto = crypto
@@ -120,7 +132,7 @@ class CryptoSeizureStep(IAssetSeizureStep):
 
 
 class OptionSeizureStep(IAssetSeizureStep):
-    def __init__(self, db: EcoDb, account: AccountCore, options: OptionRepo, notices: NoticeRepo) -> None:
+    def __init__(self, db: EcoDb, account: AccountCore, options: OptionRepo, notices: INoticeSink) -> None:
         self._conn = db.conn
         self._account = account
         self._options = options
@@ -142,7 +154,7 @@ class OptionSeizureStep(IAssetSeizureStep):
 
 
 class BondSeizureStep(IAssetSeizureStep):
-    def __init__(self, db: EcoDb, account: AccountCore, bonds: BondRepo, notices: NoticeRepo) -> None:
+    def __init__(self, db: EcoDb, account: AccountCore, bonds: BondRepo, notices: INoticeSink) -> None:
         self._conn = db.conn
         self._account = account
         self._bonds = bonds
@@ -167,7 +179,7 @@ class BondSeizureStep(IAssetSeizureStep):
 # 自己破産時の換金ステップ（OCP）                                      #
 # ------------------------------------------------------------------ #
 class MarginLiquidationStep(ILiquidationStep):
-    def __init__(self, market: MarketDataRepo, margin: MarginRepo) -> None:
+    def __init__(self, market: IMarketPriceReader, margin: MarginRepo) -> None:
         self._market = market
         self._margin = margin
 
@@ -181,7 +193,7 @@ class MarginLiquidationStep(ILiquidationStep):
 
 
 class CryptoLiquidationStep(ILiquidationStep):
-    def __init__(self, market: MarketDataRepo, crypto: CryptoRepo) -> None:
+    def __init__(self, market: IMarketPriceReader, crypto: CryptoRepo) -> None:
         self._market = market
         self._crypto = crypto
 
@@ -279,60 +291,30 @@ class DebtRepo(ScopedRepo, IDebtRepo):
         self,
         db: EcoDb,
         account: AccountCore,
-        notices: NoticeRepo,
-        bank: BankRepo,
+        notices: Optional[INoticeSink] = None,
+        bank: Optional[IBankCdsBridge] = None,
         loans: Optional[IOverdueLoanCollector] = None,
         *,
-        seizure_steps: tuple[IAssetSeizureStep, ...] = (),
-        liquidation_steps: tuple[ILiquidationStep, ...] = (),
-        seizure_value_steps: tuple[ISeizureValueStep, ...] = (),
-        bankrupt_prep_hooks: tuple[IBankruptPrepHook, ...] = (),
+        seizure_step: Optional[IAssetSeizureStep] = None,
+        liquidation_step: Optional[ILiquidationStep] = None,
+        seizure_value_step: Optional[ISeizureValueStep] = None,
+        bankrupt_prep_hook: Optional[IBankruptPrepHook] = None,
         guild_id: int = 0,
         strict: bool = False,
     ) -> None:
         super().__init__(db, guild_id, strict)
         self._account = account
-        self._notices = notices
-        self._bank = bank
-        self._loans: IOverdueLoanCollector = loans or IOverdueLoanCollector()
-        self._seizure_steps = seizure_steps
-        self._liquidation_steps = liquidation_steps
-        self._seizure_value_steps = seizure_value_steps
-        self._bankrupt_prep_hooks = bankrupt_prep_hooks
-
-    def bind_steps(
-        self,
-        *,
-        loans: Optional[IOverdueLoanCollector] = None,
-        seizure_steps: Optional[tuple[IAssetSeizureStep, ...]] = None,
-        liquidation_steps: Optional[tuple[ILiquidationStep, ...]] = None,
-        seizure_value_steps: Optional[tuple[ISeizureValueStep, ...]] = None,
-        bankrupt_prep_hooks: Optional[tuple[IBankruptPrepHook, ...]] = None,
-    ) -> None:
-        """Composition Root で差し押さえ・換金ステップと破産前フックを接続する。"""
-        if loans is not None:
-            self._loans = loans
-        if seizure_steps is not None:
-            self._seizure_steps = seizure_steps
-        if liquidation_steps is not None:
-            self._liquidation_steps = liquidation_steps
-        if seizure_value_steps is not None:
-            self._seizure_value_steps = seizure_value_steps
-        if bankrupt_prep_hooks is not None:
-            self._bankrupt_prep_hooks = bankrupt_prep_hooks
+        self._notices: INoticeSink = notices or NoOpNoticeSink()
+        self._bank: IBankCdsBridge = bank or NoOpBankCdsBridge()
+        self._loans: IOverdueLoanCollector = loans or NoOpOverdueLoanCollector()
+        self._seizure_step: IAssetSeizureStep = seizure_step or NoOpAssetSeizureStep()
+        self._liquidation_step: ILiquidationStep = liquidation_step or NoOpLiquidationStep()
+        self._seizure_value_step: ISeizureValueStep = seizure_value_step or NoOpSeizureValueStep()
+        self._bankrupt_prep_hook: IBankruptPrepHook = bankrupt_prep_hook or NoOpBankruptPrepHook()
 
     # ------------------------------------------------------------------ #
     # 身分・読み取り契約（IStatusReader）                                 #
     # ------------------------------------------------------------------ #
-    def _has_overdue(self, guild_id: int, user_id: int) -> bool:
-        return (
-            self._conn.execute(
-                "SELECT 1 FROM loans WHERE guild_id=? AND borrower_id=? AND status='overdue' LIMIT 1",
-                (guild_id, user_id),
-            ).fetchone()
-            is not None
-        )
-
     def status_for(self, guild_id: int, user_id: int, now: Optional[float] = None) -> str:
         """身分。読み取り専用で、口座は作らない。"""
         now = time.time() if now is None else now
@@ -345,7 +327,7 @@ class DebtRepo(ScopedRepo, IDebtRepo):
                 return teiai.KATAGI
             if row["bankrupt_at"] is not None and row["debt"] > 0:
                 return teiai.BANKRUPT
-            if row["debt"] > 0 or self._has_overdue(guild_id, user_id):
+            if row["debt"] > 0 or self._loans.has_overdue_for(guild_id, user_id):
                 return teiai.UNDERGROUND
             return teiai.KATAGI
 
@@ -470,11 +452,9 @@ class DebtRepo(ScopedRepo, IDebtRepo):
     def _seize_assets_for(self, guild_id: int, user_id: int, need: int, reason: str) -> int:
         now = time.time()
         covered = _take_cash(self._account, guild_id, user_id, need, reason)
-        for step in self._seizure_steps:
-            if covered >= need:
-                break
-            covered += step.seize(guild_id, user_id, need - covered, reason, now)
-        return covered
+        if covered >= need:
+            return covered
+        return covered + self._seizure_step.seize(guild_id, user_id, need - covered, reason, now)
 
     def seed_for(self, guild_id: int, user_id: int, amount: int) -> None:
         """帝愛が種銭を貸し付ける。手元に入り、同じ額が借金に加わる（天引きの対象にはならない）。"""
@@ -579,8 +559,7 @@ class DebtRepo(ScopedRepo, IDebtRepo):
     # 自己破産                                                            #
     # ------------------------------------------------------------------ #
     def _liquidate_everything_for(self, guild_id: int, user_id: int, now: float) -> int:
-        for step in self._liquidation_steps:
-            step.liquidate(guild_id, user_id, now)
+        self._liquidation_step.liquidate(guild_id, user_id, now)
         return _take_cash(
             self._account,
             guild_id,
@@ -590,7 +569,7 @@ class DebtRepo(ScopedRepo, IDebtRepo):
         )
 
     def _seize_valuables_for(self, guild_id: int, user_id: int, now: float) -> int:
-        return sum(step.seize(guild_id, user_id, now) for step in self._seizure_value_steps)
+        return self._seizure_value_step.seize(guild_id, user_id, now)
 
     def escape_left(self, user_id: int) -> int:
         """海外逃亡を、あと何回試せるか。読み取り専用。"""
@@ -652,19 +631,12 @@ class DebtRepo(ScopedRepo, IDebtRepo):
             self._account.ensure(guild_id, user_id)
             if self.status_for(guild_id, user_id) == teiai.BANKRUPT:
                 return False, fail("bankrupt_already")
-            loans = [
-                dict(r)
-                for r in self._conn.execute(
-                    "SELECT * FROM loans WHERE guild_id=? AND borrower_id=? AND status IN ('active','overdue') ORDER BY id",
-                    (guild_id, user_id),
-                )
-            ]
+            loans = self._loans.active_loans_for(guild_id, user_id)
             if self._account.debt(guild_id, user_id) <= 0 and not loans:
                 return False, fail("bankrupt_no_debt")
             debt_before = self._account.debt(guild_id, user_id)
             now = time.time()
-            for hook in self._bankrupt_prep_hooks:
-                hook.prepare(guild_id, user_id, now)
+            self._bankrupt_prep_hook.prepare(guild_id, user_id, now)
             in_grace = self._bank.grace_until_for(guild_id, user_id) is not None
             pool = self._liquidate_everything_for(guild_id, user_id, now)
             shop_value = self._seize_valuables_for(guild_id, user_id, now)
@@ -687,14 +659,12 @@ class DebtRepo(ScopedRepo, IDebtRepo):
                         f"貸付の配当（借り手の自己破産）←{user_id}（#{loan['id']}）",
                     )
                     loan["paid"] += pay
-                    self._conn.execute("UPDATE loans SET paid=? WHERE id=?", (loan["paid"], loan["id"]))
+                    self._loans.record_bankrupt_payment_for(loan["id"], loan["paid"])
                     pool -= pay
                     junior_paid += pay
                 left = self._loans.loan_remaining(loan, now)
                 forgiven += left
-                self._conn.execute(
-                    "UPDATE loans SET status=? WHERE id=?", ("repaid" if left <= 0 else "discharged", loan["id"])
-                )
+                self._loans.finalize_bankrupt_loan_for(loan["id"], left <= 0)
             if pool > 0:
                 self._account.apply(guild_id, user_id, pool, "破産の整理のあまり")
             compressed = max(0, self._account.debt(guild_id, user_id) - (0 if escape else teiai.BANKRUPT_FLOOR))

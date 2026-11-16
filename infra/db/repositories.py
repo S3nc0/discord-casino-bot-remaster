@@ -7,22 +7,27 @@ Bridge パターン / Constructor DI / OCP 戦略ステップで組み立てる�
 from dataclasses import dataclass
 from typing import Optional
 
-from domain.ports.bridges import CompositeAssetCollector, CompositeValuationSource
+from domain.ports.bridges import (
+    CompositeAssetCollector,
+    CompositeAssetSeizureStep,
+    CompositeBankruptPrepHook,
+    CompositeGraceEnterHook,
+    CompositeLiquidationStep,
+    CompositeSeizureValueStep,
+    CompositeValuationSource,
+)
 from domain.ports.repos import IRepositoryBundle
 from infra.db import schema
 from infra.db.account import AccountCore
 from infra.db.assets import (
     AssetRepo,
-    BankAssetCollector,
-    BondAssetCollector,
     CashAndDebtCollector,
-    CryptoAssetCollector,
     HorseAssetCollector,
     InventoryAssetCollector,
     LaborAssetCollector,
     LoanAssetCollector,
-    OptionAssetCollector,
     P2PAssetCollector,
+    ValuationSourceCollector,
 )
 from infra.db.auction import AuctionRepo
 from infra.db.bank import BankRepo
@@ -49,6 +54,20 @@ from infra.db.events import EventRepo
 from infra.db.guild import GuildRepo
 from infra.db.horse import HorseRepo
 from infra.db.labor import LaborRepo
+from infra.db.lazy_bridges import (
+    LazyAssetSeizureStep,
+    LazyBankruptExecutor,
+    LazyBankruptPrepHook,
+    LazyDebtLifecycleHook,
+    LazyGraceEnterHook,
+    LazyLiquidationStep,
+    LazyMarginCollateralGuard,
+    LazyMarginRatioReader,
+    LazyOverdueLoanCollector,
+    LazySeizureValueStep,
+    LazyStatusReader,
+    LazyWealthyReader,
+)
 from infra.db.loans import LoanRepo
 from infra.db.margin import MarginRepo
 from infra.db.market import MarketDataRepo
@@ -146,7 +165,7 @@ def open_repositories(db_path: str, legacy_guild_id: Optional[int] = None, stric
     db = EcoDb(db_path)
     schema.migrate_to_guild_scope(db.conn, db.db_path, legacy_guild_id)
 
-    account = AccountCore(db)
+    account = AccountCore(db, debt_hook=LazyDebtLifecycleHook(lambda: debt))
     notices = NoticeRepo(db, strict=strict)
     rtp = RtpRepo(db, strict=strict)
     events = EventRepo(db, strict=strict)
@@ -156,11 +175,30 @@ def open_repositories(db_path: str, legacy_guild_id: Optional[int] = None, stric
     market_events = MarketEventRepo(db, strict=strict)
     records = RecordRepo(db, account, strict=strict)
     raffle = RaffleRepo(db, account, strict=strict)
-    guild = GuildRepo(db, strict=strict)
+    guild = GuildRepo(db, wealthy_reader=LazyWealthyReader(lambda: wallet), strict=strict)
 
-    bank = BankRepo(db, account, notices, strict=strict)
-    debt = DebtRepo(db, account, notices, bank, strict=strict)
-    account.bind_debt_hook(debt)
+    bank = BankRepo(
+        db,
+        account,
+        notices,
+        status_reader=LazyStatusReader(lambda: debt),
+        margin_ratio_reader=LazyMarginRatioReader(lambda: margin),
+        grace_enter_hook=CompositeGraceEnterHook((LazyGraceEnterHook(lambda: p2p),)),
+        bankrupt_executor=LazyBankruptExecutor(lambda: debt),
+        strict=strict,
+    )
+    debt = DebtRepo(
+        db,
+        account,
+        notices,
+        bank,
+        loans=LazyOverdueLoanCollector(lambda: loans),
+        seizure_step=LazyAssetSeizureStep(lambda: seizure_step),
+        liquidation_step=LazyLiquidationStep(lambda: liquidation_step),
+        seizure_value_step=LazySeizureValueStep(lambda: seizure_value_step),
+        bankrupt_prep_hook=LazyBankruptPrepHook(lambda: bankrupt_prep_hook),
+        strict=strict,
+    )
 
     loans = LoanRepo(db, account, debt, bank, strict=strict)
     shop = ShopRepo(db, account, debt, strict=strict)
@@ -172,51 +210,51 @@ def open_repositories(db_path: str, legacy_guild_id: Optional[int] = None, stric
     labor = LaborRepo(db, account, relics, bank, strict=strict)
     earnings = EarningsRepo(db, account, bank, strict=strict)
 
-    crypto = CryptoRepo(db, account, market, bank, strict=strict)
+    crypto = CryptoRepo(
+        db,
+        account,
+        market,
+        bank,
+        collateral_guard=LazyMarginCollateralGuard(lambda: margin),
+        strict=strict,
+    )
     margin = MarginRepo(db, account, market, bank, notices, crypto, debt, strict=strict)
-    crypto.bind_collateral_guard(margin)
 
     bonds = BondRepo(db, account, bank, debt_repay=debt, collateral_guard=margin, strict=strict)
     options = OptionRepo(db, account, market, market_events, earnings, bank, debt, strict=strict)
     p2p = P2PRepo(db, account, horses, debt, bank, bank, notices, strict=strict)
 
-    bank.bind_hooks(
-        status_reader=debt,
-        margin_ratio_reader=margin,
-        grace_enter_hooks=(p2p,),
-        bankrupt_executor=debt,
-    )
-    debt.bind_steps(
-        loans=loans,
-        seizure_steps=(
+    seizure_step = CompositeAssetSeizureStep(
+        (
             DepositSeizureStep(account, bank, notices),
             MarginSeizureStep(account, market, margin, notices),
             CryptoSeizureStep(account, market, crypto, notices),
             OptionSeizureStep(db, account, options, notices),
             BondSeizureStep(db, account, bonds, notices),
-        ),
-        liquidation_steps=(
+        )
+    )
+    liquidation_step = CompositeLiquidationStep(
+        (
             MarginLiquidationStep(market, margin),
             CryptoLiquidationStep(market, crypto),
             BondLiquidationStep(db, account, bonds),
             OptionLiquidationStep(db, options),
             DepositLiquidationStep(account, bank),
-        ),
-        seizure_value_steps=(ShopAndHorseSeizureStep(db, auction, horses),),
-        bankrupt_prep_hooks=(p2p,),
+        )
     )
+    seizure_value_step = CompositeSeizureValueStep((ShopAndHorseSeizureStep(db, auction, horses),))
+    bankrupt_prep_hook = CompositeBankruptPrepHook((p2p,))
 
     valuation_source = CompositeValuationSource((crypto, margin, bonds, bank, options))
     wallet = WalletRepo(db, account, bank, debt, debt, relics, valuation_source, strict=strict)
-    guild.bind_wealthy_reader(wallet)
 
     asset_collector = CompositeAssetCollector(
         (
             CashAndDebtCollector(db),
-            BankAssetCollector(bank),
-            CryptoAssetCollector(crypto, margin),
-            BondAssetCollector(bonds),
-            OptionAssetCollector(options),
+            ValuationSourceCollector("deposit", CompositeValuationSource((bank,))),
+            ValuationSourceCollector("crypto", CompositeValuationSource((crypto, margin))),
+            ValuationSourceCollector("bonds", bonds),
+            ValuationSourceCollector("options", options),
             InventoryAssetCollector(db),
             LaborAssetCollector(db),
             HorseAssetCollector(db, horses.horse_worth),

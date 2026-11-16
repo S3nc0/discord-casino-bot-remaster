@@ -10,7 +10,13 @@ from typing import Any, Optional
 
 from domain import bonds as bonds_mod
 from domain.errors import fail
-from domain.ports.bridges import IBankIncomeSink, IDebtRepayHook, IMarginCollateralGuard
+from domain.ports.bridges import (
+    IBankIncomeSink,
+    IDebtRepayHook,
+    IMarginCollateralGuard,
+    NoOpDebtRepayHook,
+    NoOpMarginCollateralGuard,
+)
 from domain.ports.repos import IBondRepo
 from infra.db.account import AccountCore
 from infra.db.base import EcoDb, ScopedRepo
@@ -32,20 +38,8 @@ class BondRepo(ScopedRepo, IBondRepo):
         super().__init__(db, guild_id, strict)
         self._account = account
         self._bank = bank
-        self._debt_repay: IDebtRepayHook = debt_repay or IDebtRepayHook()
-        self._collateral_guard: IMarginCollateralGuard = collateral_guard or IMarginCollateralGuard()
-
-    def bind_hooks(
-        self,
-        *,
-        debt_repay: Optional[IDebtRepayHook] = None,
-        collateral_guard: Optional[IMarginCollateralGuard] = None,
-    ) -> None:
-        """Composition Root で循環する返済・担保フックを接続する。"""
-        if debt_repay is not None:
-            self._debt_repay = debt_repay
-        if collateral_guard is not None:
-            self._collateral_guard = collateral_guard
+        self._debt_repay: IDebtRepayHook = debt_repay or NoOpDebtRepayHook()
+        self._collateral_guard: IMarginCollateralGuard = collateral_guard or NoOpMarginCollateralGuard()
 
     def bond_buy(self, user_id: int, kind_key: str, amount: int, now: float) -> tuple[Any, ...]:
         """債券を買う。(成功か, Failure | "") を返す。"""

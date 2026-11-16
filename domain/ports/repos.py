@@ -11,14 +11,16 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Iterable, Optional, Self
 
 from domain.ports.bridges import (
+    IBankCdsBridge,
     IBankIncomeSink,
     IBankruptExecutor,
     IDebtLifecycleHook,
     IDebtOps,
     IDebtRepayHook,
-    IGraceReader,
     IMarginCollateralGuard,
     IMarginRatioReader,
+    IMarketPriceReader,
+    INoticeSink,
     IOverdueLoanCollector,
     ISpotCollateralReader,
     IStatusReader,
@@ -38,10 +40,7 @@ class IGuildScopedRepo:
         raise NotImplementedError
 
 
-class INoticeRepo(IGuildScopedRepo):
-    def note_for(self, guild_id: int, user_id: int, code: str, **params: Any) -> None:
-        raise NotImplementedError
-
+class INoticeRepo(IGuildScopedRepo, INoticeSink):
     def take_notices(self, user_id: int) -> list["Notice"]:
         raise NotImplementedError
 
@@ -136,11 +135,8 @@ class IRecordRepo(IGuildScopedRepo):
         raise NotImplementedError
 
 
-class IMarketDataRepo(IGuildScopedRepo):
+class IMarketDataRepo(IGuildScopedRepo, IMarketPriceReader):
     def market_latest(self, symbol: str = "cs") -> Optional[tuple[Any, ...]]:
-        raise NotImplementedError
-
-    def latest_prices(self) -> dict[str, Any]:
         raise NotImplementedError
 
     def market_set(self, ts: float, price: float, event: int = 0, symbol: str = "cs") -> None:
@@ -487,7 +483,7 @@ class ILoanRepo(IGuildScopedRepo, IOverdueLoanCollector):
         raise NotImplementedError
 
 
-class IBankRepo(IGuildScopedRepo, IBankIncomeSink, IGraceReader, IValuationSource):
+class IBankRepo(IGuildScopedRepo, IBankIncomeSink, IBankCdsBridge, IValuationSource):
     def deposit_of(self, user_id: int) -> int:
         raise NotImplementedError
 

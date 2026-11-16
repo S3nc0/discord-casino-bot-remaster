@@ -61,53 +61,18 @@ class CashAndDebtCollector(IAssetCollector):
             add(r["user_id"], "debt", -r["debt"])
 
 
-class BankAssetCollector(IAssetCollector):
-    def __init__(self, bank: IValuationSource) -> None:
-        self._bank = bank
+class ValuationSourceCollector(IAssetCollector):
+    """IValuationSource の集計結果を任意の資産カテゴリキー（part_key）へ加算する汎用コレクタ（OCP）。"""
+
+    def __init__(self, part_key: str, source: IValuationSource) -> None:
+        self._part_key = part_key
+        self._source = source
 
     def collect(self, guild_id: int, add: AddAssetPart, now: float) -> None:
         totals: dict[int, int] = {}
-        self._bank.collect_values(guild_id, totals)
+        self._source.collect_values(guild_id, totals)
         for uid, v in totals.items():
-            add(uid, "deposit", v)
-
-
-class CryptoAssetCollector(IAssetCollector):
-    def __init__(self, crypto: IValuationSource, margin: IValuationSource) -> None:
-        self._crypto = crypto
-        self._margin = margin
-
-    def collect(self, guild_id: int, add: AddAssetPart, now: float) -> None:
-        totals: dict[int, int] = {}
-        self._crypto.collect_values(guild_id, totals)
-        for uid, v in totals.items():
-            add(uid, "crypto", v)
-        margin_totals: dict[int, int] = {}
-        self._margin.collect_values(guild_id, margin_totals)
-        for uid, v in margin_totals.items():
-            add(uid, "crypto", v)
-
-
-class BondAssetCollector(IAssetCollector):
-    def __init__(self, bonds: IValuationSource) -> None:
-        self._bonds = bonds
-
-    def collect(self, guild_id: int, add: AddAssetPart, now: float) -> None:
-        totals: dict[int, int] = {}
-        self._bonds.collect_values(guild_id, totals)
-        for uid, v in totals.items():
-            add(uid, "bonds", v)
-
-
-class OptionAssetCollector(IAssetCollector):
-    def __init__(self, options: IValuationSource) -> None:
-        self._options = options
-
-    def collect(self, guild_id: int, add: AddAssetPart, now: float) -> None:
-        totals: dict[int, int] = {}
-        self._options.collect_values(guild_id, totals)
-        for uid, v in totals.items():
-            add(uid, "options", v)
+            add(uid, self._part_key, v)
 
 
 class InventoryAssetCollector(IAssetCollector):

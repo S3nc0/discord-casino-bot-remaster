@@ -3,7 +3,7 @@
 import time
 from typing import Any, Optional
 
-from domain.ports.bridges import IDebtLifecycleHook
+from domain.ports.bridges import IDebtLifecycleHook, NoOpDebtLifecycleHook
 from domain.types import INITIAL_BALANCE
 from infra.db.base import EcoDb
 
@@ -15,11 +15,7 @@ class AccountCore:
         self._db = db
         self._conn = db.conn
         self._lock = db.lock
-        self._debt_hook: IDebtLifecycleHook = debt_hook or IDebtLifecycleHook()
-
-    def bind_debt_hook(self, debt_hook: IDebtLifecycleHook) -> None:
-        """Composition Root で循環する借金ライフサイクルフックを接続する。"""
-        self._debt_hook = debt_hook
+        self._debt_hook: IDebtLifecycleHook = debt_hook or NoOpDebtLifecycleHook()
 
     def ensure(self, guild_id: int, user_id: int) -> None:
         """未登録なら初期残高つきで作る（呼び出し側のトランザクション内で使う）。"""

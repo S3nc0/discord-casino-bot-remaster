@@ -6,7 +6,7 @@
 import time
 from typing import Any, Iterable, Optional
 
-from domain.ports.bridges import IWealthyReader
+from domain.ports.bridges import IWealthyReader, NoOpWealthyReader
 from domain.ports.repos import IGuildRepo
 from infra.db.base import EcoDb, ScopedRepo
 
@@ -22,11 +22,7 @@ class GuildRepo(ScopedRepo, IGuildRepo):
         strict: bool = False,
     ) -> None:
         super().__init__(db, guild_id, strict)
-        self._wealthy_reader: IWealthyReader = wealthy_reader or IWealthyReader()
-
-    def bind_wealthy_reader(self, reader: IWealthyReader) -> None:
-        """Composition Root で富豪判定ポートを接続する。"""
-        self._wealthy_reader = reader
+        self._wealthy_reader: IWealthyReader = wealthy_reader or NoOpWealthyReader()
 
     # ------------------------------------------------------------------ #
     # 利用できるサーバーの承認                                            #

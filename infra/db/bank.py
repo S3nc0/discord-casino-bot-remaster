@@ -13,12 +13,17 @@ from domain.ports.bridges import (
     IBankruptExecutor,
     IGraceEnterHook,
     IMarginRatioReader,
+    INoticeSink,
     IStatusReader,
+    NoOpBankruptExecutor,
+    NoOpGraceEnterHook,
+    NoOpMarginRatioReader,
+    NoOpNoticeSink,
+    NoOpStatusReader,
 )
 from domain.ports.repos import IBankRepo
 from infra.db.account import AccountCore
 from infra.db.base import EcoDb, ScopedRepo
-from infra.db.notices import NoticeRepo
 
 
 class BankRepo(ScopedRepo, IBankRepo):
@@ -28,39 +33,21 @@ class BankRepo(ScopedRepo, IBankRepo):
         self,
         db: EcoDb,
         account: AccountCore,
-        notices: NoticeRepo,
+        notices: Optional[INoticeSink] = None,
         status_reader: Optional[IStatusReader] = None,
         margin_ratio_reader: Optional[IMarginRatioReader] = None,
-        grace_enter_hooks: tuple[IGraceEnterHook, ...] = (),
+        grace_enter_hook: Optional[IGraceEnterHook] = None,
         bankrupt_executor: Optional[IBankruptExecutor] = None,
         guild_id: int = 0,
         strict: bool = False,
     ) -> None:
         super().__init__(db, guild_id, strict)
         self._account = account
-        self._notices = notices
-        self._status_reader: IStatusReader = status_reader or IStatusReader()
-        self._margin_ratio_reader: IMarginRatioReader = margin_ratio_reader or IMarginRatioReader()
-        self._grace_enter_hooks: tuple[IGraceEnterHook, ...] = grace_enter_hooks
-        self._bankrupt_executor: IBankruptExecutor = bankrupt_executor or IBankruptExecutor()
-
-    def bind_hooks(
-        self,
-        *,
-        status_reader: Optional[IStatusReader] = None,
-        margin_ratio_reader: Optional[IMarginRatioReader] = None,
-        grace_enter_hooks: Optional[tuple[IGraceEnterHook, ...]] = None,
-        bankrupt_executor: Optional[IBankruptExecutor] = None,
-    ) -> None:
-        """Composition Root で循環するブリッジ契約を接続する。"""
-        if status_reader is not None:
-            self._status_reader = status_reader
-        if margin_ratio_reader is not None:
-            self._margin_ratio_reader = margin_ratio_reader
-        if grace_enter_hooks is not None:
-            self._grace_enter_hooks = grace_enter_hooks
-        if bankrupt_executor is not None:
-            self._bankrupt_executor = bankrupt_executor
+        self._notices: INoticeSink = notices or NoOpNoticeSink()
+        self._status_reader: IStatusReader = status_reader or NoOpStatusReader()
+        self._margin_ratio_reader: IMarginRatioReader = margin_ratio_reader or NoOpMarginRatioReader()
+        self._grace_enter_hook: IGraceEnterHook = grace_enter_hook or NoOpGraceEnterHook()
+        self._bankrupt_executor: IBankruptExecutor = bankrupt_executor or NoOpBankruptExecutor()
 
     # ------------------------------------------------------------------ #
     # 銀行の手元・預金・課税（IBankIncomeSink / IValuationSource）
@@ -318,8 +305,7 @@ class BankRepo(ScopedRepo, IBankRepo):
             self._conn.execute(
                 "UPDATE users SET grace_until=? WHERE guild_id=? AND user_id=?", (until, guild_id, user_id)
             )
-            for hook in self._grace_enter_hooks:
-                hook.on_grace_enter(guild_id, user_id, now)
+            self._grace_enter_hook.on_grace_enter(guild_id, user_id, now)
             self._notices.note_for(guild_id, user_id, "grace_entered", grace_debt=teiai.GRACE_DEBT, until=until)
         elif row["debt"] < teiai.GRACE_DEBT and row["grace_until"] is not None:
             self._conn.execute("UPDATE users SET grace_until=NULL WHERE guild_id=? AND user_id=?", (guild_id, user_id))

@@ -53,6 +53,13 @@ class EcoDb:
             self.conn.close()
 
 
+def validate_guild_id(guild_id: int) -> int:
+    gid = int(guild_id)
+    if gid <= 0:
+        raise ValueError(f"サーバーIDが不正です: {guild_id!r}")
+    return gid
+
+
 class ScopedRepo:
     """EcoDb とサーバーID（guild_id）に紐づくリポジトリ共通基底（コンポジション用）。"""
 
@@ -68,7 +75,7 @@ class ScopedRepo:
     def for_guild(self, guild_id: int) -> Self:
         """指定サーバーIDにスコープされた同一接続共有ビューを返す。"""
         view = copy.copy(self)
-        view.guild_id = self._validate_guild_id(guild_id)
+        view.guild_id = validate_guild_id(guild_id)
         view._strict = False
         return view
 
@@ -76,10 +83,3 @@ class ScopedRepo:
         if self._strict and self.guild_id == 0:
             raise RuntimeError("サーバーが指定されていません。for_guild(サーバーID) を通して使ってください。")
         return self.guild_id
-
-    @staticmethod
-    def _validate_guild_id(guild_id: int) -> int:
-        gid = int(guild_id)
-        if gid <= 0:
-            raise ValueError(f"サーバーIDが不正です: {guild_id!r}")
-        return gid
