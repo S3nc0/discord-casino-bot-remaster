@@ -275,28 +275,28 @@ def click(uid, log):
 
 
 def test_buttons_accept_decline_cancel_with_the_right_people(eco, monkeypatch):
+    from services.loan import LoanService
+
     monkeypatch.setattr("domain.approval.is_allowed", lambda *a: True)
-    monkeypatch.setattr("cogs.loan.cog.time.time", lambda: NOW + 5)
     config = {"owner_ids": [OWNER]}
+    svc = LoanService(eco.loans, SimpleNamespace(now=lambda: SimpleNamespace(timestamp=lambda: NOW + 5)))
     lid = offer(eco)
     log = []
-    asyncio.run(handle_button(eco.loans, eco.guild, config, click(C, log), "accept", lid))  # 関係ない人
+    asyncio.run(handle_button(svc, eco.guild, config, click(C, log), "accept", lid))  # 関係ない人
     assert log[-1] == ("send", "❌ できません") and eco.loans.loan_get(lid)["status"] == "offer"
-    asyncio.run(handle_button(eco.loans, eco.guild, config, click(B, log), "accept", lid))
+    asyncio.run(handle_button(svc, eco.guild, config, click(B, log), "accept", lid))
     assert (
         log[-1][:2] == ("edit", "🤝 貸付 #1 成立")
         and log[-1][2] is None
         and eco.loans.loan_get(lid)["status"] == "active"
     )
     lid2 = offer(eco)
-    asyncio.run(
-        handle_button(eco.loans, eco.guild, config, click(B, log), "cancel", lid2)
-    )  # 貸す側以外は、取り下げられない
+    asyncio.run(handle_button(svc, eco.guild, config, click(B, log), "cancel", lid2))  # 貸す側以外は、取り下げられない
     assert log[-1][0] == "send" and eco.loans.loan_get(lid2)["status"] == "offer"
-    asyncio.run(handle_button(eco.loans, eco.guild, config, click(A, log), "cancel", lid2))
+    asyncio.run(handle_button(svc, eco.guild, config, click(A, log), "cancel", lid2))
     assert log[-1][1].endswith("取り下げられました") and eco.loans.loan_get(lid2)["status"] == "cancelled"
     lid3 = offer(eco, principal=100)
-    asyncio.run(handle_button(eco.loans, eco.guild, config, click(B, log), "decline", lid3))
+    asyncio.run(handle_button(svc, eco.guild, config, click(B, log), "decline", lid3))
     assert log[-1][1].endswith("辞退されました")
 
 
@@ -352,7 +352,7 @@ def test_run_once_collects_notifies_and_expires(eco, monkeypatch):
     bot.guilds = [guild]
     cog = make_loan_cog(bot)
     now = 1_700_000_000.0
-    monkeypatch.setattr("cogs.loan.cog.time.time", lambda: now)
+    monkeypatch.setattr(bot.services.loan, "now_ts", lambda: now)
     pending = eco.loans.loan_offer(A, B, 100, 20, 5, 777, now - 2 * DAY)[1]  # とっくに承諾期限切れ
     eco.loans.loan_set_message(pending, 4242)
     soon = eco.loans.loan_offer(A, C, 500, 10, 3, 777, now - 3 * DAY)[1]

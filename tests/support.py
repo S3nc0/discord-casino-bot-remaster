@@ -225,7 +225,7 @@ def make_casino_deps(bot: Any):
 def make_loan_cog(bot: Any):
     from cogs.loan.cog import LoanCog
 
-    cog = LoanCog(bot, bot.config, bot.repos.loans, bot.repos.wallet, bot.repos.guild)
+    cog = LoanCog(bot, bot.config, bot.services.loan, bot.repos.wallet, bot.repos.guild)
     bot.bridges.register(ILoanButtonBridge, cog)
     return cog
 
