@@ -14,7 +14,6 @@ from services.horse import HorseService
 from services.labor import LaborService
 from services.loan import LoanService
 from services.market import MarketService
-from services.p2p import P2PService
 from services.shop import ShopService
 
 
@@ -31,7 +30,6 @@ class ServiceRegistry:
     labor: LaborService
     arena: ArenaService
     loan: LoanService
-    p2p: P2PService
     shop: ShopService
 
 
@@ -50,8 +48,6 @@ def build_services(config: dict[str, Any], repos: IRepositoryBundle, sessions: I
             records=repos.records,
             sessions=sessions,
             clock=clock,
-            debt=repos.debt,
-            pachinko=repos.pachinko,
         ),
         market=MarketService(
             market_data=repos.market,
@@ -74,12 +70,6 @@ def build_services(config: dict[str, Any], repos: IRepositoryBundle, sessions: I
         labor=LaborService(labor=repos.labor, clock=clock),
         arena=ArenaService(arena=repos.arena, clock=clock),
         loan=LoanService(loans=repos.loans, clock=clock),
-        p2p=P2PService(
-            p2p=repos.p2p,
-            horses=repos.horses,
-            shop=repos.shop,
-            wallet=repos.wallet,
-        ),
         shop=ShopService(
             shop_repo=repos.shop,
             auction=repos.auction,

@@ -364,7 +364,7 @@ def test_run_once_collects_notifies_and_expires(eco, monkeypatch):
     bot.guilds = [guild]
     cog = make_loan_cog(bot)
     now = 1_700_000_000.0
-    monkeypatch.setattr(bot.services.loan, "now_ts", lambda: now)
+    monkeypatch.setattr(bot.services.loan.clock, "now_ts", lambda: now)
     pending = eco.loans.loan_offer(A, B, 100, 20, 5, 777, now - 2 * DAY)[1]  # とっくに承諾期限切れ
     eco.loans.loan_set_message(pending, 4242)
     soon = eco.loans.loan_offer(A, C, 500, 10, 3, 777, now - 3 * DAY)[1]

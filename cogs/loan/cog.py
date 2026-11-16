@@ -107,9 +107,9 @@ class LoanCog(commands.Cog, ILoanButtonBridge):
             return await interaction.response.send_message(
                 embed=ui.error_embed("提案できません", format_failure(result)), ephemeral=True
             )
-        loan = self._loans.get(guild_id, result)
+        loan = self._loans.loans.for_guild(guild_id).loan_get(result)
         assert loan is not None
-        credit = self._loans.credit(guild_id, member.id)
+        credit = self._loans.loans.for_guild(guild_id).loan_credit(member.id)
         await interaction.response.send_message(
             content=f"<@{member.id}>",
             embed=offer_embed(loan, borrower_note(credit)),
@@ -117,7 +117,7 @@ class LoanCog(commands.Cog, ILoanButtonBridge):
             allowed_mentions=discord.AllowedMentions(users=[member]),
         )
         try:
-            self._loans.set_message(guild_id, result, (await interaction.original_response()).id)
+            self._loans.loans.for_guild(guild_id).loan_set_message(result, (await interaction.original_response()).id)
         except discord.HTTPException as exc:  # 投稿は出ている。ボタンは番号で動くが、あとから書き換えられなくなる
             logthrottle.warn(
                 ("loan-msg", interaction.guild_id), f"貸付の提案の投稿番号を保存できません: loan={result}: {exc!r}"
@@ -146,16 +146,16 @@ class LoanCog(commands.Cog, ILoanButtonBridge):
             return await interaction.response.send_message(
                 embed=ui.error_embed("募集できません", format_failure(result)), ephemeral=True
             )
-        loan = self._loans.get(guild_id, result)
+        loan = self._loans.loans.for_guild(guild_id).loan_get(result)
         assert loan is not None
-        credit = self._loans.credit(guild_id, interaction.user.id)
+        credit = self._loans.loans.for_guild(guild_id).loan_credit(interaction.user.id)
         await interaction.response.send_message(
             embed=request_embed(loan, borrower_note(credit)),
             view=request_view(result),
             allowed_mentions=discord.AllowedMentions.none(),
         )
         try:
-            self._loans.set_message(guild_id, result, (await interaction.original_response()).id)
+            self._loans.loans.for_guild(guild_id).loan_set_message(result, (await interaction.original_response()).id)
         except discord.HTTPException as exc:
             logthrottle.warn(
                 ("loan-msg", interaction.guild_id), f"貸付の募集の投稿番号を保存できません: loan={result}: {exc!r}"
@@ -177,7 +177,7 @@ class LoanCog(commands.Cog, ILoanButtonBridge):
             return await interaction.response.send_message(
                 embed=ui.error_embed("返せません", format_failure(result)), ephemeral=True
             )
-        loan = self._loans.get(guild_id, loan_id)
+        loan = self._loans.loans.for_guild(guild_id).loan_get(loan_id)
         assert loan is not None
         left = self._loans.remaining(guild_id, loan)
         note = (
@@ -198,9 +198,9 @@ class LoanCog(commands.Cog, ILoanButtonBridge):
         if interaction.guild_id is None:
             return []
         guild_id = interaction.guild_id
-        now = self._loans.now_ts()
+        now = self._loans.clock.now_ts()
         out = []
-        for loan in self._loans.listing(guild_id, interaction.user.id)["borrowed"]:
+        for loan in self._loans.loans.for_guild(guild_id).loan_list(interaction.user.id)["borrowed"]:
             if loan["status"] in ("offer", "request"):
                 continue
             left = self._loans.remaining(guild_id, loan, now)
@@ -212,8 +212,8 @@ class LoanCog(commands.Cog, ILoanButtonBridge):
     @group.command(name="一覧", description="借りている・貸している貸付を見る")
     async def listing(self, interaction: discord.Interaction):
         guild_id = ui.guild_id_of(interaction)
-        now = self._loans.now_ts()
-        data = self._loans.listing(guild_id, interaction.user.id)
+        now = self._loans.clock.now_ts()
+        data = self._loans.loans.for_guild(guild_id).loan_list(interaction.user.id)
 
         def line(loan: dict[str, Any], mine_is_borrower: bool) -> str:
             other = (

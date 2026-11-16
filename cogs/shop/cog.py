@@ -203,42 +203,34 @@ class ShopCog(commands.Cog, IShopTitleBridge):
         await interaction.response.send_message(embed=view.embed(), view=view, ephemeral=True)
 
     def _catalog_embed(self, guild_id: int, user_id: int, tab: str = "home") -> discord.Embed:
-        inv = self.service.inventory(guild_id, user_id)
-        balance = self.service.peek_balance(guild_id, user_id)
-        waiting = (
-            len(self.service.auction_items(guild_id)) + len(self.service.auction_horses(guild_id))
-            if tab == "home"
-            else 0
+        items = tab_items(tab) if tab != "home" else []
+        snap = self.service.catalog_snapshot(guild_id, user_id, tab, items)
+        return catalog_embed(
+            snap["inv"],
+            snap["balance"],
+            tab=tab,
+            waiting=snap["waiting"],
+            stocks=snap["stocks"] if tab != "home" else None,
         )
-        stocks = self.service.stocks_for_items(guild_id, user_id, tab_items(tab)) if tab != "home" else None
-        return catalog_embed(inv, balance, tab=tab, waiting=waiting, stocks=stocks)
 
     def _auction_embed(
         self, guild_id: int, user_id: int, tab: str = "teiai", p2p_filter: str = "all", p2p_order: str = "end"
     ) -> discord.Embed:
-        balance = self.service.peek_balance(guild_id, user_id)
-        if tab == "players":
-            _label, kind, mode = P2P_FILTERS[p2p_filter]
-            rows = self.service.p2p_active(guild_id, kind, SHOWN, mode, p2p_order)
-            p2p_rows = [(r, self.service.p2p_label(guild_id, r)) for r in rows]
-            return auction_embed(
-                balance,
-                tab=tab,
-                p2p_filter=p2p_filter,
-                p2p_order=p2p_order,
-                p2p_rows=p2p_rows,
-            )
+        _label, kind, mode = P2P_FILTERS[p2p_filter]
+        snap = self.service.auction_snapshot(guild_id, user_id, tab, tab == "players", kind, mode, p2p_order, SHOWN)
         return auction_embed(
-            balance,
-            tab=tab,
+            snap["balance"],
+            tab=snap["tab"],
             p2p_filter=p2p_filter,
             p2p_order=p2p_order,
-            listed=self.service.auction_items(guild_id),
-            horses=self.service.auction_horses(guild_id),
+            p2p_rows=snap["p2p_rows"],
+            listed=snap["listed"],
+            horses=snap["horses"],
         )
 
     def _inventory_embed(self, guild_id: int, user_id: int) -> discord.Embed:
-        return inventory_embed(self.service.inventory(guild_id, user_id), self.service.profile(guild_id, user_id))
+        shop_repo = self.service.shop.for_guild(guild_id)
+        return inventory_embed(shop_repo.inventory(user_id), shop_repo.get_profile(user_id))
 
     async def buy_auction_horse(self, interaction: discord.Interaction, horse_id: int):
         await actions.buy_auction_horse(self, interaction, horse_id, confirm_fn=confirm_action)

@@ -62,7 +62,8 @@ def request_view(loan_id: int) -> discord.ui.View:
 async def handle_lend(loan_svc: LoanService, interaction: discord.Interaction, loan_id: int) -> None:
     """募集の「貸す」。お金が動くので、確認ボタンを挟んでから貸す。"""
     guild_id = ui.guild_id_of(interaction)
-    loan = loan_svc.get(guild_id, loan_id)
+    loans_repo = loan_svc.loans.for_guild(guild_id)
+    loan = loans_repo.loan_get(loan_id)
     if loan is None or loan["status"] != "request":
         await interaction.response.send_message(
             embed=ui.error_embed("できません", "この募集はもう終わっています。"), ephemeral=True
@@ -73,7 +74,7 @@ async def handle_lend(loan_svc: LoanService, interaction: discord.Interaction, l
             embed=ui.error_embed("できません", "自分の募集には、貸せません。"), ephemeral=True
         )
         return
-    credit = loan_svc.credit(guild_id, loan["borrower_id"])
+    credit = loans_repo.loan_credit(loan["borrower_id"])
     ok = await confirm_action(
         interaction,
         "この募集に貸しますか？",
@@ -88,7 +89,7 @@ async def handle_lend(loan_svc: LoanService, interaction: discord.Interaction, l
         return await interaction.followup.send(
             embed=ui.error_embed("貸せませんでした", format_failure(reason)), ephemeral=True
         )
-    loan = loan_svc.get(guild_id, loan_id)
+    loan = loans_repo.loan_get(loan_id)
     assert loan is not None
     embed = state_embed(
         loan,
@@ -123,18 +124,19 @@ async def handle_button(
         return
     if act == "lend":
         return await handle_lend(loan_svc, interaction, loan_id)
+    loans_repo = loan_svc.loans.for_guild(guild_id)
     if act == "accept":
         ok, reason = loan_svc.accept(guild_id, loan_id, interaction.user.id)
     elif act == "decline":
-        ok, reason = loan_svc.decline(guild_id, loan_id, interaction.user.id)
+        ok, reason = loans_repo.loan_decline(loan_id, interaction.user.id)
     else:
-        ok, reason = loan_svc.cancel(guild_id, loan_id, interaction.user.id)
+        ok, reason = loans_repo.loan_cancel(loan_id, interaction.user.id)
     if not ok:
         await interaction.response.send_message(
             embed=ui.error_embed("できません", format_failure(reason)), ephemeral=True
         )
         return
-    loan = loan_svc.get(guild_id, loan_id)
+    loan = loans_repo.loan_get(loan_id)
     assert loan is not None
     if act == "accept":
         embed = state_embed(

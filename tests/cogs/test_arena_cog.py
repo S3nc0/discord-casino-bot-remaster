@@ -65,7 +65,7 @@ def setup(tmp_path, monkeypatch):
 
 
 def _at(monkeypatch, bot, now):
-    monkeypatch.setattr(bot.services.arena, "now_ts", lambda: now)
+    monkeypatch.setattr(bot.services.arena.clock, "now_ts", lambda: now)
 
 
 def test_run_once_creates_and_announces_then_advances_through_semis_and_final(setup, monkeypatch):

@@ -169,7 +169,7 @@ class ChinchiroView(GameOwnerView):
         elif outcome.result == "lose":
             key = rules.HIFUMI if player.kind == rules.HIFUMI else dealer.kind
             line, color = _role_line(LOSE_LINE, skin.role_lose if skin else None, key), ui.ERROR
-            if extra and self.ctx.casino.debt_amount(self.ctx.guild_id, self.ctx.user_id) > 0:
+            if extra and self.ctx.deps.debt.for_guild(self.ctx.guild_id).debt(self.ctx.user_id) > 0:
                 line += "\n払い切れない…！ 残りは借金になった…"
         else:
             line, color = "引き分け…。ざわ……何も動かない…", ui.INFO

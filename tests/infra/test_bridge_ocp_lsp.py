@@ -280,7 +280,16 @@ def test_deferred_and_dynamic_cog_bridges_are_load_order_independent(tmp_path):
         async def after_bankruptcy(self, guild, member):
             return None
 
-    p2p_cog = P2PCog(bot, bot.config, bot.services.p2p, bot.repos.guild, bot.sessions)
+    p2p_cog = P2PCog(
+        bot,
+        bot.config,
+        bot.repos.p2p,
+        bot.repos.horses,
+        bot.repos.shop,
+        bot.repos.wallet,
+        bot.repos.guild,
+        bot.sessions,
+    )
     event_cog = EventCog(bot, bot.config, bot.repos.events, bot.repos.guild, bot.services.clock)
 
     bot.bridges.register(IShopTitleBridge, StubShop())

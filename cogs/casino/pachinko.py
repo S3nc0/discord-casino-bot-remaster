@@ -381,14 +381,17 @@ async def play_pachinko(interaction: discord.Interaction, deps: CasinoDeps, bet:
         return
     try:
         results = [pachinko.roll_set(RNG) for _ in range(sets)]
-        level = ctx.casino.rtp_level(ctx.guild_id, "パチンコ")  # 還元率レベルは、セットごとに勝ち分へかける
+        level = ctx.casino.rtp.for_guild(ctx.guild_id).rtp_level_get(
+            "パチンコ"
+        )  # 還元率レベルは、セットごとに勝ち分へかける
         raw = [bet * r.mult for r in results]
         adjusted = [rtplevel.adjust("パチンコ", level, bet, p) for p in raw]
         ctx.rtp_shift = sum(adjusted) - sum(raw)
         net = ctx.settle(sum(adjusted), keep_session=True, rtp_done=True)
+        pachinko_repo = ctx.deps.pachinko.for_guild(ctx.guild_id)
         for r in results:
             try:  # 統計用の記録。失敗しても、結果には影響させない
-                ctx.casino.record_pachinko(ctx.guild_id, ctx.user_id, bet, pachinko.BALLS_PER_SET, r)
+                pachinko_repo.pachinko_record_set(ctx.user_id, bet, pachinko.BALLS_PER_SET, r)
             except Exception as exc:
                 print(f"パチンコの記録に失敗: {exc!r}")
         top = top_round(results)

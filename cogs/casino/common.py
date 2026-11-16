@@ -10,7 +10,7 @@ from cogs.shared import ui
 from cogs.shared.messages import format_notices
 from domain import approval, missions, teiai
 from domain.games.rtplevel import MIN_BET as MIN_BET  # noqa: F401
-from domain.ports.repos import IGuildRepo
+from domain.ports.repos import IDebtRepo, IGuildRepo, IPachinkoRepo
 from services.casino import CasinoService
 
 
@@ -19,12 +19,14 @@ class CasinoDeps:
     """カジノ UI / ゲーム実行に必要な明示依存コンテナ。"""
 
     casino: CasinoService
+    debt: IDebtRepo
+    pachinko: IPachinkoRepo
     guild_repo: IGuildRepo
     config: dict[str, Any]
 
 
 def local_now(deps: CasinoDeps):
-    return deps.casino.now()
+    return deps.casino.clock.now()
 
 
 def log_display_failure(game: str, step: str, exc: Exception) -> None:
@@ -106,7 +108,7 @@ class GameContext:
 
     def release(self) -> None:
         """keep_session=True で精算したあと、演出が終わったら呼ぶ。"""
-        self.casino.release_session(self.user_id)
+        self.casino.sessions.end(self.user_id)
 
     def abort(self) -> None:
         """エラー時: まだ精算していなければ、預かっている賭け金（追加分も含む）を全額返す。"""
@@ -175,7 +177,7 @@ def signed(n: int) -> str:
 
 def result_lines(ctx: GameContext, payout: int, net: int, extra: str = "") -> str:
     """結果の共通表示。出目や役（extra）が先頭、そのあとに大勝ち・連勝の演出、賭け金・払い戻し・損益・残高、最後にミッション達成。"""
-    balance = ctx.casino.balance(ctx.guild_id, ctx.user_id)
+    balance = ctx.casino.wallet.for_guild(ctx.guild_id).balance(ctx.user_id)
     top = [extra] if extra else []
     if ctx.skin and net != 0:  # 演出の変更品の一言（勝ったとき・負けたとき）
         top.append(ctx.skin.win_line if net > 0 else ctx.skin.lose_line)
@@ -188,7 +190,7 @@ def result_lines(ctx: GameContext, payout: int, net: int, extra: str = "") -> st
         f"損益: **{signed(net)}ペリカ**",
         f"残高: **{ui.pelica(balance)}**",
     ]
-    debt = ctx.casino.debt_amount(ctx.guild_id, ctx.user_id)
+    debt = ctx.deps.debt.for_guild(ctx.guild_id).debt(ctx.user_id)
     if debt:
         stats.append(f"借金: **{ui.pelica(debt)}**（収入の{int(teiai.REPAY_RATE * 100)}%が天引きで返済されます）")
     stats += ctx.notices  # 強制執行・種銭の一言

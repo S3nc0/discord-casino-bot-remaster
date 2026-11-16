@@ -110,7 +110,7 @@ class ArenaCog(commands.Cog):
             logthrottle.warn(("arena-anim", cid), f"闘技場の演出を表示できません: {exc!r}")
 
     async def run_once(self) -> None:
-        now = self._arena.now_ts()
+        now = self._arena.clock.now_ts()
         tz_hour = self._arena.jst_hour(now)
 
         async def _handle(guild: discord.Guild) -> None:
@@ -131,7 +131,7 @@ class ArenaCog(commands.Cog):
                     self._panels[day_key] = panel
             if t["status"] == "semi_betting" and tz_hour >= arena_mod.SEMI_HOUR:
                 pre_fighters = t["fighters"]
-                result = self._arena.run_semis(guild.id, t["id"])
+                result = self._arena.arena.for_guild(guild.id).arena_run_semis(t["id"])
                 if result:
                     channel = await self._channel(guild)
                     if channel is not None:
@@ -158,7 +158,7 @@ class ArenaCog(commands.Cog):
             t = self._arena.ensure_tournament(guild.id, now)  # 準決勝の決着を反映して読み直す
             if t["status"] == "final_betting" and tz_hour >= arena_mod.FINAL_HOUR:
                 pre_finalists = [f for f in t["fighters"] if f["stage"] == "final"]
-                result = self._arena.run_final(guild.id, t["id"])
+                result = self._arena.arena.for_guild(guild.id).arena_run_final(t["id"])
                 if result:
                     channel = await self._channel(guild)
                     if channel is not None and len(pre_finalists) == 2:
