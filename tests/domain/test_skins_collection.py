@@ -7,6 +7,7 @@ import pytest
 
 from cogs.casino import common
 from cogs.economy.cog import EconomyCog
+from cogs.shop import actions as shop_actions
 from cogs.shop.cog import SLOT_OF_KIND, UNEQUIP_NAMES, shop_slots
 from domain import shop, skins
 from infra.db.repositories import open_repositories
@@ -103,8 +104,8 @@ def test_using_a_collection_item_only_explains_and_a_skin_equips(eco):
     it = It()
     it.response = SimpleNamespace(send_message=send, defer=send)
     cog = make_shop_cog(make_test_bot(repos=eco))
-    run(cog.use_item(it, "col_beer"))
-    run(cog.use_item(it, "skin_gold_dice"))
+    run(shop_actions.use_item(cog, it, "col_beer"))
+    run(shop_actions.use_item(cog, it, "skin_gold_dice"))
     assert (
         "コレクション" in sent[0]
         and eco.shop.get_profile(U)["skin_dice"] == "skin_gold_dice"

@@ -8,6 +8,7 @@ from types import SimpleNamespace
 import discord
 import pytest
 
+from cogs.shop import actions as shop_actions
 from cogs.shop import cog as shop_cog
 from domain import shop
 from domain.types import DAILY_BASE, DAILY_STREAK_BONUS, DAILY_STREAK_CAP, INITIAL_BALANCE
@@ -255,10 +256,10 @@ def test_cannot_buy_or_use_consumables_during_a_game(cog, eco):
     buy(eco, shop.INSURANCE)
     cog.bot.sessions.try_start(1)
     it = FakeInteraction()
-    run(cog.buy_item(it, "title_rookie", 1))
+    run(shop_actions.buy_item(cog, it, "title_rookie", 1))
     assert "遊んでいる" in it.sent[0]["embed"].description and "title_rookie" not in eco.shop.inventory(1)
     it = FakeInteraction()
-    run(cog.use_item(it, shop.INSURANCE))
+    run(shop_actions.use_item(cog, it, shop.INSURANCE))
     assert "ゲームの途中" in it.sent[0]["embed"].description
     assert eco.shop.inventory(1)[shop.INSURANCE] == 1 and eco.shop.get_profile(1)["insurance"] == 0  # 使われていない
     cog.bot.sessions.end(1)
@@ -266,19 +267,19 @@ def test_cannot_buy_or_use_consumables_during_a_game(cog, eco):
 
 def test_buy_and_use_flow(cog, eco):
     it = FakeInteraction()
-    run(cog.buy_item(it, "title_rookie", 1))
+    run(shop_actions.buy_item(cog, it, "title_rookie", 1))
     assert it.sent[-1]["ephemeral"] and "購入しました" in it.sent[-1]["embed"].title
     it = FakeInteraction()
-    run(cog.use_item(it, "見習いギャンブラー"))  # 名前でも指定できる
+    run(shop_actions.use_item(cog, it, "見習いギャンブラー"))  # 名前でも指定できる
     assert eco.shop.get_profile(1)["title"] == "title_rookie"
     it = FakeInteraction()
-    run(cog.use_item(it, "title_regular"))  # 持っていないものは使えない
+    run(shop_actions.use_item(cog, it, "title_regular"))  # 持っていないものは使えない
     assert "持っていません" in it.sent[0]["embed"].title
 
 
 def test_unknown_item(cog, eco):
     it = FakeInteraction()
-    run(cog.buy_item(it, "なにこれ", 1))
+    run(shop_actions.buy_item(cog, it, "なにこれ", 1))
     assert "見つかりません" in it.sent[0]["embed"].title
 
 
@@ -409,7 +410,7 @@ def test_purchase_holds_the_session_while_waiting_for_confirmation(cog, eco, mon
         seen["start_blocked"] = cog.bot.sessions.try_start(1) is not None  # この間はゲームを始められない
         return True
 
-    monkeypatch.setattr(shop_cog, "confirm_action", fake_confirm)
+    monkeypatch.setattr(shop_actions, "confirm_action", fake_confirm)
 
     class It(FakeInteraction):
         def __init__(self):
@@ -417,7 +418,7 @@ def test_purchase_holds_the_session_while_waiting_for_confirmation(cog, eco, mon
             self.followup = SimpleNamespace(send=self._send)
 
     it = It()
-    run(cog.buy_item(it, "col_sunglasses", 1))  # 100,000: 確認ボタンが出る価格
+    run(shop_actions.buy_item(cog, it, "col_sunglasses", 1))  # 100,000: 確認ボタンが出る価格
     assert seen == {"active": True, "start_blocked": True}
     assert "col_sunglasses" in eco.shop.inventory(1)
     assert not cog.bot.sessions.is_active(1)  # 終わったら解除される
@@ -434,20 +435,20 @@ def test_use_prefers_the_owned_item_when_names_collide(cog, eco):
     it.guild, it.user = guild, member
     it.response.defer = lambda **k: asyncio.sleep(0)
     it.followup = SimpleNamespace(send=it._send)
-    run(cog.use_item(it, "赤"))
+    run(shop_actions.use_item(cog, it, "赤"))
     # 「赤」はカードの色にも同名があるが、持っている色ロールのほうを選ぶ（「持っていません」にならず、ロールが付く）
     assert [r.name for r in member.roles] == ["ペリカ・赤"]
 
 
 def test_list_does_not_create_an_account(cog, eco):
     it = FakeInteraction(uid=77)
-    cog._catalog_embed(it.guild.id, it.user.id)
+    shop_cog.ShopView(cog, it.user.id, it.guild.id).embed()
     assert eco.db.conn.execute("SELECT COUNT(*) FROM users WHERE user_id=77").fetchone()[0] == 0
 
 
 def test_buying_without_enough_pelica_shows_a_clear_message(cog, eco):
     it = FakeInteraction()
-    run(cog.buy_item(it, "col_sunglasses", 1))  # 100,000: 初期の 3,000 では足りない
+    run(shop_actions.buy_item(cog, it, "col_sunglasses", 1))  # 100,000: 初期の 3,000 では足りない
     embed = it.sent[-1]["embed"]
     assert "買えませんでした" in embed.title and "足りません" in embed.description and "100,000" in embed.description
     assert eco.wallet.balance(1) == INITIAL_BALANCE and eco.shop.inventory(1) == {}
@@ -488,7 +489,7 @@ def test_streak_guard_price_and_use_message(cog, eco):
     eco.wallet.credit(1, 100_000, "テスト")
     buy(eco, shop.STREAK_GUARD)
     it = FakeInteraction()
-    run(cog.use_item(it, shop.STREAK_GUARD))
+    run(shop_actions.use_item(cog, it, shop.STREAK_GUARD))
     assert "ここでは使いません" in it.sent[0]["embed"].title and eco.shop.inventory(1)[shop.STREAK_GUARD] == 1
 
 
@@ -575,7 +576,7 @@ def test_auction_screen_and_buy_flow(cog, eco):
     assert "連続守り券" in text and "×2" in text
     it = FakeInteraction()
     it.user = SimpleNamespace(id=2)
-    run(cog.buy_auction(it, CARD, 1))
+    run(shop_actions.buy_auction(cog, it, CARD, 1))
     assert "競売で買いました" in it.sent[0]["embed"].title and CARD in eco.shop.inventory(2)
 
 
@@ -650,7 +651,7 @@ def test_shop_screen_shows_the_players_own_stock(eco):
     eco.wallet.credit(1, 100_000, "テスト")
     buy_at(eco, 3, time.time())
     cog = make_shop_cog(make_test_bot(repos=eco))
-    text = "\n".join(f.value for f in cog._catalog_embed(0, 1, "item").fields)
+    text = "\n".join(f.value for f in shop_cog.ShopView(cog, 1, 0, tab="item").embed().fields)
     assert "📦 在庫 7/10" in text
 
 

@@ -256,8 +256,10 @@ def test_commands_and_games_use_the_servers_own_account(tmp_path):
             eco.for_guild(B).wallet.balance(U1) == INITIAL_BALANCE + DAILY_BASE
             and eco.for_guild(A).wallet.balance(U1) == after_a
         )
+        from cogs.shop import actions as shop_actions
+
         it = It(A)
-        run(shop_cog.buy_item(it, "title_rookie", 1))  # Aで称号を買う
+        run(shop_actions.buy_item(shop_cog, it, "title_rookie", 1))  # Aで称号を買う
         assert eco.for_guild(A).shop.inventory(U1) == {"title_rookie": 1} and eco.for_guild(B).shop.inventory(U1) == {}
         eco.for_guild(B).wallet.credit(U2, 777, "テスト")  # Bに付与 → Bの口座だけ
         assert (

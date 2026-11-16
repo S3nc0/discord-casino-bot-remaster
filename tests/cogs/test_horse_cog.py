@@ -227,9 +227,9 @@ def test_auction_screen_lists_seized_horses_with_a_horse_select(setup):
         eco.db.conn.execute("UPDATE users SET balance=0, debt=20000 WHERE user_id=?", (U,))
     assert eco.debt.bankrupt(U)[0]
     cog_shop = make_shop_cog(bot)
-    embed = cog_shop._auction_embed(0, V)
-    assert any("競売の馬" in f.value for f in embed.fields)
     view = shop_cog.ShopView(cog_shop, V, 0, screen="auction")
+    embed = view.embed()
+    assert any("競売の馬" in f.value for f in embed.fields)
     assert any(getattr(c, "placeholder", "") == "競走馬を買う" for c in view.children)
 
 

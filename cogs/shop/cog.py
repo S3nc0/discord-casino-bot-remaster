@@ -12,9 +12,7 @@ from discord.ext import commands, tasks
 
 from cogs.shared import ui
 from cogs.shared.bridges import BotBridges, IP2PNavigationBridge, IShopTitleBridge
-from cogs.shared.confirm import confirm_action as confirm_action  # noqa: F401
 from cogs.shared.tasks import allowed_guilds
-from cogs.shop import actions
 from cogs.shop.discord_ops import ShopError, apply_title_nick, set_color_role
 from cogs.shop.embeds import (  # noqa: F401
     EFFECT_OF_ITEM,
@@ -76,39 +74,20 @@ class ShopCog(commands.Cog, IShopTitleBridge):
             int, asyncio.Lock
         ] = {}  # 利用者ごとのニックネーム操作の鍵（連打で古い名前を元に計算しない）
 
-    def p2p_bridge(self) -> Optional[IP2PNavigationBridge]:
-        if self._p2p_bridge is not None:
-            return self._p2p_bridge
-        bridges = getattr(self.bot, "bridges", None)
-        return bridges.resolve(IP2PNavigationBridge) if isinstance(bridges, BotBridges) else None
-
     def _role_lock(self, guild_id: int) -> asyncio.Lock:
         return self._role_locks.setdefault(guild_id, asyncio.Lock())
 
-    def _equipped_title(self, guild_id: int, user_id: int) -> str | None:
-        """そのサーバーで装備している称号（景品はサーバーごとに別々）。"""
-        return self.service.equipped_title(guild_id, user_id)
-
-    def _nick_tag(self, guild_id: int, user_id: int) -> str | None:
-        """ニックネームの末尾に付ける名前。"""
-        return self.service.nick_tag(guild_id, user_id)
-
     async def sync_status_nick(self, guild: discord.Guild, member: discord.Member) -> None:
         """身分に合わせて、ニックネームの末尾の【地下労働者】などを付ける・外す。"""
-        tag = self._nick_tag(guild.id, member.id)
+        tag = self.service.nick_tag(guild.id, member.id)
         if tag is None and not self._guild_repo.nick_managed(guild.id, member.id):
             return
         if tag in teiai.STATUS_NAME.values():
             self._guild_repo.ensure_nick_row(guild.id, member.id)
         async with self._nick_locks.setdefault(member.id, asyncio.Lock()):
-            await apply_title_nick(guild, member, self._nick_tag(guild.id, member.id), self._guild_repo)
+            await apply_title_nick(guild, member, self.service.nick_tag(guild.id, member.id), self._guild_repo)
 
     async def sync_title_nick(
-        self, user_id: int, here: discord.Guild | None = None, member: discord.Member | None = None
-    ) -> tuple[str, int]:
-        return await self._sync_title_nick(user_id, here, member)
-
-    async def _sync_title_nick(
         self, user_id: int, here: discord.Guild | None = None, member: discord.Member | None = None
     ) -> tuple[str, int]:
         """称号の変更を、ニックネーム表示をONにしているサーバーへ反映する。"""
@@ -118,7 +97,7 @@ class ShopCog(commands.Cog, IShopTitleBridge):
                 guild = self.bot.get_guild(gid)
                 if guild is None or (here is not None and gid != here.id):
                     continue
-                title = self._nick_tag(gid, user_id)
+                title = self.service.nick_tag(gid, user_id)
                 is_here = here is not None and gid == here.id
                 try:
                     m = (
@@ -201,57 +180,6 @@ class ShopCog(commands.Cog, IShopTitleBridge):
     async def shop_panel(self, interaction: discord.Interaction):
         view = ShopView(self, interaction.user.id, ui.guild_id_of(interaction))
         await interaction.response.send_message(embed=view.embed(), view=view, ephemeral=True)
-
-    def _catalog_embed(self, guild_id: int, user_id: int, tab: str = "home") -> discord.Embed:
-        items = tab_items(tab) if tab != "home" else []
-        snap = self.service.catalog_snapshot(guild_id, user_id, tab, items)
-        return catalog_embed(
-            snap["inv"],
-            snap["balance"],
-            tab=tab,
-            waiting=snap["waiting"],
-            stocks=snap["stocks"] if tab != "home" else None,
-        )
-
-    def _auction_embed(
-        self, guild_id: int, user_id: int, tab: str = "teiai", p2p_filter: str = "all", p2p_order: str = "end"
-    ) -> discord.Embed:
-        _label, kind, mode = P2P_FILTERS[p2p_filter]
-        snap = self.service.auction_snapshot(guild_id, user_id, tab, tab == "players", kind, mode, p2p_order, SHOWN)
-        return auction_embed(
-            snap["balance"],
-            tab=snap["tab"],
-            p2p_filter=p2p_filter,
-            p2p_order=p2p_order,
-            p2p_rows=snap["p2p_rows"],
-            listed=snap["listed"],
-            horses=snap["horses"],
-        )
-
-    def _inventory_embed(self, guild_id: int, user_id: int) -> discord.Embed:
-        shop_repo = self.service.shop.for_guild(guild_id)
-        return inventory_embed(shop_repo.inventory(user_id), shop_repo.get_profile(user_id))
-
-    async def buy_auction_horse(self, interaction: discord.Interaction, horse_id: int):
-        await actions.buy_auction_horse(self, interaction, horse_id, confirm_fn=confirm_action)
-
-    async def buy_auction(self, interaction: discord.Interaction, item_id: str, qty: int = 1):
-        await actions.buy_auction(self, interaction, item_id, qty, confirm_fn=confirm_action)
-
-    async def buy_item(self, interaction: discord.Interaction, item: str, qty: int = 1):
-        await actions.buy_item(self, interaction, item, qty, confirm_fn=confirm_action)
-
-    async def _buy_insider_memo(self, interaction: discord.Interaction, it) -> None:
-        await actions.buy_insider_memo(self, interaction, it, confirm_fn=confirm_action)
-
-    async def use_item(self, interaction: discord.Interaction, item: str):
-        await actions.use_item(self, interaction, item)
-
-    async def unequip_item(self, interaction: discord.Interaction, slot: str):
-        await actions.unequip_item(self, interaction, slot)
-
-    async def set_title_display(self, interaction: discord.Interaction, mode: str):
-        await actions.set_title_display(self, interaction, mode)
 
 
 async def setup(bot: "CasinoBot") -> None:

@@ -5,7 +5,8 @@ from typing import TYPE_CHECKING, Any, Optional
 import discord
 
 from cogs.shared import ui
-from cogs.shared.bridges import IP2PNavigationBridge
+from cogs.shared.bridges import IP2PNavigationBridge, resolve_bridge
+from cogs.shop import actions
 from cogs.shop.embeds import (
     MAX_QTY,
     P2P_FILTERS,
@@ -144,7 +145,7 @@ class ShopView(ui.OwnerView):
 
     def _p2p(self) -> Optional[IP2PNavigationBridge]:
         """プレイヤー間の取引ブリッジ。読み込まれていなければ None（画面に出さない）。"""
-        return self.cog.p2p_bridge()
+        return resolve_bridge(self.cog.bot, IP2PNavigationBridge, self.cog._p2p_bridge)
 
     async def _on_player(self, interaction: discord.Interaction):
         p2p = self._p2p()
@@ -418,11 +419,11 @@ class ShopView(ui.OwnerView):
             )
         kind, value = self.picked
         if kind == "horse":
-            await self.cog.buy_auction_horse(interaction, int(value))
+            await actions.buy_auction_horse(self.cog, interaction, int(value))
         elif kind == "auction":
-            await self.cog.buy_auction(interaction, value, self.qty)
+            await actions.buy_auction(self.cog, interaction, value, self.qty)
         else:
-            await self.cog.buy_item(interaction, value, self.qty if self.tab in ("item", "horse") else 1)
+            await actions.buy_item(self.cog, interaction, value, self.qty if self.tab in ("item", "horse") else 1)
 
     async def _to_auction(self, interaction: discord.Interaction):
         self.screen, self.qty, self.picked, self.auction_tab = "auction", 1, None, None  # タブは、開くたびに決め直す
@@ -437,13 +438,13 @@ class ShopView(ui.OwnerView):
         await self._redraw(interaction)
 
     async def _on_use(self, interaction: discord.Interaction):
-        await self.cog.use_item(interaction, ui.selected_values(interaction)[0])
+        await actions.use_item(self.cog, interaction, ui.selected_values(interaction)[0])
 
     async def _on_unequip(self, interaction: discord.Interaction):
-        await self.cog.unequip_item(interaction, ui.selected_values(interaction)[0])
+        await actions.unequip_item(self.cog, interaction, ui.selected_values(interaction)[0])
 
     def _make_nick(self, mode: str):
         async def callback(interaction: discord.Interaction):
-            await self.cog.set_title_display(interaction, mode)
+            await actions.set_title_display(self.cog, interaction, mode)
 
         return callback

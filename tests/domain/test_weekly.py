@@ -214,6 +214,8 @@ def test_unapproved_guild_is_skipped(eco, monkeypatch):
 
 # ----------------------------- 限定称号 ----------------------------- #
 def test_limited_title_is_not_for_sale_but_can_be_worn_when_owned(eco):
+    from cogs.shop import actions as shop_actions
+
     assert shop.BY_ID[KING].limited and KING not in {i.id for i in shop.of_kind(shop.TITLE)}
     assert KING in {i.id for i in shop.of_kind(shop.TITLE, include_limited=True)}
     a = eco.for_guild(G)
@@ -231,7 +233,7 @@ def test_limited_title_is_not_for_sale_but_can_be_worn_when_owned(eco):
         response=SimpleNamespace(send_message=send, defer=send),
         followup=SimpleNamespace(send=send),
     )
-    run(cog.buy_item(it, "👑週間王者", 1))
+    run(shop_actions.buy_item(cog, it, "👑週間王者", 1))
     assert "買えません" in sent[-1]["embed"].title and a.shop.inventory(A) == {}
 
 
