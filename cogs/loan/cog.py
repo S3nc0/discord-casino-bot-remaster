@@ -79,6 +79,15 @@ class LoanCog(commands.Cog, ILoanButtonBridge):
         """貸す額の欄に、残高を見せる。"""
         return balance_choices(self._wallet, interaction, current, loans.USER_MIN_PRINCIPAL)
 
+    async def _save_message_id(self, guild_id: int, loan_id: int, interaction: discord.Interaction, kind: str) -> None:
+        try:
+            self._loans.loans.for_guild(guild_id).loan_set_message(loan_id, (await interaction.original_response()).id)
+        except discord.HTTPException as exc:  # 投稿は出ている。ボタンは番号で動くが、あとから書き換えられなくなる
+            logthrottle.warn(
+                ("loan-msg", interaction.guild_id),
+                f"貸付の{kind}の投稿番号を保存できません: loan={loan_id}: {exc!r}",
+            )
+
     @group.command(name="提案", description="相手にペリカを貸す提案を出す")
     @app_commands.rename(member="相手", principal="金額", rate="日利", days="期間")
     @app_commands.describe(
@@ -116,12 +125,7 @@ class LoanCog(commands.Cog, ILoanButtonBridge):
             view=offer_view(result),
             allowed_mentions=discord.AllowedMentions(users=[member]),
         )
-        try:
-            self._loans.loans.for_guild(guild_id).loan_set_message(result, (await interaction.original_response()).id)
-        except discord.HTTPException as exc:  # 投稿は出ている。ボタンは番号で動くが、あとから書き換えられなくなる
-            logthrottle.warn(
-                ("loan-msg", interaction.guild_id), f"貸付の提案の投稿番号を保存できません: loan={result}: {exc!r}"
-            )
+        await self._save_message_id(guild_id, result, interaction, "提案")
 
     @group.command(name="募集", description="お金を借りたい人を募集する（最初に貸すと言った人が、貸し手になる）")
     @app_commands.rename(principal="金額", rate="日利", days="期間")
@@ -154,12 +158,7 @@ class LoanCog(commands.Cog, ILoanButtonBridge):
             view=request_view(result),
             allowed_mentions=discord.AllowedMentions.none(),
         )
-        try:
-            self._loans.loans.for_guild(guild_id).loan_set_message(result, (await interaction.original_response()).id)
-        except discord.HTTPException as exc:
-            logthrottle.warn(
-                ("loan-msg", interaction.guild_id), f"貸付の募集の投稿番号を保存できません: loan={result}: {exc!r}"
-            )
+        await self._save_message_id(guild_id, result, interaction, "募集")
 
     # ------------------------------ 返済・一覧 ------------------------------ #
     @group.command(name="返済", description="借りたペリカを返す（金額を省くと全額）")

@@ -136,79 +136,93 @@ class P2PCog(commands.Cog, IP2PNavigationBridge):
             )  # 終わった出品は、書き換えを1回で済ませる（チャンネルや投稿がなくても、くり返さない）
 
     # ------------------------------ 買う・入札 ------------------------------ #
-    async def do_buy(self, interaction: discord.Interaction, listing_id: int) -> None:
+    async def _trade_listing(
+        self,
+        interaction: discord.Interaction,
+        listing_id: int,
+        *,
+        fail_title: str,
+        busy_title: str,
+        confirm_needed: bool,
+        confirm_title: str,
+        confirm_desc: str,
+        confirm_label: str,
+        error_title: str,
+        ok_title: str,
+        execute,
+        ok_body,
+    ) -> None:
         gid = ui.guild_id_of(interaction)
         p2p_repo = self.p2p.for_guild(gid)
         row = p2p_repo.p2p_get(listing_id)
         if row is None or row["status"] != "active":
             await interaction.response.send_message(
-                embed=ui.error_embed("買えません", "その出品は、もうありません。"), ephemeral=True
+                embed=ui.error_embed(fail_title, "その出品は、もうありません。"), ephemeral=True
             )
             return
-        async with user_session(self._sessions, interaction, "いまは買えません") as ok:
+        async with user_session(self._sessions, interaction, busy_title) as ok:
             if not ok:
                 return
             uid = interaction.user.id
             label = p2p_repo.p2p_label(row)
             reply = await confirmed_reply(
                 interaction,
-                row["price"] >= CONFIRM_FROM,
-                "購入しますか？",
-                f"**{label}**\n{ui.pelica(row['price'])} かかります。",
-                "買う",
+                confirm_needed,
+                confirm_title,
+                f"**{label}**\n{confirm_desc}",
+                confirm_label,
                 confirm_fn=confirm_action,
             )
             if reply is None:
                 return
-            done, result = p2p_repo.p2p_buy(uid, listing_id)
+            done, result = execute(p2p_repo, uid)
             if not done:
-                await reply(embed=ui.error_embed("買えませんでした", format_failure(result)), ephemeral=True)
+                await reply(embed=ui.error_embed(error_title, format_failure(result)), ephemeral=True)
                 return
+            balance = self.wallet.for_guild(gid).balance(uid)
             await reply(
                 embed=ui.ok_embed(
-                    "購入しました",
-                    f"**{label}** を {ui.pelica(result)} で買いました。\n残高: **{ui.pelica(self.wallet.for_guild(gid).balance(uid))}**",
+                    ok_title,
+                    f"{ok_body(label, result)}\n残高: **{ui.pelica(balance)}**",
                 ),
                 ephemeral=True,
             )
-            await self.refresh_post(getattr(interaction, "guild", None), listing_id)  # 告知を「売れました」に
+            await self.refresh_post(getattr(interaction, "guild", None), listing_id)
+
+    async def do_buy(self, interaction: discord.Interaction, listing_id: int) -> None:
+        p2p_repo = self.p2p.for_guild(ui.guild_id_of(interaction))
+        row = p2p_repo.p2p_get(listing_id)
+        price = row["price"] if row else 0
+        await self._trade_listing(
+            interaction,
+            listing_id,
+            fail_title="買えません",
+            busy_title="いまは買えません",
+            confirm_needed=price >= CONFIRM_FROM,
+            confirm_title="購入しますか？",
+            confirm_desc=f"{ui.pelica(price)} かかります。",
+            confirm_label="買う",
+            error_title="買えませんでした",
+            ok_title="購入しました",
+            execute=lambda repo, uid: repo.p2p_buy(uid, listing_id),
+            ok_body=lambda label, result: f"**{label}** を {ui.pelica(result)} で買いました。",
+        )
 
     async def do_bid(self, interaction: discord.Interaction, listing_id: int, amount: int) -> None:
-        gid = ui.guild_id_of(interaction)
-        p2p_repo = self.p2p.for_guild(gid)
-        row = p2p_repo.p2p_get(listing_id)
-        if row is None or row["status"] != "active":
-            await interaction.response.send_message(
-                embed=ui.error_embed("入札できません", "その出品は、もうありません。"), ephemeral=True
-            )
-            return
-        async with user_session(self._sessions, interaction, "いまは入札できません") as ok:
-            if not ok:
-                return
-            uid = interaction.user.id
-            label = p2p_repo.p2p_label(row)
-            reply = await confirmed_reply(
-                interaction,
-                amount >= CONFIRM_FROM,
-                "入札しますか？",
-                f"**{label}**\n{ui.pelica(amount)} を、残高から預かります（抜かれたら返ります）。",
-                "入札する",
-                confirm_fn=confirm_action,
-            )
-            if reply is None:
-                return
-            done, result = p2p_repo.p2p_bid(uid, listing_id, amount)
-            if not done:
-                await reply(embed=ui.error_embed("入札できませんでした", format_failure(result)), ephemeral=True)
-                return
-            await reply(
-                embed=ui.ok_embed(
-                    "入札しました",
-                    f"**{label}** に **{ui.pelica(amount)}** で入札しました。締切 {when(result)}\n残高: **{ui.pelica(self.wallet.for_guild(gid).balance(uid))}**",
-                ),
-                ephemeral=True,
-            )
-            await self.refresh_post(getattr(interaction, "guild", None), listing_id)  # 告知の最高入札・締切を更新
+        await self._trade_listing(
+            interaction,
+            listing_id,
+            fail_title="入札できません",
+            busy_title="いまは入札できません",
+            confirm_needed=amount >= CONFIRM_FROM,
+            confirm_title="入札しますか？",
+            confirm_desc=f"{ui.pelica(amount)} を、残高から預かります（抜かれたら返ります）。",
+            confirm_label="入札する",
+            error_title="入札できませんでした",
+            ok_title="入札しました",
+            execute=lambda repo, uid: repo.p2p_bid(uid, listing_id, amount),
+            ok_body=lambda label, result: f"**{label}** に **{ui.pelica(amount)}** で入札しました。締切 {when(result)}",
+        )
 
     # ------------------------------ 画面（競売の画面から開く） ------------------------------ #
     async def open_detail(self, interaction: discord.Interaction, listing_id: int) -> None:

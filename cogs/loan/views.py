@@ -59,6 +59,15 @@ def request_view(loan_id: int) -> discord.ui.View:
     return view
 
 
+def _accepted_embed(loan: dict[str, Any]) -> discord.Embed:
+    return state_embed(
+        loan,
+        "成立",
+        f"<t:{int(loan['due'])}:R>が返済の期限です。`/貸付 返済` で返せます。期限には自動で回収します。",
+        ui.OK,
+    )
+
+
 async def handle_lend(loan_svc: LoanService, interaction: discord.Interaction, loan_id: int) -> None:
     """募集の「貸す」。お金が動くので、確認ボタンを挟んでから貸す。"""
     guild_id = ui.guild_id_of(interaction)
@@ -91,12 +100,7 @@ async def handle_lend(loan_svc: LoanService, interaction: discord.Interaction, l
         )
     loan = loans_repo.loan_get(loan_id)
     assert loan is not None
-    embed = state_embed(
-        loan,
-        "成立",
-        f"<t:{int(loan['due'])}:R>が返済の期限です。`/貸付 返済` で返せます。期限には自動で回収します。",
-        ui.OK,
-    )
+    embed = _accepted_embed(loan)
     if interaction.message is not None:
         try:
             await interaction.message.edit(embed=embed, view=None)
@@ -139,12 +143,7 @@ async def handle_button(
     loan = loans_repo.loan_get(loan_id)
     assert loan is not None
     if act == "accept":
-        embed = state_embed(
-            loan,
-            "成立",
-            f"<t:{int(loan['due'])}:R>が返済の期限です。`/貸付 返済` で返せます。期限には自動で回収します。",
-            ui.OK,
-        )
+        embed = _accepted_embed(loan)
     else:
         embed = state_embed(loan, "辞退されました" if act == "decline" else "取り下げられました", "", ui.INFO)
     await interaction.response.edit_message(embed=embed, view=None)
