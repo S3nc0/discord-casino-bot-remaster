@@ -5,10 +5,11 @@ from types import SimpleNamespace
 
 import pytest
 
-from cogs.quiz.cog import AddModal, QuizCog, UserModal, creator_label, public_embed, question_embed
+from cogs.quiz.cog import AddModal, UserModal, creator_label, public_embed, question_embed
 from domain import quizimport
 from domain.duration import format_minutes, parse_duration
-from infra.db.economy import Economy
+from infra.db.repositories import open_repositories
+from tests.support import make_quiz_cog, make_test_bot
 
 NOW = 1_000_000.0
 ME, OTHER = 500, 600
@@ -103,9 +104,8 @@ class Resp:
 
 
 def make_cog(tmp_path):
-    eco = Economy(str(tmp_path / "t.db"))
-    bot = SimpleNamespace(config={"owner_ids": [1]}, guilds=[], economy=eco)
-    return QuizCog(bot), eco
+    bot = make_test_bot(db_path=str(tmp_path / "t.db"), config={"owner_ids": [1]})
+    return make_quiz_cog(bot), bot.repos
 
 
 def fill(modal, **fields):
@@ -130,16 +130,16 @@ def test_owner_modal_accepts_minutes_hours_days_or_nothing(tmp_path):
     cog, eco = make_cog(tmp_path)
     log = []
     for text, minutes in (("45分", 45), ("6時間", 360), ("2日", 2880), ("", None)):
-        asyncio.run(fill(AddModal(cog, announce=False), duration=text).on_submit(owner_inter(log)))
-        q = eco.quiz_list()[0]
+        asyncio.run(fill(AddModal(cog._quiz, cog, announce=False), duration=text).on_submit(owner_inter(log)))
+        q = eco.quiz.quiz_list()[0]
         assert (q["expires"] is None) == (minutes is None)
         if minutes:
             assert abs(q["expires"] - q["created"] - minutes * 60) < 1
-        eco.quiz_delete(q["id"])
+        eco.quiz.quiz_delete(q["id"])
     log.clear()
-    asyncio.run(fill(AddModal(cog, announce=False), duration="あした").on_submit(owner_inter(log)))
-    asyncio.run(fill(AddModal(cog, announce=False), duration="1000日").on_submit(owner_inter(log)))
-    assert [x[1] for x in log] == ["❌ 入力エラー", "❌ 入力エラー"] and eco.quiz_list() == [] and time.time()
+    asyncio.run(fill(AddModal(cog._quiz, cog, announce=False), duration="あした").on_submit(owner_inter(log)))
+    asyncio.run(fill(AddModal(cog._quiz, cog, announce=False), duration="1000日").on_submit(owner_inter(log)))
+    assert [x[1] for x in log] == ["❌ 入力エラー", "❌ 入力エラー"] and eco.quiz.quiz_list() == [] and time.time()
 
 
 def test_user_modal_duration_range_and_default(tmp_path):
@@ -161,25 +161,25 @@ def test_user_modal_duration_range_and_default(tmp_path):
         original_response=original,
     )
     for text in ("8日", "0分", "ふつう"):
-        asyncio.run(fill(UserModal(cog), duration=text).on_submit(inter))
-    assert [x[1] for x in log] == ["❌ 入力エラー"] * 3 and eco.quiz_list() == []
-    asyncio.run(fill(UserModal(cog), duration="90分").on_submit(inter))
-    q = eco.quiz_list()[0]
+        asyncio.run(fill(UserModal(cog._quiz), duration=text).on_submit(inter))
+    assert [x[1] for x in log] == ["❌ 入力エラー"] * 3 and eco.quiz.quiz_list() == []
+    asyncio.run(fill(UserModal(cog._quiz), duration="90分").on_submit(inter))
+    q = eco.quiz.quiz_list()[0]
     assert abs(q["expires"] - q["created"] - 90 * 60) < 1
-    eco.quiz_delete(q["id"])
+    eco.quiz.quiz_delete(q["id"])
     inter.user = SimpleNamespace(id=OTHER, display_name="別の人")
-    asyncio.run(fill(UserModal(cog), duration="").on_submit(inter))
-    assert abs(eco.quiz_list()[0]["expires"] - eco.quiz_list()[0]["created"] - 3 * 1440 * 60) < 1  # 既定は3日
+    asyncio.run(fill(UserModal(cog._quiz), duration="").on_submit(inter))
+    assert abs(eco.quiz.quiz_list()[0]["expires"] - eco.quiz.quiz_list()[0]["created"] - 3 * 1440 * 60) < 1  # 既定は3日
 
 
 # ----------------------------- 制作者の名前 ----------------------------- #
 def test_creator_name_is_saved_and_shown_everywhere(tmp_path):
     cog, eco = make_cog(tmp_path)
-    own = eco.quiz_add("持ち主の問題", ["a", "b", "c", "d"], "", 100, None, NOW, "持ち主さん")
-    legacy = eco.quiz_add("名前なし", ["a", "b", "c", "d"], "", 100, None, NOW)
-    ok, uid = eco.quiz_post(ME, "みんなの問題", ["a", "b", "c", "d"], "", 100, 60, 7, NOW, "出題者さん")
-    ok, old_user = eco.quiz_post(OTHER, "古い問題", ["a", "b", "c", "d"], "", 100, 60, 7, NOW + 1)
-    q = {i: eco.quiz_get(i) for i in (own, legacy, uid, old_user)}
+    own = eco.quiz.quiz_add("持ち主の問題", ["a", "b", "c", "d"], "", 100, None, NOW, "持ち主さん")
+    legacy = eco.quiz.quiz_add("名前なし", ["a", "b", "c", "d"], "", 100, None, NOW)
+    ok, uid = eco.quiz.quiz_post(ME, "みんなの問題", ["a", "b", "c", "d"], "", 100, 60, 7, NOW, "出題者さん")
+    ok, old_user = eco.quiz.quiz_post(OTHER, "古い問題", ["a", "b", "c", "d"], "", 100, 60, 7, NOW + 1)
+    q = {i: eco.quiz.quiz_get(i) for i in (own, legacy, uid, old_user)}
     assert [creator_label(q[i]) for i in (own, legacy, uid, old_user)] == [
         "持ち主さん",
         "運営",
@@ -201,21 +201,24 @@ def test_creator_name_is_saved_and_shown_everywhere(tmp_path):
 def test_bulk_and_old_schema_keep_the_creator(tmp_path):
     import sqlite3
 
-    eco = Economy(str(tmp_path / "t.db"))
+    eco = open_repositories(str(tmp_path / "t.db"))
     quizzes, _ = quizimport.parse_bulk(BASE + "期間: 2時間\n")
-    ids = eco.quiz_add_many(quizzes, NOW, "持ち主さん")
+    ids = eco.quiz.quiz_add_many(quizzes, NOW, "持ち主さん")
     assert (
-        eco.quiz_get(ids[0])["creator_name"] == "持ち主さん" and abs(eco.quiz_get(ids[0])["expires"] - NOW - 7200) < 1
+        eco.quiz.quiz_get(ids[0])["creator_name"] == "持ち主さん"
+        and abs(eco.quiz.quiz_get(ids[0])["expires"] - NOW - 7200) < 1
     )
-    eco._conn.commit()
-    eco._conn.close()
+    eco.db.conn.commit()
+    eco.db.close()
     c = sqlite3.connect(str(tmp_path / "t.db"))
     c.executescript(
         "ALTER TABLE quiz_questions RENAME TO old_q; CREATE TABLE quiz_questions AS SELECT id, question, choices, explanation, shown_order, reward, expires, created, author_id, guild_id, channel_id, message_id, settled, earned FROM old_q; DROP TABLE old_q;"
     )
     c.commit()
     c.close()
-    assert Economy(str(tmp_path / "t.db")).quiz_get(ids[0])["creator_name"] == ""  # 古い表には、空の名前の列が足される
+    assert (
+        open_repositories(str(tmp_path / "t.db")).quiz.quiz_get(ids[0])["creator_name"] == ""
+    )  # 古い表には、空の名前の列が足される
 
 
 # ----------------------------- 取り下げの候補 ----------------------------- #
@@ -223,16 +226,16 @@ def test_bulk_and_old_schema_keep_the_creator(tmp_path):
 def test_withdraw_autocomplete_lists_only_my_open_questions_in_this_guild(tmp_path):
     import time
 
-    eco = Economy(str(tmp_path / "t.db"))
+    eco = open_repositories(str(tmp_path / "t.db"))
     g1, g2 = eco.for_guild(10), eco.for_guild(20)
     now = time.time()
-    g1.balance(ME), g1.balance(OTHER), g2.balance(ME)
-    ok, mine1 = g1.quiz_post(ME, "私の問題その1", ["a", "b", "c", "d"], "", 100, 90, 7, now)
-    ok, mine2 = g1.quiz_post(ME, "私の問題その2", ["a", "b", "c", "d"], "", 100, 600, 7, now)
-    ok, theirs = g1.quiz_post(OTHER, "他の人の問題", ["a", "b", "c", "d"], "", 100, 90, 7, now)
-    ok, other_guild = g2.quiz_post(ME, "別サーバーの問題", ["a", "b", "c", "d"], "", 100, 90, 7, now)
-    eco.quiz_add("持ち主の問題", ["a", "b", "c", "d"], "", 100, None, now)
-    cog = QuizCog(SimpleNamespace(config={}, guilds=[], economy=eco))
+    g1.wallet.balance(ME), g1.wallet.balance(OTHER), g2.wallet.balance(ME)
+    ok, mine1 = g1.quiz.quiz_post(ME, "私の問題その1", ["a", "b", "c", "d"], "", 100, 90, 7, now)
+    ok, mine2 = g1.quiz.quiz_post(ME, "私の問題その2", ["a", "b", "c", "d"], "", 100, 600, 7, now)
+    ok, theirs = g1.quiz.quiz_post(OTHER, "他の人の問題", ["a", "b", "c", "d"], "", 100, 90, 7, now)
+    ok, other_guild = g2.quiz.quiz_post(ME, "別サーバーの問題", ["a", "b", "c", "d"], "", 100, 90, 7, now)
+    eco.quiz.quiz_add("持ち主の問題", ["a", "b", "c", "d"], "", 100, None, now)
+    cog = make_quiz_cog(make_test_bot(repos=eco))
 
     def candidates(uid, guild, current=""):
         inter = SimpleNamespace(user=SimpleNamespace(id=uid), guild_id=guild)
@@ -248,5 +251,5 @@ def test_withdraw_autocomplete_lists_only_my_open_questions_in_this_guild(tmp_pa
         other_guild
     ]
     assert candidates(ME, None) == []
-    g1.quiz_withdraw(ME, mine1, now)
+    g1.quiz.quiz_withdraw(ME, mine1, now)
     assert [c.value for c in candidates(ME, 10)] == [mine2]  # 取り下げたものは候補から消える

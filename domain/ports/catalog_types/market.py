@@ -1,200 +1,127 @@
-"""証券・オプション・市場イベント・決算カタログの構造的契約。"""
+"""証券・オプション・市場イベント・決算カタログの公称データ契約。"""
 
 from collections.abc import Mapping
-from typing import Protocol
+from dataclasses import dataclass
 
 
-class SymbolProto(Protocol):
-    @property
-    def key(self) -> str: ...
-    @property
-    def name(self) -> str: ...
-    @property
-    def emoji(self) -> str: ...
-    @property
-    def start(self) -> float: ...
-    @property
-    def sigma(self) -> float: ...
-    @property
-    def drift(self) -> float: ...
+@dataclass(frozen=True)
+class SymbolContract:
+    key: str
+    name: str
+    emoji: str
+    start: float
+    sigma: float
+    drift: float
 
 
-class CorrelationProto(Protocol):
-    @property
-    def pair(self) -> tuple[str, str]: ...
-    @property
-    def value(self) -> float: ...
+@dataclass(frozen=True)
+class CorrelationContract:
+    pair: tuple[str, str]
+    value: float
 
 
-class TaxBracketProto(Protocol):
-    @property
-    def limit(self) -> int | None: ...
-    @property
-    def rate(self) -> float: ...
+@dataclass(frozen=True)
+class TaxBracketContract:
+    limit: int | None
+    rate: float
 
 
-class PeriodProto(Protocol):
-    @property
-    def label(self) -> str: ...
-    @property
-    def seconds(self) -> int: ...
+@dataclass(frozen=True)
+class PeriodContract:
+    label: str
+    seconds: int
 
 
-class MarketSectionProto(Protocol):
-    @property
-    def min_price(self) -> int: ...
-    @property
-    def max_price(self) -> int: ...
-    @property
-    def keep_days(self) -> int: ...
-    @property
-    def confirm_from(self) -> int: ...
-    @property
-    def event_interval_minutes(self) -> int: ...
-    @property
-    def event_range(self) -> tuple[float, float]: ...
-    @property
-    def event_scale_max(self) -> float: ...
-    @property
-    def unit(self) -> int: ...
-    @property
-    def fee_rate(self) -> float: ...
-    @property
-    def unit_name(self) -> str: ...
-    @property
-    def side_name(self) -> Mapping[str, str]: ...
-    @property
-    def symbols(self) -> tuple[SymbolProto, ...]: ...
-    @property
-    def correlations(self) -> tuple[CorrelationProto, ...]: ...
-    @property
-    def drift_band(self) -> float: ...
-    @property
-    def daily_limit(self) -> float: ...
-    @property
-    def pin_locks(self) -> Mapping[int, tuple[str, ...]]: ...
-    @property
-    def pin_mark(self) -> Mapping[int, str]: ...
-    @property
-    def short_leverages(self) -> tuple[int, ...]: ...
-    @property
-    def short_min_margin(self) -> int: ...
-    @property
-    def gains_tax_brackets(self) -> tuple[TaxBracketProto, ...]: ...
-    @property
-    def borrow_rate_per_day(self) -> Mapping[str, float]: ...
-    @property
-    def interest_min_charge(self) -> int: ...
-    @property
-    def risk_k(self) -> float: ...
-    @property
-    def open_ratio(self) -> float: ...
-    @property
-    def losscut_ratio(self) -> float: ...
-    @property
-    def collateral_haircut(self) -> Mapping[str, float]: ...
-    @property
-    def levels(self) -> str: ...
-    @property
-    def periods(self) -> Mapping[str, PeriodProto]: ...
+@dataclass(frozen=True)
+class MarketSectionContract:
+    min_price: int
+    max_price: int
+    keep_days: int
+    confirm_from: int
+    event_interval_minutes: int
+    event_range: tuple[float, float]
+    event_scale_max: float
+    unit: int
+    fee_rate: float
+    unit_name: str
+    side_name: Mapping[str, str]
+    symbols: tuple[SymbolContract, ...]
+    correlations: tuple[CorrelationContract, ...]
+    drift_band: float
+    daily_limit: float
+    pin_locks: Mapping[int, tuple[str, ...]]
+    pin_mark: Mapping[int, str]
+    short_leverages: tuple[int, ...]
+    short_min_margin: int
+    gains_tax_brackets: tuple[TaxBracketContract, ...]
+    borrow_rate_per_day: Mapping[str, float]
+    interest_min_charge: int
+    risk_k: float
+    open_ratio: float
+    losscut_ratio: float
+    collateral_haircut: Mapping[str, float]
+    levels: str
+    periods: Mapping[str, PeriodContract]
 
 
-class OptionKindProto(Protocol):
-    @property
-    def name(self) -> str: ...
-    @property
-    def emoji(self) -> str: ...
-    @property
-    def desc(self) -> str: ...
+@dataclass(frozen=True)
+class OptionKindContract:
+    name: str
+    emoji: str
+    desc: str
 
 
-class OptionsSectionProto(Protocol):
-    @property
-    def option_hours(self) -> int: ...
-    @property
-    def strike_otm(self) -> float: ...
-    @property
-    def tick_seconds(self) -> int: ...
-    @property
-    def spread(self) -> float: ...
-    @property
-    def payout_cap_mult(self) -> int: ...
-    @property
-    def min_premium(self) -> int: ...
-    @property
-    def max_open_premium(self) -> int: ...
-    @property
-    def yield_share(self) -> float: ...
-    @property
-    def margin_rate(self) -> float: ...
-    @property
-    def max_short_margin(self) -> int: ...
-    @property
-    def kinds(self) -> Mapping[str, OptionKindProto]: ...
-    @property
-    def short_names(self) -> Mapping[str, str]: ...
-    @property
-    def strike_by_symbol(self) -> Mapping[str, float]: ...
-    @property
-    def max_target_pct(self) -> int: ...
+@dataclass(frozen=True)
+class OptionsSectionContract:
+    option_hours: int
+    strike_otm: float
+    tick_seconds: int
+    spread: float
+    payout_cap_mult: int
+    min_premium: int
+    max_open_premium: int
+    yield_share: float
+    margin_rate: float
+    max_short_margin: int
+    kinds: Mapping[str, OptionKindContract]
+    short_names: Mapping[str, str]
+    strike_by_symbol: Mapping[str, float]
+    max_target_pct: int
 
 
-class MarketEventsSectionProto(Protocol):
-    @property
-    def lead_min(self) -> int: ...
-    @property
-    def duration_min(self) -> int: ...
-    @property
-    def factor(self) -> float: ...
-    @property
-    def announce_interval_minutes(self) -> int: ...
-    @property
-    def cooldown_min(self) -> int: ...
-    @property
-    def priced_at_announce(self) -> float: ...
-    @property
-    def keep_days(self) -> int: ...
-    @property
-    def alert_window(self) -> int: ...
-    @property
-    def z_alert(self) -> float: ...
-    @property
-    def min_abs_corr(self) -> float: ...
+@dataclass(frozen=True)
+class MarketEventsSectionContract:
+    lead_min: int
+    duration_min: int
+    factor: float
+    announce_interval_minutes: int
+    cooldown_min: int
+    priced_at_announce: float
+    keep_days: int
+    alert_window: int
+    z_alert: float
+    min_abs_corr: float
 
 
-class EarningsSectionProto(Protocol):
-    @property
-    def symbols(self) -> tuple[str, ...]: ...
-    @property
-    def release_weekday(self) -> int: ...
-    @property
-    def release_time(self) -> tuple[int, int]: ...
-    @property
-    def announce_weekday(self) -> int: ...
-    @property
-    def announce_time(self) -> tuple[int, int]: ...
-    @property
-    def size_range(self) -> tuple[float, float]: ...
-    @property
-    def surprise_prob(self) -> float: ...
-    @property
-    def surprise_range(self) -> tuple[float, float]: ...
-    @property
-    def memo_prob(self) -> float: ...
-    @property
-    def memo_truth(self) -> float: ...
-    @property
-    def shop_truth(self) -> float: ...
-    @property
-    def shop_stock(self) -> int: ...
+@dataclass(frozen=True)
+class EarningsSectionContract:
+    symbols: tuple[str, ...]
+    release_weekday: int
+    release_time: tuple[int, int]
+    announce_weekday: int
+    announce_time: tuple[int, int]
+    size_range: tuple[float, float]
+    surprise_prob: float
+    surprise_range: tuple[float, float]
+    memo_prob: float
+    memo_truth: float
+    shop_truth: float
+    shop_stock: int
 
 
-class MarketCatalogProto(Protocol):
-    @property
-    def market(self) -> MarketSectionProto: ...
-    @property
-    def options(self) -> OptionsSectionProto: ...
-    @property
-    def events(self) -> MarketEventsSectionProto: ...
-    @property
-    def earnings(self) -> EarningsSectionProto: ...
+@dataclass(frozen=True)
+class MarketCatalogContract:
+    market: MarketSectionContract
+    options: OptionsSectionContract
+    events: MarketEventsSectionContract
+    earnings: EarningsSectionContract

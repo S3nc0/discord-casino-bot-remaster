@@ -5,9 +5,10 @@ from types import SimpleNamespace
 
 import pytest
 
-from cogs.admin.cog import ApprovalCog, bulk_preview_lines
+from cogs.admin.cog import bulk_preview_lines
 from domain import quizimport
-from infra.db.economy import Economy
+from infra.db.repositories import open_repositories
+from tests.support import make_approval_cog, make_test_bot
 
 OWNER, FRIEND = 1, 2
 
@@ -98,13 +99,13 @@ def test_the_bundled_draft_for_today_is_valid():
 
 # ----------------------------- 保存と重複 ----------------------------- #
 def test_add_many_registers_all_with_expiry_and_lists_existing(tmp_path):
-    eco = Economy(str(tmp_path / "t.db"))
+    eco = open_repositories(str(tmp_path / "t.db"))
     quizzes, _ = quizimport.parse_bulk(ONE + "---\n" + ONE.replace("首都は？", "2問目").replace("日数: 3\n", ""))
-    ids = eco.quiz_add_many(quizzes, 1000.0)
+    ids = eco.quiz.quiz_add_many(quizzes, 1000.0)
     assert ids == [1, 2]
-    a, b = eco.quiz_get(1), eco.quiz_get(2)
+    a, b = eco.quiz.quiz_get(1), eco.quiz.quiz_get(2)
     assert a["expires"] == 1000.0 + 3 * 86400 and b["expires"] is None and a["reward"] == 150
-    assert eco.quiz_existing_questions() == {"首都は？", "2問目"}
+    assert eco.quiz.quiz_existing_questions() == {"首都は？", "2問目"}
 
 
 # ----------------------------- コマンドの流れ ----------------------------- #
@@ -119,18 +120,18 @@ class FakeFile:
 
 
 def make(tmp_path, broadcasts=None):
-    eco = Economy(str(tmp_path / "t.db"))
-    quiz_cog = SimpleNamespace(broadcast=None)
+    from cogs.shared.bridges import IQuizAdminBridge
 
-    async def broadcast(qid, guild=None, channel=None):
-        (broadcasts if broadcasts is not None else []).append(qid)
-        return 2
+    eco = open_repositories(str(tmp_path / "t.db"))
 
-    quiz_cog.broadcast = broadcast
-    bot = SimpleNamespace(
-        config={"owner_ids": [OWNER]}, economy=eco, guilds=[], get_guild=lambda g: None, get_cog=lambda n: quiz_cog
-    )
-    return ApprovalCog(bot), eco
+    class StubQuiz(IQuizAdminBridge):
+        async def broadcast(self, quiz_id, guild=None, channel=None):
+            (broadcasts if broadcasts is not None else []).append(quiz_id)
+            return 2
+
+    bot = make_test_bot(repos=eco, config={"owner_ids": [OWNER]})
+    bot.bridges.register(IQuizAdminBridge, StubQuiz())
+    return make_approval_cog(bot), eco
 
 
 def run_cmd(cog, uid, file, announce=None):
@@ -172,7 +173,7 @@ def test_command_is_owner_only_and_checks_the_file(tmp_path):
         assert log["sent"] == ["❌ ファイルを使えません"]
     log, _ = run_cmd(cog, OWNER, FakeFile(raw="あ".encode("shift_jis")))
     assert log["follow"][0]["embed"].title == "❌ 文字コードを読めません"
-    assert eco.quiz_list() == []
+    assert eco.quiz.quiz_list() == []
 
 
 def test_errors_register_nothing_and_list_the_problems(tmp_path):
@@ -181,7 +182,7 @@ def test_errors_register_nothing_and_list_the_problems(tmp_path):
         cog, OWNER, FakeFile(ONE + "---\n" + ONE.replace("首都は？", "2問目").replace("不正解: 京都\n", ""))
     )
     e = log["follow"][0]["embed"]
-    assert e.title.startswith("❌ 登録できません（誤り1件") and "2問目" in e.description and eco.quiz_list() == []
+    assert e.title.startswith("❌ 登録できません（誤り1件") and "2問目" in e.description and eco.quiz.quiz_list() == []
 
 
 def test_preview_then_register_then_the_same_file_is_refused(tmp_path):
@@ -194,16 +195,16 @@ def test_preview_then_register_then_the_same_file_is_refused(tmp_path):
         and "正解「東京」" in preview.description
         and "告知: しません" in preview.description
     )
-    assert eco.quiz_list() == []  # 確認ボタンを押すまで登録しない
+    assert eco.quiz.quiz_list() == []  # 確認ボタンを押すまで登録しない
     assert asyncio.run(view.interaction_check(SimpleNamespace(user=SimpleNamespace(id=FRIEND)))) is False
     asyncio.run(view.register.callback(inter))
-    assert len(eco.quiz_list()) == 2 and broadcasts == [] and "クイズを2問登録しました" in log["edits"][0]
+    assert len(eco.quiz.quiz_list()) == 2 and broadcasts == [] and "クイズを2問登録しました" in log["edits"][0]
     log2, _ = run_cmd(cog, OWNER, FakeFile(ONE))  # 同じファイルをもう一度
     assert (
         log2["follow"][0]["embed"].title.startswith("❌ 登録できません")
         and "すでに登録されている" in log2["follow"][0]["embed"].description
     )
-    assert len(eco.quiz_list()) == 2
+    assert len(eco.quiz.quiz_list()) == 2
 
 
 def test_cancel_registers_nothing_and_announce_posts_each_question(tmp_path):
@@ -211,7 +212,7 @@ def test_cancel_registers_nothing_and_announce_posts_each_question(tmp_path):
     cog, eco = make(tmp_path, broadcasts)
     log, inter = run_cmd(cog, OWNER, FakeFile())
     asyncio.run(log["follow"][0]["view"].cancel.callback(inter))
-    assert eco.quiz_list() == [] and log["edits"] == ["📰 クイズの一括登録"]
+    assert eco.quiz.quiz_list() == [] and log["edits"] == ["📰 クイズの一括登録"]
     log, inter = run_cmd(
         cog, OWNER, FakeFile(ONE + "---\n" + ONE.replace("首都は？", "2問目")), SimpleNamespace(value=1)
     )

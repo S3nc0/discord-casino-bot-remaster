@@ -7,12 +7,10 @@ from types import SimpleNamespace
 import pytest
 
 from cogs.economy.cog import EconomyCog
-from cogs.market.cog import MarketCog
 from cogs.teiai.panel import StakeModal, TeiaiPanel
 from domain import bonds, teiai
-from infra.db.economy import Economy
-from services.session import Sessions
 from tests.domain.test_market import It
+from tests.support import make_economy_cog, make_market_cog, make_test_bot
 
 pytestmark = pytest.mark.real_scope
 
@@ -25,9 +23,11 @@ def run(coro):
 
 @pytest.fixture
 def bot(tmp_path):
-    return SimpleNamespace(
-        economy=Economy(str(tmp_path / "t.db"), strict=True), sessions=Sessions(cooldown=0), config={}
-    )
+    return make_test_bot(db_path=str(tmp_path / "t.db"), strict=True)
+
+
+def make_panel(bot, uid):
+    return TeiaiPanel(bot.repos.bank, bot.repos.debt, bot.repos.wallet, bot.repos.notices, uid)
 
 
 def public(it) -> bool:
@@ -35,9 +35,9 @@ def public(it) -> bool:
 
 
 def test_seed_borrow_is_public_on_success_and_private_on_failure(bot):
-    eco = bot.economy.for_guild(G)
-    eco.debit_up_to(U, eco.balance(U) - 100, "テスト")  # 手元 100 → 借りられる
-    panel = TeiaiPanel(bot, U)
+    eco = bot.repos.for_guild(G)
+    eco.wallet.debit_up_to(U, eco.wallet.balance(U) - 100, "テスト")  # 手元 100 → 借りられる
+    panel = make_panel(bot, U)
     it = It()
     run(panel.seed.callback(it))
     assert public(it) and "種銭を借りました" in it.sent[-1]["embed"].title and "テスト" in it.sent[-1]["embed"].title
@@ -47,10 +47,10 @@ def test_seed_borrow_is_public_on_success_and_private_on_failure(bot):
 
 
 def test_cds_on_someone_else_is_public_and_on_yourself_is_private(bot):
-    eco = bot.economy.for_guild(G)
-    eco.credit(U, 5_000, "テスト")
-    eco.balance(T)
-    panel = TeiaiPanel(bot, U)
+    eco = bot.repos.for_guild(G)
+    eco.wallet.credit(U, 5_000, "テスト")
+    eco.wallet.balance(T)
+    panel = make_panel(bot, U)
     other = StakeModal(panel, T, 15.0)
     other.stake = SimpleNamespace(value="500")
     it = It()
@@ -69,11 +69,11 @@ def test_cds_on_someone_else_is_public_and_on_yourself_is_private(bot):
 
 
 def test_bond_sale_is_public_on_success_and_private_on_failure(bot):
-    cog = MarketCog(bot)
+    cog = make_market_cog(bot)
     cog._prices()
-    eco = bot.economy.for_guild(G)
-    assert eco.bond_buy(U, "normal", 1_000, time.time())[0]
-    bond_id = eco.bond_list(U)["active"][0]["id"]
+    eco = bot.repos.for_guild(G)
+    assert eco.bonds.bond_buy(U, "normal", 1_000, time.time())[0]
+    bond_id = eco.bonds.bond_list(U)["active"][0]["id"]
     it = It()
     run(cog._bond_cancel(it, bond_id))
     assert public(it) and "債券を売りました" in it.sent[-1]["embed"].title
@@ -84,19 +84,18 @@ def test_bond_sale_is_public_on_success_and_private_on_failure(bot):
 
 
 def test_self_bankruptcy_result_is_public(bot, monkeypatch):
-    eco = bot.economy.for_guild(G)
-    eco.balance(U)
-    with eco._lock, eco._conn:
-        eco._owe(U, 10_000, "テスト")  # 借金を作る
+    eco = bot.repos.for_guild(G)
+    eco.wallet.balance(U)
+    with eco.db.tx():
+        eco.debt.owe_for(G, U, 10_000, "テスト")  # 借金を作る
 
     async def agree(interaction, title, description, label):
         return True
 
     monkeypatch.setitem(EconomyCog.bankrupt.callback.__globals__, "confirm_action", agree)
     it = It()
-    it.client = SimpleNamespace(get_cog=lambda name: None)
     it.guild.get_member = lambda uid: None
-    cog = EconomyCog(bot)
+    cog = make_economy_cog(bot)
     run(EconomyCog.bankrupt.callback(cog, it))
     assert public(it) and "自己破産しました" in it.sent[-1]["embed"].title and "テスト" in it.sent[-1]["embed"].title
-    assert eco.status(U) == teiai.BANKRUPT
+    assert eco.debt.status(U) == teiai.BANKRUPT

@@ -5,14 +5,15 @@ from typing import Optional
 
 import discord
 
+from cogs.quiz.texts import DEFAULT_RIGHT as DEFAULT_RIGHT
+from cogs.quiz.texts import DEFAULT_WRONG as DEFAULT_WRONG
 from cogs.shared import ui
 from domain import quizpay
-from infra import catalogs
+from domain.ports import get_catalogs
 
-_QUIZ_CFG = catalogs.economy().quizpay
+_QUIZ_CFG = get_catalogs().economy().quizpay
 MAX_CHOICE_LEN = _QUIZ_CFG.max_choice_len
 MAX_VERDICT_LEN = _QUIZ_CFG.max_verdict_len  # 正解・不正解の見出しの文言の最大文字数
-DEFAULT_RIGHT, DEFAULT_WRONG = _QUIZ_CFG.default_right, _QUIZ_CFG.default_wrong
 DEFAULT_REWARD = _QUIZ_CFG.default_reward
 LETTERS = _QUIZ_CFG.letters
 

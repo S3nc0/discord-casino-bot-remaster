@@ -6,11 +6,20 @@
 
 import json
 import time
-from typing import Callable, Optional
+from collections.abc import Callable
+from typing import Any, Optional
 
 from domain import horse as horse_mod
 from domain import labor as labor_mod
 from domain import shop
+from domain.ports.bridges import (
+    AddAssetPart,
+    CompositeAssetCollector,  # noqa: F401
+    IAssetCollector,
+    IOverdueLoanCollector,
+    IValuationSource,
+)
+from domain.ports.repos import IAssetRepo
 from domain.types import (
     FIXED_KEYS as FIXED_KEYS,  # noqa: F401
 )
@@ -20,12 +29,8 @@ from domain.types import (
 from domain.types import (
     LIQUID_KEYS as LIQUID_KEYS,  # noqa: F401
 )
-from domain.types import (
-    PART_LABELS as PART_LABELS,  # noqa: F401
-)
-from infra.db.base import EcoBase
-
-AddPart = Callable[[int, str, int], None]
+from domain.types import PART_KEYS
+from infra.db.base import EcoDb, ScopedRepo
 
 
 def _item_worth(item_id: str) -> tuple[int, bool]:
@@ -36,73 +41,57 @@ def _item_worth(item_id: str) -> tuple[int, bool]:
     return (item.price if item else 0), False
 
 
-def _add_item_value(add: AddPart, uid: int, item_id: str, qty: int) -> None:
+def _add_item_value(add: AddAssetPart, uid: int, item_id: str, qty: int) -> None:
     worth, relic = _item_worth(item_id)
     add(uid, "relics" if relic else "items", worth * qty)
 
 
-class IAssetCollector:
-    """1 つの資産カテゴリを parts 辞書へ加算するコレクタ契約。"""
-
-    def collect(self, eco: "AssetMixin", guild_id: int, add: AddPart, now: float) -> None:
-        raise NotImplementedError
-
-
-class CompositeAssetCollector(IAssetCollector):
-    """複数の IAssetCollector を束ねて順次適用する Composite。"""
-
-    def __init__(self, collectors: tuple[IAssetCollector, ...]) -> None:
-        self._collectors = collectors
-
-    def collect(self, eco: "AssetMixin", guild_id: int, add: AddPart, now: float) -> None:
-        for collector in self._collectors:
-            collector.collect(eco, guild_id, add, now)
+def default_horse_worth(races: int, wins: int, places: int) -> int:
+    price = shop.BY_ID[shop.HORSE_VOUCHER].price
+    return max(0, price + horse_mod.retire_value(races, wins, places))
 
 
 class CashAndDebtCollector(IAssetCollector):
-    def collect(self, eco: "AssetMixin", guild_id: int, add: AddPart, now: float) -> None:
-        for r in eco._conn.execute("SELECT user_id, balance, debt FROM users WHERE guild_id=?", (guild_id,)):
+    def __init__(self, db: EcoDb) -> None:
+        self._conn = db.conn
+
+    def collect(self, guild_id: int, add: AddAssetPart, now: float) -> None:
+        for r in self._conn.execute("SELECT user_id, balance, debt FROM users WHERE guild_id=?", (guild_id,)):
             add(r["user_id"], "cash", r["balance"])
             add(r["user_id"], "debt", -r["debt"])
 
 
-class BankAssetCollector(IAssetCollector):
-    def collect(self, eco: "AssetMixin", guild_id: int, add: AddPart, now: float) -> None:
-        for uid, v in eco.bank_values().items():
-            add(uid, "deposit", v)
+class ValuationSourceCollector(IAssetCollector):
+    """IValuationSource の集計結果を任意の資産カテゴリキー（part_key）へ加算する汎用コレクタ（OCP）。"""
 
+    def __init__(self, part_key: str, source: IValuationSource) -> None:
+        self._part_key = part_key
+        self._source = source
 
-class CryptoAssetCollector(IAssetCollector):
-    def collect(self, eco: "AssetMixin", guild_id: int, add: AddPart, now: float) -> None:
-        for uid, v in eco.crypto_values().items():
-            add(uid, "crypto", v)
-        for uid, v in eco.margin_equity().items():
-            add(uid, "crypto", v)
-
-
-class BondAssetCollector(IAssetCollector):
-    def collect(self, eco: "AssetMixin", guild_id: int, add: AddPart, now: float) -> None:
-        for uid, v in eco.bond_values().items():
-            add(uid, "bonds", v)
-
-
-class OptionAssetCollector(IAssetCollector):
-    def collect(self, eco: "AssetMixin", guild_id: int, add: AddPart, now: float) -> None:
-        for uid, v in eco.option_values().items():
-            add(uid, "options", v)
+    def collect(self, guild_id: int, add: AddAssetPart, now: float) -> None:
+        totals: dict[int, int] = {}
+        self._source.collect_values(guild_id, totals)
+        for uid, v in totals.items():
+            add(uid, self._part_key, v)
 
 
 class InventoryAssetCollector(IAssetCollector):
-    def collect(self, eco: "AssetMixin", guild_id: int, add: AddPart, now: float) -> None:
-        for r in eco._conn.execute(
+    def __init__(self, db: EcoDb) -> None:
+        self._conn = db.conn
+
+    def collect(self, guild_id: int, add: AddAssetPart, now: float) -> None:
+        for r in self._conn.execute(
             "SELECT user_id, item_id, qty FROM inventory WHERE guild_id=? AND qty>0", (guild_id,)
         ):
             _add_item_value(add, r["user_id"], r["item_id"], r["qty"])
 
 
 class LaborAssetCollector(IAssetCollector):
-    def collect(self, eco: "AssetMixin", guild_id: int, add: AddPart, now: float) -> None:
-        for r in eco._conn.execute(
+    def __init__(self, db: EcoDb) -> None:
+        self._conn = db.conn
+
+    def collect(self, guild_id: int, add: AddAssetPart, now: float) -> None:
+        for r in self._conn.execute(
             "SELECT user_id, relics, pot, pick, glove, dorm FROM labor WHERE guild_id=?", (guild_id,)
         ):
             add(r["user_id"], "pot", r["pot"])
@@ -122,70 +111,77 @@ class LaborAssetCollector(IAssetCollector):
 
 
 class HorseAssetCollector(IAssetCollector):
-    def collect(self, eco: "AssetMixin", guild_id: int, add: AddPart, now: float) -> None:
-        for r in eco._conn.execute(
+    def __init__(self, db: EcoDb, horse_worth_fn: Callable[[int, int, int], int]) -> None:
+        self._conn = db.conn
+        self._horse_worth = horse_worth_fn
+
+    def collect(self, guild_id: int, add: AddAssetPart, now: float) -> None:
+        for r in self._conn.execute(
             "SELECT owner_id, races, wins, places FROM horses WHERE guild_id=? AND owner_id>0",
             (guild_id,),
         ):
-            add(r["owner_id"], "horses", eco.horse_worth(r["races"], r["wins"], r["places"]))
+            add(r["owner_id"], "horses", self._horse_worth(r["races"], r["wins"], r["places"]))
 
 
 class P2PAssetCollector(IAssetCollector):
     """競り・出品中の品・馬は売り手、入札中のお金は入札者の資産として加算する。"""
 
-    def collect(self, eco: "AssetMixin", guild_id: int, add: AddPart, now: float) -> None:
-        for r in eco._conn.execute("SELECT * FROM market_listings WHERE guild_id=? AND status='active'", (guild_id,)):
+    def __init__(self, db: EcoDb, horse_worth_fn: Callable[[int, int, int], int]) -> None:
+        self._conn = db.conn
+        self._horse_worth = horse_worth_fn
+
+    def collect(self, guild_id: int, add: AddAssetPart, now: float) -> None:
+        for r in self._conn.execute("SELECT * FROM market_listings WHERE guild_id=? AND status='active'", (guild_id,)):
             if r["kind"] == "item":
                 _add_item_value(add, r["seller_id"], r["ref"], r["qty"])
             else:
-                h = eco._conn.execute("SELECT races, wins, places FROM horses WHERE id=?", (int(r["ref"]),)).fetchone()
+                h = self._conn.execute("SELECT races, wins, places FROM horses WHERE id=?", (int(r["ref"]),)).fetchone()
                 if h:
-                    add(r["seller_id"], "horses", eco.horse_worth(h["races"], h["wins"], h["places"]))
+                    add(r["seller_id"], "horses", self._horse_worth(h["races"], h["wins"], h["places"]))
             if r["bidder_id"]:
                 add(r["bidder_id"], "escrow", r["bid"])
 
 
 class LoanAssetCollector(IAssetCollector):
-    def collect(self, eco: "AssetMixin", guild_id: int, add: AddPart, now: float) -> None:
-        for r in eco._conn.execute(
+    def __init__(self, db: EcoDb, loans: IOverdueLoanCollector) -> None:
+        self._conn = db.conn
+        self._loans = loans
+
+    def collect(self, guild_id: int, add: AddAssetPart, now: float) -> None:
+        for r in self._conn.execute(
             "SELECT * FROM loans WHERE guild_id=? AND status IN ('active','overdue')", (guild_id,)
         ):
-            left = eco.loan_remaining(dict(r), now)
+            left = self._loans.loan_remaining(dict(r), now)
             add(r["lender_id"], "loans_lent", left)
             add(r["borrower_id"], "loans_owed", -left)
 
 
-DEFAULT_ASSET_COLLECTOR = CompositeAssetCollector(
-    (
-        CashAndDebtCollector(),
-        BankAssetCollector(),
-        CryptoAssetCollector(),
-        BondAssetCollector(),
-        OptionAssetCollector(),
-        InventoryAssetCollector(),
-        LaborAssetCollector(),
-        HorseAssetCollector(),
-        P2PAssetCollector(),
-        LoanAssetCollector(),
-    )
-)
+class AssetRepo(ScopedRepo, IAssetRepo):
+    """総資産内訳とファイナルランキング。"""
 
-
-class AssetMixin(EcoBase):
-    def _item_worth(self, item_id: str) -> tuple:
-        return _item_worth(item_id)
+    def __init__(
+        self,
+        db: EcoDb,
+        collector: IAssetCollector,
+        horse_worth_fn: Optional[Callable[[int, int, int], int]] = None,
+        guild_id: int = 0,
+        strict: bool = False,
+    ) -> None:
+        super().__init__(db, guild_id, strict)
+        self._collector = collector
+        self._horse_worth_fn = horse_worth_fn or default_horse_worth
 
     def horse_worth(self, races: int, wins: int, places: int) -> int:
-        """馬1頭の評価額: 購入価格に、いま引退したときの引退金（戦績が悪ければ引退費用）を足す。0 未満にはしない。"""
-        return max(0, self.HORSE_PRICE + horse_mod.retire_value(races, wins, places))
+        """馬1頭の評価額: 購入価格に、いま引退したときの引退金（成績が悪ければ引退費用）を足す。0 未満にはしない。"""
+        return self._horse_worth_fn(races, wins, places)
 
-    def asset_parts(self, now: Optional[float] = None) -> dict:
+    def asset_parts(self, now: Optional[float] = None) -> dict[int, dict[str, int]]:
         """このサーバーの {ユーザーID: {内訳のキー: 金額}}。登録のある全員。"""
         now = time.time() if now is None else now
         with self._lock:
             g = self._g()
-            parts = {
-                r["user_id"]: dict.fromkeys(PART_LABELS, 0)
+            parts: dict[int, dict[str, int]] = {
+                r["user_id"]: dict.fromkeys(PART_KEYS, 0)
                 for r in self._conn.execute("SELECT user_id FROM users WHERE guild_id=?", (g,))
             }
 
@@ -193,21 +189,21 @@ class AssetMixin(EcoBase):
                 if uid in parts and value:
                     parts[uid][key] += value
 
-            DEFAULT_ASSET_COLLECTOR.collect(self, g, add, now)
+            self._collector.collect(g, add, now)
         return parts
 
-    def final_assets(self, user_ids: Optional[set] = None, now: Optional[float] = None) -> list:
+    def final_assets(self, user_ids: Optional[set[Any]] = None, now: Optional[float] = None) -> list[Any]:
         """[(ユーザーID, ファイナル総資産, 内訳)] を多い順に（同額はユーザーID順）。user_ids を渡すと、その人たちだけ。"""
         out = [
             (uid, sum(p.values()), p) for uid, p in self.asset_parts(now).items() if user_ids is None or uid in user_ids
         ]
         return sorted(out, key=lambda t: (-t[1], t[0]))
 
-    def final_top(self, limit: int = 10, user_ids: Optional[set] = None) -> list:
+    def final_top(self, limit: int = 10, user_ids: Optional[set[Any]] = None) -> list[Any]:
         """[(順位, ユーザーID, ファイナル総資産), ...]。"""
         return [(i + 1, uid, total) for i, (uid, total, _p) in enumerate(self.final_assets(user_ids)[:limit])]
 
-    def final_rank_of(self, user_id: int, user_ids: Optional[set] = None) -> Optional[tuple]:
+    def final_rank_of(self, user_id: int, user_ids: Optional[set[Any]] = None) -> Optional[tuple[Any, ...]]:
         """(順位, ファイナル総資産, 対象人数)。登録がなければ None。"""
         ranked = self.final_assets(user_ids)
         for i, (uid, total, _p) in enumerate(ranked):

@@ -1,30 +1,42 @@
-"""ショップの持ち物・装備・消耗品（Economy に混ぜ込む部品）。
+"""ショップの持ち物・装備・消耗品。
 
 表の定義は infra/db/schema/tables.py にある。
 """
 
 import time
-from typing import Optional
+from typing import Any, Optional
 
 from domain import shop as shop_mod
 from domain import teiai
 from domain.errors import fail
+from domain.ports.bridges import IStatusReader
+from domain.ports.repos import IShopRepo
 from domain.types import CONSUMABLE_EFFECTS, PurchaseResult
-from infra.db.base import EcoBase
+from infra.db.account import AccountCore
+from infra.db.base import EcoDb, ScopedRepo
 
 
-class ShopMixin(EcoBase):
-    """ショップの持ち物・装備・消耗品（Economy に混ぜ込む部品）。"""
+class ShopRepo(ScopedRepo, IShopRepo):
+    """ショップの持ち物・装備・消耗品。"""
 
-    # ------------------------------------------------------------------ #
-    # ショップ（持ち物・装備・消耗品）                                    #
-    # ------------------------------------------------------------------ #
     SLOTS = ("title", "card_color", "card_icon", "skin_dice", "skin_table")
 
-    def _ensure_profile(self, user_id: int) -> None:
-        self._conn.execute("INSERT OR IGNORE INTO profile (guild_id, user_id) VALUES (?, ?)", (self._g(), user_id))
+    def __init__(
+        self,
+        db: EcoDb,
+        account: AccountCore,
+        status_reader: IStatusReader,
+        guild_id: int = 0,
+        strict: bool = False,
+    ) -> None:
+        super().__init__(db, guild_id, strict)
+        self._account = account
+        self._status_reader = status_reader
 
-    def shop_stock(self, user_id: int, item_id: str, now: Optional[float] = None) -> Optional[dict]:
+    def _ensure_profile(self, guild_id: int, user_id: int) -> None:
+        self._conn.execute("INSERT OR IGNORE INTO profile (guild_id, user_id) VALUES (?, ?)", (guild_id, user_id))
+
+    def shop_stock(self, user_id: int, item_id: str, now: Optional[float] = None) -> Optional[dict[str, Any]]:
         """在庫のある品の、このプレイヤーの在庫 {stock: 買える数, max, next_at: 次に1つ増える時刻（満タンなら None）}。在庫のない品は None。
 
         読み取りだけ（記録がなければ、満タン）。
@@ -61,71 +73,75 @@ class ShopMixin(EcoBase):
             return PurchaseResult(False, fail("shop_invalid_qty_or_price"))
         total = price * qty
         now = time.time() if now is None else now
-        with self._lock, self._conn:
-            self._ensure(user_id)
+        with self._db.tx():
+            gid = self._g()
+            self._account.ensure(gid, user_id)
             stock = self.shop_stock(user_id, item_id, now)
             if stock is not None and qty > stock["stock"]:
                 return PurchaseResult(
                     False,
                     fail("shop_out_of_stock", stock=stock["stock"], next_at=stock["next_at"]),
-                    self._balance(user_id),
+                    self._account.raw_balance(gid, user_id),
                 )
             have = self._conn.execute(
-                "SELECT qty FROM inventory WHERE guild_id=? AND user_id=? AND item_id=?", (self._g(), user_id, item_id)
+                "SELECT qty FROM inventory WHERE guild_id=? AND user_id=? AND item_id=?",
+                (gid, user_id, item_id),
             ).fetchone()
             if unique and have:
-                return PurchaseResult(False, fail("already_owned"), self._balance(user_id))
-            if self._debt(user_id) > 0:
+                return PurchaseResult(False, fail("already_owned"), self._account.raw_balance(gid, user_id))
+            debt = self._account.debt(gid, user_id)
+            if debt > 0:
                 return PurchaseResult(
                     False,
-                    fail("debt_blocks", debt=self._debt(user_id), verb="買い物はできません"),
-                    self._balance(user_id),
+                    fail("debt_blocks", debt=debt, verb="買い物はできません"),
+                    self._account.raw_balance(gid, user_id),
                 )
-            if self._balance(user_id) < total:
+            bal = self._account.raw_balance(gid, user_id)
+            if bal < total:
                 return PurchaseResult(
                     False,
-                    fail("insufficient_balance_need", need=total, balance=self._balance(user_id)),
-                    self._balance(user_id),
+                    fail("insufficient_balance_need", need=total, balance=bal),
+                    bal,
                 )
-            self._apply(user_id, -total, f"購入:{label}" + (f"×{qty}" if qty > 1 else ""))
+            self._account.apply(gid, user_id, -total, f"購入:{label}" + (f"×{qty}" if qty > 1 else ""))
             if stock is not None:  # 在庫を減らす（減らしたあとの在庫と、その時刻を記録する）
                 self._conn.execute(
                     "INSERT INTO shop_stock (guild_id, user_id, item_id, stock, updated) VALUES (?, ?, ?, ?, ?) "
                     "ON CONFLICT(guild_id, user_id, item_id) DO UPDATE SET stock=excluded.stock, updated=excluded.updated",
-                    (self._g(), user_id, item_id, stock["exact"] - qty, now),
+                    (gid, user_id, item_id, stock["exact"] - qty, now),
                 )
             self._conn.execute(
                 "INSERT INTO inventory (guild_id, user_id, item_id, qty) VALUES (?, ?, ?, ?) "
                 "ON CONFLICT(guild_id, user_id, item_id) DO UPDATE SET qty = qty + excluded.qty",
-                (self._g(), user_id, item_id, qty),
+                (gid, user_id, item_id, qty),
             )
-            return PurchaseResult(True, balance=self._balance(user_id))
+            return PurchaseResult(True, balance=self._account.raw_balance(gid, user_id))
 
-    def inventory(self, user_id: int) -> dict:
+    def inventory(self, user_id: int) -> dict[str, Any]:
         with self._lock:
             return {
                 r["item_id"]: r["qty"]
                 for r in self._conn.execute(
-                    "SELECT item_id, qty FROM inventory WHERE guild_id=? AND user_id=? AND qty>0", (self._g(), user_id)
+                    "SELECT item_id, qty FROM inventory WHERE guild_id=? AND user_id=? AND qty>0",
+                    (self._g(), user_id),
                 )
             }
 
-    def get_profile(self, user_id: int, raw: bool = False) -> dict:
+    def get_profile(self, user_id: int, raw: bool = False) -> dict[str, Any]:
         """装備中の称号・カード・演出、消耗品の効果、身分（status）。読み取り専用（口座は作らない）。
 
         カタギでないとき（借金・延滞・破産者）は、買った称号・カード・演出が「差し押さえ中」なので、装備の欄は None で返り、
         frozen が True になる（装備の記録は残り、カタギに戻ると使える）。raw=True なら、差し押さえ中でも、記録のとおりに返す。
         """
         with self._lock:
-            row = self._conn.execute(
-                "SELECT * FROM profile WHERE guild_id=? AND user_id=?", (self._g(), user_id)
-            ).fetchone()
+            gid = self._g()
+            row = self._conn.execute("SELECT * FROM profile WHERE guild_id=? AND user_id=?", (gid, user_id)).fetchone()
             prof = (
                 dict(row)
                 if row
                 else {"user_id": user_id, **dict.fromkeys(self.SLOTS), "daily_boost": 0, "insurance": 0}
             )
-            prof["status"] = self.status(user_id)
+            prof["status"] = self._status_reader.status_for(gid, user_id)
         prof["frozen"] = prof["status"] != teiai.KATAGI
         if prof["frozen"] and not raw:
             for slot in self.SLOTS:
@@ -136,19 +152,18 @@ class ShopMixin(EcoBase):
         """称号・カードの色・アイコンを装備（None で外す）。持っていないものは装備できない。"""
         if slot not in self.SLOTS:
             raise ValueError(slot)
-        with self._lock, self._conn:
+        with self._db.tx():
+            gid = self._g()
             if (
                 item_id is not None
                 and not self._conn.execute(
                     "SELECT 1 FROM inventory WHERE guild_id=? AND user_id=? AND item_id=? AND qty>0",
-                    (self._g(), user_id, item_id),
+                    (gid, user_id, item_id),
                 ).fetchone()
             ):
                 return False
-            self._ensure_profile(user_id)
-            self._conn.execute(
-                f"UPDATE profile SET {slot}=? WHERE guild_id=? AND user_id=?", (item_id, self._g(), user_id)
-            )
+            self._ensure_profile(gid, user_id)
+            self._conn.execute(f"UPDATE profile SET {slot}=? WHERE guild_id=? AND user_id=?", (item_id, gid, user_id))
             return True
 
     def arm(self, user_id: int, item_id: str) -> bool:
@@ -156,15 +171,16 @@ class ShopMixin(EcoBase):
         effect = CONSUMABLE_EFFECTS.get(item_id)
         if effect is None:
             return False
-        with self._lock, self._conn:
+        with self._db.tx():
+            gid = self._g()
             cur = self._conn.execute(
                 "UPDATE inventory SET qty = qty - 1 WHERE guild_id=? AND user_id=? AND item_id=? AND qty>0",
-                (self._g(), user_id, item_id),
+                (gid, user_id, item_id),
             )
             if not cur.rowcount:
                 return False
-            self._ensure_profile(user_id)
+            self._ensure_profile(gid, user_id)
             self._conn.execute(
-                f"UPDATE profile SET {effect} = {effect} + 1 WHERE guild_id=? AND user_id=?", (self._g(), user_id)
+                f"UPDATE profile SET {effect} = {effect} + 1 WHERE guild_id=? AND user_id=?", (gid, user_id)
             )
             return True

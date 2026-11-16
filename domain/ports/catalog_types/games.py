@@ -1,583 +1,333 @@
-"""ゲーム・競馬・地下作業・ミッション・イベントカタログの構造的契約。"""
+"""ゲーム・競馬・地下作業・ミッション・イベントカタログの公称データ契約。"""
 
 from collections.abc import Mapping, Sequence
-from typing import Protocol
+from dataclasses import dataclass
 
 
-class MissionProto(Protocol):
-    @property
-    def id(self) -> str: ...
-    @property
-    def name(self) -> str: ...
-    @property
-    def kind(self) -> str: ...
-    @property
-    def target(self) -> int: ...
-    @property
-    def reward(self) -> int: ...
-    @property
-    def game(self) -> str | None: ...
-    @property
-    def tag(self) -> str | None: ...
+@dataclass(frozen=True)
+class MissionContract:
+    id: str
+    name: str
+    kind: str
+    target: int
+    reward: int
+    game: str | None
+    tag: str | None
 
 
-class WinTierProto(Protocol):
-    @property
-    def min_ratio(self) -> float: ...
-    @property
-    def message(self) -> str: ...
+@dataclass(frozen=True)
+class MissionsCatalogContract:
+    blackjack_game: str
+    games: tuple[str, ...]
+    min_bet: int
+    complete_bonus: int
+    per_day: int
+    universal: tuple[MissionContract, ...]
+    other_game_play_target: int
+    other_game_play_reward: int
+    other_game_win_target: int
+    other_game_win_reward: int
+    blackjack_missions: tuple[MissionContract, ...]
+    big_win: MissionContract
+    jackpot_multiplier: int
 
 
-class MissionsCatalogProto(Protocol):
-    @property
-    def blackjack_game(self) -> str: ...
-    @property
-    def games(self) -> tuple[str, ...]: ...
-    @property
-    def min_bet(self) -> int: ...
-    @property
-    def complete_bonus(self) -> int: ...
-    @property
-    def per_day(self) -> int: ...
-    @property
-    def universal(self) -> tuple[MissionProto, ...]: ...
-    @property
-    def other_game_play_target(self) -> int: ...
-    @property
-    def other_game_play_reward(self) -> int: ...
-    @property
-    def other_game_win_target(self) -> int: ...
-    @property
-    def other_game_win_reward(self) -> int: ...
-    @property
-    def blackjack_missions(self) -> tuple[MissionProto, ...]: ...
-    @property
-    def big_win(self) -> MissionProto: ...
-    @property
-    def jackpot_multiplier(self) -> int: ...
-    @property
-    def win_tiers(self) -> tuple[WinTierProto, ...]: ...
-    @property
-    def jackpot_art(self) -> str: ...
+@dataclass(frozen=True)
+class EventsCatalogContract:
+    duration_min: int
+    earliest_hour: int
+    boost: float
+    bonus_cap: int
+    games: tuple[str, ...]
 
 
-class EventGameProto(Protocol):
-    @property
-    def title(self) -> str: ...
-    @property
-    def blurb(self) -> str: ...
+@dataclass(frozen=True)
+class ToolContract:
+    key: str
+    name: str
+    mark: str
+    effect: str
 
 
-class EventsCatalogProto(Protocol):
-    @property
-    def duration_min(self) -> int: ...
-    @property
-    def earliest_hour(self) -> int: ...
-    @property
-    def boost(self) -> float: ...
-    @property
-    def bonus_cap(self) -> int: ...
-    @property
-    def games(self) -> Mapping[str, EventGameProto]: ...
+@dataclass(frozen=True)
+class CritOreContract:
+    id: str
+    name: str
+    mark: str
+    weight: int
+    value: int
 
 
-class ToolProto(Protocol):
-    @property
-    def key(self) -> str: ...
-    @property
-    def name(self) -> str: ...
-    @property
-    def mark(self) -> str: ...
-    @property
-    def effect(self) -> str: ...
+@dataclass(frozen=True)
+class WorkerContract:
+    key: str
+    name: str
+    mark: str
+    rate: float
+    contract_fee: int
+    ore_power: float
+    relic_power: float
 
 
-class CritOreProto(Protocol):
-    @property
-    def id(self) -> str: ...
-    @property
-    def name(self) -> str: ...
-    @property
-    def mark(self) -> str: ...
-    @property
-    def weight(self) -> int: ...
-    @property
-    def value(self) -> int: ...
+@dataclass(frozen=True)
+class OreContract:
+    id: str
+    name: str
+    mark: str
+    prob: float | None
+    value: int
 
 
-class WorkerProto(Protocol):
-    @property
-    def key(self) -> str: ...
-    @property
-    def name(self) -> str: ...
-    @property
-    def mark(self) -> str: ...
-    @property
-    def rate(self) -> float: ...
-    @property
-    def contract_fee(self) -> int: ...
-    @property
-    def ore_power(self) -> float: ...
-    @property
-    def relic_power(self) -> float: ...
+@dataclass(frozen=True)
+class RelicDropContract:
+    id: str
+    name: str
+    mark: str
+    prob: float
+    value: int
 
 
-class OreProto(Protocol):
-    @property
-    def id(self) -> str: ...
-    @property
-    def name(self) -> str: ...
-    @property
-    def mark(self) -> str: ...
-    @property
-    def prob(self) -> float | None: ...
-    @property
-    def value(self) -> int: ...
+@dataclass(frozen=True)
+class LaborCatalogContract:
+    tools: tuple[ToolContract, ...]
+    max_level: int
+    upgrade_cost: tuple[int, ...]
+    max_clicks_per_day: int
+    over_cap_pay: int
+    base_pay: int
+    pay_per_level: int
+    fatigue_max: float
+    fatigue_gain: float
+    gain_cut_per_level: float
+    late_gain_cut_per_level: float
+    early_levels: int
+    min_pay_rate: float
+    recover_per_sec: float
+    drink_recover: float
+    click_interval: float
+    crit_base: float
+    crit_per_level: float
+    crit_worker_bonus: float
+    crit_max: float
+    crit_mult: int
+    crit_ore_chance: float
+    crit_ores: tuple[CritOreContract, ...]
+    combo_size: int
+    combo_bonus: float
+    terrain_kinds: tuple[str, ...]
+    terrain_hit_bonus: float
+    terrain_fatigue_cut: float
+    terrain_silver_mult: int
+    workers: tuple[WorkerContract, ...]
+    contract_days: int
+    foreman_luck: float
+    coal_p: float
+    ores: tuple[OreContract, ...]
+    flat_ores: tuple[str, ...]
+    ore_big: tuple[str, ...]
+    relics: tuple[RelicDropContract, ...]
+    relic_big: tuple[str, ...]
+    slots_base: int
+    dorm_cost: tuple[int, ...]
+    dorm_max: int
+    stock_hours: float
+    click_gap_max: float
+    mech_cv_max: float
+    mech_min_clicks: int
+    suspect_hours: int
 
 
-class RelicDropProto(Protocol):
-    @property
-    def id(self) -> str: ...
-    @property
-    def name(self) -> str: ...
-    @property
-    def mark(self) -> str: ...
-    @property
-    def prob(self) -> float: ...
-    @property
-    def value(self) -> int: ...
+@dataclass(frozen=True)
+class HorseStatContract:
+    key: str
+    name: str
+    default: int
+    style: str
 
 
-class LaborCatalogProto(Protocol):
-    @property
-    def tools(self) -> tuple[ToolProto, ...]: ...
-    @property
-    def max_level(self) -> int: ...
-    @property
-    def upgrade_cost(self) -> tuple[int, ...]: ...
-    @property
-    def max_clicks_per_day(self) -> int: ...
-    @property
-    def over_cap_pay(self) -> int: ...
-    @property
-    def base_pay(self) -> int: ...
-    @property
-    def pay_per_level(self) -> int: ...
-    @property
-    def fatigue_max(self) -> float: ...
-    @property
-    def fatigue_gain(self) -> float: ...
-    @property
-    def gain_cut_per_level(self) -> float: ...
-    @property
-    def late_gain_cut_per_level(self) -> float: ...
-    @property
-    def early_levels(self) -> int: ...
-    @property
-    def min_pay_rate(self) -> float: ...
-    @property
-    def recover_per_sec(self) -> float: ...
-    @property
-    def drink_recover(self) -> float: ...
-    @property
-    def click_interval(self) -> float: ...
-    @property
-    def crit_base(self) -> float: ...
-    @property
-    def crit_per_level(self) -> float: ...
-    @property
-    def crit_worker_bonus(self) -> float: ...
-    @property
-    def crit_max(self) -> float: ...
-    @property
-    def crit_mult(self) -> int: ...
-    @property
-    def crit_ore_chance(self) -> float: ...
-    @property
-    def crit_ores(self) -> tuple[CritOreProto, ...]: ...
-    @property
-    def combo_size(self) -> int: ...
-    @property
-    def combo_bonus(self) -> float: ...
-    @property
-    def terrain_kinds(self) -> tuple[str, ...]: ...
-    @property
-    def terrain_hit_bonus(self) -> float: ...
-    @property
-    def terrain_fatigue_cut(self) -> float: ...
-    @property
-    def terrain_silver_mult(self) -> int: ...
-    @property
-    def workers(self) -> tuple[WorkerProto, ...]: ...
-    @property
-    def contract_days(self) -> int: ...
-    @property
-    def foreman_luck(self) -> float: ...
-    @property
-    def coal_p(self) -> float: ...
-    @property
-    def ores(self) -> tuple[OreProto, ...]: ...
-    @property
-    def flat_ores(self) -> tuple[str, ...]: ...
-    @property
-    def ore_big(self) -> tuple[str, ...]: ...
-    @property
-    def relics(self) -> tuple[RelicDropProto, ...]: ...
-    @property
-    def relic_big(self) -> tuple[str, ...]: ...
-    @property
-    def slots_base(self) -> int: ...
-    @property
-    def dorm_cost(self) -> tuple[int, ...]: ...
-    @property
-    def dorm_max(self) -> int: ...
-    @property
-    def stock_hours(self) -> float: ...
-    @property
-    def click_gap_max(self) -> float: ...
-    @property
-    def mech_cv_max(self) -> float: ...
-    @property
-    def mech_min_clicks(self) -> int: ...
-    @property
-    def suspect_hours(self) -> int: ...
+@dataclass(frozen=True)
+class GoingContract:
+    name: str
+    penalty: float
+    weight: int
 
 
-class HorseStatProto(Protocol):
-    @property
-    def key(self) -> str: ...
-    @property
-    def name(self) -> str: ...
-    @property
-    def default(self) -> int: ...
-    @property
-    def style(self) -> str: ...
+@dataclass(frozen=True)
+class FormContract:
+    value: int
+    mark: str
+    mult: float
+    odds_mult: float
 
 
-class GoingProto(Protocol):
-    @property
-    def name(self) -> str: ...
-    @property
-    def penalty(self) -> float: ...
-    @property
-    def weight(self) -> int: ...
+@dataclass(frozen=True)
+class StyleContract:
+    key: str
+    name: str
+    mark: str
+    early: float
+    late: float
 
 
-class FormProto(Protocol):
-    @property
-    def value(self) -> int: ...
-    @property
-    def mark(self) -> str: ...
-    @property
-    def mult(self) -> float: ...
-    @property
-    def odds_mult(self) -> float: ...
+@dataclass(frozen=True)
+class HorseCatalogContract:
+    stats: tuple[HorseStatContract, ...]
+    stat_total: int
+    stat_min: int
+    stat_max: int
+    carrot_points: int
+    gold_carrot_points: int
+    gold_carrot_max: int
+    field_size: int
+    name_max: int
+    max_horses: int
+    coats: Sequence[str]
+    silks: Sequence[str]
+    distances: tuple[int, ...]
+    goings: tuple[GoingContract, ...]
+    forms: tuple[FormContract, ...]
+    styles: tuple[StyleContract, ...]
+    pace_factor: float
+    takeout: float
+    odds_sims: int
+    max_odds: float
+    min_stake: int
+    max_stake: int
+    max_race_stake: int
+    entry_fee: int
+    prizes: tuple[int, int, int]
+    major_hour: int
+    major_prizes: tuple[int, int, int]
+    major_house_topup: int
+    ticks: int
+    max_ticks: int
+    fatigue_max: float
+    noise: float
+    luck: float
+    weekday_hours: tuple[int, ...]
+    weekend_hours: tuple[int, ...]
+    entry_open_min: int
+    entry_lead_min: int
+    bet_lead_sec: int
+    bet_kinds: Mapping[str, str]
+    multi_kinds: tuple[str, ...]
+    combo_size: Mapping[str, int]
+    combo_takeout: float
+    max_combo_odds: float
+    record_prior_runs: int
+    first_run_factor: float
+    place_cap: float
+    ability_prior_weight: float
+    max_races: int
+    retire_win: int
+    retire_place: int
+    retire_loss: int
+    retire_max: int
+    retire_fee_max: int
+    npc_names: Sequence[str]
+    banned_name_chars: str
 
 
-class StyleProto(Protocol):
-    @property
-    def key(self) -> str: ...
-    @property
-    def name(self) -> str: ...
-    @property
-    def mark(self) -> str: ...
-    @property
-    def early(self) -> float: ...
-    @property
-    def late(self) -> float: ...
+@dataclass(frozen=True)
+class GamesCommonContract:
+    min_bet: int
 
 
-class HorseCatalogProto(Protocol):
-    @property
-    def stats(self) -> tuple[HorseStatProto, ...]: ...
-    @property
-    def stat_total(self) -> int: ...
-    @property
-    def stat_min(self) -> int: ...
-    @property
-    def stat_max(self) -> int: ...
-    @property
-    def carrot_points(self) -> int: ...
-    @property
-    def gold_carrot_points(self) -> int: ...
-    @property
-    def gold_carrot_max(self) -> int: ...
-    @property
-    def field_size(self) -> int: ...
-    @property
-    def name_max(self) -> int: ...
-    @property
-    def max_horses(self) -> int: ...
-    @property
-    def coats(self) -> Sequence[str]: ...
-    @property
-    def silks(self) -> Sequence[str]: ...
-    @property
-    def distances(self) -> tuple[int, ...]: ...
-    @property
-    def goings(self) -> tuple[GoingProto, ...]: ...
-    @property
-    def forms(self) -> tuple[FormProto, ...]: ...
-    @property
-    def styles(self) -> tuple[StyleProto, ...]: ...
-    @property
-    def pace_factor(self) -> float: ...
-    @property
-    def takeout(self) -> float: ...
-    @property
-    def odds_sims(self) -> int: ...
-    @property
-    def max_odds(self) -> float: ...
-    @property
-    def min_stake(self) -> int: ...
-    @property
-    def max_stake(self) -> int: ...
-    @property
-    def max_race_stake(self) -> int: ...
-    @property
-    def entry_fee(self) -> int: ...
-    @property
-    def prizes(self) -> tuple[int, int, int]: ...
-    @property
-    def major_hour(self) -> int: ...
-    @property
-    def major_prizes(self) -> tuple[int, int, int]: ...
-    @property
-    def major_house_topup(self) -> int: ...
-    @property
-    def ticks(self) -> int: ...
-    @property
-    def max_ticks(self) -> int: ...
-    @property
-    def fatigue_max(self) -> float: ...
-    @property
-    def noise(self) -> float: ...
-    @property
-    def luck(self) -> float: ...
-    @property
-    def weekday_hours(self) -> tuple[int, ...]: ...
-    @property
-    def weekend_hours(self) -> tuple[int, ...]: ...
-    @property
-    def entry_open_min(self) -> int: ...
-    @property
-    def entry_lead_min(self) -> int: ...
-    @property
-    def bet_lead_sec(self) -> int: ...
-    @property
-    def bet_kinds(self) -> Mapping[str, str]: ...
-    @property
-    def multi_kinds(self) -> tuple[str, ...]: ...
-    @property
-    def combo_size(self) -> Mapping[str, int]: ...
-    @property
-    def combo_takeout(self) -> float: ...
-    @property
-    def max_combo_odds(self) -> float: ...
-    @property
-    def record_prior_runs(self) -> int: ...
-    @property
-    def first_run_factor(self) -> float: ...
-    @property
-    def place_cap(self) -> float: ...
-    @property
-    def ability_prior_weight(self) -> float: ...
-    @property
-    def max_races(self) -> int: ...
-    @property
-    def retire_win(self) -> int: ...
-    @property
-    def retire_place(self) -> int: ...
-    @property
-    def retire_loss(self) -> int: ...
-    @property
-    def retire_max(self) -> int: ...
-    @property
-    def retire_fee_max(self) -> int: ...
-    @property
-    def npc_names(self) -> Sequence[str]: ...
-    @property
-    def banned_name_chars(self) -> str: ...
+@dataclass(frozen=True)
+class SlotSymbolContract:
+    symbol: str
+    weight: int
+    three_mult: int
 
 
-class GamesCommonProto(Protocol):
-    @property
-    def min_bet(self) -> int: ...
+@dataclass(frozen=True)
+class SlotSectionContract:
+    symbols: tuple[SlotSymbolContract, ...]
+    cherry_two: float
+    cherry_one: float
 
 
-class SlotSymbolProto(Protocol):
-    @property
-    def symbol(self) -> str: ...
-    @property
-    def weight(self) -> int: ...
-    @property
-    def three_mult(self) -> int: ...
+@dataclass(frozen=True)
+class RouletteBetContract:
+    label: str
+    mult: int
 
 
-class SlotSectionProto(Protocol):
-    @property
-    def symbols(self) -> tuple[SlotSymbolProto, ...]: ...
-    @property
-    def cherry_two(self) -> float: ...
-    @property
-    def cherry_one(self) -> float: ...
+@dataclass(frozen=True)
+class RouletteSectionContract:
+    red: tuple[int, ...]
+    bets: Mapping[str, RouletteBetContract]
 
 
-class RouletteBetProto(Protocol):
-    @property
-    def label(self) -> str: ...
-    @property
-    def mult(self) -> int: ...
+@dataclass(frozen=True)
+class BlackjackSectionContract:
+    suits: Sequence[str]
+    ranks: Sequence[str]
 
 
-class RouletteSectionProto(Protocol):
-    @property
-    def red(self) -> tuple[int, ...]: ...
-    @property
-    def bets(self) -> Mapping[str, RouletteBetProto]: ...
-    @property
-    def color_emoji(self) -> Mapping[str, str]: ...
+@dataclass(frozen=True)
+class ChinchiroRoleContract:
+    name: str
+    mult: int
 
 
-class BlackjackSectionProto(Protocol):
-    @property
-    def suits(self) -> Sequence[str]: ...
-    @property
-    def ranks(self) -> Sequence[str]: ...
+@dataclass(frozen=True)
+class ChinchiroSectionContract:
+    max_rolls: int
+    roles: Mapping[str, ChinchiroRoleContract]
+    hifumi_factor: int
 
 
-class ChinchiroRoleProto(Protocol):
-    @property
-    def name(self) -> str: ...
-    @property
-    def mult(self) -> int: ...
+@dataclass(frozen=True)
+class PachinkoRoundContract:
+    name: str
+    mult: int
+    prob: float
 
 
-class ChinchiroSectionProto(Protocol):
-    @property
-    def max_rolls(self) -> int: ...
-    @property
-    def dice_faces(self) -> Mapping[int, str]: ...
-    @property
-    def roles(self) -> Mapping[str, ChinchiroRoleProto]: ...
-    @property
-    def hifumi_factor(self) -> int: ...
+@dataclass(frozen=True)
+class ProbBonusContract:
+    prob: float
+    bonus: float
 
 
-class PachinkoRoundProto(Protocol):
-    @property
-    def name(self) -> str: ...
-    @property
-    def mult(self) -> int: ...
-    @property
-    def prob(self) -> float: ...
+@dataclass(frozen=True)
+class PachinkoSectionContract:
+    reel_symbols: Sequence[str]
+    small: Sequence[str]
+    medium: Sequence[str]
+    balls_per_set: int
+    p_start: float
+    max_sets: int
+    analysis_max: int
+    rounds: tuple[PachinkoRoundContract, ...]
+    continue_prob: float
+    omen_table: Mapping[str, ProbBonusContract]
+    tier_table: Mapping[str, ProbBonusContract]
+    hit_target: float
+    revive_chance: Mapping[str, float]
+    pseudo_counts: Mapping[str, Sequence[int]]
 
 
-class ProbBonusProto(Protocol):
-    @property
-    def prob(self) -> float: ...
-    @property
-    def bonus(self) -> float: ...
+@dataclass(frozen=True)
+class RtplevelSectionContract:
+    games: tuple[str, ...]
+    levels: tuple[int, ...]
+    default_level: int
+    step: float
+    chinchiro_rtp: float
+    chinchiro_w: float
+    blackjack_rtp: float
+    blackjack_w: float
+    roulette_default_kind: str
 
 
-class PachinkoStoryProto(Protocol):
-    @property
-    def title(self) -> str: ...
-    @property
-    def sub(self) -> str: ...
-
-
-class PachinkoReviveProto(Protocol):
-    @property
-    def line(self) -> str: ...
-    @property
-    def sub(self) -> str: ...
-
-
-class PachinkoSectionProto(Protocol):
-    @property
-    def reel_symbols(self) -> Sequence[str]: ...
-    @property
-    def small(self) -> Sequence[str]: ...
-    @property
-    def medium(self) -> Sequence[str]: ...
-    @property
-    def balls_per_set(self) -> int: ...
-    @property
-    def p_start(self) -> float: ...
-    @property
-    def max_sets(self) -> int: ...
-    @property
-    def analysis_max(self) -> int: ...
-    @property
-    def rounds(self) -> tuple[PachinkoRoundProto, ...]: ...
-    @property
-    def continue_prob(self) -> float: ...
-    @property
-    def omen_table(self) -> Mapping[str, ProbBonusProto]: ...
-    @property
-    def tier_table(self) -> Mapping[str, ProbBonusProto]: ...
-    @property
-    def hit_target(self) -> float: ...
-    @property
-    def omen_text(self) -> Mapping[str, str]: ...
-    @property
-    def spinning(self) -> str: ...
-    @property
-    def step_text(self) -> Sequence[str]: ...
-    @property
-    def step_icon(self) -> Sequence[str]: ...
-    @property
-    def steps_of(self) -> Mapping[str, int]: ...
-    @property
-    def cutin(self) -> Mapping[str, Sequence[str]]: ...
-    @property
-    def stories(self) -> Mapping[str, Sequence[PachinkoStoryProto]]: ...
-    @property
-    def normal_whispers(self) -> Sequence[str]: ...
-    @property
-    def revive_chance(self) -> Mapping[str, float]: ...
-    @property
-    def revive_text(self) -> Sequence[PachinkoReviveProto]: ...
-    @property
-    def pseudo_counts(self) -> Mapping[str, Sequence[int]]: ...
-    @property
-    def flavor(self) -> Mapping[str, str]: ...
-
-
-class RtplevelSectionProto(Protocol):
-    @property
-    def games(self) -> tuple[str, ...]: ...
-    @property
-    def levels(self) -> tuple[int, ...]: ...
-    @property
-    def default_level(self) -> int: ...
-    @property
-    def step(self) -> float: ...
-    @property
-    def chinchiro_rtp(self) -> float: ...
-    @property
-    def chinchiro_w(self) -> float: ...
-    @property
-    def blackjack_rtp(self) -> float: ...
-    @property
-    def blackjack_w(self) -> float: ...
-    @property
-    def roulette_default_kind(self) -> str: ...
-
-
-class GamesCatalogProto(Protocol):
-    @property
-    def common(self) -> GamesCommonProto: ...
-    @property
-    def slot(self) -> SlotSectionProto: ...
-    @property
-    def roulette(self) -> RouletteSectionProto: ...
-    @property
-    def blackjack(self) -> BlackjackSectionProto: ...
-    @property
-    def chinchiro(self) -> ChinchiroSectionProto: ...
-    @property
-    def pachinko(self) -> PachinkoSectionProto: ...
-    @property
-    def rtplevel(self) -> RtplevelSectionProto: ...
+@dataclass(frozen=True)
+class GamesCatalogContract:
+    common: GamesCommonContract
+    slot: SlotSectionContract
+    roulette: RouletteSectionContract
+    blackjack: BlackjackSectionContract
+    chinchiro: ChinchiroSectionContract
+    pachinko: PachinkoSectionContract
+    rtplevel: RtplevelSectionContract

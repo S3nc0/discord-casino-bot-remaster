@@ -1,20 +1,24 @@
-"""市場イベント（ボラティリティ予告）の記録と、予告の抽選（Economy に混ぜ込む部品）。
+"""市場イベント（ボラティリティ予告）の記録と、予告の抽選。
 
 市場は全サーバー共通なので、イベントもサーバーに属さない（表は infra/db/schema/tables.py の market_events）。数字は domain/market_events.py。
 """
 
 import random
 import time
-from typing import Optional
+from typing import Any, Optional
 
 from domain import market_events as ev_mod
-from infra.db.base import EcoBase
+from domain.ports.repos import IMarketEventRepo
+from infra.db.base import EcoDb, ScopedRepo
 
 
-class MarketEventMixin(EcoBase):
+class MarketEventRepo(ScopedRepo, IMarketEventRepo):
     """ボラティリティ予告の抽選・取り出し。"""
 
-    def market_events(self, now: Optional[float] = None) -> list:
+    def __init__(self, db: EcoDb, guild_id: int = 0, strict: bool = False) -> None:
+        super().__init__(db, guild_id, strict)
+
+    def market_events(self, now: Optional[float] = None) -> list[Any]:
         """終わっていないイベントと、直近に終わったもの（古い順）。"""
         now = time.time() if now is None else now
         with self._lock:
@@ -25,7 +29,7 @@ class MarketEventMixin(EcoBase):
                 )
             ]
 
-    def vol_multipliers(self, now: Optional[float] = None) -> dict:
+    def vol_multipliers(self, now: Optional[float] = None) -> dict[str, Any]:
         """いま発生中のイベントによる、銘柄ごとの値動きの倍率 {銘柄: 倍率}（なければ空）。"""
         now = time.time() if now is None else now
         events = self.market_events(now)
@@ -36,13 +40,12 @@ class MarketEventMixin(EcoBase):
                 out[ev["symbol"]] = m
         return out
 
-    def event_step(self, now: float, rng=None, force: Optional[dict] = None) -> Optional[dict]:
-        """1分ごとに呼ぶ。終わっていないイベントも、終わって COOLDOWN_MIN 分以内のものもなければ、確率で新しい予告を出す。出したらその行を返す。
-
-        force を渡すと、抽選なしで、そのイベントを登録する（テスト・持ち主の手動用）。古い記録は消す。
-        """
+    def event_step(
+        self, now: float, rng: Any = None, force: Optional[dict[str, Any]] = None
+    ) -> Optional[dict[str, Any]]:
+        """1分ごとに呼ぶ。終わっていないイベントも、終わって COOLDOWN_MIN 分以内のものもなければ、確率で新しい予告を出す。出したらその行を返す。"""
         rng = rng or random.SystemRandom()
-        with self._lock, self._conn:
+        with self._db.tx():
             self._conn.execute("DELETE FROM market_events WHERE end_ts<?", (now - ev_mod.KEEP_DAYS * 86400,))
             recent = self._conn.execute(
                 "SELECT 1 FROM market_events WHERE end_ts>=? LIMIT 1", (now - ev_mod.COOLDOWN_MIN * 60,)

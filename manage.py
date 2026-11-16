@@ -16,24 +16,24 @@ from infra.catalogs import bind_catalogs
 bind_catalogs()
 
 from domain import approval  # noqa: E402
-from domain.ports import IEconomy  # noqa: E402
-from infra.db.economy import Economy  # noqa: E402
+from domain.ports.repos import IGuildRepo, IWalletRepo  # noqa: E402
+from infra.db.repositories import open_repositories  # noqa: E402
 from infra.paths import DB_PATH as _DB_PATH  # noqa: E402
 
 DB_PATH = str(_DB_PATH)
 LABEL = {approval.APPROVED: "許可", approval.PENDING: "承認待ち", approval.DENIED: "断った"}
 
 
-def cmd_grant(eco: IEconomy, args) -> int:
-    balance = eco.for_guild(args.guild_id).credit(args.user_id, args.amount, f"付与（管理）{args.reason}".strip())
+def cmd_grant(wallet: IWalletRepo, args) -> int:
+    balance = wallet.for_guild(args.guild_id).credit(args.user_id, args.amount, f"付与（管理）{args.reason}".strip())
     print(
         f"付与しました: サーバー {args.guild_id} / ユーザー {args.user_id} に {args.amount:,}ペリカ（残高 {balance:,}）"
     )
     return 0
 
 
-def cmd_servers(eco: IEconomy, _args) -> int:
-    rows = eco.list_guild_status()
+def cmd_servers(guild: IGuildRepo, _args) -> int:
+    rows = guild.list_guild_status()
     if not rows:
         print("記録されているサーバーはありません。")
     for r in rows:
@@ -57,8 +57,13 @@ def main(argv=None) -> int:
     if not os.path.exists(DB_PATH):
         print(f"エラー: {DB_PATH} が見つかりません。Bot のフォルダの中で実行してください。", file=sys.stderr)
         return 2
-    eco = Economy(DB_PATH, strict=True)
-    return {"grant": cmd_grant, "servers": cmd_servers}[args.command](eco, args)
+    repos = open_repositories(DB_PATH, strict=True)
+    try:
+        if args.command == "grant":
+            return cmd_grant(repos.wallet, args)
+        return cmd_servers(repos.guild, args)
+    finally:
+        repos.close()
 
 
 if __name__ == "__main__":

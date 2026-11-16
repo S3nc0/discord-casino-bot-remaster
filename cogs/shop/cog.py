@@ -4,13 +4,16 @@
 """
 
 import asyncio
+from typing import TYPE_CHECKING, Any, Optional
 
 import discord
 from discord import app_commands
 from discord.ext import commands, tasks
 
 from cogs.shared import ui
+from cogs.shared.bridges import BotBridges, IP2PNavigationBridge, IShopTitleBridge
 from cogs.shared.confirm import confirm_action as confirm_action  # noqa: F401
+from cogs.shared.tasks import allowed_guilds
 from cogs.shop import actions
 from cogs.shop.discord_ops import ShopError, apply_title_nick, set_color_role
 from cogs.shop.embeds import (  # noqa: F401
@@ -34,55 +37,71 @@ from cogs.shop.embeds import (  # noqa: F401
     tab_items,
 )
 from cogs.shop.views import ShopView
-from domain import approval, shop, teiai
-from infra import catalogs, logthrottle
+from domain import teiai
+from domain.ports import get_catalogs
+from domain.ports.repos import IGuildRepo
+from domain.ports.session import ISessionGuard
+from infra import logthrottle
+from services.shop import ShopService
 
-_SHOP_CFG = catalogs.shop()
+if TYPE_CHECKING:
+    from cogs.shared.bot import CasinoBot
+
+_SHOP_CFG = get_catalogs().shop()
 CONFIRM_FROM = _SHOP_CFG.confirm_from  # この金額以上の購入は、確認ボタンを挟む
 STATUS_NICK_MINUTES = _SHOP_CFG.status_nick_minutes  # 身分のニックネームを付け外しする確認の間隔
 STATUS_NICK_PER_GUILD = _SHOP_CFG.status_nick_per_guild  # 1回の確認で、1サーバーあたり扱う人数の上限
 
 
-class ShopCog(commands.Cog):
+class ShopCog(commands.Cog, IShopTitleBridge):
     CONFIRM_FROM = CONFIRM_FROM
 
-    def __init__(self, bot):
+    def __init__(
+        self,
+        bot: commands.Bot,
+        config: dict[str, Any],
+        shop_svc: ShopService,
+        guild_repo: IGuildRepo,
+        sessions: ISessionGuard,
+        p2p_bridge: Optional[IP2PNavigationBridge] = None,
+    ) -> None:
         self.bot = bot
-        self._role_locks = {}  # サーバーごとのロール操作の鍵（同名ロールの二重作成を防ぐ）
-        self._nick_locks = {}  # 利用者ごとのニックネーム操作の鍵（連打で古い名前を元に計算しない）
+        self._config = config
+        self.service = shop_svc
+        self._guild_repo = guild_repo
+        self._sessions = sessions
+        self._p2p_bridge = p2p_bridge
+        self._role_locks: dict[int, asyncio.Lock] = {}  # サーバーごとのロール操作の鍵（同名ロールの二重作成を防ぐ）
+        self._nick_locks: dict[
+            int, asyncio.Lock
+        ] = {}  # 利用者ごとのニックネーム操作の鍵（連打で古い名前を元に計算しない）
+
+    def p2p_bridge(self) -> Optional[IP2PNavigationBridge]:
+        if self._p2p_bridge is not None:
+            return self._p2p_bridge
+        bridges = getattr(self.bot, "bridges", None)
+        return bridges.resolve(IP2PNavigationBridge) if isinstance(bridges, BotBridges) else None
 
     def _role_lock(self, guild_id: int) -> asyncio.Lock:
         return self._role_locks.setdefault(guild_id, asyncio.Lock())
 
-    def g(self, interaction: discord.Interaction):
-        """このサーバーのペリカの記録（ペリカはサーバーごとに別々）。"""
-        return self.bot.economy.for_guild(ui.guild_id_of(interaction))
-
     def _equipped_title(self, guild_id: int, user_id: int) -> str | None:
         """そのサーバーで装備している称号（景品はサーバーごとに別々）。"""
-        item = shop.BY_ID.get(self.bot.economy.for_guild(guild_id).get_profile(user_id)["title"])
-        return item.name if item else None
+        return self.service.equipped_title(guild_id, user_id)
 
     def _nick_tag(self, guild_id: int, user_id: int) -> str | None:
         """ニックネームの末尾に付ける名前。"""
-        eco = self.bot.economy.for_guild(guild_id)
-        status = eco.status(user_id)
-        if status != teiai.KATAGI:
-            return teiai.STATUS_NAME[status]
-        if eco.nick_pref(guild_id, user_id):
-            return self._equipped_title(guild_id, user_id)  # 自分で選んだ称号の表示を、富豪より優先する
-        return teiai.STATUS_NAME[teiai.WEALTHY] if eco.display_status(user_id) == teiai.WEALTHY else None
+        return self.service.nick_tag(guild_id, user_id)
 
     async def sync_status_nick(self, guild: discord.Guild, member: discord.Member) -> None:
         """身分に合わせて、ニックネームの末尾の【地下労働者】などを付ける・外す。"""
-        eco = self.bot.economy.for_guild(guild.id)
         tag = self._nick_tag(guild.id, member.id)
-        if tag is None and not eco.nick_managed(guild.id, member.id):
+        if tag is None and not self._guild_repo.nick_managed(guild.id, member.id):
             return
         if tag in teiai.STATUS_NAME.values():
-            eco.ensure_nick_row(guild.id, member.id)
+            self._guild_repo.ensure_nick_row(guild.id, member.id)
         async with self._nick_locks.setdefault(member.id, asyncio.Lock()):
-            await apply_title_nick(guild, member, self._nick_tag(guild.id, member.id), eco)
+            await apply_title_nick(guild, member, self._nick_tag(guild.id, member.id), self._guild_repo)
 
     async def sync_title_nick(
         self, user_id: int, here: discord.Guild | None = None, member: discord.Member | None = None
@@ -95,7 +114,7 @@ class ShopCog(commands.Cog):
         """称号の変更を、ニックネーム表示をONにしているサーバーへ反映する。"""
         async with self._nick_locks.setdefault(user_id, asyncio.Lock()):
             problem, others_failed = "", 0
-            for gid in self.bot.economy.nick_pref_guilds(user_id):
+            for gid in self._guild_repo.nick_pref_guilds(user_id):
                 guild = self.bot.get_guild(gid)
                 if guild is None or (here is not None and gid != here.id):
                     continue
@@ -107,7 +126,7 @@ class ShopCog(commands.Cog):
                         if is_here and member is not None
                         else (guild.get_member(user_id) or await guild.fetch_member(user_id))
                     )
-                    await apply_title_nick(guild, m, title, self.bot.economy)
+                    await apply_title_nick(guild, m, title, self._guild_repo)
                 except discord.NotFound:
                     continue
                 except ShopError as exc:
@@ -123,11 +142,14 @@ class ShopCog(commands.Cog):
                         others_failed += 1
             return problem, others_failed
 
-    async def cog_load(self):
+    async def cog_load(self) -> None:
         self.status_nick_tick.start()
 
     async def cog_unload(self) -> None:
         self.status_nick_tick.cancel()
+        bridges = getattr(self.bot, "bridges", None)
+        if isinstance(bridges, BotBridges):
+            bridges.unregister(IShopTitleBridge, self)
 
     @tasks.loop(minutes=STATUS_NICK_MINUTES)
     async def status_nick_tick(self):
@@ -156,11 +178,8 @@ class ShopCog(commands.Cog):
 
     async def run_status_nick(self) -> None:
         """借金・延滞・破産者の人のニックネームに【地下労働者】などを付け、カタギに戻った人から外す。"""
-        for guild in list(self.bot.guilds):
-            if not approval.is_allowed(self.bot.economy, self.bot.config, guild.id, 0):
-                continue
-            eco = self.bot.economy.for_guild(guild.id)
-            for user_id in eco.status_nick_targets()[:STATUS_NICK_PER_GUILD]:
+        for guild in allowed_guilds(self.bot, self._guild_repo, self._config):
+            for user_id in self._guild_repo.for_guild(guild.id).status_nick_targets()[:STATUS_NICK_PER_GUILD]:
                 member = guild.get_member(user_id)
                 if member is None:
                     continue
@@ -175,7 +194,7 @@ class ShopCog(commands.Cog):
 
     @commands.Cog.listener()
     async def on_guild_remove(self, guild: discord.Guild):
-        self.bot.economy.delete_guild_nick_prefs(guild.id)
+        self._guild_repo.delete_guild_nick_prefs(guild.id)
 
     @app_commands.command(name="ショップ", description="🛍️ 景品を見る・買う・身につける（ボタンで操作）")
     @app_commands.guild_only()
@@ -184,28 +203,24 @@ class ShopCog(commands.Cog):
         await interaction.response.send_message(embed=view.embed(), view=view, ephemeral=True)
 
     def _catalog_embed(self, guild_id: int, user_id: int, tab: str = "home") -> discord.Embed:
-        eco = self.bot.economy.for_guild(guild_id)
-        inv = eco.inventory(user_id)
-        me = eco.peek_stats(user_id)
-        balance = me["balance"] if me else 0
-        waiting = len(eco.auction_list()) + len(eco.auction_horses()) if tab == "home" else 0
-        stocks = (
-            {i.id: eco.shop_stock(user_id, i.id) for i in tab_items(tab) if i.id in shop.STOCK_RULES}
-            if tab != "home"
-            else None
+        inv = self.service.inventory(guild_id, user_id)
+        balance = self.service.peek_balance(guild_id, user_id)
+        waiting = (
+            len(self.service.auction_items(guild_id)) + len(self.service.auction_horses(guild_id))
+            if tab == "home"
+            else 0
         )
+        stocks = self.service.stocks_for_items(guild_id, user_id, tab_items(tab)) if tab != "home" else None
         return catalog_embed(inv, balance, tab=tab, waiting=waiting, stocks=stocks)
 
     def _auction_embed(
         self, guild_id: int, user_id: int, tab: str = "teiai", p2p_filter: str = "all", p2p_order: str = "end"
     ) -> discord.Embed:
-        eco = self.bot.economy.for_guild(guild_id)
-        me = eco.peek_stats(user_id)
-        balance = me["balance"] if me else 0
+        balance = self.service.peek_balance(guild_id, user_id)
         if tab == "players":
             _label, kind, mode = P2P_FILTERS[p2p_filter]
-            rows = eco.p2p_active(kind, limit=SHOWN, mode=mode, order=p2p_order)
-            p2p_rows = [(r, eco.p2p_label(r)) for r in rows]
+            rows = self.service.p2p_active(guild_id, kind, SHOWN, mode, p2p_order)
+            p2p_rows = [(r, self.service.p2p_label(guild_id, r)) for r in rows]
             return auction_embed(
                 balance,
                 tab=tab,
@@ -218,13 +233,12 @@ class ShopCog(commands.Cog):
             tab=tab,
             p2p_filter=p2p_filter,
             p2p_order=p2p_order,
-            listed=eco.auction_list(),
-            horses=eco.auction_horses(),
+            listed=self.service.auction_items(guild_id),
+            horses=self.service.auction_horses(guild_id),
         )
 
     def _inventory_embed(self, guild_id: int, user_id: int) -> discord.Embed:
-        eco = self.bot.economy.for_guild(guild_id)
-        return inventory_embed(eco.inventory(user_id), eco.get_profile(user_id))
+        return inventory_embed(self.service.inventory(guild_id, user_id), self.service.profile(guild_id, user_id))
 
     async def buy_auction_horse(self, interaction: discord.Interaction, horse_id: int):
         await actions.buy_auction_horse(self, interaction, horse_id, confirm_fn=confirm_action)
@@ -248,5 +262,7 @@ class ShopCog(commands.Cog):
         await actions.set_title_display(self, interaction, mode)
 
 
-async def setup(bot):
-    await bot.add_cog(ShopCog(bot))
+async def setup(bot: "CasinoBot") -> None:
+    cog = ShopCog(bot, bot.config, bot.services.shop, bot.repos.guild, bot.sessions)
+    bot.bridges.register(IShopTitleBridge, cog)
+    await bot.add_cog(cog)

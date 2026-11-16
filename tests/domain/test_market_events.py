@@ -7,11 +7,11 @@ from types import SimpleNamespace
 
 import pytest
 
-from cogs.market.cog import MarketCog, MarketView, OptionAmountModal
+from cogs.market.cog import MarketView, OptionAmountModal
 from domain import market, market_events
 from domain import options as opt
-from infra.db.economy import Economy
-from services.session import Sessions
+from infra.db.repositories import open_repositories
+from tests.support import make_market_cog, make_test_bot
 
 pytestmark = pytest.mark.real_scope
 
@@ -34,9 +34,9 @@ def event(symbol="numa", announce=NOW, factor=3.0):
 
 @pytest.fixture
 def root(tmp_path):
-    e = Economy(str(tmp_path / "t.db"), strict=True)
+    e = open_repositories(str(tmp_path / "t.db"), strict=True)
     for key, price in START.items():
-        e.market_set(time.time(), price, 0, key)
+        e.market.market_set(time.time(), price, 0, key)
     return e
 
 
@@ -98,21 +98,21 @@ def test_event_step_respects_probability_and_cooldown(root):
         def choice(self, seq):
             return seq[0]
 
-    assert root.event_step(NOW, Rng(0.99)) is None  # 外れ
-    first = root.event_step(NOW, Rng(0.0))  # 当たり
+    assert root.market_events.event_step(NOW, Rng(0.99)) is None  # 外れ
+    first = root.market_events.event_step(NOW, Rng(0.0))  # 当たり
     assert first and first["symbol"] == "cs" and first["start_ts"] == NOW + market_events.LEAD_MIN * MIN
-    assert root.event_step(NOW + 60, Rng(0.0)) is None  # 進行中は、新しい予告を出さない
+    assert root.market_events.event_step(NOW + 60, Rng(0.0)) is None  # 進行中は、新しい予告を出さない
     after = first["end_ts"] + 10
-    assert root.event_step(after, Rng(0.0)) is None  # 終わって間もない（クールダウン）
+    assert root.market_events.event_step(after, Rng(0.0)) is None  # 終わって間もない（クールダウン）
     later = first["end_ts"] + market_events.COOLDOWN_MIN * MIN + 10
-    assert root.event_step(later, Rng(0.0)) is not None  # クールダウンのあとは、また出る
+    assert root.market_events.event_step(later, Rng(0.0)) is not None  # クールダウンのあとは、また出る
 
 
 def test_vol_multipliers_only_while_the_event_is_active(root):
-    ev = root.event_step(NOW, force=event())
-    assert root.vol_multipliers(NOW) == {}  # 予告中
-    assert root.vol_multipliers(ev["start_ts"] + 1) == {"numa": 3.0}
-    assert root.vol_multipliers(ev["end_ts"] + 1) == {}
+    ev = root.market_events.event_step(NOW, force=event())
+    assert root.market_events.vol_multipliers(NOW) == {}  # 予告中
+    assert root.market_events.vol_multipliers(ev["start_ts"] + 1) == {"numa": 3.0}
+    assert root.market_events.vol_multipliers(ev["end_ts"] + 1) == {}
 
 
 # ----------------------------- オプションの値段への織り込み ----------------------------- #
@@ -145,10 +145,10 @@ def test_an_event_on_another_symbol_does_not_change_the_price():
 
 def test_no_front_running_buying_right_after_the_announcement_costs_the_same_as_just_before_the_start(root):
     eco = root.for_guild(G)
-    eco.credit(U, 20_000, "テスト")
-    ev = root.event_step(time.time(), force=event(announce=time.time()))
-    ok, early = eco.option_buy(U, opt.CALL, "numa", 1_000, ev["announce_ts"])
-    ok, late = eco.option_buy(U, opt.CALL, "numa", 1_000, ev["start_ts"] - 1)
+    eco.wallet.credit(U, 20_000, "テスト")
+    ev = root.market_events.event_step(time.time(), force=event(announce=time.time()))
+    ok, early = eco.options.option_buy(U, opt.CALL, "numa", 1_000, ev["announce_ts"])
+    ok, late = eco.options.option_buy(U, opt.CALL, "numa", 1_000, ev["start_ts"] - 1)
     assert early["units"] == pytest.approx(late["units"], rel=0.03)  # 予告の直後に仕込んでも、安く買えない
 
 
@@ -184,37 +184,40 @@ def test_alerts_need_enough_history():
 # ----------------------------- ロスカット水準の地図 ----------------------------- #
 def test_cut_map_finds_the_price_where_the_ratio_breaks(root):
     eco = root.for_guild(G)
-    assert eco.long_open(U, 10_000, 1000.0, 5, "cs").ok  # 10枚=10,000ペリカ分、5倍 → 担保2,000（残高3,000の範囲）
-    rows = eco.margin_cut_map()
+    assert eco.margin.long_open(
+        U, 10_000, 1000.0, 5, "cs"
+    ).ok  # 10枚=10,000ペリカ分、5倍 → 担保2,000（残高3,000の範囲）
+    rows = eco.margin.margin_cut_map()
     assert len(rows) == 1
     symbol, side, price, notional = rows[0]
     assert symbol == "cs" and side == "long" and price < 1000.0 and notional > 0
-    below = eco._margin_status_locked(U, {**eco.latest_prices(), "cs": price * 0.999})["ratio"]
-    above = eco._margin_status_locked(U, {**eco.latest_prices(), "cs": price * 1.001})["ratio"]
+    below = eco.margin.margin_status(U, {**eco.market.latest_prices(), "cs": price * 0.999})["ratio"]
+    above = eco.margin.margin_status(U, {**eco.market.latest_prices(), "cs": price * 1.001})["ratio"]
     assert below < market.LOSSCUT_RATIO <= above  # その価格を境に、維持率が 100% を割る
 
 
 def test_cut_map_is_empty_without_positions(root):
-    assert root.for_guild(G).margin_cut_map() == []
+    assert root.for_guild(G).margin.margin_cut_map() == []
 
 
 # ----------------------------- 市況の画面 ----------------------------- #
 @pytest.fixture
 def cog(root):
-    root.for_guild(G).credit(U, 30_000, "テスト")
-    cog = MarketCog(SimpleNamespace(economy=root, sessions=Sessions(cooldown=0), config={}))
-    cog._prices()  # このファイルで読み込んだ MarketCog で作る（他のテストが cogs を読み込み直しても、クラスがずれない）
+    root.for_guild(G).wallet.credit(U, 30_000, "テスト")
+    bot = make_test_bot(repos=root)
+    cog = make_market_cog(bot)
+    cog._prices()
     return cog
 
 
 def test_summary_shows_event_alert_and_cut_zones(cog):
     now = time.time()
-    cog.bot.economy.event_step(now, force=event(announce=now))
+    cog.bot.repos.market_events.event_step(now, force=event(announce=now))
     for s in market.SYMBOLS:  # 直近の履歴: CS だけ急騰（相関崩壊）
         for i in range(61):
             price = START[s.key] * ((1.10 if s.key == "cs" else 1.0) ** (i / 60))
-            cog.bot.economy.market_set(now - (60 - i) * 60, price, 0, s.key)
-    cog.bot.economy.for_guild(G).long_open(U, 20_000, cog._price("cs"), 5, "cs")
+            cog.bot.repos.market.market_set(now - (60 - i) * 60, price, 0, s.key)
+    cog.bot.repos.for_guild(G).margin.long_open(U, 20_000, cog._price("cs"), 5, "cs")
     embed = cog.summary_embed(G)
     names = [f.name for f in embed.fields]
     assert any("市場イベント" in n for n in names) and any("相関崩壊" in n for n in names)
@@ -230,7 +233,7 @@ def test_view_offers_quick_buy_buttons_only_while_an_event_exists(cog):
     plain = MarketView(cog, U, G)
     assert len(plain.children) == 2
     now = time.time()
-    cog.bot.economy.event_step(now, force=event(announce=now))
+    cog.bot.repos.market_events.event_step(now, force=event(announce=now))
     view = MarketView(cog, U, G)
     labels = [c.label for c in view.children if getattr(c, "label", None)]
     assert any("NUMAバイオの爆騰コール" in x for x in labels) and any("NUMAバイオの暴落プット" in x for x in labels)
@@ -244,7 +247,7 @@ def test_quick_buy_modal_buys_the_option(cog):
     it = It()
     asyncio.run(modal.on_submit(it))
     assert "爆騰コール" in it.sent[-1]["embed"].title
-    assert cog.bot.economy.for_guild(G).option_list(U)["active"][0]["symbol"] == "numa"
+    assert cog.bot.repos.for_guild(G).options.option_list(U)["active"][0]["symbol"] == "numa"
     bad = OptionAmountModal(cog, opt.PUT, "numa")
     bad.amount = SimpleNamespace(value="abc")
     it = It()
@@ -255,7 +258,9 @@ def test_quick_buy_modal_buys_the_option(cog):
 def test_tick_announces_and_applies_events(cog):
     """価格の更新（step_prices）が、予告の抽選と倍率の適用を呼ぶ。"""
     now = time.time()
-    cog.bot.economy.event_step(now - 20 * 60, force=event(announce=now - 20 * 60))  # 5分前に始まった（発生中）
+    cog.bot.repos.market_events.event_step(
+        now - 20 * 60, force=event(announce=now - 20 * 60)
+    )  # 5分前に始まった（発生中）
     new, _ = cog.step_prices()
     assert set(new) == {s.key for s in market.SYMBOLS}
-    assert cog.bot.economy.vol_multipliers(time.time()) == {"numa": 3.0}
+    assert cog.bot.repos.market_events.vol_multipliers(time.time()) == {"numa": 3.0}

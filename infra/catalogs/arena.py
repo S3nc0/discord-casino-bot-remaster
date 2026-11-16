@@ -3,11 +3,14 @@
 from functools import lru_cache
 
 from pydantic import Field
+from pydantic.dataclasses import dataclass as pydantic_dataclass
 
-from infra.catalogs.loader import StrictModel, load_yaml_model
+from domain.ports.catalog_types.arena import ArenaCatalogContract
+from infra.catalogs.loader import STRICT_CONFIG, load_yaml_model
 
 
-class ArenaCatalog(StrictModel):
+@pydantic_dataclass(frozen=True, config=STRICT_CONFIG, kw_only=True)
+class ArenaCatalog(ArenaCatalogContract):
     semi_hour: int = Field(ge=0, lt=24)
     final_hour: int = Field(ge=0, lt=24)
     fighter_names: tuple[str, ...] = Field(min_length=1)

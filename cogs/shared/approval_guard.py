@@ -5,7 +5,7 @@ from typing import TYPE_CHECKING, cast
 import discord
 
 from cogs.shared import ui
-from cogs.shared.cog_ports import IApprovalCogPort, get_cog_port
+from cogs.shared.bridges import IApprovalBridge, NoOpApprovalBridge
 from domain.approval import DENIED, DM_GROUP, is_allowed, owner_ids, requires_approval
 
 if TYPE_CHECKING:
@@ -30,18 +30,19 @@ async def guard(interaction: discord.Interaction) -> bool:
     if guild_id is None:
         return False
     bot = cast("CasinoBot", interaction.client)
-    if is_allowed(bot.economy, bot.config, guild_id, interaction.user.id):
+    guild_repo = bot.repos.guild
+    if is_allowed(guild_repo, bot.config, guild_id, interaction.user.id):
         return True
     if not requires_approval(bot.config):
         await interaction.response.send_message(
-            embed=ui.error_embed("このサーバーでは使えません", "この Bot は、許可されたサーバーでだけ遊べます。"),
+            embed=ui.error_embed("このサーバーでは使えません", "この Bot は、許可されたサーバーだけで遊べます。"),
             ephemeral=True,
         )
         return False
-    row = bot.economy.get_guild_status(guild_id)
-    cog = get_cog_port(bot, "ApprovalCog", IApprovalCogPort)
-    if cog is not None and interaction.guild is not None:
-        await cog.ensure_requested(interaction.guild)  # 未登録なら承認を依頼する／しばらくたっていれば催促する
+    row = guild_repo.get_guild_status(guild_id)
+    bridge = bot.bridges.resolve_or(IApprovalBridge, NoOpApprovalBridge())
+    if interaction.guild is not None:
+        await bridge.ensure_requested(interaction.guild)  # 未登録なら承認を依頼する／しばらくたっていれば催促する
     if row and row["status"] == DENIED:
         msg = "このサーバーでの利用は、Bot の持ち主に許可されていません。"
     else:

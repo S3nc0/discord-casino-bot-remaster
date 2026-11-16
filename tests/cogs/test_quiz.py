@@ -10,94 +10,102 @@ from cogs.quiz.cog import (
     AddModal,
     AnswerView,
     PublicButton,
-    QuizCog,
     parse_choices,
     public_embed,
     question_embed,
     record_answer,
 )
 from domain import teiai
-from infra.db.economy import INITIAL_BALANCE, Economy
+from domain.types import INITIAL_BALANCE
+from infra.db.quiz import QuizRepo
+from infra.db.repositories import open_repositories
+from tests.support import make_quiz_cog, make_test_bot
 
 NOW = 1_000_000.0
-REAL_GAMES_PLAYED = Economy._games_played
+REAL_GAMES_PLAYED = QuizRepo._games_played
 
 
 @pytest.fixture(autouse=True)
 def experienced_players(request, monkeypatch):
     """ふつうのテストでは、回答者はゲームを何回も遊んだ人にする（報酬の条件は、専用のテストで確かめる）。"""
     if not request.node.get_closest_marker("new_players"):
-        monkeypatch.setattr(Economy, "_games_played", lambda self, user_id: 99)
+        monkeypatch.setattr(QuizRepo, "_games_played", lambda self, guild_id, user_id: 99)
 
 
 @pytest.fixture
 def eco(tmp_path):
-    return Economy(str(tmp_path / "t.db"))
+    return open_repositories(str(tmp_path / "t.db"))
 
 
 def add(eco, q="首都は？", reward=100, expires=None, choices=("東京", "大阪", "京都", "名古屋")):
-    return eco.quiz_add(q, list(choices), "解説です", reward, expires, NOW)
+    return eco.quiz.quiz_add(q, list(choices), "解説です", reward, expires, NOW)
 
 
 def test_correct_answer_pays_once_and_wrong_pays_nothing(eco):
     qid = add(eco)
-    ok, res = eco.quiz_answer(1, qid, "東京", NOW)
-    assert ok and res["correct"] and res["reward"] == 100 and eco.balance(1) == INITIAL_BALANCE + 100
-    ok_dup, why_dup = eco.quiz_answer(1, qid, "東京", NOW)
+    ok, res = eco.quiz.quiz_answer(1, qid, "東京", NOW)
+    assert ok and res["correct"] and res["reward"] == 100 and eco.wallet.balance(1) == INITIAL_BALANCE + 100
+    ok_dup, why_dup = eco.quiz.quiz_answer(1, qid, "東京", NOW)
     assert not ok_dup and why_dup.code == "quiz_already_answered"  # 二重に受け取れない
-    ok, res = eco.quiz_answer(2, qid, "大阪", NOW)
-    assert ok and not res["correct"] and res["answer"] == "東京" and eco.balance(2) == INITIAL_BALANCE
-    assert not eco.quiz_answer(2, qid, "東京", NOW)[0]  # 間違えたあとのやり直し不可
+    ok, res = eco.quiz.quiz_answer(2, qid, "大阪", NOW)
+    assert ok and not res["correct"] and res["answer"] == "東京" and eco.wallet.balance(2) == INITIAL_BALANCE
+    assert not eco.quiz.quiz_answer(2, qid, "東京", NOW)[0]  # 間違えたあとのやり直し不可
 
 
 def test_next_skips_answered_and_expired_in_order(eco):
     a, b, c = add(eco, "A"), add(eco, "B", expires=NOW + 10), add(eco, "C")
-    q, n = eco.quiz_next(1, NOW)
+    q, n = eco.quiz.quiz_next(1, NOW)
     assert (q["id"], n) == (a, 3)
-    eco.quiz_answer(1, a, "東京", NOW)
-    assert eco.quiz_next(1, NOW)[0]["id"] == b
-    assert eco.quiz_next(1, NOW + 11)[0]["id"] == c and eco.quiz_next(1, NOW + 11)[1] == 1  # 期限切れは出ない
-    assert eco.quiz_next(2, NOW)[1] == 3  # 別の人には全部残る
-    assert not eco.quiz_answer(1, b, "東京", NOW + 11)[0]  # 期限後の回答は不可
+    eco.quiz.quiz_answer(1, a, "東京", NOW)
+    assert eco.quiz.quiz_next(1, NOW)[0]["id"] == b
+    assert eco.quiz.quiz_next(1, NOW + 11)[0]["id"] == c and eco.quiz.quiz_next(1, NOW + 11)[1] == 1  # 期限切れは出ない
+    assert eco.quiz.quiz_next(2, NOW)[1] == 3  # 別の人には全部残る
+    assert not eco.quiz.quiz_answer(1, b, "東京", NOW + 11)[0]  # 期限後の回答は不可
 
 
 def test_empty_bank(eco):
-    assert eco.quiz_next(1, NOW) == (None, 0)
+    assert eco.quiz.quiz_next(1, NOW) == (None, 0)
 
 
 @pytest.mark.real_scope
 def test_answers_are_per_guild_but_questions_are_shared(tmp_path):
-    eco = Economy(str(tmp_path / "t.db"))
+    eco = open_repositories(str(tmp_path / "t.db"))
     qid = add(eco)
     g1, g2 = eco.for_guild(10), eco.for_guild(20)
-    assert g1.quiz_answer(1, qid, "東京", NOW)[0]
-    assert g1.quiz_next(1, NOW)[0] is None and g2.quiz_next(1, NOW)[0]["id"] == qid  # 別サーバーではまた答えられる
+    assert g1.quiz.quiz_answer(1, qid, "東京", NOW)[0]
+    assert (
+        g1.quiz.quiz_next(1, NOW)[0] is None and g2.quiz.quiz_next(1, NOW)[0]["id"] == qid
+    )  # 別サーバーではまた答えられる
 
 
 @pytest.mark.real_scope
 def test_reward_goes_to_the_guild_account_where_answered(tmp_path):
-    eco = Economy(str(tmp_path / "t.db"))
+    eco = open_repositories(str(tmp_path / "t.db"))
     qid = add(eco)
-    eco.for_guild(10).quiz_answer(1, qid, "東京", NOW)
-    assert eco.for_guild(10).balance(1) == INITIAL_BALANCE + 100 and eco.for_guild(20).balance(1) == INITIAL_BALANCE
+    eco.for_guild(10).quiz.quiz_answer(1, qid, "東京", NOW)
+    assert (
+        eco.for_guild(10).wallet.balance(1) == INITIAL_BALANCE + 100
+        and eco.for_guild(20).wallet.balance(1) == INITIAL_BALANCE
+    )
 
 
 def test_list_counts_and_delete_removes_answers(eco):
     qid = add(eco)
-    eco.quiz_answer(1, qid, "東京", NOW)
-    eco.quiz_answer(2, qid, "大阪", NOW)
-    row = eco.quiz_list()[0]
+    eco.quiz.quiz_answer(1, qid, "東京", NOW)
+    eco.quiz.quiz_answer(2, qid, "大阪", NOW)
+    row = eco.quiz.quiz_list()[0]
     assert (row["answered"], row["right_count"]) == (2, 1)
-    assert eco.quiz_delete(qid) and not eco.quiz_delete(qid) and eco.quiz_list() == []
+    assert eco.quiz.quiz_delete(qid) and not eco.quiz.quiz_delete(qid) and eco.quiz.quiz_list() == []
 
 
 def test_reward_repays_debt(eco):
     qid = add(eco, reward=300)
-    eco.stats(1)
-    eco._conn.execute("UPDATE users SET debt=200 WHERE user_id=1")
-    eco.quiz_answer(1, qid, "東京", NOW)
+    eco.wallet.stats(1)
+    with eco.db.tx():
+        eco.db.conn.execute("UPDATE users SET debt=200 WHERE user_id=1")
+    eco.quiz.quiz_answer(1, qid, "東京", NOW)
     assert (
-        eco._conn.execute("SELECT debt FROM users WHERE user_id=1").fetchone()[0] == 110
+        eco.db.conn.execute("SELECT debt FROM users WHERE user_id=1").fetchone()[0] == 110
     )  # 報酬300の3割（90）が、天引きされる
 
 
@@ -110,7 +118,7 @@ def test_parse_choices_rules():
 
 def test_question_embed_lists_shuffled_choices(eco):
     qid = add(eco)
-    q = eco.quiz_get(qid)
+    q = eco.quiz.quiz_get(qid)
     e = question_embed(q, ["大阪", "東京", "京都", "名古屋"], 3)
     assert "**B.** 東京" in e.description and "あと3問" in e.footer.text
 
@@ -133,18 +141,8 @@ class Resp:
 
 
 def make_cog(eco, owners=(99,)):
-    bot = SimpleNamespace(
-        config={"owner_ids": list(owners)},
-        guilds=[],
-        economy=SimpleNamespace(
-            for_guild=lambda gid: eco,
-            quiz_add=eco.quiz_add,
-            quiz_list=eco.quiz_list,
-            quiz_delete=eco.quiz_delete,
-            quiz_get=eco.quiz_get,
-        ),
-    )
-    return QuizCog(bot)
+    bot = make_test_bot(repos=eco, config={"owner_ids": list(owners)})
+    return make_quiz_cog(bot)
 
 
 def test_play_flow_buttons_pay_the_player_only(eco):
@@ -155,7 +153,7 @@ def test_play_flow_buttons_pay_the_player_only(eco):
     assert log == [("send", "📰 クイズ #1")] and qid == 1
 
     async def run():
-        view = AnswerView(cog, 1, eco.quiz_get(qid), ["大阪", "東京", "京都", "名古屋"])
+        view = AnswerView(cog._quiz, 1, eco.quiz.quiz_get(qid), ["大阪", "東京", "京都", "名古屋"])
         stranger = SimpleNamespace(user=SimpleNamespace(id=2), response=Resp(log))
         assert await view.interaction_check(stranger) is False  # 他人は押せない
         mine = SimpleNamespace(user=SimpleNamespace(id=1), guild_id=1, response=Resp(log))
@@ -163,7 +161,7 @@ def test_play_flow_buttons_pay_the_player_only(eco):
 
     asyncio.run(run())
     assert log[-1][:2] == ("edit", "⭕ 正解！") and log[-1][2] is None  # ボタンは外れる
-    assert eco.balance(1) == INITIAL_BALANCE + 100 and eco.balance(2) == INITIAL_BALANCE
+    assert eco.wallet.balance(1) == INITIAL_BALANCE + 100 and eco.wallet.balance(2) == INITIAL_BALANCE
 
 
 def test_play_with_empty_bank(eco):
@@ -176,7 +174,7 @@ def test_admin_helpers_list_and_remove(eco):
     cog = make_cog(eco)
     assert "まだありません" in cog.listing_embed().description
     qid = add(eco)
-    eco.quiz_answer(1, qid, "東京", NOW)
+    eco.quiz.quiz_answer(1, qid, "東京", NOW)
     assert f"#{qid}" in cog.listing_embed().description and "1/1人正解" in cog.listing_embed().description
     assert isinstance(cog.add_modal(False), AddModal) and cog.add_modal(False).announce is False
     assert cog.remove(qid) and not cog.remove(qid)
@@ -186,7 +184,7 @@ def test_modal_validates_and_saves(eco):
     cog, log = make_cog(eco), []
 
     def modal(choices, reward="150", days="3日"):
-        m = AddModal(cog, announce=False)
+        m = AddModal(cog._quiz, cog, announce=False)
         for field, value in (
             (m.question, "問題"),
             (m.choices, choices),
@@ -207,20 +205,20 @@ def test_modal_validates_and_saves(eco):
     asyncio.run(modal("a\nb\nc").on_submit(inter))  # 選択肢が足りない
     asyncio.run(modal("a\nb\nc\nd", reward="abc").on_submit(inter))  # 数字ではない
     asyncio.run(modal("a\nb\nc\nd", reward="0").on_submit(inter))  # 範囲外
-    assert log == [("send", "❌ 入力エラー")] * 3 and eco.quiz_list() == []
+    assert log == [("send", "❌ 入力エラー")] * 3 and eco.quiz.quiz_list() == []
     log.clear()
     asyncio.run(modal("a\nb\nc\nd").on_submit(inter))
     assert log == [("defer",)] and followups == ["✅ クイズ #1 を登録しました"]
-    q = eco.quiz_list()[0]
+    q = eco.quiz.quiz_list()[0]
     assert (q["choices"][0], q["reward"]) == ("a", 150) and q["expires"] is not None
 
 
 def test_display_order_is_fixed_at_registration_and_keeps_the_answer(eco):
     qid = add(eco)
-    first = eco.quiz_get(qid)["order"]
-    assert sorted(first) == sorted(["東京", "大阪", "京都", "名古屋"]) and eco.quiz_get(qid)["order"] == first
-    assert eco.quiz_list()[0]["order"] == first
-    seen = {tuple(eco.quiz_get(add(eco))["order"]) for _ in range(30)}
+    first = eco.quiz.quiz_get(qid)["order"]
+    assert sorted(first) == sorted(["東京", "大阪", "京都", "名古屋"]) and eco.quiz.quiz_get(qid)["order"] == first
+    assert eco.quiz.quiz_list()[0]["order"] == first
+    seen = {tuple(eco.quiz.quiz_get(add(eco))["order"]) for _ in range(30)}
     assert len(seen) > 1  # 登録のたびに並びが変わる
 
 
@@ -228,23 +226,23 @@ def test_old_questions_without_a_saved_order_get_one_on_upgrade(tmp_path):
     import sqlite3
 
     path = str(tmp_path / "t.db")
-    Economy(path)
+    open_repositories(path).db.close()
     c = sqlite3.connect(path)
     c.executescript("""DROP TABLE quiz_questions; CREATE TABLE quiz_questions (id INTEGER PRIMARY KEY AUTOINCREMENT, question TEXT NOT NULL,
         choices TEXT NOT NULL, explanation TEXT NOT NULL DEFAULT '', reward INTEGER NOT NULL, expires REAL, created REAL NOT NULL);
         INSERT INTO quiz_questions (question, choices, reward, created) VALUES ('q', '["a","b","c","d"]', 100, 1);""")
     c.commit()
     c.close()
-    first = Economy(path).quiz_get(1)["order"]
+    first = open_repositories(path).quiz.quiz_get(1)["order"]
     assert (
-        sorted(first) == ["a", "b", "c", "d"] and Economy(path).quiz_get(1)["order"] == first
+        sorted(first) == ["a", "b", "c", "d"] and open_repositories(path).quiz.quiz_get(1)["order"] == first
     )  # 一度決めたら変わらない
 
 
 def test_public_post_has_four_buttons_that_answer_for_the_clicker(eco):
     cog, log = make_cog(eco), []
     qid = add(eco, expires=9e12)
-    q = eco.quiz_get(qid)
+    q = eco.quiz.quiz_get(qid)
     assert "新しいクイズ" in public_embed(q).title and "⏳ 期限" in public_embed(q).description
     pos = q["order"].index("東京")
     btn = PublicButton(qid, pos)
@@ -262,15 +260,17 @@ def test_public_post_has_four_buttons_that_answer_for_the_clicker(eco):
         )
 
     asyncio.run(btn.callback(click(1)))
-    assert log[-1] == ("send", "⭕ 正解！") and eco.balance(1) == INITIAL_BALANCE + 100
+    assert log[-1] == ("send", "⭕ 正解！") and eco.wallet.balance(1) == INITIAL_BALANCE + 100
     assert public == ["⭕ <@1> が #1 に **正解！**（+100ペリカ）"]  # みんなに見える形で、その場で出る
     asyncio.run(btn.callback(click(1)))  # 二重に押しても入らない・公開もしない
-    assert log[-1] == ("send", "❌ 答えられません") and eco.balance(1) == INITIAL_BALANCE + 100 and len(public) == 1
+    assert (
+        log[-1] == ("send", "❌ 答えられません") and eco.wallet.balance(1) == INITIAL_BALANCE + 100 and len(public) == 1
+    )
     asyncio.run(PublicButton(qid, (pos + 1) % 4).callback(click(2)))  # 不正解
-    assert log[-1] == ("send", "❌ 不正解…") and eco.balance(2) == INITIAL_BALANCE
+    assert log[-1] == ("send", "❌ 不正解…") and eco.wallet.balance(2) == INITIAL_BALANCE
     assert public[-1] == "❌ <@2> が #1 に **不正解…**" and "東京" not in public[-1]  # 正解は公開しない
-    eco.quiz_delete(qid)
-    asyncio.run(record_answer(cog.bot, click(3), qid, 0))
+    eco.quiz.quiz_delete(qid)
+    asyncio.run(record_answer(cog._quiz, cog._guild_repo, cog._config, click(3), qid, 0))
     assert log[-1] == ("send", "❌ この問題は終了しました")
 
 
@@ -284,12 +284,9 @@ def test_broadcast_posts_to_every_allowed_guild_channel(eco, monkeypatch):
             sent.append((kw["embed"].title, len(kw["view"].children)))
 
     cog.bot.guilds = [SimpleNamespace(id=1), SimpleNamespace(id=2), SimpleNamespace(id=3)]
-    cog.bot.economy.is_approved = lambda *a: True
+    monkeypatch.setattr("domain.approval.is_allowed", lambda repo_, cfg, gid, uid: gid != 2)  # 2は許可されていない
     monkeypatch.setattr(
-        "cogs.quiz.cog.approval.is_allowed", lambda eco_, cfg, gid, uid: gid != 2
-    )  # 2は許可されていない
-    monkeypatch.setattr(
-        "cogs.quiz.cog.announce_channel", lambda guild, e: None if guild.id == 3 else Chan()
+        "cogs.quiz.cog.announce_channel", lambda guild, repo_: None if guild.id == 3 else Chan()
     )  # 3は投稿先がない
     assert asyncio.run(cog.broadcast(qid)) == 1 and sent == [("📰 新しいクイズ #1", 4)]
 
@@ -303,7 +300,7 @@ AUTHOR = 500
 def post(
     eco, reward=100, days=3, now=NOW, author=AUTHOR, choices=("東京", "大阪", "京都", "名古屋"), minutes=None, name=""
 ):
-    return eco.quiz_post(
+    return eco.quiz.quiz_post(
         author,
         "首都は？",
         list(choices),
@@ -328,70 +325,73 @@ def test_bonus_peaks_at_forty_percent_and_fades_to_zero():
 def test_correct_answer_is_paid_from_the_authors_balance(eco):
     ok, qid = post(eco, reward=300)
     assert ok
-    assert eco.quiz_answer(1, qid, "東京", NOW)[1]["reward"] == 300
+    assert eco.quiz.quiz_answer(1, qid, "東京", NOW)[1]["reward"] == 300
     assert (
-        eco.balance(1) == INITIAL_BALANCE + 300 and eco.balance(AUTHOR) == INITIAL_BALANCE - 300
+        eco.wallet.balance(1) == INITIAL_BALANCE + 300 and eco.wallet.balance(AUTHOR) == INITIAL_BALANCE - 300
     )  # 出題者から移るだけ
-    assert eco.balance(AUTHOR) == INITIAL_BALANCE - 300  # 1人目では出題報酬はまだ
-    assert eco.quiz_answer(2, qid, "大阪", NOW)[1]["correct"] is False
-    assert eco.balance(AUTHOR) == INITIAL_BALANCE - 300 + sum(
+    assert eco.wallet.balance(AUTHOR) == INITIAL_BALANCE - 300  # 1人目では出題報酬はまだ
+    assert eco.quiz.quiz_answer(2, qid, "大阪", NOW)[1]["correct"] is False
+    assert eco.wallet.balance(AUTHOR) == INITIAL_BALANCE - 300 + sum(
         quizpay.author_payout(2, 1, 300)
     )  # 2人目で出題報酬（報酬300なので倍率√3）。不正解では報酬は払わない
 
 
 def test_author_cannot_answer_and_does_not_see_it_in_next(eco):
     ok, qid = post(eco)
-    ok_ans, why_ans = eco.quiz_answer(AUTHOR, qid, "東京", NOW)
+    ok_ans, why_ans = eco.quiz.quiz_answer(AUTHOR, qid, "東京", NOW)
     assert not ok_ans and why_ans.code == "quiz_self_answer"
-    assert eco.quiz_next(AUTHOR, NOW) == (None, 0) and eco.quiz_next(1, NOW)[0]["id"] == qid
+    assert eco.quiz.quiz_next(AUTHOR, NOW) == (None, 0) and eco.quiz.quiz_next(1, NOW)[0]["id"] == qid
 
 
 def test_author_without_balance_pays_winners_by_going_into_debt(eco):
     ok, qid = post(eco, reward=1000)
     for uid in (1, 2):
-        assert eco.quiz_answer(uid, qid, "東京", NOW)[0]
-    assert eco.debt(AUTHOR) == 0 and eco.balance(AUTHOR) == INITIAL_BALANCE - 2000 + sum(
+        assert eco.quiz.quiz_answer(uid, qid, "東京", NOW)[0]
+    assert eco.debt.debt(AUTHOR) == 0 and eco.wallet.balance(AUTHOR) == INITIAL_BALANCE - 2000 + sum(
         quizpay.author_payout(2, 2, 1000)
     )
-    eco._conn.execute("UPDATE users SET balance=300 WHERE user_id=?", (AUTHOR,))
-    eco._conn.commit()
-    ok, result = eco.quiz_answer(3, qid, "東京", NOW)
+    with eco.db.tx():
+        eco.db.conn.execute("UPDATE users SET balance=300 WHERE user_id=?", (AUTHOR,))
+    ok, result = eco.quiz.quiz_answer(3, qid, "東京", NOW)
     assert ok and result["correct"] and result["reward"] == 1000  # 回答者には、報酬を全額払う
     assert result["author_debt_added"] == 700  # 残高 300 を払い、足りない 700 は借金になる
     assert (
-        eco.debt(AUTHOR) == 700 + teiai.SEED and eco.balance(AUTHOR) == teiai.SEED
+        eco.debt.debt(AUTHOR) == 700 + teiai.SEED and eco.wallet.balance(AUTHOR) == teiai.SEED
     )  # 手元が空になったので、帝愛が種銭を貸す
-    assert eco.balance(3) == INITIAL_BALANCE + 1000
-    assert eco.quiz_next(4, NOW)[0]["id"] == qid  # 出題者の残高が尽きても、問題は出続ける
-    ok, result = eco.quiz_answer(4, qid, "東京", NOW)  # 種銭があるので、次は借金を増やさずに払える
+    assert eco.wallet.balance(3) == INITIAL_BALANCE + 1000
+    assert eco.quiz.quiz_next(4, NOW)[0]["id"] == qid  # 出題者の残高が尽きても、問題は出続ける
+    ok, result = eco.quiz.quiz_answer(4, qid, "東京", NOW)  # 種銭があるので、次は借金を増やさずに払える
     assert (
         ok
         and result["reward"] == 1000
         and result["author_debt_added"] == 0
-        and eco.balance(AUTHOR) == teiai.SEED - 1000
+        and eco.wallet.balance(AUTHOR) == teiai.SEED - 1000
     )
 
 
 def test_debt_from_a_quiz_is_withheld_from_the_authors_income_and_blocks_new_questions(eco):
     ok, qid = post(eco, reward=1000)
-    eco._conn.execute("UPDATE users SET balance=0 WHERE user_id=?", (AUTHOR,))
-    eco._conn.commit()
-    assert eco.quiz_answer(1, qid, "東京", NOW)[1]["author_debt_added"] == 1000
-    assert eco.debt(AUTHOR) == 1000 + teiai.SEED
-    eco.credit(AUTHOR, 400, "付与")  # 収入ではない入金は、天引きされない
-    assert eco.debt(AUTHOR) == 1000 + teiai.SEED
-    eco._apply(AUTHOR, 400, "収入", income=400)  # 収入の3割（120）が、天引きされる
-    assert eco.debt(AUTHOR) == 1000 + teiai.SEED - 120
-    ok_post, why_post = eco.quiz_post(AUTHOR, "問題", ["a", "b", "c", "d"], "", 100, 60, 1, NOW)
+    with eco.db.tx():
+        eco.db.conn.execute("UPDATE users SET balance=0 WHERE user_id=?", (AUTHOR,))
+    assert eco.quiz.quiz_answer(1, qid, "東京", NOW)[1]["author_debt_added"] == 1000
+    assert eco.debt.debt(AUTHOR) == 1000 + teiai.SEED
+    eco.wallet.credit(AUTHOR, 400, "付与")  # 収入ではない入金は、天引きされない
+    assert eco.debt.debt(AUTHOR) == 1000 + teiai.SEED
+    with eco.db.tx():
+        eco.wallet._account.apply(
+            eco.wallet.guild_id, AUTHOR, 400, "収入", income=400
+        )  # 収入の3割（120）が、天引きされる
+    assert eco.debt.debt(AUTHOR) == 1000 + teiai.SEED - 120
+    ok_post, why_post = eco.quiz.quiz_post(AUTHOR, "問題", ["a", "b", "c", "d"], "", 100, 60, 1, NOW)
     assert not ok_post and why_post.code == "debt_blocks"  # 借金中は出題できない
 
 
 def test_wrong_answers_never_create_debt(eco):
     ok, qid = post(eco, reward=1000)
-    eco._conn.execute("UPDATE users SET balance=0 WHERE user_id=?", (AUTHOR,))
-    eco._conn.commit()
-    ok, result = eco.quiz_answer(1, qid, "大阪", NOW)
-    assert ok and not result["correct"] and result["author_debt_added"] == 0 and eco.debt(AUTHOR) == 0
+    with eco.db.tx():
+        eco.db.conn.execute("UPDATE users SET balance=0 WHERE user_id=?", (AUTHOR,))
+    ok, result = eco.quiz.quiz_answer(1, qid, "大阪", NOW)
+    assert ok and not result["correct"] and result["author_debt_added"] == 0 and eco.debt.debt(AUTHOR) == 0
 
 
 def test_post_limits(eco):
@@ -399,15 +399,16 @@ def test_post_limits(eco):
     assert post(eco)[0] and post(eco)[0]
     ok, reason = post(eco)
     assert not ok and reason.code == "quiz_open_limit" and reason.params["limit"] == 2
-    eco.stats(7)
-    eco._conn.execute("UPDATE users SET debt=100 WHERE user_id=7")
+    eco.wallet.stats(7)
+    with eco.db.tx():
+        eco.db.conn.execute("UPDATE users SET debt=100 WHERE user_id=7")
     assert not post(eco, author=7)[0]  # 借金中
     # 24時間に3問: 古い2問を取り下げても、3問目まで
     other = 600
     assert post(eco, author=other, days=1)[0] and post(eco, author=other, days=1)[0]
-    eco.quiz_withdraw(other, 4, NOW + 10)
+    eco.quiz.quiz_withdraw(other, 4, NOW + 10)
     assert post(eco, author=other, now=NOW + 20)[0]
-    eco.quiz_withdraw(other, 5, NOW + 30)
+    eco.quiz.quiz_withdraw(other, 5, NOW + 30)
     ok, reason = post(eco, author=other, now=NOW + 40)
     assert not ok and reason.code == "quiz_daily_limit" and reason.params["limit"] == 3
 
@@ -415,75 +416,77 @@ def test_post_limits(eco):
 def test_settle_pays_base_plus_bonus_once_after_expiry(eco):
     ok, qid = post(eco, reward=10, days=1)
     for uid, pick in ((1, "東京"), (2, "東京"), (3, "大阪"), (4, "大阪"), (5, "京都")):  # 5人中2人正解 = 40%
-        eco.quiz_answer(uid, qid, pick, NOW)
-    assert eco.quiz_settle(NOW + DAY - 1) == []  # まだ期限前
-    done = eco.quiz_settle(NOW + DAY)
+        eco.quiz.quiz_answer(uid, qid, pick, NOW)
+    assert eco.quiz.quiz_settle(NOW + DAY - 1) == []  # まだ期限前
+    done = eco.quiz.quiz_settle(NOW + DAY)
     assert [(d["participants"], d["correct_count"], d["base"], d["bonus"], d["part"]) for d in done] == [
         (5, 2, 32, 63, 50)
     ]  # 報酬10 → 倍率√0.1。参加報酬 = 1.0×10×5
-    assert eco.balance(AUTHOR) == INITIAL_BALANCE - 20 + 145
-    assert eco.quiz_settle(NOW + 9 * DAY) == []  # 二重に払わない
+    assert eco.wallet.balance(AUTHOR) == INITIAL_BALANCE - 20 + 145
+    assert eco.quiz.quiz_settle(NOW + 9 * DAY) == []  # 二重に払わない
 
 
 def test_settle_needs_two_participants_and_lists_who_answered(eco):
     ok, none_q = post(eco, days=1)
     ok, two_q = post(eco, days=1)
     ok, one_q = post(eco, days=1, author=600)
-    eco.quiz_answer(3, one_q, "東京", NOW)
-    eco.quiz_answer(1, two_q, "東京", NOW)
-    eco.quiz_answer(2, two_q, "大阪", NOW)  # 2人中1人正解 = 50%
-    done = {d["id"]: d for d in eco.quiz_settle(NOW + DAY)}
+    eco.quiz.quiz_answer(3, one_q, "東京", NOW)
+    eco.quiz.quiz_answer(1, two_q, "東京", NOW)
+    eco.quiz.quiz_answer(2, two_q, "大阪", NOW)  # 2人中1人正解 = 50%
+    done = {d["id"]: d for d in eco.quiz.quiz_settle(NOW + DAY)}
     assert (done[none_q]["base"], done[none_q]["bonus"], done[none_q]["part"]) == (0, 0, 0)  # 参加者0人は報酬なし
-    assert (done[one_q]["base"], done[one_q]["bonus"], done[one_q]["part"]) == (0, 0, 0) and eco.balance(
+    assert (done[one_q]["base"], done[one_q]["bonus"], done[one_q]["part"]) == (0, 0, 0) and eco.wallet.balance(
         600
     ) == INITIAL_BALANCE - 100  # 1人では出題報酬なし（正解者への100だけ払った）
     assert (done[two_q]["right_users"], done[two_q]["wrong_users"]) == ([1], [2])  # 誰が正解・不正解か
     assert (done[two_q]["base"], done[two_q]["bonus"], done[two_q]["part"]) == (100, 150, 150) and quizpay.bonus(
         2, 1
     ) == 150  # 50%: f=0.75、参加報酬 0.75×100×2
-    assert eco.balance(AUTHOR) == INITIAL_BALANCE - 100 + 100 + 150 + 150  # 払った報酬 100、受け取った 100+150+150
+    assert (
+        eco.wallet.balance(AUTHOR) == INITIAL_BALANCE - 100 + 100 + 150 + 150
+    )  # 払った報酬 100、受け取った 100+150+150
 
 
 def test_withdraw_only_own_question_and_settles_now(eco):
     ok, qid = post(eco)
     for uid in (1, 2, 3):
-        eco.quiz_answer(uid, qid, "東京" if uid == 1 else "大阪", NOW)
-    assert eco.quiz_withdraw(7, qid, NOW + 5) is None  # 他人は取り下げられない
-    done = eco.quiz_withdraw(AUTHOR, qid, NOW + 5)
-    assert (done["participants"], done["base"]) == (3, 100) and eco.quiz_next(9, NOW + 6) == (None, 0)
-    assert eco.quiz_withdraw(AUTHOR, qid, NOW + 6) is None  # 二重に取り下げられない
-    assert not eco.quiz_answer(9, qid, "東京", NOW + 6)[0]
+        eco.quiz.quiz_answer(uid, qid, "東京" if uid == 1 else "大阪", NOW)
+    assert eco.quiz.quiz_withdraw(7, qid, NOW + 5) is None  # 他人は取り下げられない
+    done = eco.quiz.quiz_withdraw(AUTHOR, qid, NOW + 5)
+    assert (done["participants"], done["base"]) == (3, 100) and eco.quiz.quiz_next(9, NOW + 6) == (None, 0)
+    assert eco.quiz.quiz_withdraw(AUTHOR, qid, NOW + 6) is None  # 二重に取り下げられない
+    assert not eco.quiz.quiz_answer(9, qid, "東京", NOW + 6)[0]
 
 
 @pytest.mark.real_scope
 def test_user_questions_stay_in_their_guild(tmp_path):
-    eco = Economy(str(tmp_path / "t.db"))
+    eco = open_repositories(str(tmp_path / "t.db"))
     g1, g2 = eco.for_guild(10), eco.for_guild(20)
     ok, qid = post(g1)
-    assert g2.quiz_next(1, NOW) == (None, 0) and g1.quiz_next(1, NOW)[0]["id"] == qid
-    assert g2.quiz_answer(1, qid, "東京", NOW)[0] is False
-    eco.quiz_add("全体", ["a", "b", "c", "d"], "", 50, None, NOW)  # 持ち主の問題は全サーバー
-    assert g2.quiz_next(1, NOW)[0]["author_id"] == 0
+    assert g2.quiz.quiz_next(1, NOW) == (None, 0) and g1.quiz.quiz_next(1, NOW)[0]["id"] == qid
+    assert g2.quiz.quiz_answer(1, qid, "東京", NOW)[0] is False
+    eco.quiz.quiz_add("全体", ["a", "b", "c", "d"], "", 50, None, NOW)  # 持ち主の問題は全サーバー
+    assert g2.quiz.quiz_next(1, NOW)[0]["author_id"] == 0
 
 
 def test_owner_questions_unchanged_and_not_paid_by_anyone(eco):
     qid = add(eco)
-    assert eco.quiz_answer(AUTHOR, qid, "東京", NOW)[0]  # 持ち主の問題は、誰でも答えられる
-    assert eco.quiz_settle(NOW + 9 * DAY) == []
+    assert eco.quiz.quiz_answer(AUTHOR, qid, "東京", NOW)[0]  # 持ち主の問題は、誰でも答えられる
+    assert eco.quiz.quiz_settle(NOW + 9 * DAY) == []
 
 
 def test_old_schema_gets_author_columns(tmp_path):
     import sqlite3
 
     path = str(tmp_path / "t.db")
-    Economy(path)
+    open_repositories(path).db.close()
     c = sqlite3.connect(path)
     c.executescript("""DROP TABLE quiz_questions; CREATE TABLE quiz_questions (id INTEGER PRIMARY KEY AUTOINCREMENT, question TEXT NOT NULL,
         choices TEXT NOT NULL, explanation TEXT NOT NULL DEFAULT '', shown_order TEXT NOT NULL DEFAULT '', reward INTEGER NOT NULL, expires REAL, created REAL NOT NULL);
         INSERT INTO quiz_questions (question, choices, reward, created) VALUES ('q', '["a","b","c","d"]', 100, 1);""")
     c.commit()
     c.close()
-    q = Economy(path).quiz_get(1)
+    q = open_repositories(path).quiz.quiz_get(1)
     assert (q["author_id"], q["guild_id"], q["settled"]) == (0, 0, 0)
 
 
@@ -535,7 +538,7 @@ def test_user_modal_posts_publicly_and_saves_the_message(eco):
     from cogs.quiz.cog import UserModal
 
     cog, log = make_cog(eco), []
-    m = UserModal(cog)
+    m = UserModal(cog._quiz)
     for field, value in (
         (m.question, "問題"),
         (m.choices, "a\nb\nc\nd"),
@@ -546,33 +549,33 @@ def test_user_modal_posts_publicly_and_saves_the_message(eco):
         field._value = value
     inter, sent = user_inter(log)
     asyncio.run(m.on_submit(inter))
-    q = eco.quiz_list()[0]
+    q = eco.quiz.quiz_list()[0]
     assert log == [("send", "📰 みんなのクイズ #1")] and len(sent["kw"]["view"].children) == 4
     assert (q["author_id"], q["reward"], q["message_id"], q["channel_id"]) == (AUTHOR, 250, 9090, 777)
     assert abs(q["expires"] - q["created"] - 3 * DAY) < 1  # 日数の既定は3日
     m.terms._value = "0"  # 報酬は 1 以上
     log.clear()
     asyncio.run(m.on_submit(inter))
-    assert log == [("send", "❌ 入力エラー")] and len(eco.quiz_list()) == 1
+    assert log == [("send", "❌ 入力エラー")] and len(eco.quiz.quiz_list()) == 1
 
 
 def test_public_button_rejects_the_author(eco):
     cog, log = make_cog(eco), []
     ok, qid = post(eco, now=time.time(), days=3)  # 期限は十分先
-    pos = eco.quiz_get(qid)["order"].index("東京")
+    pos = eco.quiz.quiz_get(qid)["order"].index("東京")
     click = SimpleNamespace(user=SimpleNamespace(id=AUTHOR), guild_id=1, client=cog.bot, response=Resp(log))
     asyncio.run(PublicButton(qid, pos).callback(click))
-    assert log[-1] == ("send", "❌ 答えられません") and eco.balance(AUTHOR) == INITIAL_BALANCE
+    assert log[-1] == ("send", "❌ 答えられません") and eco.wallet.balance(AUTHOR) == INITIAL_BALANCE
 
 
 def test_run_once_settles_and_announces_the_result(eco, monkeypatch):
-    monkeypatch.setattr("cogs.quiz.cog.approval.is_allowed", lambda *a: True)
+    monkeypatch.setattr("domain.approval.is_allowed", lambda *a: True)
     cog, ch = make_cog(eco), Channel()
     cog.bot.guilds = [SimpleNamespace(id=1, get_channel=lambda cid: ch)]
     ok, qid = post(eco, reward=10, days=1, now=1.0)  # とっくに期限切れ
-    eco.quiz_set_message(qid, 4242)
+    eco.quiz.quiz_set_message(qid, 4242)
     for uid, pick in ((1, "東京"), (2, "東京"), (3, "大阪"), (4, "大阪"), (5, "京都")):
-        eco.quiz_answer(uid, qid, pick, 1.0)
+        eco.quiz.quiz_answer(uid, qid, pick, 1.0)
     asyncio.run(cog.run_once())
     assert ch.sent and ch.sent[0][0] == f"<@{AUTHOR}>" and "終了" in ch.sent[0][1]
     shown = ch.embeds[0]
@@ -582,7 +585,7 @@ def test_run_once_settles_and_announces_the_result(eco, monkeypatch):
         and shown.fields[1].value == "<@3> <@4> <@5>"
     )
     assert ch.msg.edits and ch.msg.edits[0]["view"] is None
-    assert eco.balance(AUTHOR) == INITIAL_BALANCE - 20 + 145
+    assert eco.wallet.balance(AUTHOR) == INITIAL_BALANCE - 20 + 145
     ch.sent.clear()
     asyncio.run(cog.run_once())
     assert ch.sent == []  # 二重には精算・告知しない
@@ -632,7 +635,7 @@ def test_author_is_paid_on_every_answer_and_the_sum_matches_the_final_payout(eco
     ok, qid = post(eco, reward=100, days=1)
     deltas = []
     for uid, pick in ((1, "東京"), (2, "大阪"), (3, "東京"), (4, "大阪"), (5, "京都")):
-        res = eco.quiz_answer(uid, qid, pick, NOW)[1]
+        res = eco.quiz.quiz_answer(uid, qid, pick, NOW)[1]
         deltas.append((res["author_delta"], res["author_total"]))
     assert deltas[0] == (0, 0)  # 1人目はまだ
     assert deltas[1] == (100 + 150 + 150, 400)  # 2人目: 50% → 100 + 150 + 0.75×100×2
@@ -640,38 +643,39 @@ def test_author_is_paid_on_every_answer_and_the_sum_matches_the_final_payout(eco
         sum(d for d, _ in deltas) == deltas[-1][1] == sum(quizpay.author_payout(5, 2, 100))
     )  # 5人中2人正解: 100+200+100
     pay = 2 * 100
-    assert eco.balance(AUTHOR) == INITIAL_BALANCE - pay + deltas[-1][1]
-    before = eco.balance(AUTHOR)
-    done = eco.quiz_settle(NOW + DAY)
-    assert done and eco.balance(AUTHOR) == before  # 期限では二重に払わない
+    assert eco.wallet.balance(AUTHOR) == INITIAL_BALANCE - pay + deltas[-1][1]
+    before = eco.wallet.balance(AUTHOR)
+    done = eco.quiz.quiz_settle(NOW + DAY)
+    assert done and eco.wallet.balance(AUTHOR) == before  # 期限では二重に払わない
 
 
 def test_author_payout_goes_back_when_accuracy_moves_away_from_forty_percent(eco):
     ok, qid = post(eco, reward=100, days=1)
     results = [
-        eco.quiz_answer(uid, qid, pick, NOW)[1]
+        eco.quiz.quiz_answer(uid, qid, pick, NOW)[1]
         for uid, pick in ((1, "東京"), (2, "大阪"), (3, "大阪"), (4, "京都"), (5, "京都"), (6, "京都"))
     ]
     deltas = [r["author_delta"] for r in results]
     assert deltas[2] > 0 and deltas[3] < 0 and deltas[4] < 0  # 33%まで上がったあと、25%・20%と離れると戻す
     assert results[-1]["author_total"] == sum(deltas) == sum(quizpay.author_payout(6, 1, 100))
-    assert eco.balance(AUTHOR) == INITIAL_BALANCE - 100 + results[-1]["author_total"]
+    assert eco.wallet.balance(AUTHOR) == INITIAL_BALANCE - 100 + results[-1]["author_total"]
 
 
 def test_clawback_is_limited_to_the_authors_balance(eco):
     ok, qid = post(eco, reward=10, days=1)
-    eco.quiz_answer(1, qid, "東京", NOW)
-    eco.quiz_answer(2, qid, "大阪", NOW)
-    eco._conn.execute("UPDATE users SET balance=0 WHERE user_id=?", (AUTHOR,))  # 稼いだ分を使い切った
+    eco.quiz.quiz_answer(1, qid, "東京", NOW)
+    eco.quiz.quiz_answer(2, qid, "大阪", NOW)
+    with eco.db.tx():
+        eco.db.conn.execute("UPDATE users SET balance=0 WHERE user_id=?", (AUTHOR,))  # 稼いだ分を使い切った
     for uid in (3, 4, 5, 6, 7, 8):
-        eco.quiz_answer(uid, qid, "京都", NOW)  # 正答率が下がり、本来は受け取りが減る
-    assert eco.balance(AUTHOR) >= 0  # マイナスにはならない
+        eco.quiz.quiz_answer(uid, qid, "京都", NOW)  # 正答率が下がり、本来は受け取りが減る
+    assert eco.wallet.balance(AUTHOR) >= 0  # マイナスにはならない
 
 
 def test_public_line_shows_the_authors_earnings_right_away(eco):
     cog = make_cog(eco)
     ok, qid = post(eco, reward=100, days=3, now=time.time())
-    q = eco.quiz_get(qid)
+    q = eco.quiz.quiz_get(qid)
     right, wrong = q["order"].index("東京"), (q["order"].index("東京") + 1) % 4
     public, log = [], []
 
@@ -693,9 +697,9 @@ def test_public_line_shows_the_authors_earnings_right_away(eco):
 def test_public_line_tells_that_the_authors_shortfall_became_debt(eco):
     cog = make_cog(eco)
     ok, qid = post(eco, reward=100, days=3, now=time.time())
-    eco._conn.execute("UPDATE users SET balance=0 WHERE user_id=?", (AUTHOR,))
-    eco._conn.commit()
-    right = eco.quiz_get(qid)["order"].index("東京")
+    with eco.db.tx():
+        eco.db.conn.execute("UPDATE users SET balance=0 WHERE user_id=?", (AUTHOR,))
+    right = eco.quiz.quiz_get(qid)["order"].index("東京")
     public, log = [], []
 
     class Follow:
@@ -708,7 +712,7 @@ def test_public_line_tells_that_the_authors_shortfall_became_debt(eco):
     asyncio.run(PublicButton(qid, right).callback(click))
     assert log[-1] == ("send", "⭕ 正解！")  # 回答者には、いつも通り報酬が入る
     assert f"⚠️ 出題者 <@{AUTHOR}> の残高が足りないため、不足 100ペリカ は出題者の借金になりました。" in public[0]
-    assert eco.balance(1) == INITIAL_BALANCE + 100 and eco.debt(AUTHOR) == 100 + teiai.SEED
+    assert eco.wallet.balance(1) == INITIAL_BALANCE + 100 and eco.debt.debt(AUTHOR) == 100 + teiai.SEED
 
 
 # ----------------------------- 正解・不正解の文言（出題者が決める） ----------------------------- #
@@ -740,8 +744,8 @@ def test_parse_terms_and_verdicts():
 def test_default_wording_is_used_when_the_author_leaves_it_blank(eco):
     from cogs.quiz.cog import result_embed, verdict
 
-    qid = eco.quiz_add("問題", ["東京", "大阪", "京都", "名古屋"], "", 100, None, time.time())
-    q = eco.quiz_get(qid)
+    qid = eco.quiz.quiz_add("問題", ["東京", "大阪", "京都", "名古屋"], "", 100, None, time.time())
+    q = eco.quiz.quiz_get(qid)
     assert (
         (q["msg_right"], q["msg_wrong"]) == ("", "") and verdict(q, True) == "正解！" and verdict(q, False) == "不正解…"
     )
@@ -759,10 +763,10 @@ def test_default_wording_is_used_when_the_author_leaves_it_blank(eco):
 def test_custom_wording_replaces_only_the_headline_everywhere(eco):
     from cogs.quiz.cog import result_embed, verdict
 
-    qid = eco.quiz_add(
+    qid = eco.quiz.quiz_add(
         "問題", ["東京", "大阪", "京都", "名古屋"], "解説", 100, None, time.time(), "作者", "お見事！", ""
     )
-    q = eco.quiz_get(qid)
+    q = eco.quiz.quiz_get(qid)
     assert verdict(q, True) == "お見事！" and verdict(q, False) == "不正解…"  # 片方だけ決めたら、もう片方は既定
     e = result_embed({"correct": True, "reward": 100, "reward_blocked": False, "explanation": "解説"}, 0, q)
     assert e.title == "⭕ お見事！" and "+100" in e.description  # 報酬の表示は残る
@@ -774,7 +778,7 @@ def test_user_modal_saves_the_wording_and_public_answer_line_uses_it(eco):
     from cogs.quiz.cog import UserModal
 
     cog, log = make_cog(eco), []
-    m = UserModal(cog)
+    m = UserModal(cog._quiz)
     for field, value in (
         (m.question, "問題"),
         (m.choices, "a\nb\nc\nd"),
@@ -785,9 +789,9 @@ def test_user_modal_saves_the_wording_and_public_answer_line_uses_it(eco):
         field._value = value
     inter, _ = user_inter(log)
     asyncio.run(m.on_submit(inter))
-    q = eco.quiz_list()[0]
+    q = eco.quiz.quiz_list()[0]
     assert (q["msg_right"], q["msg_wrong"]) == ("さすが！", "ざんねん…")
-    m2 = UserModal(cog)
+    m2 = UserModal(cog._quiz)
     for field, value in (
         (m2.question, "問題2"),
         (m2.choices, "a\nb\nc\nd"),
@@ -798,16 +802,16 @@ def test_user_modal_saves_the_wording_and_public_answer_line_uses_it(eco):
         field._value = value
     asyncio.run(m2.on_submit(inter))
     assert all(
-        (x["msg_right"], x["msg_wrong"]) == ("", "") for x in eco.quiz_list() if x["id"] != q["id"]
+        (x["msg_right"], x["msg_wrong"]) == ("", "") for x in eco.quiz.quiz_list() if x["id"] != q["id"]
     )  # 省略なら空（既定）
 
 
 def test_public_answer_line_and_result_use_the_custom_wording(eco):
     cog, log = make_cog(eco), []
-    qid = eco.quiz_add(
+    qid = eco.quiz.quiz_add(
         "問題", ["東京", "大阪", "京都", "名古屋"], "", 100, 9e12, time.time(), "作者", "お見事！", "おしい！"
     )
-    q = eco.quiz_get(qid)
+    q = eco.quiz.quiz_get(qid)
     pos = q["order"].index("東京")
     public = []
 
@@ -830,50 +834,55 @@ def test_public_answer_line_and_result_use_the_custom_wording(eco):
 @pytest.mark.new_players
 def test_players_with_few_games_get_no_reward_but_the_answer_counts_as_correct(eco):
     ok, qid = post(eco, reward=500)
-    eco.balance(1)
-    eco._conn.execute("UPDATE users SET games_played=2 WHERE user_id=1")  # ゲームを2回だけ遊んだ人
-    eco._conn.commit()
-    ok, result = eco.quiz_answer(1, qid, "東京", NOW)
+    eco.wallet.balance(1)
+    with eco.db.tx():
+        eco.db.conn.execute("UPDATE users SET games_played=2 WHERE user_id=1")  # ゲームを2回だけ遊んだ人
+    ok, result = eco.quiz.quiz_answer(1, qid, "東京", NOW)
     assert ok and result["correct"] and result["reward_blocked"] and result["reward"] == 0  # 正解扱い。報酬はなし
-    assert eco.balance(1) == INITIAL_BALANCE
-    assert eco.balance(AUTHOR) == INITIAL_BALANCE and eco.debt(AUTHOR) == 0  # 出題者は払わない
+    assert eco.wallet.balance(1) == INITIAL_BALANCE
+    assert eco.wallet.balance(AUTHOR) == INITIAL_BALANCE and eco.debt.debt(AUTHOR) == 0  # 出題者は払わない
     assert result["author_delta"] == 0 and result["author_debt_added"] == 0
 
 
 @pytest.mark.new_players
 def test_players_with_three_games_get_the_reward(eco):
     ok, qid = post(eco, reward=500)
-    eco.balance(1)
-    eco._conn.execute("UPDATE users SET games_played=3 WHERE user_id=1")
-    eco._conn.commit()
-    ok, result = eco.quiz_answer(1, qid, "東京", NOW)
+    eco.wallet.balance(1)
+    with eco.db.tx():
+        eco.db.conn.execute("UPDATE users SET games_played=3 WHERE user_id=1")
+    ok, result = eco.quiz.quiz_answer(1, qid, "東京", NOW)
     assert (
-        ok and not result["reward_blocked"] and result["reward"] == 500 and eco.balance(AUTHOR) == INITIAL_BALANCE - 500
+        ok
+        and not result["reward_blocked"]
+        and result["reward"] == 500
+        and eco.wallet.balance(AUTHOR) == INITIAL_BALANCE - 500
     )
 
 
 @pytest.mark.new_players
 def test_owner_questions_pay_everyone_and_the_authors_payout_ignores_ineligible_answers(eco):
     qid = add(eco, reward=200)
-    ok, result = eco.quiz_answer(9, qid, "東京", NOW)
+    ok, result = eco.quiz.quiz_answer(9, qid, "東京", NOW)
     assert ok and result["reward"] == 200 and not result["reward_blocked"]  # 持ち主の問題には条件がない
     ok, qid2 = post(eco, reward=100)
     for uid in (1, 2, 3):  # ゲームを遊んでいない3人が答えても、出題者の報酬には数えない
-        assert eco.quiz_answer(uid, qid2, "東京", NOW)[1]["author_delta"] == 0
-    assert eco.balance(AUTHOR) == INITIAL_BALANCE  # 出題者は払わず、受け取りもない
+        assert eco.quiz.quiz_answer(uid, qid2, "東京", NOW)[1]["author_delta"] == 0
+    assert eco.wallet.balance(AUTHOR) == INITIAL_BALANCE  # 出題者は払わず、受け取りもない
     assert (
-        eco._conn.execute("SELECT COUNT(*) FROM quiz_answers WHERE question_id=? AND counted=1", (qid2,)).fetchone()[0]
+        eco.db.conn.execute("SELECT COUNT(*) FROM quiz_answers WHERE question_id=? AND counted=1", (qid2,)).fetchone()[
+            0
+        ]
         == 0
     )
 
 
 def test_rewards_have_no_upper_limit(eco):
     qid = add(eco, reward=5_000_000)  # 持ち主の問題: 500万
-    ok, result = eco.quiz_answer(1, qid, "東京", NOW)
+    ok, result = eco.quiz.quiz_answer(1, qid, "東京", NOW)
     assert ok and result["reward"] == 5_000_000
-    eco.credit(AUTHOR, 2_000_000, "テスト")
+    eco.wallet.credit(AUTHOR, 2_000_000, "テスト")
     ok, qid2 = post(eco, reward=2_000_000)  # みんなの問題: 200万（出題者の残高があれば出せる）
-    assert ok and eco.quiz_answer(2, qid2, "東京", NOW)[1]["reward"] == 2_000_000
+    assert ok and eco.quiz.quiz_answer(2, qid2, "東京", NOW)[1]["reward"] == 2_000_000
 
 
 @pytest.mark.new_players

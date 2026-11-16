@@ -1,38 +1,57 @@
-"""地下闘技場（NPC戦士どうしの賭け対戦）の永続化（Economy に混ぜ込む部品）。数字と決まりは domain/arena.py、表は infra/db/schema/tables.py の arena_*。"""
+"""地下闘技場（NPC戦士どうしの賭け対戦）の永続化リポジトリ（SRP・Constructor DI）。
+
+数字と決まりは `domain/arena.py`、表は `infra/db/schema/tables.py` の `arena_*`。
+"""
 
 import datetime
 import random
 import time
-from typing import Optional
+from typing import Any, Optional
 
 from domain import arena as arena_mod
 from domain.errors import fail
-from infra.db.base import EcoBase
+from domain.ports.bridges import IBankIncomeSink
+from domain.ports.repos import IArenaRepo
+from infra.db.account import AccountCore
+from infra.db.base import EcoDb, ScopedRepo
 
 
-class ArenaMixin(EcoBase):
+class ArenaRepo(ScopedRepo, IArenaRepo):
     """地下闘技場：1日1回、1on1とバトロワを両方開催する大会の生成・賭け・精算。"""
 
-    def _arena_today(self, now: float, tz_hours: float = 9.0) -> str:
+    def __init__(
+        self,
+        db: EcoDb,
+        account: AccountCore,
+        bank: IBankIncomeSink,
+        guild_id: int = 0,
+        strict: bool = False,
+    ) -> None:
+        super().__init__(db, guild_id, strict)
+        self._account = account
+        self._bank = bank
+
+    def arena_today(self, now: float, tz_hours: float = 9.0) -> str:
         tz = datetime.timezone(datetime.timedelta(hours=tz_hours))
         return datetime.datetime.fromtimestamp(now, tz).date().isoformat()
 
     def arena_tournament_ensure(
         self, fmt: str, now: Optional[float] = None, tz_hours: float = 9.0, rng: Optional[random.Random] = None
-    ) -> dict:
+    ) -> dict[str, Any]:
         """今日の、指定した形式の大会を用意する（無ければ作る）。すでにあれば、そのまま返す。"""
         now = time.time() if now is None else now
         rng = rng or random.SystemRandom()
-        day = self._arena_today(now, tz_hours)
-        with self._lock, self._conn:
+        day = self.arena_today(now, tz_hours)
+        with self._db.tx():
+            gid = self._g()
             row = self._conn.execute(
-                "SELECT id FROM arena_tournaments WHERE guild_id=? AND day=? AND format=?", (self._g(), day, fmt)
+                "SELECT id FROM arena_tournaments WHERE guild_id=? AND day=? AND format=?", (gid, day, fmt)
             ).fetchone()
             if row is None:
                 cur = self._conn.execute(
                     "INSERT INTO arena_tournaments (guild_id, day, format, status, created) "
                     "VALUES (?, ?, ?, 'semi_betting', ?)",
-                    (self._g(), day, fmt, now),
+                    (gid, day, fmt, now),
                 )
                 tid = cur.lastrowid
                 assert tid is not None
@@ -44,18 +63,18 @@ class ArenaMixin(EcoBase):
                         "VALUES (?, ?, ?, ?, 'semi')",
                         (tid, f["name"], f["base_power"], i // block + 1),
                     )
-                self._arena_seed_spectators(tid, now, rng)
+                self._arena_seed_spectators(tid, gid, now, rng)
             result = self.arena_tournament_get_by_day(day, fmt)
             assert result is not None
             return result
 
     def arena_tournaments_ensure_today(
         self, now: Optional[float] = None, tz_hours: float = 9.0, rng: Optional[random.Random] = None
-    ) -> list:
+    ) -> list[dict[str, Any]]:
         """今日の大会を、1on1・バトロワの両方そろえて返す（無ければ作る）。"""
         return [self.arena_tournament_ensure(fmt, now, tz_hours, rng) for fmt in arena_mod.FORMATS]
 
-    def arena_tournament_get_by_day(self, day: str, fmt: str) -> Optional[dict]:
+    def arena_tournament_get_by_day(self, day: str, fmt: str) -> Optional[dict[str, Any]]:
         with self._lock:
             row = self._conn.execute(
                 "SELECT * FROM arena_tournaments WHERE guild_id=? AND day=? AND format=?", (self._g(), day, fmt)
@@ -66,7 +85,7 @@ class ArenaMixin(EcoBase):
             t["fighters"] = self.arena_fighters(t["id"])
             return t
 
-    def arena_fighters(self, tournament_id: int) -> list:
+    def arena_fighters(self, tournament_id: int) -> list[Any]:
         with self._lock:
             return [
                 dict(r)
@@ -75,9 +94,9 @@ class ArenaMixin(EcoBase):
                 )
             ]
 
-    def _arena_seed_spectators(self, tournament_id: int, now: float, rng: random.Random) -> None:
+    def _arena_seed_spectators(self, tournament_id: int, guild_id: int, now: float, rng: random.Random) -> None:
         """観客（プレイヤー以外）の初期ランダム賭けを仕込む。帝愛の手元現金から、上限つきで補う。"""
-        state = self._bank_sync(now)
+        state = self._bank.bank_sync_for(guild_id, now)
         topup_left = min(arena_mod.HOUSE_TOPUP_MAX, int(state["cash"]))
         spent = 0
         for f in self.arena_fighters(tournament_id):
@@ -93,31 +112,33 @@ class ArenaMixin(EcoBase):
                 )
                 self._conn.execute("UPDATE arena_fighters SET bet_total = bet_total + ? WHERE id=?", (amt, f["id"]))
         if spent:
-            self._bank_set(state["cash"] - spent, state["loaned"])
+            self._bank.bank_set_for(guild_id, state["cash"] - spent, state["loaned"])
 
-    def arena_bet(self, user_id: int, fighter_id: int, amount: int, now: Optional[float] = None) -> tuple:
+    def arena_bet(self, user_id: int, fighter_id: int, amount: int, now: Optional[float] = None) -> tuple[Any, ...]:
         """戦士に賭ける。(成功か, Failure か空文字)。"""
         now = time.time() if now is None else now
         if amount < arena_mod.MIN_STAKE or amount > arena_mod.MAX_STAKE:
             return False, fail("arena_stake_range", lo=arena_mod.MIN_STAKE, hi=arena_mod.MAX_STAKE)
-        with self._lock, self._conn:
-            self._ensure(user_id)
+        with self._db.tx():
+            gid = self._g()
+            self._account.ensure(gid, user_id)
             fighter = self._conn.execute("SELECT * FROM arena_fighters WHERE id=?", (fighter_id,)).fetchone()
             if fighter is None:
                 return False, fail("arena_fighter_not_found")
             tournament = self._conn.execute(
                 "SELECT * FROM arena_tournaments WHERE id=?", (fighter["tournament_id"],)
             ).fetchone()
-            if tournament is None or tournament["guild_id"] != self._g():
+            if tournament is None or tournament["guild_id"] != gid:
                 return False, fail("arena_fighter_not_found")
             if fighter["stage"] == "out":
                 return False, fail("arena_fighter_eliminated")
             open_status = "semi_betting" if fighter["stage"] == "semi" else "final_betting"
             if tournament["status"] != open_status:
                 return False, fail("arena_bet_closed")
-            if self._balance(user_id) < amount:
-                return False, fail("insufficient_balance", balance=self._balance(user_id))
-            self._apply(user_id, -amount, f"闘技場:{fighter['name']}に賭け")
+            bal = self._account.raw_balance(gid, user_id)
+            if bal < amount:
+                return False, fail("insufficient_balance", balance=bal)
+            self._account.apply(gid, user_id, -amount, f"闘技場:{fighter['name']}に賭け")
             self._conn.execute(
                 "INSERT INTO arena_bets (tournament_id, stage, fighter_id, user_id, amount, created) "
                 "VALUES (?, ?, ?, ?, ?, ?)",
@@ -126,7 +147,15 @@ class ArenaMixin(EcoBase):
             self._conn.execute("UPDATE arena_fighters SET bet_total = bet_total + ? WHERE id=?", (amount, fighter_id))
             return True, ""
 
-    def _arena_settle_group(self, tournament_id: int, stage: str, winner: dict, losers: list, win_odds: float) -> None:
+    def _arena_settle_group(
+        self,
+        guild_id: int,
+        tournament_id: int,
+        stage: str,
+        winner: dict[str, Any],
+        losers: list[dict[str, Any]],
+        win_odds: float,
+    ) -> None:
         """1試合ぶんを精算する。敗者側の賭け（観客ぶんも含む）が、勝者側のプレイヤーの配当の原資になる。"""
         loser_ids = [f["id"] for f in losers]
         losers_pool = 0
@@ -157,27 +186,28 @@ class ArenaMixin(EcoBase):
         for b in win_bets:
             pay = round(b["amount"] * rate * scale) if b["user_id"] > 0 else 0
             if pay:
-                self._apply(b["user_id"], pay, "闘技場:勝利の配当", income=max(0, pay - b["amount"]))
+                self._account.apply(guild_id, b["user_id"], pay, "闘技場:勝利の配当", income=max(0, pay - b["amount"]))
             self._conn.execute("UPDATE arena_bets SET payout=?, settled=1 WHERE id=?", (pay, b["id"]))
         self._conn.execute("UPDATE arena_fighters SET result='won' WHERE id=?", (winner["id"],))
 
-    def arena_run_semis(self, tournament_id: int, rng: Optional[random.Random] = None) -> Optional[dict]:
+    def arena_run_semis(self, tournament_id: int, rng: Optional[random.Random] = None) -> Optional[dict[str, Any]]:
         """準決勝の全組を同時に決着させ、決勝へ進む人（組の数ぶん）を決める。"""
         rng = rng or random.SystemRandom()
-        with self._lock, self._conn:
+        with self._db.tx():
+            gid = self._g()
             t = self._conn.execute("SELECT * FROM arena_tournaments WHERE id=?", (tournament_id,)).fetchone()
-            if t is None or t["status"] != "semi_betting":
+            if t is None or t["guild_id"] != gid or t["status"] != "semi_betting":
                 return None
             fighters = self.arena_fighters(tournament_id)
             finalists = []
-            groups = {}
+            groups: dict[int, dict[str, Any]] = {}
             for group_no in range(1, arena_mod.semi_groups(t["format"]) + 1):
                 group = [f for f in fighters if f["group_no"] == group_no]
                 bet_totals = {f["name"]: f["bet_total"] for f in group}
                 win_idx = arena_mod.simulate_match(group, bet_totals, rng)
                 winner, losers = group[win_idx], [f for i, f in enumerate(group) if i != win_idx]
                 win_odds = arena_mod.match_odds(group)[winner["name"]]
-                self._arena_settle_group(tournament_id, "semi", winner, losers, win_odds)
+                self._arena_settle_group(gid, tournament_id, "semi", winner, losers, win_odds)
                 finalists.append(winner)
                 groups[group_no] = {"winner": winner["name"], "losers": [f["name"] for f in losers]}
             for w in finalists:
@@ -185,12 +215,13 @@ class ArenaMixin(EcoBase):
             self._conn.execute("UPDATE arena_tournaments SET status='final_betting' WHERE id=?", (tournament_id,))
             return {"groups": groups, "finalists": [w["name"] for w in finalists]}
 
-    def arena_run_final(self, tournament_id: int, rng: Optional[random.Random] = None) -> Optional[dict]:
+    def arena_run_final(self, tournament_id: int, rng: Optional[random.Random] = None) -> Optional[dict[str, Any]]:
         """決勝を決着させ、優勝者を決める（準決勝の勝者全員で、同時に戦う）。"""
         rng = rng or random.SystemRandom()
-        with self._lock, self._conn:
+        with self._db.tx():
+            gid = self._g()
             t = self._conn.execute("SELECT * FROM arena_tournaments WHERE id=?", (tournament_id,)).fetchone()
-            if t is None or t["status"] != "final_betting":
+            if t is None or t["guild_id"] != gid or t["status"] != "final_betting":
                 return None
             finalists = [f for f in self.arena_fighters(tournament_id) if f["stage"] == "final"]
             if len(finalists) != arena_mod.semi_groups(t["format"]):
@@ -200,11 +231,11 @@ class ArenaMixin(EcoBase):
             champion = finalists[win_idx]
             losers = [f for i, f in enumerate(finalists) if i != win_idx]
             win_odds = arena_mod.match_odds(finalists, boost=arena_mod.FINAL_ODDS_BOOST)[champion["name"]]
-            self._arena_settle_group(tournament_id, "final", champion, losers, win_odds)
+            self._arena_settle_group(gid, tournament_id, "final", champion, losers, win_odds)
             self._conn.execute("UPDATE arena_tournaments SET status='done' WHERE id=?", (tournament_id,))
             return {"champion": champion["name"], "runner_up": [f["name"] for f in losers]}
 
-    def arena_my_bets(self, tournament_id: int, user_id: int) -> list:
+    def arena_my_bets(self, tournament_id: int, user_id: int) -> list[Any]:
         with self._lock:
             return [
                 dict(r)
@@ -215,7 +246,7 @@ class ArenaMixin(EcoBase):
                 )
             ]
 
-    def arena_bets_breakdown(self, tournament_id: int) -> dict:
+    def arena_bets_breakdown(self, tournament_id: int) -> dict[int, list[Any]]:
         """戦士ごとの、誰がいくら賭けているか（大会を通じた累積）。{戦士ID: [{user_id, amount}]}（金額の多い順）。"""
         with self._lock:
             rows = self._conn.execute(
@@ -223,7 +254,7 @@ class ArenaMixin(EcoBase):
                 "GROUP BY fighter_id, user_id ORDER BY fighter_id, amount DESC",
                 (tournament_id,),
             ).fetchall()
-        out: dict[int, list] = {}
+        out: dict[int, list[Any]] = {}
         for r in rows:
             out.setdefault(r["fighter_id"], []).append({"user_id": r["user_id"], "amount": r["amount"]})
         return out

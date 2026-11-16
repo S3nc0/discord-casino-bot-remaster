@@ -10,14 +10,14 @@ from cogs.loan.cog import LoanCog
 from cogs.market.cog import MarketCog
 from cogs.shared.amount import balance_choices, typed_amount
 from domain.types import INITIAL_BALANCE
-from infra.db.economy import Economy
+from infra.db.repositories import open_repositories
 
 USER = 7
 
 
 @pytest.fixture
 def eco(tmp_path):
-    return Economy(str(tmp_path / "t.db"))
+    return open_repositories(str(tmp_path / "t.db"))
 
 
 def interaction(guild_id=1, **namespace):
@@ -25,14 +25,13 @@ def interaction(guild_id=1, **namespace):
 
 
 def choices(eco, current="", minimum=100, maximum=10_000):
-    bot = SimpleNamespace(economy=eco)
-    return [(c.value, c.name) for c in balance_choices(bot, interaction(), current, minimum, maximum)]
+    return [(c.value, c.name) for c in balance_choices(eco.wallet, interaction(), current, minimum, maximum)]
 
 
 def set_balance(eco, balance):
-    eco.balance(USER)
-    eco._conn.execute("UPDATE users SET balance=? WHERE user_id=?", (balance, USER))
-    eco._conn.commit()
+    eco.wallet.balance(USER)
+    with eco.db.tx():
+        eco.db.conn.execute("UPDATE users SET balance=? WHERE user_id=?", (balance, USER))
 
 
 def test_typed_amount_reads_digits_commas_and_full_width():
@@ -74,12 +73,11 @@ def test_the_balance_is_shown_even_when_it_is_below_the_minimum_or_above_the_max
 def test_new_player_sees_the_starting_balance_and_no_account_is_created(eco):
     found = choices(eco)
     assert f"残高 {INITIAL_BALANCE:,}ペリカ" in found[0][1]
-    assert eco._conn.execute("SELECT COUNT(*) FROM users").fetchone()[0] == 0  # 候補を出しただけでは、口座を作らない
+    assert eco.db.conn.execute("SELECT COUNT(*) FROM users").fetchone()[0] == 0  # 候補を出しただけでは、口座を作らない
 
 
 def test_dm_has_no_balance_and_no_choices(eco):
-    bot = SimpleNamespace(economy=eco)
-    assert balance_choices(bot, interaction(guild_id=None), "", 100, 10_000) == []
+    assert balance_choices(eco.wallet, interaction(guild_id=None), "", 100, 10_000) == []
 
 
 def test_commands_use_the_balance_choices_on_their_amount_fields():

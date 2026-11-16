@@ -10,28 +10,26 @@ import discord
 from cogs.shared import ui
 from cogs.shared.confirm import confirm_action
 from cogs.shared.messages import format_failure
+from cogs.teiai.texts import (
+    ESCAPE_FRAME_SECONDS as FRAME_SECONDS,
+)
+from cogs.teiai.texts import (
+    FAIL_ART as FAIL_ART,
+)
+from cogs.teiai.texts import (
+    PROGRESS as PROGRESS,
+)
+from cogs.teiai.texts import (
+    SHIP as SHIP,
+)
+from cogs.teiai.texts import (
+    SUCCESS_ART as SUCCESS_ART,
+)
+from cogs.teiai.texts import (
+    WAVES as WAVES,
+)
 from domain import teiai
-
-FRAME_SECONDS = 1.4
-SHIP = [
-    "      |\\",
-    "      | \\",
-    " _____|__\\_____",
-    " \\  o  o  o   /",
-    "  \\___________/",
-]
-WAVES = [
-    "~^~^~^~^~^~^~^~^~^~^~^~^~^~^",
-    "^~^~^~^~^~^~^~^~^~^~^~^~^~^~",
-]
-PROGRESS = [
-    "🌃 夜の港から、こっそり出航…",
-    "🌊 沖へ…灯りが遠ざかる…",
-    "🌫️ 霧の中を進む…",
-    "💡 …遠くに、光が見える…？",
-    "🌅 公海が近い…！",
-    "⚓ 運命の瞬間…",
-]
+from domain.ports.repos import IDebtRepo, INoticeRepo
 
 
 def ship_frame(step: int) -> str:
@@ -40,40 +38,24 @@ def ship_frame(step: int) -> str:
     return "\n".join(lines + [WAVES[step % 2], WAVES[(step + 1) % 2]])
 
 
-SUCCESS_ART = """
-          \\  |  /
-        --  ( )  --      * * *
-          /  |  \\
-                |\\
-       _________| \\________
-       \\  o  o  o   /  ===> FREE!
-  ~~~~~~\\___________/~~~~~~~~~~~~
-  ^~^~^~^~^~^~^~^~^~^~^~^~^~^~^~^
-"""
-FAIL_ART = """
-     !!  KEIBI  !!       ___
-    =====[]=====       _|   |_
-     __|_____|__      |  o o |
-    /  KAIJO     \\     \\_____/
-    \\____________/   ~~ CAUGHT! ~~
-  ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-  ^~^~^~^~^~^~^~^~^~^~^~^~^~^~^~^~^
-"""
-
-
 def block(text: str) -> str:
     return f"```\n{text.strip(chr(10))}\n```"
 
 
-async def run_escape(interaction: discord.Interaction, eco, after_success) -> None:
+async def run_escape(
+    interaction: discord.Interaction,
+    debt_repo: IDebtRepo,
+    notices_repo: INoticeRepo,
+    after_success,
+) -> None:
     """確認 → 当たり外れを決める → 船のアニメーション → 結果。公開メッセージで見せる。"""
     uid = interaction.user.id
-    debt = eco.debt(uid)
+    debt = debt_repo.debt(uid)
     ok = await confirm_action(
         interaction,
         "海外逃亡を試しますか？",
         f"成功率は **{teiai.ESCAPE_CHANCE:.0%}**。チャンスは通算 **{teiai.ESCAPE_MAX_TRIES}回** までで、失敗も1回に数えます"
-        f"（あと **{eco.escape_left(uid)}回**）。\n"
+        f"（あと **{debt_repo.escape_left(uid)}回**）。\n"
         "・**成功**: 全財産とショップの全品を**置いていき**、帝愛の借金が**全額ゼロ**になります"
         f"（貸付は免責・貸付は{teiai.BLACKLIST_DAYS}日のブラックリスト）。\n"
         f"・**失敗**: 罰金（借金の**{teiai.ESCAPE_FINE_RATE:.0%}**・最低{teiai.ESCAPE_FINE_MIN:,}ペリカ）が借金に加わり、"
@@ -83,7 +65,7 @@ async def run_escape(interaction: discord.Interaction, eco, after_success) -> No
     )
     if ok is not True:
         return
-    done, result = eco.escape_attempt(uid)
+    done, result = debt_repo.escape_attempt(uid)
     if not done:
         return await interaction.followup.send(
             embed=ui.error_embed("逃亡できません", format_failure(result)), ephemeral=True
@@ -113,6 +95,6 @@ async def run_escape(interaction: discord.Interaction, eco, after_success) -> No
         )
         embed = ui.embed(f"🚨 {name} の海外逃亡、失敗…", text, ui.ERROR)
     await message.edit(embed=embed)
-    eco.take_notices(uid)
+    notices_repo.take_notices(uid)
     if result["escaped"]:
         await after_success(interaction)

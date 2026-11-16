@@ -4,27 +4,18 @@
 """
 
 import time
+from typing import Optional
 
 import discord
 
 from cogs.shared import ui
-from cogs.shared.cog_ports import IShopCogPort, get_cog_port
+from cogs.shared.bridges import IShopTitleBridge, NoOpShopTitleBridge
 from cogs.shared.messages import format_failure
 from cogs.teiai.escape import run_escape
+from cogs.teiai.texts import LEVEL_MARK as LEVEL_MARK
+from cogs.teiai.texts import LEVEL_TEXT as LEVEL_TEXT
 from domain import teiai
-
-LEVEL_MARK = {
-    "safe": "🟢",
-    "warn": "🟡",
-    "danger": "🔴",
-    "frozen": "🚨",
-}
-LEVEL_TEXT = {
-    "safe": "余裕あり",
-    "warn": "取り付け警戒",
-    "danger": "取り付け危険水域！",
-    "frozen": "支払停止（預金封鎖）",
-}
+from domain.ports.repos import IBankRepo, IDebtRepo, INoticeRepo, IWalletRepo
 
 
 def meter(ratio, width: int = 10) -> str:
@@ -89,7 +80,7 @@ def render_teiai_panel_embed(
         )
     if grace_until is not None:
         me.append(
-            f"⚠️ **破産猶予中**。<t:{int(grace_until)}:R> までに借金を {ui.pelica(teiai.GRACE_DEBT)} 未満へ戻せないと、強制破産です。"
+            f"⚠️ **破産猶予中**。<t:{int(grace_until)}:R> までに借金を {ui.pelica(teiai.GRACE_DEBT)} 未満へ戻さないと、強制破産です。"
         )
     if cds["bought"]:
 
@@ -109,21 +100,21 @@ def render_teiai_panel_embed(
     return e
 
 
-def panel_embed(eco, uid: int) -> discord.Embed:
-    """帝愛銀行と、自分の状況の画面（Wings: eco から値を集めて Base へ渡す）。"""
+def panel_embed(bank: IBankRepo, debt: IDebtRepo, wallet: IWalletRepo, uid: int) -> discord.Embed:
+    """帝愛銀行と、自分の状況の画面（Wings: 対象サーバーの各 Repository から値を集めて Base へ渡す）。"""
     now = time.time()
-    status = eco.status(uid, now)
+    status = debt.status(uid, now)
     return render_teiai_panel_embed(
-        bank=eco.bank_status(now),
-        house=eco.house_account(),
-        graced=eco.grace_list(),
-        claims=eco.cds_total_claims(),
+        bank=bank.bank_status(now),
+        house=bank.house_account(),
+        graced=bank.grace_list(),
+        claims=bank.cds_total_claims(),
         status=status,
-        display_status=eco.display_status(uid) if status == teiai.KATAGI else status,
-        deposit=eco.deposit_of(uid),
-        debt=eco.debt(uid),
-        grace_until=eco.grace_until(uid),
-        cds=eco.cds_list(uid),
+        display_status=wallet.display_status(uid) if status == teiai.KATAGI else status,
+        deposit=bank.deposit_of(uid),
+        debt=debt.debt(uid),
+        grace_until=bank.grace_until(uid),
+        cds=bank.cds_list(uid),
         uid=uid,
     )
 
@@ -131,7 +122,7 @@ def panel_embed(eco, uid: int) -> discord.Embed:
 class AmountModal(discord.ui.Modal):
     """預ける・引き出す額の入力。"""
 
-    def __init__(self, panel, mode: str):
+    def __init__(self, panel: "TeiaiPanel", mode: str):
         super().__init__(title="帝愛に預ける" if mode == "deposit" else "帝愛から引き出す")
         self.panel, self.mode = panel, mode
         self.amount = discord.ui.TextInput(
@@ -148,12 +139,12 @@ class AmountModal(discord.ui.Modal):
                 embed=ui.error_embed("金額が正しくありません", "半角の数字で入れてください。"), ephemeral=True
             )
             return
-        eco, uid = self.panel.eco(interaction), interaction.user.id
+        bank, uid = self.panel.bank_for(interaction), interaction.user.id
         if self.mode == "deposit":
-            ok, result = eco.bank_deposit(uid, int(raw))
+            ok, result = bank.bank_deposit(uid, int(raw))
             text = f"帝愛に預けました。いまの預金: **{ui.pelica(result)}**" if ok else format_failure(result)
         else:
-            ok, result = eco.bank_withdraw(uid, int(raw) if raw else None)
+            ok, result = bank.bank_withdraw(uid, int(raw) if raw else None)
             text = f"**{ui.pelica(result)}** を引き出しました。" if ok else format_failure(result)
         embed = ui.ok_embed("完了", text) if ok else ui.error_embed("できませんでした", text)
         await interaction.response.send_message(embed=embed, ephemeral=True)
@@ -162,7 +153,7 @@ class AmountModal(discord.ui.Modal):
 class StakeModal(discord.ui.Modal):
     """CDS の掛け金の入力。"""
 
-    def __init__(self, panel, target_id: int, odds: float):
+    def __init__(self, panel: "TeiaiPanel", target_id: int, odds: float):
         super().__init__(title=f"CDS を買う（{odds}倍）")
         self.panel, self.target_id = panel, target_id
         self.stake = discord.ui.TextInput(label=f"掛け金（{teiai.CDS_MIN_STAKE:,}ペリカ以上）", max_length=12)
@@ -175,8 +166,8 @@ class StakeModal(discord.ui.Modal):
                 embed=ui.error_embed("金額が正しくありません", "半角の数字で入れてください。"), ephemeral=True
             )
             return
-        eco, uid = self.panel.eco(interaction), interaction.user.id
-        ok, result = eco.cds_buy(uid, self.target_id, int(raw))
+        bank, uid = self.panel.bank_for(interaction), interaction.user.id
+        ok, result = bank.cds_buy(uid, self.target_id, int(raw))
         if not ok:
             await interaction.response.send_message(
                 embed=ui.error_embed("買えませんでした", format_failure(result)), ephemeral=True
@@ -186,7 +177,7 @@ class StakeModal(discord.ui.Modal):
         text = (
             f"**{result}倍**で買いました（掛け金 {ui.pelica(int(raw))}・配当の見込み {ui.pelica(int(int(raw) * result))}）。\n"
             + (
-                "自分の資産を差し押さえても足りない分を、帝愛が肩代わりします（1件、使い切り。先に自分の資産は失います）。"
+                "自分の資産を差し押さえても足りない分を、帝愛が肩代わりする保険（1件、使い切り。先に自分の資産は失います）。"
                 if mine
                 else f"<@{self.target_id}> が**破産猶予の時間切れで強制破産**したとき（猶予に入ってから自分で破産したときも）に配当が出ます。猶予に入る前に自分で破産したときは、出ません。"
             )
@@ -205,7 +196,7 @@ class StakeModal(discord.ui.Modal):
 
 
 class TargetSelect(discord.ui.UserSelect):
-    def __init__(self, panel):
+    def __init__(self, panel: "TeiaiPanel"):
         super().__init__(placeholder="CDS の対象を選ぶ（自分も選べる）", min_values=1, max_values=1)
         self.panel = panel
 
@@ -215,12 +206,12 @@ class TargetSelect(discord.ui.UserSelect):
             return await interaction.response.send_message(
                 embed=ui.error_embed("選べません", "Bot は選べません。"), ephemeral=True
             )
-        quote = self.panel.eco(interaction).cds_quote(target.id)
+        quote = self.panel.bank_for(interaction).cds_quote(target.id)
         await interaction.response.send_modal(StakeModal(self.panel, target.id, quote["odds"]))
 
 
 class TargetView(discord.ui.View):
-    def __init__(self, panel):
+    def __init__(self, panel: "TeiaiPanel"):
         super().__init__(timeout=120)
         self.add_item(TargetSelect(panel))
 
@@ -228,16 +219,39 @@ class TargetView(discord.ui.View):
 class TeiaiPanel(ui.OwnerView):
     """パネルの下のボタン（押せるのはコマンドを使った本人だけ）。"""
 
-    def __init__(self, bot, uid: int):
+    def __init__(
+        self,
+        bank: IBankRepo,
+        debt: IDebtRepo,
+        wallet: IWalletRepo,
+        notices: INoticeRepo,
+        uid: int,
+        *,
+        shop_bridge: Optional[IShopTitleBridge] = None,
+    ):
         super().__init__(
             uid,
             timeout=300,
             owner_message="この画面を使えるのは、コマンドを使った本人だけです。",
         )
-        self.bot, self.uid = bot, uid
+        self._bank = bank
+        self._debt = debt
+        self._wallet = wallet
+        self._notices = notices
+        self._shop_bridge: IShopTitleBridge = shop_bridge if shop_bridge is not None else NoOpShopTitleBridge()
+        self.uid = uid
 
-    def eco(self, interaction: discord.Interaction):
-        return self.bot.economy.for_guild(ui.guild_id_of(interaction))
+    def bank_for(self, interaction: discord.Interaction) -> IBankRepo:
+        return self._bank.for_guild(ui.guild_id_of(interaction))
+
+    def debt_for(self, interaction: discord.Interaction) -> IDebtRepo:
+        return self._debt.for_guild(ui.guild_id_of(interaction))
+
+    def wallet_for(self, interaction: discord.Interaction) -> IWalletRepo:
+        return self._wallet.for_guild(ui.guild_id_of(interaction))
+
+    def notices_for(self, interaction: discord.Interaction) -> INoticeRepo:
+        return self._notices.for_guild(ui.guild_id_of(interaction))
 
     @discord.ui.button(label="預ける", style=discord.ButtonStyle.success)
     async def deposit(self, interaction: discord.Interaction, button: discord.ui.Button):
@@ -262,8 +276,8 @@ class TeiaiPanel(ui.OwnerView):
 
     @discord.ui.button(label="種銭を借りる", style=discord.ButtonStyle.secondary)
     async def seed(self, interaction: discord.Interaction, button: discord.ui.Button):
-        ok, result = self.eco(interaction).borrow_seed(interaction.user.id)
-        self.eco(interaction).take_notices(interaction.user.id)
+        ok, result = self.debt_for(interaction).borrow_seed(interaction.user.id)
+        self.notices_for(interaction).take_notices(interaction.user.id)
         if ok:  # 成功は公開（「💸 ○○ が帝愛から種銭を借りた」）。失敗は本人だけ
             return await interaction.response.send_message(
                 embed=ui.embed(
@@ -277,8 +291,9 @@ class TeiaiPanel(ui.OwnerView):
 
     @discord.ui.button(label="🚢 海外逃亡チャンス！！", style=discord.ButtonStyle.danger, row=1)
     async def escape(self, interaction: discord.Interaction, button: discord.ui.Button):
-        eco = self.eco(interaction)
-        if eco.debt(interaction.user.id) < teiai.ESCAPE_MIN_DEBT:
+        debt_repo = self.debt_for(interaction)
+        notices_repo = self.notices_for(interaction)
+        if debt_repo.debt(interaction.user.id) < teiai.ESCAPE_MIN_DEBT:
             return await interaction.response.send_message(
                 embed=ui.error_embed(
                     "逃亡できません", f"試せるのは、帝愛の借金が {teiai.ESCAPE_MIN_DEBT:,}ペリカ 以上のときだけです。"
@@ -289,17 +304,22 @@ class TeiaiPanel(ui.OwnerView):
         async def after_success(inter: discord.Interaction):
             if inter.guild is None:
                 return
-            shop_cog = get_cog_port(
-                ui.bot_of(inter), "ShopCog", IShopCogPort
-            )  # 破産と同じく、色ロールとニックネームをすぐに反映する
             member = inter.guild.get_member(inter.user.id) or inter.user
-            if shop_cog is not None and isinstance(member, discord.Member):
-                await shop_cog.after_bankruptcy(inter.guild, member)
+            if isinstance(member, discord.Member):
+                await self._shop_bridge.after_bankruptcy(
+                    inter.guild, member
+                )  # 破産と同じく、色ロールとニックネームをすぐに反映
 
-        await run_escape(interaction, eco, after_success)
+        await run_escape(interaction, debt_repo, notices_repo, after_success)
 
     @discord.ui.button(label="更新", style=discord.ButtonStyle.secondary)
     async def refresh(self, interaction: discord.Interaction, button: discord.ui.Button):
         await interaction.response.edit_message(
-            embed=panel_embed(self.eco(interaction), interaction.user.id), view=self
+            embed=panel_embed(
+                self.bank_for(interaction),
+                self.debt_for(interaction),
+                self.wallet_for(interaction),
+                interaction.user.id,
+            ),
+            view=self,
         )

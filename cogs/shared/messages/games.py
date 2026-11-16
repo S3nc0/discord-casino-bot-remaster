@@ -1,16 +1,10 @@
 """競馬・地下作業・発掘品・クイズ・抽選領域の失敗メッセージ定義。"""
 
-from typing import Any, Callable
-
+from cogs.shared.messages.base import MessageEntry
+from cogs.shared.messages.market import MessageFormatter as BaseMessageFormatter
 from domain import horse as horse_mod
 
-FailureFormatter = str | Callable[[dict[str, Any]], str]
-
-
-def _race_partial_bought(p: dict[str, Any]) -> str:
-    from cogs.shared.messages import format_failure
-
-    return f"{format_failure(p['inner'])}（先の {p['bought']} 頭ぶんは買えています）"
+FailureFormatter = MessageEntry
 
 
 GAMES_FAILURES: dict[str, FailureFormatter] = {
@@ -61,7 +55,6 @@ GAMES_FAILURES: dict[str, FailureFormatter] = {
     "race_insufficient_balance_many": lambda p: (
         f"残高が足りません（合計 {p['total']:,}ペリカ 必要。いまの残高: {p['balance']:,}ペリカ）。"
     ),
-    "race_partial_bought": _race_partial_bought,
     # 地下作業・発掘品
     "relic_not_relic": "発掘品ではありません。",
     "relic_max_star": lambda p: f"★{p['star_max']} は最上位で、これ以上は合体できません。",
@@ -101,3 +94,14 @@ GAMES_FAILURES: dict[str, FailureFormatter] = {
     "arena_fighter_eliminated": "その戦士は、すでに脱落しています。",
     "arena_bet_closed": "いまは、その段への賭けを受け付けていません。",
 }
+
+
+class MessageFormatter(BaseMessageFormatter):
+    """競馬・地下作業・クイズ・抽選領域の失敗フォーマッタを重ねた実装。"""
+
+    def _register_entries(self) -> None:
+        super()._register_entries()
+        self.failures.update(GAMES_FAILURES)
+        self.failures["race_partial_bought"] = lambda p: (
+            f"{self.format_failure(p['inner'])}（先の {p['bought']} 頭ぶんは買えています）"
+        )

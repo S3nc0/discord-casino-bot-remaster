@@ -1,39 +1,64 @@
-"""証券の現物保有・売買（Economy に混ぜ込む部品）。"""
+"""証券の現物保有・売買。"""
 
-from typing import Optional
+from typing import Any, Optional
 
 from domain import market as market_mod
-from domain import teiai
-from domain.errors import Failure, fail
+from domain.errors import fail
 from domain.market import DEFAULT
+from domain.ports.bridges import IBankIncomeSink, IMarginCollateralGuard, NoOpMarginCollateralGuard
+from domain.ports.repos import ICryptoRepo
 from domain.types import CryptoResult
-from infra.db.base import EcoBase
+from infra.db.account import AccountCore
+from infra.db.base import EcoDb, ScopedRepo
+from infra.db.market import MarketDataRepo
 
 
-class CryptoMixin(EcoBase):
+class CryptoRepo(ScopedRepo, ICryptoRepo):
     """現物証券の保有照会・売買・キャピタルゲイン課税。"""
 
-    def crypto_holding(self, user_id: int, symbol: str = DEFAULT) -> tuple:
+    def __init__(
+        self,
+        db: EcoDb,
+        account: AccountCore,
+        market: MarketDataRepo,
+        bank: IBankIncomeSink,
+        collateral_guard: Optional[IMarginCollateralGuard] = None,
+        guild_id: int = 0,
+        strict: bool = False,
+    ) -> None:
+        super().__init__(db, guild_id, strict)
+        self._account = account
+        self._market = market
+        self._bank = bank
+        self._collateral_guard: IMarginCollateralGuard = collateral_guard or NoOpMarginCollateralGuard()
+
+    def _crypto_holding_for(self, guild_id: int, user_id: int, symbol: str = DEFAULT) -> tuple[int, int]:
+        r = self._conn.execute(
+            "SELECT units, cost FROM crypto WHERE guild_id=? AND user_id=? AND symbol=?",
+            (guild_id, user_id, symbol),
+        ).fetchone()
+        return (r["units"], r["cost"]) if r else (0, 0)
+
+    def crypto_holding(self, user_id: int, symbol: str = DEFAULT) -> tuple[Any, ...]:
         """(保有口数, 買うのにかかった総額)。読み取り専用。"""
         with self._lock:
-            r = self._conn.execute(
-                "SELECT units, cost FROM crypto WHERE guild_id=? AND user_id=? AND symbol=?",
-                (self._g(), user_id, symbol),
-            ).fetchone()
-            return (r["units"], r["cost"]) if r else (0, 0)
+            return self._crypto_holding_for(self._g(), user_id, symbol)
 
-    def holdings(self, user_id: int) -> list:
+    def holdings_for(self, guild_id: int, user_id: int) -> list[tuple[str, int, int]]:
         """持っている現物 [(銘柄, 口数, 買った総額), ...]（全銘柄）。"""
         with self._lock:
             return [
                 (r["symbol"], r["units"], r["cost"])
                 for r in self._conn.execute(
                     "SELECT symbol, units, cost FROM crypto WHERE guild_id=? AND user_id=? AND units>0 ORDER BY symbol",
-                    (self._g(), user_id),
+                    (guild_id, user_id),
                 )
             ]
 
-    def crypto_holders(self, limit: int = 10, symbol: str = DEFAULT) -> list:
+    def holdings(self, user_id: int) -> list[Any]:
+        return self.holdings_for(self._g(), user_id)
+
+    def crypto_holders(self, limit: int = 10, symbol: str = DEFAULT) -> list[Any]:
         """このサーバーのその銘柄の保有者 [(user_id, 口数, 買った総額), ...]。買った額の大きい順。"""
         with self._lock:
             return [
@@ -45,30 +70,52 @@ class CryptoMixin(EcoBase):
                 )
             ]
 
+    def crypto_values(self) -> dict[int, int]:
+        """このサーバーの {ユーザーID: 現物（全銘柄）の評価額}。売ったときの手取りで、価格がまだない銘柄は数えない。"""
+        with self._lock:
+            values: dict[int, int] = {}
+            self.collect_values(self._g(), values)
+            return values
+
+    def collect_values(self, guild_id: int, totals: dict[int, int]) -> None:
+        with self._lock:
+            prices = self._market.latest_prices()
+            for r in self._conn.execute(
+                "SELECT user_id, symbol, units FROM crypto WHERE guild_id=? AND units>0", (guild_id,)
+            ):
+                if r["symbol"] in prices:
+                    totals[r["user_id"]] = (
+                        totals.get(r["user_id"], 0) + market_mod.sell_quote(r["units"], prices[r["symbol"]])[0]
+                    )
+
     def crypto_buy(self, user_id: int, amount: int, price: float, symbol: str = DEFAULT) -> CryptoResult:
         """amount ペリカの範囲で、price の価格で買えるだけ買う（手数料込み）。"""
-        with self._lock, self._conn:
-            self._ensure(user_id)
+        with self._db.tx():
+            gid = self._g()
+            self._account.ensure(gid, user_id)
             if amount <= 0 or price <= 0:
                 return CryptoResult(False, fail("crypto_invalid_amount"))
-            if reason := self._pin_reason(symbol, "buy_spot"):
-                return CryptoResult(False, reason, balance=self._balance(user_id))
-            if self._debt(user_id) > 0:
+            if reason := self._market.pin_reason(symbol, "buy_spot"):
+                return CryptoResult(False, reason, balance=self._account.raw_balance(gid, user_id))
+            debt = self._account.debt(gid, user_id)
+            if debt > 0:
                 return CryptoResult(
                     False,
-                    fail("debt_blocks", debt=self._debt(user_id), verb="買えません"),
-                    balance=self._balance(user_id),
+                    fail("debt_blocks", debt=debt, verb="買えません"),
+                    balance=self._account.raw_balance(gid, user_id),
                 )
-            if self._balance(user_id) < amount:
+            bal = self._account.raw_balance(gid, user_id)
+            if bal < amount:
                 return CryptoResult(
                     False,
-                    fail("crypto_insufficient_balance", balance=self._balance(user_id)),
-                    balance=self._balance(user_id),
+                    fail("crypto_insufficient_balance", balance=bal),
+                    balance=bal,
                 )
             units, total, fee = market_mod.buy_quote(amount, price)
             if units < 1:
-                return CryptoResult(False, fail("crypto_amount_too_small"), balance=self._balance(user_id))
-            self._apply(
+                return CryptoResult(False, fail("crypto_amount_too_small"), balance=bal)
+            self._account.apply(
+                gid,
                 user_id,
                 -total,
                 f"{market_mod.BY_KEY[symbol].name}購入:{market_mod.lots(units)}@{market_mod.fmt(price)}",
@@ -76,50 +123,37 @@ class CryptoMixin(EcoBase):
             self._conn.execute(
                 "INSERT INTO crypto (guild_id, user_id, symbol, units, cost) VALUES (?, ?, ?, ?, ?) "
                 "ON CONFLICT(guild_id, user_id, symbol) DO UPDATE SET units=units+excluded.units, cost=cost+excluded.cost",
-                (self._g(), user_id, symbol, units, total),
+                (gid, user_id, symbol, units, total),
             )
-            return CryptoResult(True, units=units, money=total, fee=fee, balance=self._balance(user_id))
+            return CryptoResult(
+                True, units=units, money=total, fee=fee, balance=self._account.raw_balance(gid, user_id)
+            )
 
     def crypto_sell(self, user_id: int, units: Optional[int], price: float, symbol: str = DEFAULT) -> CryptoResult:
         """units 口を売る（None なら全部）。受け取る額は手数料を引いたもの。"""
-        with self._lock, self._conn:
-            if reason := self._pin_reason(symbol, "sell_spot"):
+        with self._db.tx():
+            gid = self._g()
+            if reason := self._market.pin_reason(symbol, "sell_spot"):
                 return CryptoResult(False, reason)
-            reason = self._collateral_drop_reason(user_id, symbol, units, price)
-            if reason:
-                return CryptoResult(False, reason)
-            return self._crypto_sell_locked(user_id, units, price, symbol, taxable=True)
+            have, _ = self._crypto_holding_for(gid, user_id, symbol)
+            if have > 0:
+                reason = self._collateral_guard.check_spot_sell(gid, user_id, symbol, units, have, price)
+                if reason:
+                    return CryptoResult(False, reason)
+            return self.crypto_sell_locked_for(gid, user_id, units, price, symbol, taxable=True)
 
-    def _collateral_drop_reason(
-        self, user_id: int, symbol: str, units: Optional[int], price: float
-    ) -> Optional[Failure]:
-        """現物を売ると、担保が減って維持率が OPEN_RATIO を下回るなら Failure。信用取引がなければ None。"""
-        have, _cost = self.crypto_holding(user_id, symbol)
-        if have <= 0 or not self._margin_rows(user_id):
-            return None
-        sold = have if units is None else min(units, have)
-        drop = market_mod.sell_quote(sold, price)[0] * market_mod.COLLATERAL_HAIRCUT["spot"]
-        after = self._margin_status_locked(user_id, {**self.latest_prices(), symbol: price}, drop_collateral=drop)
-        if after["ratio"] is not None and after["ratio"] < market_mod.OPEN_RATIO:
-            return fail("crypto_collateral_locked", ratio=after["ratio"], open_ratio=market_mod.OPEN_RATIO)
-        return None
-
-    def _gains_tax(self, user_id: int, profit: int, taxable: bool, what: str) -> int:
-        """利益 profit にかかる税を、帝愛の銀行（預金者の利回り）へ納める。納めた額を返す。強制執行・ロスカットでは取らない（taxable=False）。"""
-        tax = market_mod.capital_gains_tax(profit) if taxable else 0
-        if tax > 0:
-            self._ledger(
-                user_id, 0, self._balance(user_id), f"帝愛のキャピタルゲイン税（{what} 利益{profit:,} → 税{tax:,}）"
-            )
-            self._bank_income(tax, teiai.TAX_YIELD_SHARE)  # 預金者に分配する（預金者がいなければ、銀行の手元に入る）
-        return tax
-
-    def _crypto_sell_locked(
-        self, user_id: int, units: Optional[int], price: float, symbol: str = DEFAULT, taxable: bool = False
+    def crypto_sell_locked_for(
+        self,
+        guild_id: int,
+        user_id: int,
+        units: Optional[int],
+        price: float,
+        symbol: str = DEFAULT,
+        taxable: bool = False,
     ) -> CryptoResult:
         """crypto_sell の本体（呼び出し側が、ロックとトランザクションの中で使う）。taxable=True なら、利益に税がかかる。"""
         name = market_mod.BY_KEY[symbol].name
-        have, cost = self.crypto_holding(user_id, symbol)
+        have, cost = self._crypto_holding_for(guild_id, user_id, symbol)
         if have <= 0:
             return CryptoResult(False, fail("crypto_not_held", name=name))
         units = have if units is None else units
@@ -131,24 +165,26 @@ class CryptoMixin(EcoBase):
         removed = (
             cost if units == have else round(cost * units / have)
         )  # 端数の按分は四捨五入（切り捨てだと取得額が少しずつ残る）
-        self._ensure(user_id)
-        tax = self._gains_tax(user_id, proceeds - removed, taxable, f"{name}売却")
-        self._apply(user_id, proceeds - tax, f"{name}売却:{market_mod.lots(units)}@{market_mod.fmt(price)}")
+        self._account.ensure(guild_id, user_id)
+        tax = self._bank.charge_gains_tax_for(guild_id, user_id, proceeds - removed, taxable, f"{name}売却")
+        self._account.apply(
+            guild_id, user_id, proceeds - tax, f"{name}売却:{market_mod.lots(units)}@{market_mod.fmt(price)}"
+        )
         if units == have:
             self._conn.execute(
-                "DELETE FROM crypto WHERE guild_id=? AND user_id=? AND symbol=?", (self._g(), user_id, symbol)
+                "DELETE FROM crypto WHERE guild_id=? AND user_id=? AND symbol=?", (guild_id, user_id, symbol)
             )
         else:
             self._conn.execute(
                 "UPDATE crypto SET units=units-?, cost=cost-? WHERE guild_id=? AND user_id=? AND symbol=?",
-                (units, removed, self._g(), user_id, symbol),
+                (units, removed, guild_id, user_id, symbol),
             )
         return CryptoResult(
             True,
             units=units,
             money=proceeds - tax,
             fee=fee,
-            balance=self._balance(user_id),
+            balance=self._account.raw_balance(guild_id, user_id),
             profit=proceeds - removed,
             tax=tax,
         )

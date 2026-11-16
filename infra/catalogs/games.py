@@ -1,17 +1,49 @@
 """ゲーム・競馬・地下作業・ミッション・イベントカタログの Pydantic スキーマ。"""
 
+from collections.abc import Mapping, Sequence
 from functools import lru_cache
 from typing import Self
 
 from pydantic import Field, model_validator
+from pydantic.dataclasses import dataclass as pydantic_dataclass
 
-from infra.catalogs.loader import StrictModel, load_yaml_model
+from domain.ports.catalog_types.games import (
+    BlackjackSectionContract,
+    ChinchiroRoleContract,
+    ChinchiroSectionContract,
+    CritOreContract,
+    EventsCatalogContract,
+    FormContract,
+    GamesCatalogContract,
+    GamesCommonContract,
+    GoingContract,
+    HorseCatalogContract,
+    HorseStatContract,
+    LaborCatalogContract,
+    MissionContract,
+    MissionsCatalogContract,
+    OreContract,
+    PachinkoRoundContract,
+    PachinkoSectionContract,
+    ProbBonusContract,
+    RelicDropContract,
+    RouletteBetContract,
+    RouletteSectionContract,
+    RtplevelSectionContract,
+    SlotSectionContract,
+    SlotSymbolContract,
+    StyleContract,
+    ToolContract,
+    WorkerContract,
+)
+from infra.catalogs.loader import STRICT_CONFIG, load_yaml_model
 
 
 # ------------------------------------------------------------------ #
 # missions.yaml
 # ------------------------------------------------------------------ #
-class MissionConfig(StrictModel):
+@pydantic_dataclass(frozen=True, config=STRICT_CONFIG, kw_only=True)
+class MissionConfig(MissionContract):
     id: str = Field(min_length=1)
     name: str = Field(min_length=1)
     kind: str = Field(min_length=1)
@@ -21,12 +53,8 @@ class MissionConfig(StrictModel):
     tag: str | None = None
 
 
-class WinTierConfig(StrictModel):
-    min_ratio: float = Field(gt=0)
-    message: str = Field(min_length=1)
-
-
-class MissionsCatalog(StrictModel):
+@pydantic_dataclass(frozen=True, config=STRICT_CONFIG, kw_only=True)
+class MissionsCatalog(MissionsCatalogContract):
     blackjack_game: str = Field(min_length=1)
     games: tuple[str, ...] = Field(min_length=1)
     min_bet: int = Field(ge=0)
@@ -40,37 +68,33 @@ class MissionsCatalog(StrictModel):
     blackjack_missions: tuple[MissionConfig, ...] = Field(min_length=1)
     big_win: MissionConfig
     jackpot_multiplier: int = Field(gt=0)
-    win_tiers: tuple[WinTierConfig, ...] = Field(min_length=1)
-    jackpot_art: str
 
 
 # ------------------------------------------------------------------ #
 # events.yaml
 # ------------------------------------------------------------------ #
-class EventGameConfig(StrictModel):
-    title: str = Field(min_length=1)
-    blurb: str = Field(min_length=1)
-
-
-class EventsCatalog(StrictModel):
+@pydantic_dataclass(frozen=True, config=STRICT_CONFIG, kw_only=True)
+class EventsCatalog(EventsCatalogContract):
     duration_min: int = Field(gt=0)
     earliest_hour: int = Field(ge=0, lt=24)
     boost: float = Field(gt=0)
     bonus_cap: int = Field(gt=0)
-    games: dict[str, EventGameConfig]
+    games: tuple[str, ...] = Field(min_length=1)
 
 
 # ------------------------------------------------------------------ #
 # labor.yaml
 # ------------------------------------------------------------------ #
-class ToolConfig(StrictModel):
+@pydantic_dataclass(frozen=True, config=STRICT_CONFIG, kw_only=True)
+class ToolConfig(ToolContract):
     key: str = Field(min_length=1)
     name: str = Field(min_length=1)
     mark: str = Field(min_length=1)
     effect: str = Field(min_length=1)
 
 
-class CritOreConfig(StrictModel):
+@pydantic_dataclass(frozen=True, config=STRICT_CONFIG, kw_only=True)
+class CritOreConfig(CritOreContract):
     id: str = Field(min_length=1)
     name: str = Field(min_length=1)
     mark: str = Field(min_length=1)
@@ -78,7 +102,8 @@ class CritOreConfig(StrictModel):
     value: int = Field(gt=0)
 
 
-class WorkerConfig(StrictModel):
+@pydantic_dataclass(frozen=True, config=STRICT_CONFIG, kw_only=True)
+class WorkerConfig(WorkerContract):
     key: str = Field(min_length=1)
     name: str = Field(min_length=1)
     mark: str = Field(min_length=1)
@@ -88,7 +113,8 @@ class WorkerConfig(StrictModel):
     relic_power: float = Field(ge=0)
 
 
-class OreConfig(StrictModel):
+@pydantic_dataclass(frozen=True, config=STRICT_CONFIG, kw_only=True)
+class OreConfig(OreContract):
     id: str = Field(min_length=1)
     name: str = Field(min_length=1)
     mark: str = Field(min_length=1)
@@ -96,7 +122,8 @@ class OreConfig(StrictModel):
     value: int = Field(gt=0)
 
 
-class RelicDropConfig(StrictModel):
+@pydantic_dataclass(frozen=True, config=STRICT_CONFIG, kw_only=True)
+class RelicDropConfig(RelicDropContract):
     id: str = Field(min_length=1)
     name: str = Field(min_length=1)
     mark: str = Field(min_length=1)
@@ -104,7 +131,8 @@ class RelicDropConfig(StrictModel):
     value: int = Field(gt=0)
 
 
-class LaborCatalog(StrictModel):
+@pydantic_dataclass(frozen=True, config=STRICT_CONFIG, kw_only=True)
+class LaborCatalog(LaborCatalogContract):
     tools: tuple[ToolConfig, ...] = Field(min_length=1)
     max_level: int = Field(gt=0)
     upgrade_cost: tuple[int, ...] = Field(min_length=1)
@@ -164,27 +192,31 @@ class LaborCatalog(StrictModel):
 # ------------------------------------------------------------------ #
 # horse.yaml
 # ------------------------------------------------------------------ #
-class HorseStatConfig(StrictModel):
+@pydantic_dataclass(frozen=True, config=STRICT_CONFIG, kw_only=True)
+class HorseStatConfig(HorseStatContract):
     key: str = Field(min_length=1)
     name: str = Field(min_length=1)
     default: int = Field(gt=0)
     style: str = Field(min_length=1)
 
 
-class GoingConfig(StrictModel):
+@pydantic_dataclass(frozen=True, config=STRICT_CONFIG, kw_only=True)
+class GoingConfig(GoingContract):
     name: str = Field(min_length=1)
     penalty: float = Field(ge=0)
     weight: int = Field(gt=0)
 
 
-class FormConfig(StrictModel):
+@pydantic_dataclass(frozen=True, config=STRICT_CONFIG, kw_only=True)
+class FormConfig(FormContract):
     value: int
     mark: str = Field(min_length=1)
     mult: float = Field(gt=0)
     odds_mult: float = Field(gt=0)
 
 
-class StyleConfig(StrictModel):
+@pydantic_dataclass(frozen=True, config=STRICT_CONFIG, kw_only=True)
+class StyleConfig(StyleContract):
     key: str = Field(min_length=1)
     name: str = Field(min_length=1)
     mark: str = Field(min_length=1)
@@ -192,7 +224,8 @@ class StyleConfig(StrictModel):
     late: float
 
 
-class HorseCatalog(StrictModel):
+@pydantic_dataclass(frozen=True, config=STRICT_CONFIG, kw_only=True)
+class HorseCatalog(HorseCatalogContract):
     stats: tuple[HorseStatConfig, ...] = Field(min_length=1)
     stat_total: int = Field(gt=0)
     stat_min: int = Field(gt=0)
@@ -231,9 +264,9 @@ class HorseCatalog(StrictModel):
     entry_open_min: int = Field(gt=0)
     entry_lead_min: int = Field(gt=0)
     bet_lead_sec: int = Field(gt=0)
-    bet_kinds: dict[str, str]
+    bet_kinds: Mapping[str, str]
     multi_kinds: tuple[str, ...]
-    combo_size: dict[str, int]
+    combo_size: Mapping[str, int]
     combo_takeout: float = Field(ge=0, lt=1)
     max_combo_odds: float = Field(gt=1)
     record_prior_runs: int = Field(ge=0)
@@ -253,96 +286,71 @@ class HorseCatalog(StrictModel):
 # ------------------------------------------------------------------ #
 # games.yaml
 # ------------------------------------------------------------------ #
-class GamesCommonSection(StrictModel):
+@pydantic_dataclass(frozen=True, config=STRICT_CONFIG, kw_only=True)
+class GamesCommonSection(GamesCommonContract):
     min_bet: int = Field(gt=0)
-    simple_step_seconds: float = Field(gt=0)
 
 
-class SlotSymbolConfig(StrictModel):
+@pydantic_dataclass(frozen=True, config=STRICT_CONFIG, kw_only=True)
+class SlotSymbolConfig(SlotSymbolContract):
     symbol: str = Field(min_length=1)
     weight: int = Field(gt=0)
     three_mult: int = Field(gt=0)
 
 
-class SlotSection(StrictModel):
+@pydantic_dataclass(frozen=True, config=STRICT_CONFIG, kw_only=True)
+class SlotSection(SlotSectionContract):
     symbols: tuple[SlotSymbolConfig, ...] = Field(min_length=1)
     cherry_two: float = Field(ge=0)
     cherry_one: float = Field(ge=0)
 
 
-class RouletteBetConfig(StrictModel):
+@pydantic_dataclass(frozen=True, config=STRICT_CONFIG, kw_only=True)
+class RouletteBetConfig(RouletteBetContract):
     label: str = Field(min_length=1)
     mult: int = Field(gt=0)
 
 
-class RouletteSection(StrictModel):
+@pydantic_dataclass(frozen=True, config=STRICT_CONFIG, kw_only=True)
+class RouletteSection(RouletteSectionContract):
     red: tuple[int, ...] = Field(min_length=1)
-    bets: dict[str, RouletteBetConfig]
-    color_emoji: dict[str, str]
+    bets: Mapping[str, RouletteBetConfig]
 
 
-class BlackjackResultConfig(StrictModel):
-    text: str = Field(min_length=1)
-    color: str = Field(min_length=1)
-
-
-class BlackjackFlairConfig(StrictModel):
-    blackjack: str = Field(min_length=1)
-    doubled: str = Field(min_length=1)
-    twenty_one: str = Field(min_length=1)
-
-
-class BlackjackSection(StrictModel):
+@pydantic_dataclass(frozen=True, config=STRICT_CONFIG, kw_only=True)
+class BlackjackSection(BlackjackSectionContract):
     suits: list[str] = Field(min_length=1)
     ranks: list[str] = Field(min_length=1)
-    title: str = Field(min_length=1)
-    result_text: dict[str, BlackjackResultConfig]
-    flair: BlackjackFlairConfig
 
 
-class ChinchiroRoleConfig(StrictModel):
+@pydantic_dataclass(frozen=True, config=STRICT_CONFIG, kw_only=True)
+class ChinchiroRoleConfig(ChinchiroRoleContract):
     name: str = Field(min_length=1)
     mult: int = Field(gt=0)
 
 
-class ChinchiroSection(StrictModel):
+@pydantic_dataclass(frozen=True, config=STRICT_CONFIG, kw_only=True)
+class ChinchiroSection(ChinchiroSectionContract):
     max_rolls: int = Field(gt=0)
-    dice_faces: dict[int, str]
-    roles: dict[str, ChinchiroRoleConfig]
+    roles: Mapping[str, ChinchiroRoleConfig]
     hifumi_factor: int = Field(gt=0)
-    title: str = Field(min_length=1)
-    step_seconds: float = Field(gt=0)
-    win_lines: dict[str, str]
-    lose_lines: dict[str, str]
 
 
-class PachinkoRoundConfig(StrictModel):
+@pydantic_dataclass(frozen=True, config=STRICT_CONFIG, kw_only=True)
+class PachinkoRoundConfig(PachinkoRoundContract):
     name: str = Field(min_length=1)
     mult: int = Field(gt=0)
     prob: float = Field(gt=0, le=1)
 
 
-class ProbBonusConfig(StrictModel):
+@pydantic_dataclass(frozen=True, config=STRICT_CONFIG, kw_only=True)
+class ProbBonusConfig(ProbBonusContract):
     prob: float = Field(ge=0, le=1)
     bonus: float = Field(ge=0)
 
 
-class PachinkoRankConfig(StrictModel):
-    floor: int = Field(ge=0)
-    label: str = Field(min_length=1)
-
-
-class PachinkoStoryConfig(StrictModel):
-    title: str = Field(min_length=1)
-    sub: str = Field(min_length=1)
-
-
-class PachinkoReviveConfig(StrictModel):
-    line: str = Field(min_length=1)
-    sub: str = Field(min_length=1)
-
-
-class PachinkoSection(StrictModel):
+@pydantic_dataclass(frozen=True, config=STRICT_CONFIG, kw_only=True)
+class PachinkoSection(PachinkoSectionContract):
     reel_symbols: list[str] = Field(min_length=1)
     small: list[str] = Field(min_length=1)
     medium: list[str] = Field(min_length=1)
@@ -352,30 +360,11 @@ class PachinkoSection(StrictModel):
     analysis_max: int = Field(gt=0)
     rounds: tuple[PachinkoRoundConfig, ...] = Field(min_length=1)
     continue_prob: float = Field(ge=0, lt=1)
-    omen_table: dict[str, ProbBonusConfig]
-    tier_table: dict[str, ProbBonusConfig]
+    omen_table: Mapping[str, ProbBonusConfig]
+    tier_table: Mapping[str, ProbBonusConfig]
     hit_target: float = Field(gt=0, lt=1)
-    omen_text: dict[str, str]
-    title: str = Field(min_length=1)
-    step_seconds: float = Field(gt=0)
-    frame_budget: int = Field(gt=0)
-    shown_rounds: int = Field(gt=0)
-    extra_sets: tuple[int, ...] = Field(min_length=1)
-    banner: dict[int, str]
-    ranks: tuple[PachinkoRankConfig, ...] = Field(min_length=1)
-    spinning: str = Field(min_length=1)
-    step_text: list[str] = Field(min_length=1)
-    step_icon: list[str] = Field(min_length=1)
-    steps_of: dict[str, int]
-    cutin: dict[str, list[str]]
-    stories: dict[str, list[PachinkoStoryConfig]]
-    normal_whispers: list[str] = Field(min_length=1)
-    revive_chance: dict[str, float]
-    revive_text: list[PachinkoReviveConfig] = Field(min_length=1)
-    pseudo_counts: dict[str, list[int]]
-    flavor: dict[str, str]
-    omen_names: dict[str, str]
-    tier_names: dict[str, str]
+    revive_chance: Mapping[str, float]
+    pseudo_counts: Mapping[str, Sequence[int]]
 
     @model_validator(mode="after")
     def _validate_probabilities(self) -> Self:
@@ -388,7 +377,8 @@ class PachinkoSection(StrictModel):
         return self
 
 
-class RtplevelSection(StrictModel):
+@pydantic_dataclass(frozen=True, config=STRICT_CONFIG, kw_only=True)
+class RtplevelSection(RtplevelSectionContract):
     games: tuple[str, ...] = Field(min_length=1)
     levels: tuple[int, ...] = Field(min_length=1)
     default_level: int = Field(gt=0)
@@ -398,10 +388,10 @@ class RtplevelSection(StrictModel):
     blackjack_rtp: float = Field(gt=0)
     blackjack_w: float = Field(gt=0)
     roulette_default_kind: str = Field(min_length=1)
-    level_names: dict[int, str]
 
 
-class GamesCatalog(StrictModel):
+@pydantic_dataclass(frozen=True, config=STRICT_CONFIG, kw_only=True)
+class GamesCatalog(GamesCatalogContract):
     common: GamesCommonSection
     slot: SlotSection
     roulette: RouletteSection

@@ -17,12 +17,12 @@ async def buy_auction_horse(
     cog, interaction: discord.Interaction, horse_id: int, *, confirm_fn: Callable = default_confirm_action
 ) -> None:
     """競売の馬を買う（買い物の間は「プレイ中」にする）。"""
-    async with user_session(cog.bot, interaction, "いまは買えません") as ok:
+    async with user_session(cog._sessions, interaction, "いまは買えません") as ok:
         if not ok:
             return
+        gid = ui.guild_id_of(interaction)
         uid = interaction.user.id
-        eco = cog.g(interaction)
-        horse = next((h for h in eco.auction_horses() if h["id"] == horse_id), None)
+        horse = next((h for h in cog.service.auction_horses(gid) if h["id"] == horse_id), None)
         if horse is None:
             await interaction.response.send_message(
                 embed=ui.error_embed("買えませんでした", "その馬は、もう売れてしまいました。"), ephemeral=True
@@ -38,7 +38,7 @@ async def buy_auction_horse(
         )
         if reply is None:
             return
-        res = eco.auction_buy_horse(uid, horse_id)
+        res = cog.service.buy_auction_horse(gid, uid, horse_id)
         if not res.ok:
             await reply(embed=ui.error_embed("買えませんでした", format_failure(res.reason)), ephemeral=True)
             return
@@ -61,12 +61,13 @@ async def buy_auction(
             embed=ui.error_embed("品が見つかりません", "競売の画面で選んでください。"), ephemeral=True
         )
         return
-    async with user_session(cog.bot, interaction, "いまは買えません") as ok:
+    async with user_session(cog._sessions, interaction, "いまは買えません") as ok:
         if not ok:
             return
+        gid = ui.guild_id_of(interaction)
         uid = interaction.user.id
         qty = 1 if it.unique else qty
-        entry = next((x for x in cog.g(interaction).auction_list() if x["item_id"] == item_id), None)
+        entry = next((x for x in cog.service.auction_items(gid) if x["item_id"] == item_id), None)
         if entry is None:
             await interaction.response.send_message(
                 embed=ui.error_embed("買えませんでした", "その品は、もう売れてしまいました。"), ephemeral=True
@@ -84,7 +85,7 @@ async def buy_auction(
         )
         if reply is None:
             return
-        res = cog.g(interaction).auction_buy(uid, item_id, qty)
+        res = cog.service.buy_auction_item(gid, uid, item_id, qty)
         if not res.ok:
             await reply(embed=ui.error_embed("買えませんでした", format_failure(res.reason)), ephemeral=True)
             return
@@ -104,12 +105,12 @@ async def buy_insider_memo(
     cog, interaction: discord.Interaction, it, *, confirm_fn: Callable = default_confirm_action
 ) -> None:
     """帝愛市の、裏情報メモ。持ち物には増えず、買うとその場で、本人にだけメモが見える。"""
-    async with user_session(cog.bot, interaction, "いまは買えません") as ok:
+    async with user_session(cog._sessions, interaction, "いまは買えません") as ok:
         if not ok:
             return
+        gid = ui.guild_id_of(interaction)
         uid = interaction.user.id
-        eco = cog.g(interaction)
-        stock = eco.insider_stock()
+        stock = cog.service.insider_stock(gid)
         if stock is None or stock["left"] <= 0:
             why = (
                 "いま、売れる情報はありません（次の決算が決まるまで、お待ちください）。"
@@ -129,11 +130,11 @@ async def buy_insider_memo(
         )
         if reply is None:
             return
-        done, result = eco.insider_buy(uid)
+        done, result = cog.service.buy_insider_memo(gid, uid)
         if not done:
             await reply(embed=ui.error_embed("買えませんでした", format_failure(result)), ephemeral=True)
             return
-        await reply(embed=ui.embed("🕴️ 裏情報メモ（帝愛市）", format_memo(result), ui.DARK), ephemeral=True)
+        await reply(embed=ui.embed("🕵️ 裏情報メモ（帝愛市）", format_memo(result), ui.DARK), ephemeral=True)
 
 
 async def buy_item(
@@ -158,51 +159,52 @@ async def buy_item(
     if it.id == shop.INSIDER_MEMO:
         await buy_insider_memo(cog, interaction, it, confirm_fn=confirm_fn)
         return
-    async with user_session(cog.bot, interaction, "いまは買えません") as ok:
+    async with user_session(cog._sessions, interaction, "いまは買えません") as ok:
         if not ok:
             return
+        gid = ui.guild_id_of(interaction)
         uid = interaction.user.id
         if it.unique:
             qty = 1
-        total = it.price * qty
-        balance = cog.g(interaction).balance(uid)
-        if it.unique and cog.g(interaction).inventory(uid).get(it.id, 0) > 0:
-            await interaction.response.send_message(
-                embed=ui.error_embed("買えませんでした", "すでに持っています。「🎒 持ち物」の画面で身につけられます。"),
-                ephemeral=True,
-            )
-            return
-        stock = cog.g(interaction).shop_stock(uid, it.id)
-        if stock is not None and qty > stock["stock"]:
-            await interaction.response.send_message(
-                embed=ui.error_embed(
-                    "在庫が足りません",
-                    f"**{it.name}** の在庫は、いま {stock['stock']}個 です（{stock_text(stock)}）。\n"
-                    "在庫は1人ずつ別々で、時間がたつと補充されます。",
-                ),
-                ephemeral=True,
-            )
-            return
-        if balance < total:
-            await interaction.response.send_message(
-                embed=ui.error_embed(
-                    "買えませんでした",
-                    f"ペリカが足りません（{total:,}ペリカ必要・残高 {balance:,}ペリカ）。\n`/ペリカ デイリー` で6時間ごとにもらえます。",
-                ),
-                ephemeral=True,
-            )
+        pre = cog.service.precheck_buy(gid, uid, it, qty)
+        if not pre.ok:
+            if pre.status == "owned":
+                await interaction.response.send_message(
+                    embed=ui.error_embed(
+                        "買えませんでした", "すでに持っています。「🎒 持ち物」の画面で身につけられます。"
+                    ),
+                    ephemeral=True,
+                )
+            elif pre.status == "out_of_stock":
+                assert pre.stock is not None
+                await interaction.response.send_message(
+                    embed=ui.error_embed(
+                        "在庫が足りません",
+                        f"**{it.name}** の在庫は、いま {pre.stock['stock']}個 です（{stock_text(pre.stock)}）。\n"
+                        "在庫は1人ずつ別々で、時間がたつと補充されます。",
+                    ),
+                    ephemeral=True,
+                )
+            else:
+                await interaction.response.send_message(
+                    embed=ui.error_embed(
+                        "買えませんでした",
+                        f"ペリカが足りません（{pre.total:,}ペリカ必要・残高 {pre.balance:,}ペリカ）。\n`/ペリカ デイリー` で6時間ごとにもらえます。",
+                    ),
+                    ephemeral=True,
+                )
             return
         reply = await confirmed_reply(
             interaction,
-            total >= cog.CONFIRM_FROM,
+            pre.total >= cog.CONFIRM_FROM,
             "購入しますか？",
-            f"**{shop.label(it)}**" + (f" ×{qty}" if qty > 1 else "") + f"\n{ui.pelica(total)} かかります。",
+            f"**{shop.label(it)}**" + (f" ×{qty}" if qty > 1 else "") + f"\n{ui.pelica(pre.total)} かかります。",
             "買う",
             confirm_fn=confirm_fn,
         )
         if reply is None:
             return
-        res = cog.g(interaction).purchase(uid, it.id, shop.label(it), it.price, it.unique, qty)
+        res = cog.service.purchase_item(gid, uid, it, qty)
         if not res.ok:
             await reply(embed=ui.error_embed("買えませんでした", format_failure(res.reason)), ephemeral=True)
             return
@@ -220,8 +222,9 @@ async def buy_item(
 
 async def use_item(cog, interaction: discord.Interaction, item: str) -> None:
     """景品を身につける・使う。item は ID か名前（持っているものを優先する）。"""
+    gid = ui.guild_id_of(interaction)
     uid = interaction.user.id
-    inv = cog.g(interaction).inventory(uid)
+    inv = cog.service.inventory(gid, uid)
     owned = [i for i in shop.find_all(item) if inv.get(i.id, 0) > 0]
     it = owned[0] if owned else shop.find(item)
     if it is None or inv.get(it.id, 0) <= 0:
@@ -235,25 +238,25 @@ async def use_item(cog, interaction: discord.Interaction, item: str) -> None:
             shop.HORSE_VOUCHER: "`/競馬 厩舎` で使います（名前と見た目を決めて、競走馬を迎えます）。",
             shop.CARROT: "`/競馬 厩舎` で使います（馬のステータスを、5ポイント動かします）。",
             shop.GOLD_CARROT: "`/競馬 厩舎` で使います（馬のステータスの合計を、10ポイント増やします）。",
-            shop.LABOR_DRINK: "`/地下 作業` の画面の「🥤 栄養ドリンコ」で飲みます（疲労を60回復します）。",
+            shop.LABOR_DRINK: "`/地下 作業` の画面の「🥤 栄養ドリンク」で飲みます（疲労を60回復します）。",
         }[it.id]
         await interaction.response.send_message(
             embed=ui.ok_embed("ここでは使いません", f"**{it.name}**: {note}"), ephemeral=True
         )
         return
     if it.kind == shop.CONSUMABLE:
-        if cog.bot.sessions.is_active(uid):
+        if cog._sessions.is_active(uid):
             await interaction.response.send_message(
                 embed=ui.error_embed("使えません", "ゲームの途中は、消耗品を使えません。終わってからにしてください。"),
                 ephemeral=True,
             )
             return
-        if not cog.g(interaction).arm(uid, it.id):
+        if not cog.service.arm_item(gid, uid, it.id):
             await interaction.response.send_message(
                 embed=ui.error_embed("使えません", "持っていません。"), ephemeral=True
             )
             return
-        active = cog.g(interaction).get_profile(uid)[EFFECT_OF_ITEM[it.id]]
+        active = cog.service.profile(gid, uid)[EFFECT_OF_ITEM[it.id]]
         await interaction.response.send_message(
             embed=ui.ok_embed("使いました", f"**{it.name}**: {it.desc}\n有効な枚数: **{active}枚**"), ephemeral=True
         )
@@ -282,7 +285,7 @@ async def use_item(cog, interaction: discord.Interaction, item: str) -> None:
         guild = cast(discord.Guild, interaction.guild)
         member = cast(discord.Member, interaction.user)
         try:
-            async with cog._role_lock(ui.guild_id_of(interaction)):
+            async with cog._role_lock(gid):
                 await set_color_role(guild, member, it)
         except ShopError as exc:
             await interaction.followup.send(embed=ui.error_embed("名前の色を変えられません", str(exc)), ephemeral=True)
@@ -295,17 +298,16 @@ async def use_item(cog, interaction: discord.Interaction, item: str) -> None:
             ephemeral=True,
         )
         return
-    cog.g(interaction).equip(uid, SLOT_OF_KIND[it.kind], it.id)
+    cog.service.equip_slot(gid, uid, SLOT_OF_KIND[it.kind], it.id)
     note = ""
     if it.kind == shop.TITLE:
         await interaction.response.defer(ephemeral=True)
         guild = cast(discord.Guild, interaction.guild)
         member = cast(discord.Member, interaction.user)
-        gid = ui.guild_id_of(interaction)
         problem, others = await cog._sync_title_nick(uid, guild, member)
         if problem:
             note = f"\n⚠️ ニックネームには反映できませんでした: {problem}"
-        elif cog.bot.economy.nick_pref(gid, uid):
+        elif cog._guild_repo.nick_pref(gid, uid):
             note = "\nニックネームにも反映しました。"
         if others:
             note += f"\n※ 他のサーバー {others} 件では反映できませんでした。"
@@ -324,17 +326,18 @@ async def unequip_item(cog, interaction: discord.Interaction, slot: str) -> None
     name = UNEQUIP_NAMES[slot]
     guild = cast(discord.Guild, interaction.guild)
     member = cast(discord.Member, interaction.user)
+    gid = ui.guild_id_of(interaction)
     if slot == "role":
         await interaction.response.defer(ephemeral=True)
         try:
-            async with cog._role_lock(ui.guild_id_of(interaction)):
+            async with cog._role_lock(gid):
                 await set_color_role(guild, member, None)
         except ShopError as exc:
             await interaction.followup.send(embed=ui.error_embed("外せません", str(exc)), ephemeral=True)
             return
         await interaction.followup.send(embed=ui.ok_embed("外しました", "名前の色を元に戻しました。"), ephemeral=True)
         return
-    cog.g(interaction).equip(interaction.user.id, slot, None)
+    cog.service.equip_slot(gid, interaction.user.id, slot, None)
     if slot == "title":
         await interaction.response.defer(ephemeral=True)
         problem, others = await cog._sync_title_nick(interaction.user.id, guild, member)
@@ -352,7 +355,8 @@ async def set_title_display(cog, interaction: discord.Interaction, mode: str) ->
     guild = cast(discord.Guild, interaction.guild)
     member = cast(discord.Member, interaction.user)
     gid = ui.guild_id_of(interaction)
-    was_on = cog.bot.economy.nick_pref(gid, uid)
+    guild_repo = cog._guild_repo
+    was_on = guild_repo.nick_pref(gid, uid)
     if mode == "on":
         reason = nick_blocker(guild, member)
         if reason:
@@ -360,13 +364,13 @@ async def set_title_display(cog, interaction: discord.Interaction, mode: str) ->
                 embed=ui.error_embed("ニックネームに付けられません", reason), ephemeral=True
             )
             return
-        cog.bot.economy.set_nick_pref(gid, uid, True)
+        guild_repo.set_nick_pref(gid, uid, True)
         await interaction.response.defer(ephemeral=True)
-        problem, others = await cog._sync_title_nick(uid, guild, member)
-        title = cog._equipped_title(gid, uid)
+        problem, _others = await cog._sync_title_nick(uid, guild, member)
+        title = cog.service.equipped_title(gid, uid)
         if problem:
             if not was_on:
-                cog.bot.economy.set_nick_pref(gid, uid, False)
+                guild_repo.set_nick_pref(gid, uid, False)
             await interaction.followup.send(
                 embed=ui.error_embed("ニックネームに付けられません", problem), ephemeral=True
             )
@@ -389,10 +393,10 @@ async def set_title_display(cog, interaction: discord.Interaction, mode: str) ->
     problem = ""
     if was_on:
         try:
-            await apply_title_nick(guild, member, None, cog.bot.economy)
+            await apply_title_nick(guild, member, None, guild_repo)
         except ShopError as exc:
             problem = f"\n⚠️ ニックネームを元に戻せませんでした（手動で直してください）: {exc}"
-        cog.bot.economy.set_nick_pref(gid, uid, False)
+        guild_repo.set_nick_pref(gid, uid, False)
     await interaction.followup.send(
         embed=ui.ok_embed(
             "ニックネームには付けません",

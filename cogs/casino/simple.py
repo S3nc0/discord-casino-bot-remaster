@@ -10,6 +10,7 @@ import random
 import discord
 
 from cogs.casino.common import (
+    CasinoDeps,
     ReplayView,
     game_title,
     log_display_failure,
@@ -18,12 +19,12 @@ from cogs.casino.common import (
     signed,
     start_game,
 )
+from cogs.casino.texts import SIMPLE_STEP_SECONDS as STEP
+from cogs.casino.texts import roulette_color_emoji
 from cogs.shared import ui
 from domain.games import roulette, slot
-from infra import catalogs
 
 RNG = random.SystemRandom()  # OS の乱数。結果を予測・再現できない
-STEP = catalogs.games().common.simple_step_seconds  # 演出のコマ送り間隔（秒）
 
 
 async def show(
@@ -54,8 +55,8 @@ async def show(
 
 
 # ---------------------------- スロット ---------------------------- #
-async def play_slot(interaction: discord.Interaction, bot, bet: int):
-    ctx = await start_game(interaction, bot, bet, "スロット")
+async def play_slot(interaction: discord.Interaction, deps: CasinoDeps, bet: int):
+    ctx = await start_game(interaction, deps, bet, "スロット")
     if ctx is None:
         return
     try:
@@ -77,7 +78,7 @@ async def play_slot(interaction: discord.Interaction, bot, bet: int):
                 ui.embed(title, f"┃ {reels[0]} ┃ {reels[1]} ┃ {spin} ┃", ui.GOLD),
             ],
             final,
-            ReplayView(bot, ctx.user_id, bet, lambda it, b: play_slot(it, bot, b)),
+            ReplayView(deps, ctx.user_id, bet, lambda it, b: play_slot(it, deps, b)),
             game="スロット",
         )
     except Exception:
@@ -88,7 +89,9 @@ async def play_slot(interaction: discord.Interaction, bot, bet: int):
 
 
 # --------------------------- ルーレット --------------------------- #
-async def play_roulette(interaction: discord.Interaction, bot, bet: int, kind: str, number: int | None = None) -> None:
+async def play_roulette(
+    interaction: discord.Interaction, deps: CasinoDeps, bet: int, kind: str, number: int | None = None
+) -> None:
     # 賭け方の指定ミスは、賭け金を預かる前に弾く
     if kind == "number" and number is None:
         await interaction.response.send_message(
@@ -104,7 +107,7 @@ async def play_roulette(interaction: discord.Interaction, bot, bet: int, kind: s
             ephemeral=True,
         )
         return
-    ctx = await start_game(interaction, bot, bet, "ルーレット")
+    ctx = await start_game(interaction, deps, bet, "ルーレット")
     if ctx is None:
         return
     try:
@@ -114,8 +117,9 @@ async def play_roulette(interaction: discord.Interaction, bot, bet: int, kind: s
         net = ctx.settle(payout, keep_session=True, rtp_kind=kind)
         title, head = game_title("🎡 ルーレット", ctx), f"あなたの賭け: **{name}**\n"
         verdict = "当たり🎉" if payout else "ハズレ"
+        color = roulette.color_of(result)
         final = ui.embed(
-            f"{title} — {roulette.color_emoji(result)} **{result}**（{roulette.color_of(result)}） {verdict}　{signed(net)}ペリカ",
+            f"{title} — {roulette_color_emoji(color)} **{result}**（{color}） {verdict}　{signed(net)}ペリカ",
             result_lines(ctx, payout, net, head.rstrip()),
             result_color(bet, net, ui.OK if payout else ui.ERROR),
         )
@@ -127,7 +131,7 @@ async def play_roulette(interaction: discord.Interaction, bot, bet: int, kind: s
                 ui.embed(title, head + f"もうすぐ止まる… `{RNG.randint(0, 36)}`", ui.GOLD),
             ],
             final,
-            ReplayView(bot, ctx.user_id, bet, lambda it, b: play_roulette(it, bot, b, kind, number)),
+            ReplayView(deps, ctx.user_id, bet, lambda it, b: play_roulette(it, deps, b, kind, number)),
             game="ルーレット",
         )
     except Exception:

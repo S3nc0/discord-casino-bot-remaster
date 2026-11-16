@@ -12,8 +12,9 @@ import pytest
 
 from cogs.market.cog import MarketCog
 from domain import market
-from infra.db.economy import INITIAL_BALANCE, Economy
-from services.session import Sessions
+from domain.types import INITIAL_BALANCE
+from infra.db.repositories import open_repositories
+from tests.support import make_market_cog, make_test_bot
 
 pytestmark = pytest.mark.real_scope
 
@@ -26,7 +27,7 @@ def run(coro):
 
 @pytest.fixture
 def eco(tmp_path):
-    return Economy(str(tmp_path / "t.db"), strict=True)
+    return open_repositories(str(tmp_path / "t.db"), strict=True)
 
 
 # ----------------------------- 価格の動き ----------------------------- #
@@ -112,54 +113,56 @@ def test_too_small_amount_buys_nothing():
 
 # ----------------------------- 売買と記録 ----------------------------- #
 def ledger_sum(eco, guild, user):
-    return eco._conn.execute(
+    return eco.db.conn.execute(
         "SELECT COALESCE(SUM(delta), 0) FROM ledger WHERE guild_id=? AND user_id=?", (guild, user)
     ).fetchone()[0]
 
 
 def test_buy_and_sell_move_balance_and_ledger_consistently(eco):
     a = eco.for_guild(G)
-    a.balance(U)
-    r = a.crypto_buy(U, 3_000, 1000)
-    assert r.ok and a.balance(U) == INITIAL_BALANCE - r.money and a.crypto_holding(U) == (r.units, r.money)
-    s = a.crypto_sell(U, None, 1100)
-    assert s.ok and a.crypto_holding(U) == (0, 0) and s.profit == s.money - r.money
-    assert a.balance(U) == INITIAL_BALANCE - r.money + s.money
-    assert ledger_sum(eco, G, U) == a.balance(U)  # 履歴の合計と残高が一致する
+    a.wallet.balance(U)
+    r = a.crypto.crypto_buy(U, 3_000, 1000)
+    assert (
+        r.ok and a.wallet.balance(U) == INITIAL_BALANCE - r.money and a.crypto.crypto_holding(U) == (r.units, r.money)
+    )
+    s = a.crypto.crypto_sell(U, None, 1100)
+    assert s.ok and a.crypto.crypto_holding(U) == (0, 0) and s.profit == s.money - r.money
+    assert a.wallet.balance(U) == INITIAL_BALANCE - r.money + s.money
+    assert ledger_sum(eco, G, U) == a.wallet.balance(U)  # 履歴の合計と残高が一致する
 
 
 def test_partial_sell_keeps_cost_basis_proportional(eco):
     a = eco.for_guild(G)
-    r = a.crypto_buy(U, 2_000, 1000)
+    r = a.crypto.crypto_buy(U, 2_000, 1000)
     half = r.units // 2
-    s = a.crypto_sell(U, half, 1000)
-    units, cost = a.crypto_holding(U)
+    s = a.crypto.crypto_sell(U, half, 1000)
+    units, cost = a.crypto.crypto_holding(U)
     assert s.ok and units == r.units - half and cost == r.money - r.money * half // r.units
 
 
 def test_cannot_oversell_or_buy_beyond_balance(eco):
     a = eco.for_guild(G)
-    assert not a.crypto_sell(U, 1, 1000).ok  # 持っていない
-    assert not a.crypto_buy(U, INITIAL_BALANCE + 1, 1000).ok
-    r = a.crypto_buy(U, 1_000, 1000)
-    assert not a.crypto_sell(U, r.units + 1, 1000).ok
-    assert a.crypto_holding(U)[0] == r.units and a.balance(U) == INITIAL_BALANCE - r.money
+    assert not a.crypto.crypto_sell(U, 1, 1000).ok  # 持っていない
+    assert not a.crypto.crypto_buy(U, INITIAL_BALANCE + 1, 1000).ok
+    r = a.crypto.crypto_buy(U, 1_000, 1000)
+    assert not a.crypto.crypto_sell(U, r.units + 1, 1000).ok
+    assert a.crypto.crypto_holding(U)[0] == r.units and a.wallet.balance(U) == INITIAL_BALANCE - r.money
 
 
 def test_holdings_are_per_server_but_price_is_shared(eco):
     a, b = eco.for_guild(G), eco.for_guild(20)
-    a.crypto_buy(U, 1_000, 1000)
-    assert b.crypto_holding(U) == (0, 0) and b.balance(U) == INITIAL_BALANCE
-    eco.market_set(100.0, 1234, 0)
-    assert a.market_latest()[1] == b.market_latest()[1] == 1234
+    a.crypto.crypto_buy(U, 1_000, 1000)
+    assert b.crypto.crypto_holding(U) == (0, 0) and b.wallet.balance(U) == INITIAL_BALANCE
+    eco.market.market_set(100.0, 1234, 0)
+    assert a.market.market_latest()[1] == b.market.market_latest()[1] == 1234
 
 
 def test_market_history_and_prune(eco):
     for i in range(5):
-        eco.market_set(float(i), 1000 + i, 0)
-    assert [p for _, p, _ in eco.market_history(2.0)] == [1002, 1003, 1004]
-    eco.market_prune(3.0)
-    assert [p for _, p, _ in eco.market_history(0.0)] == [1003, 1004]
+        eco.market.market_set(float(i), 1000 + i, 0)
+    assert [p for _, p, _ in eco.market.market_history(2.0)] == [1002, 1003, 1004]
+    eco.market.market_prune(3.0)
+    assert [p for _, p, _ in eco.market.market_history(0.0)] == [1003, 1004]
 
 
 # ----------------------------- チャート ----------------------------- #
@@ -225,8 +228,8 @@ class It:
 
 @pytest.fixture
 def cog(eco):
-    bot = SimpleNamespace(economy=eco, sessions=Sessions(cooldown=0), config={})
-    c = MarketCog(bot)
+    bot = make_test_bot(repos=eco)
+    c = make_market_cog(bot)
     c._price()
     return c
 
@@ -236,7 +239,7 @@ def test_buy_sell_holdings_commands(cog):
     run(cog._buy(it, "cs", 1_000))
     assert "買いました" in it.sent[-1]["embed"].title
     it = It()
-    run(MarketCog.holdings.callback(cog, it))
+    run(cog.holdings.callback(cog, it))
     assert "保有" in it.sent[-1]["embed"].description
     it = It()
     run(cog._sell(it, "cs", None, None))
@@ -249,7 +252,7 @@ def test_trading_is_refused_during_a_game(cog):
     it = It()
     run(cog._buy(it, "cs", 1_000))
     assert "取引できません" in it.sent[-1]["embed"].title
-    assert cog.bot.economy.for_guild(G).crypto_holding(U) == (0, 0)
+    assert cog.bot.repos.for_guild(G).crypto.crypto_holding(U) == (0, 0)
 
 
 def test_price_chart_and_step(cog):
@@ -273,17 +276,19 @@ def test_avg_price_and_percent():
 
 def test_holders_are_per_server_sorted_and_limited(eco):
     a, b = eco.for_guild(G), eco.for_guild(20)
-    a.crypto_buy(1, 500, 1000)
-    a.crypto_buy(2, 2_000, 1000)
-    a.crypto_buy(3, 1_000, 1000)
-    b.crypto_buy(9, 1_000, 1000)
-    assert [u for u, _, _ in a.crypto_holders()] == [2, 3, 1] and [u for u, _, _ in a.crypto_holders(2)] == [2, 3]
-    assert [u for u, _, _ in b.crypto_holders()] == [9]
+    a.crypto.crypto_buy(1, 500, 1000)
+    a.crypto.crypto_buy(2, 2_000, 1000)
+    a.crypto.crypto_buy(3, 1_000, 1000)
+    b.crypto.crypto_buy(9, 1_000, 1000)
+    assert [u for u, _, _ in a.crypto.crypto_holders()] == [2, 3, 1] and [
+        u for u, _, _ in a.crypto.crypto_holders(2)
+    ] == [2, 3]
+    assert [u for u, _, _ in b.crypto.crypto_holders()] == [9]
 
 
 def test_chart_lists_holders_with_cost_price_and_percent(cog):
-    cog.bot.economy.for_guild(G).crypto_buy(U, 1_000, cog._price())
-    cog.bot.economy.market_set(time_now() + 1, int(cog._price() * 1.1), 0)
+    cog.bot.repos.for_guild(G).crypto.crypto_buy(U, 1_000, cog._price())
+    cog.bot.repos.market.market_set(time_now() + 1, int(cog._price() * 1.1), 0)
     e = cog.chart_embed("24h", guild_id=G)
     field = next(f for f in e.fields if "保有者" in f.name)
     assert "保有者" in field.name and f"<@{U}>" in field.value and "+" in field.value and "取得" in field.value
@@ -301,8 +306,8 @@ def time_now():
 
 def test_sell_shows_position_change_and_remaining(cog):
     run(cog._buy(It(), "cs", 2_000))
-    have, _ = cog.bot.economy.for_guild(G).crypto_holding(U)
-    cog.bot.economy.market_set(time_now() + 1, int(cog._price() * 1.2), 0)
+    have, _ = cog.bot.repos.for_guild(G).crypto.crypto_holding(U)
+    cog.bot.repos.market.market_set(time_now() + 1, int(cog._price() * 1.2), 0)
     it = It()
     run(cog._sell(it, "cs", have / 2000, None))  # 半分売る
     text = it.sent[-1]["embed"].description
@@ -314,28 +319,31 @@ def test_sell_shows_position_change_and_remaining(cog):
 
 # ----------------------------- 順序・端数 ----------------------------- #
 def test_latest_price_is_the_last_recorded_even_if_the_clock_went_back(eco):
-    eco.market_set(5_000.0, 500, 0)
-    eco.market_set(100.0, 900, 0)  # 時計が戻って、あとの行のほうが ts が小さい
-    assert eco.market_latest()[1] == 900
+    eco.market.market_set(5_000.0, 500, 0)
+    eco.market.market_set(100.0, 900, 0)  # 時計が戻って、あとの行のほうが ts が小さい
+    assert eco.market.market_latest()[1] == 900
 
 
 def test_selling_one_unit_at_a_time_keeps_cost_basis_sane(eco):
     a = eco.for_guild(G)
-    r = a.crypto_buy(U, 1_000, 1001.0)
+    r = a.crypto.crypto_buy(U, 1_000, 1001.0)
     for _ in range(r.units - 1):
-        a.crypto_sell(U, 1, 1001.0)
-    units, cost = a.crypto_holding(U)
-    assert units == 1 and cost <= 2  # 取得額が不自然に残らない
+        a.crypto.crypto_sell(U, 1, 1001.0)
+    units, cost = a.crypto.crypto_holding(U)
+    assert units == 1 and cost <= 2  # 取得額が不自然に residual 残らない
     assert abs(market.pnl_percent(1001.0, 1, cost)) < 100 or cost == 1
 
 
 def test_dust_can_be_sold_out(eco):
     a = eco.for_guild(G)
-    a.credit(U, 1, "テスト")
-    eco._conn.execute("INSERT INTO crypto (guild_id, user_id, units, cost) VALUES (?, ?, 9, 10)", (G, U))
-    eco._conn.commit()
-    assert not a.crypto_sell(U, 5, 100.0).ok  # 一部だけでは、受け取りが1ペリカ未満で断られる
-    assert a.crypto_sell(U, None, 100.0).ok and a.crypto_holding(U) == (0, 0)  # 全部なら、端数を片付けられる
+    a.wallet.credit(U, 1, "テスト")
+    with eco.db.tx():
+        eco.db.conn.execute("INSERT INTO crypto (guild_id, user_id, units, cost) VALUES (?, ?, 9, 10)", (G, U))
+    assert not a.crypto.crypto_sell(U, 5, 100.0).ok  # 一部だけでは、受け取りが1ペリカ未満で断られる
+    assert a.crypto.crypto_sell(U, None, 100.0).ok and a.crypto.crypto_holding(U) == (
+        0,
+        0,
+    )  # 全部なら、端数を片付けられる
 
 
 def test_fractional_prices_round_trip_never_gains(eco):
@@ -375,7 +383,7 @@ def test_chart_command_still_works_when_the_old_chart_is_already_gone(cog):
     assert "```" in it2.sent[-1]["embed"].description  # 失敗しても、チャート自体は出る
 
 
-# ----------------------------- チャートの自動更新（出してから60分だけ） ----------------------------- #
+# ----------------------------- チャートの自動更新（出して RANDOM から60分だけ） ----------------------------- #
 class EditChan:
     def __init__(self, cid=5):
         self.id, self.edits, self.deleted, self.error = cid, [], [], None
@@ -409,16 +417,18 @@ def test_chart_command_registers_a_live_chart_that_updates_then_ends(cog):
     run(MarketCog.board.callback(cog, it, SimpleNamespace(value="cs"), None))
     first = it.sent[-1]["embed"]
     assert "自動で更新（あと" in first.footer.text
-    post = cog.bot.economy.live_chart_posts()[0]
+    post = cog.bot.repos.market.live_chart_posts()[0]
     assert post["channel_id"] == 5 and post["guild_id"] == G and post["period"] == "24h"
     now = post["ts"] + 120
     run(cog._refresh_post(post, now, {}))  # 2分後: 更新される（まだ続く）
     assert (
-        len(ch.edits) == 1 and "自動で更新（あと" in ch.edits[0][1].footer.text and cog.bot.economy.live_chart_posts()
+        len(ch.edits) == 1
+        and "自動で更新（あと" in ch.edits[0][1].footer.text
+        and cog.bot.repos.market.live_chart_posts()
     )
     end = post["ts"] + market_cog.LIVE_MINUTES * 60
     run(cog._refresh_post(post, end, {}))  # 60分後: 最後に1回書き換えて、終わる
-    assert "更新は終了しました" in ch.edits[-1][1].footer.text and cog.bot.economy.live_chart_posts() == []
+    assert "更新は終了しました" in ch.edits[-1][1].footer.text and cog.bot.repos.market.live_chart_posts() == []
     assert len(ch.edits) == 2  # 終わったあとは、もう更新しない
 
 
@@ -428,14 +438,16 @@ def test_tick_updates_only_live_posts_and_shares_one_embed_per_view(cog, monkeyp
     cog.bot.get_guild = lambda gid: SimpleNamespace(id=gid)
     now = time.time()
     for cid in (5, 6):
-        cog.bot.economy.swap_chart_post(cid, 100 + cid, G, "24h", now - 60)  # 更新中の2つ（同じサーバー・同じ期間）
-    cog.bot.economy.swap_chart_post(7, 107, G, "24h", now - 60)
-    cog.bot.economy.end_chart_post(7)  # 終わったもの
+        cog.bot.repos.market.swap_chart_post(
+            cid, 100 + cid, G, "24h", now - 60
+        )  # 更新中の2つ（同じサーバー・同じ期間）
+    cog.bot.repos.market.swap_chart_post(7, 107, G, "24h", now - 60)
+    cog.bot.repos.market.end_chart_post(7)  # 終わったもの
     built = []
     orig = cog.chart_embed
     monkeypatch.setattr(cog, "chart_embed", lambda *a, **kw: built.append(1) or orig(*a, **kw))
     cache = {}
-    for post in cog.bot.economy.live_chart_posts():
+    for post in cog.bot.repos.market.live_chart_posts():
         run(cog._refresh_post(post, now, cache))
     assert len(chans[5].edits) == 1 and len(chans[6].edits) == 1 and chans[7].edits == []
     assert len(built) == 1  # 同じ表示は、1回だけ作って使い回す
@@ -444,25 +456,25 @@ def test_tick_updates_only_live_posts_and_shares_one_embed_per_view(cog, monkeyp
 def test_deleted_chart_stops_being_updated_and_errors_do_not_stop_others(cog):
     ch = EditChan(5)
     live_env(cog, ch)
-    cog.bot.economy.swap_chart_post(5, 105, G, "24h", time.time())
-    post = cog.bot.economy.live_chart_posts()[0]
+    cog.bot.repos.market.swap_chart_post(5, 105, G, "24h", time.time())
+    post = cog.bot.repos.market.live_chart_posts()[0]
     ch.error = discord.NotFound(SimpleNamespace(status=404, reason="x"), "gone")  # 誰かがチャートを消した
     run(cog._refresh_post(post, time.time(), {}))
-    assert cog.bot.economy.live_chart_posts() == []
-    cog.bot.economy.swap_chart_post(5, 106, G, "24h", time.time())
+    assert cog.bot.repos.market.live_chart_posts() == []
+    cog.bot.repos.market.swap_chart_post(5, 106, G, "24h", time.time())
     ch.error = discord.Forbidden(
         SimpleNamespace(status=403, reason="x"), "no"
     )  # 権限が無い: 例外にせず、次の周期で再試行
-    run(cog._refresh_post(cog.bot.economy.live_chart_posts()[0], time.time(), {}))
-    assert cog.bot.economy.live_chart_posts()
+    run(cog._refresh_post(cog.bot.repos.market.live_chart_posts()[0], time.time(), {}))
+    assert cog.bot.repos.market.live_chart_posts()
 
 
 def test_legacy_or_unknown_rows_end_without_crashing(cog):
     ch = EditChan(5)
     live_env(cog, ch)
-    cog.bot.economy.swap_chart_post(5, 105, 0, "24h", 0)  # 古い版で作られた行（サーバーが分からない）
-    run(cog._refresh_post(cog.bot.economy.live_chart_posts()[0], time.time(), {}))
-    assert ch.edits == [] and cog.bot.economy.live_chart_posts() == []
+    cog.bot.repos.market.swap_chart_post(5, 105, 0, "24h", 0)  # 古い版で作られた行（サーバーが分からない）
+    run(cog._refresh_post(cog.bot.repos.market.live_chart_posts()[0], time.time(), {}))
+    assert ch.edits == [] and cog.bot.repos.market.live_chart_posts() == []
 
 
 def test_new_chart_in_the_same_channel_replaces_the_live_one(cog):
@@ -471,7 +483,7 @@ def test_new_chart_in_the_same_channel_replaces_the_live_one(cog):
     a, b = It(), It()
     run(MarketCog.board.callback(cog, a, SimpleNamespace(value="cs"), None))
     run(MarketCog.board.callback(cog, b, SimpleNamespace(value="cs"), None))
-    live = cog.bot.economy.live_chart_posts()
+    live = cog.bot.repos.market.live_chart_posts()
     assert len(live) == 1 and live[0]["message_id"] == b._next_id  # 更新の対象は、新しいチャートだけ
     assert FakeChannel.shared[5] == [a._next_id]  # 前のチャートは消える
 
@@ -479,32 +491,34 @@ def test_new_chart_in_the_same_channel_replaces_the_live_one(cog):
 def test_old_chart_board_is_removed_once(cog):
     ch = EditChan(5)
     live_env(cog, ch)
-    cog.bot.economy._conn.execute(
-        "INSERT INTO chart_boards (guild_id, channel_id, message_id) VALUES (?, 5, 777)", (G,)
-    )
-    cog.bot.economy._conn.commit()
+    with cog.bot.repos.db.tx():
+        cog.bot.repos.db.conn.execute(
+            "INSERT INTO chart_boards (guild_id, channel_id, message_id) VALUES (?, 5, 777)", (G,)
+        )
     run(cog._retire_old_boards())
-    assert ch.deleted == [777] and cog.bot.economy.list_chart_boards() == []  # 掲示のメッセージを消し、設定も捨てる
+    assert (
+        ch.deleted == [777] and cog.bot.repos.market.list_chart_boards() == []
+    )  # 掲示のメッセージを消し、設定も捨てる
     run(cog._retire_old_boards())
     assert ch.deleted == [777]  # 2回目は何もしない
 
 
 def test_chart_posts_table_from_the_previous_version_is_upgraded(tmp_path):
     path = str(tmp_path / "old.db")
-    e = Economy(path, strict=True)
-    e._conn.execute("DROP TABLE chart_posts")
-    e._conn.execute("CREATE TABLE chart_posts (channel_id INTEGER PRIMARY KEY, message_id INTEGER NOT NULL)")
-    e._conn.execute("INSERT INTO chart_posts VALUES (5, 99)")
-    e._conn.commit()
-    e._conn.close()
-    again = Economy(path, strict=True)
-    row = again.live_chart_posts()[0]
+    e = open_repositories(path, strict=True)
+    with e.db.tx():
+        e.db.conn.execute("DROP TABLE chart_posts")
+        e.db.conn.execute("CREATE TABLE chart_posts (channel_id INTEGER PRIMARY KEY, message_id INTEGER NOT NULL)")
+        e.db.conn.execute("INSERT INTO chart_posts VALUES (5, 99)")
+    e.db.conn.close()
+    again = open_repositories(path, strict=True)
+    row = again.market.live_chart_posts()[0]
     assert row["channel_id"] == 5 and row["guild_id"] == 0 and row["period"] == "24h"
 
 
 # ----------------------------- 空売り ----------------------------- #
 def set_price(eco, price):
-    eco.market_set(time.time() + set_price.n, price, 0)
+    eco.market.market_set(time.time() + set_price.n, price, 0)
     set_price.n += 1
 
 
@@ -514,34 +528,35 @@ set_price.n = 1
 def test_short_profits_when_price_falls_and_returns_margin(eco):
     a = eco.for_guild(G)
     set_price(eco, 100.0)
-    res = a.short_open(U, 10_000, 100.0, 2)  # 10枚 = 1,000ペリカ分、2倍 → 担保500
-    assert res.ok and res.money == 500 and a.balance(U) == INITIAL_BALANCE - 500
-    close = a.short_close(U, None, 80.0)  # 20%下がった: 利益 200
+    res = a.margin.short_open(U, 10_000, 100.0, 2)  # 10枚 = 1,000ペリカ分、2倍 → 担保500
+    assert res.ok and res.money == 500 and a.wallet.balance(U) == INITIAL_BALANCE - 500
+    close = a.margin.short_close(U, None, 80.0)  # 20%下がった: 利益 200
     assert close.ok and close.profit == 200 and close.money == 700
-    assert a.balance(U) == INITIAL_BALANCE + 200 and a.short_position(U) == (0, 0.0, 0)
+    assert a.wallet.balance(U) == INITIAL_BALANCE + 200 and a.margin.short_position(U) == (0, 0.0, 0)
 
 
 def test_short_partial_close_is_proportional_and_loss_beyond_margin_is_collected(eco):
     a = eco.for_guild(G)
-    assert a.short_open(U, 10_000, 100.0, 1).ok  # 担保1000
-    half = a.short_close(U, 5_000, 120.0)  # 半分を、20%上がったところで決済: 損失100
-    assert half.profit == -100 and a.short_position(U)[0] == 5_000 and a.short_position(U)[2] == 500
-    last = a.short_close(
+    assert a.margin.short_open(U, 10_000, 100.0, 1).ok  # 担保1000
+    half = a.margin.short_close(U, 5_000, 120.0)  # 半分を、20%上がったところで決済: 損失100
+    assert half.profit == -100 and a.margin.short_position(U)[0] == 5_000 and a.margin.short_position(U)[2] == 500
+    last = a.margin.short_close(
         U, None, 500.0
     )  # 急騰: 担保500に対して損失2,000。戻りは0で、超えた1,500は手元の現金から取り立てる
     assert last.money == 0 and last.profit == -2000
-    assert a.balance(U) == INITIAL_BALANCE - 1000 + 400 - 1500 and a.debt(U) == 0
+    assert a.wallet.balance(U) == INITIAL_BALANCE - 1000 + 400 - 1500 and a.debt.debt(U) == 0
 
 
 def test_short_validation(eco):
     a = eco.for_guild(G)
-    assert not a.short_open(U, 10_000, 100.0, 4).ok  # 選べない倍率
-    assert not a.short_open(U, 1, 100.0, 1).ok  # 担保が少なすぎる
-    assert not a.short_open(U, 100_000, 100.0, 1).ok  # 担保が残高より多い（10,000ペリカ必要）
-    assert not a.short_close(U, None, 100.0).ok  # 建てていない
-    a.balance(U)
-    a._conn.execute("UPDATE users SET debt=100 WHERE user_id=?", (U,))
-    assert a.short_open(U, 10_000, 100.0, 1).reason.code == "margin_debt_blocks"  # 借金中は建てられない
+    assert not a.margin.short_open(U, 10_000, 100.0, 4).ok  # 選べない倍率
+    assert not a.margin.short_open(U, 1, 100.0, 1).ok  # 担保が少なすぎる
+    assert not a.margin.short_open(U, 100_000, 100.0, 1).ok  # 担保が残高より多い（10,000ペリカ必要）
+    assert not a.margin.short_close(U, None, 100.0).ok  # 建てていない
+    a.wallet.balance(U)
+    with a.db.tx():
+        a.db.conn.execute("UPDATE users SET debt=100 WHERE user_id=?", (U,))
+    assert a.margin.short_open(U, 10_000, 100.0, 1).reason.code == "margin_debt_blocks"  # 借金中は建てられない
 
 
 def test_losscut_closes_accounts_whose_maintenance_ratio_falls_below_100_percent(eco, monkeypatch):
@@ -549,38 +564,47 @@ def test_losscut_closes_accounts_whose_maintenance_ratio_falls_below_100_percent
         market, "RISK_K", 20.0 * 0.004 / market.CS.sigma
     )  # CS の σ が 0.004 だった頃と、同じ大きさの必要証拠金
     a = eco.for_guild(G)
-    a.short_open(U, 10_000, 100.0, 5)  # 担保200・必要証拠金 80。+12% を超えて有効証拠金が 80 を割るとロスカット
-    a.short_open(2, 10_000, 100.0, 1)  # 担保1000。ずっと余裕がある
-    assert eco.margin_losscut({"cs": 111.0}) == []  # 損失110 → 有効90 ÷ 必要89 ≒ 101%
-    done = eco.margin_losscut({"cs": 113.0})
-    assert done == [(G, U, "cs", "short", 130)] and a.short_position(U)[0] == 0 and a.short_position(2)[0] == 10_000
-    assert a.balance(U) == INITIAL_BALANCE - 200 + 70  # 担保の残り70が戻る
+    a.margin.short_open(U, 10_000, 100.0, 5)  # 担保200・必要証拠金 80。+12% を超えて有効証拠金が 80 を割るとロスカット
+    a.margin.short_open(2, 10_000, 100.0, 1)  # 担保1000。ずっと余裕がある
+    assert eco.margin.margin_losscut({"cs": 111.0}) == []  # 損失110 → 有効90 ÷ 必要89 ≒ 101%
+    done = eco.margin.margin_losscut({"cs": 113.0})
+    assert (
+        done == [(G, U, "cs", "short", 130)]
+        and a.margin.short_position(U)[0] == 0
+        and a.margin.short_position(2)[0] == 10_000
+    )
+    assert a.wallet.balance(U) == INITIAL_BALANCE - 200 + 70  # 担保の残り70が戻る
 
 
 def test_short_counts_in_ranking_and_payout_repays_debt(eco):
     a = eco.for_guild(G)
     set_price(eco, 100.0)
-    a.short_open(U, 10_000, 100.0, 2)
-    assert dict((u, v) for _, u, v in a.top(5))[U] == INITIAL_BALANCE  # 担保 + 含み損益（0）で、総資産は変わらない
+    a.margin.short_open(U, 10_000, 100.0, 2)
+    assert (
+        dict((u, v) for _, u, v in a.wallet.top(5))[U] == INITIAL_BALANCE
+    )  # 担保 + 含み損益（0）で、総資産は変わらない
     set_price(eco, 90.0)
-    assert dict((u, v) for _, u, v in a.top(5))[U] == INITIAL_BALANCE + 100
-    a._conn.execute("UPDATE users SET debt=300 WHERE user_id=?", (U,))  # 建てたあとに借金ができても
-    a.short_close(U, None, 90.0)  # 決済で戻るのは、もともと自分のお金なので、天引きされない
-    assert a.debt(U) == 300
-    assert a.repay_debt(U)[0] and a.debt(U) == 0
+    assert dict((u, v) for _, u, v in a.wallet.top(5))[U] == INITIAL_BALANCE + 100
+    with a.db.tx():
+        a.db.conn.execute("UPDATE users SET debt=300 WHERE user_id=?", (U,))  # 建てたあとに借金ができても
+    a.margin.short_close(U, None, 90.0)  # 決済で戻るのは、もともと自分のお金なので、天引きされない
+    assert a.debt.debt(U) == 300
+    assert a.debt.repay_debt(U)[0] and a.debt.debt(U) == 0
 
 
 def test_short_commands(cog):
     it = It()
     run(cog._short(it, "cs", 1.0, None, 2))
     assert "空売りしました" in it.sent[-1]["embed"].title
-    assert cog.bot.economy.for_guild(G).short_position(U)[0] == 1_000
+    assert cog.bot.repos.for_guild(G).margin.short_position(U)[0] == 1_000
     it = It()
     run(MarketCog.holdings.callback(cog, it))
     assert "空売り" in it.sent[-1]["embed"].description and "維持率" in it.sent[-1]["embed"].description
     it = It()
     run(cog._cover(it, "cs", None, None))
-    assert "買い戻しました" in it.sent[-1]["embed"].title and cog.bot.economy.for_guild(G).short_position(U)[0] == 0
+    assert (
+        "買い戻しました" in it.sent[-1]["embed"].title and cog.bot.repos.for_guild(G).margin.short_position(U)[0] == 0
+    )
     it = It()
     run(cog._cover(it, "cs", None, None))
     assert "買い戻せません" in it.sent[-1]["embed"].title  # 建てていない
@@ -591,8 +615,8 @@ def test_short_commands(cog):
 
 def test_chart_lists_short_sellers_with_profit_when_price_falls(cog):
     price = cog._price()
-    cog.bot.economy.for_guild(G).short_open(U, 2_000, price, 2)
-    cog.bot.economy.market_set(time_now() + 1, round(price * 0.9, 2), 0)  # 10%下がった: 空売りは利益
+    cog.bot.repos.for_guild(G).margin.short_open(U, 2_000, price, 2)
+    cog.bot.repos.market.market_set(time_now() + 1, round(price * 0.9, 2), 0)  # 10%下がった: 空売りは利益
     e = cog.chart_embed("24h", guild_id=G)
     field = next(f for f in e.fields if "空売り" in f.name)
     assert f"<@{U}>" in field.value and "2.000枚" in field.value and "+10.0%" in field.value and "建値" in field.value
@@ -603,7 +627,7 @@ def test_short_can_be_sized_by_amount_or_lots_but_not_both(cog):
     price = cog._price()
     it = It()
     run(cog._short(it, "cs", None, 1_000, 2))  # 金額1,000ペリカ分
-    units = cog.bot.economy.for_guild(G).short_position(U)[0]
+    units = cog.bot.repos.for_guild(G).margin.short_position(U)[0]
     assert "空売りしました" in it.sent[-1]["embed"].title and units == int(1_000 * 1_000 // price)
     it = It()
     run(cog._short(it, "cs", 1.0, 1_000, None))
@@ -640,14 +664,14 @@ def test_limit_to_day_clamps_each_symbol_to_plus_minus_the_limit_of_the_referenc
 
 
 def test_step_prices_never_drops_below_the_limit_from_24_hours_ago(eco):
-    cog = MarketCog(SimpleNamespace(economy=eco, sessions=Sessions(), config={}))
+    cog = make_market_cog(make_test_bot(repos=eco))
     now = time.time()
     for sym in market.SYMBOLS:
-        eco.market_set(now - 86_000, sym.start, 0, sym.key)  # 約24時間前
-        eco.market_set(now - 5, sym.start * 0.71, 0, sym.key)  # すでに −29% まで下がっている
+        eco.market.market_set(now - 86_000, sym.start, 0, sym.key)  # 約24時間前
+        eco.market.market_set(now - 5, sym.start * 0.71, 0, sym.key)  # すでに −29% まで下がっている
     cog.step_prices()
     for sym in market.SYMBOLS:
-        assert eco.market_latest(sym.key)[1] >= sym.start * 0.70 - 0.01
+        assert eco.market.market_latest(sym.key)[1] >= sym.start * 0.70 - 0.01
 
 
 # ----------------------------- 期待成長率（drift） ----------------------------- #
@@ -672,18 +696,16 @@ def test_drift_fades_out_as_the_price_rises_toward_the_band_and_stops_there():
 
 def test_a_step_without_any_shock_moves_the_price_by_exactly_the_drift(monkeypatch):
     class Calm:
-        @staticmethod
-        def gauss(mu, sigma):
+        def gauss(self, mu, sigma):
             return 0.0
 
-        @staticmethod
-        def random():
+        def random(self):
             return 1.0  # 有事なし
 
     prices = {s.key: s.start for s in market.SYMBOLS}
-    with_drift, _ = market.next_prices(prices, Calm)
+    with_drift, _ = market.next_prices(prices, Calm())
     monkeypatch.setattr(market, "drift_per_minute", lambda sym, price: 0.0)
-    without, _ = market.next_prices(prices, Calm)
+    without, _ = market.next_prices(prices, Calm())
     for sym in market.SYMBOLS:
         assert with_drift[sym.key] / without[sym.key] == pytest.approx(math.exp(sym.drift / 1440), rel=1e-4)
 
@@ -702,56 +724,56 @@ def test_capital_gains_tax_is_progressive_and_zero_for_small_profits():
 
 def test_a_big_spot_gain_is_taxed_and_the_tax_goes_to_depositors(eco):
     a = eco.for_guild(G)
-    a.credit(U, 500_000, "テスト")
-    a.credit(2, 20_000, "テスト")
-    a.bank_deposit(2, 20_000, 1.0)  # 預金者
-    r = a.crypto_buy(U, 200_000, 1000)
-    before_deposit = a.deposit_of(2)
-    s = a.crypto_sell(U, None, 1300)  # 約 +30%
+    a.wallet.credit(U, 500_000, "テスト")
+    a.wallet.credit(2, 20_000, "テスト")
+    a.bank.bank_deposit(2, 20_000, 1.0)  # 預金者
+    r = a.crypto.crypto_buy(U, 200_000, 1000)
+    before_deposit = a.bank.deposit_of(2)
+    s = a.crypto.crypto_sell(U, None, 1300)  # 約 +30%
     assert s.ok and s.profit > 50_000
     assert s.tax == market.capital_gains_tax(s.profit) > 0
-    assert a.balance(U) == INITIAL_BALANCE + 500_000 - r.money + s.money  # 受け取りは、税を引いた額
-    assert a.deposit_of(2) == before_deposit + s.tax  # 預金者がひとりなので、税が全額、預金に入る
+    assert a.wallet.balance(U) == INITIAL_BALANCE + 500_000 - r.money + s.money  # 受け取りは、税を引いた額
+    assert a.bank.deposit_of(2) == before_deposit + s.tax  # 預金者がひとりなので、税が全額、預金に入る
     assert any(
         "キャピタルゲイン税" in x["reason"]
-        for x in eco._conn.execute("SELECT reason FROM ledger WHERE user_id=?", (U,))
+        for x in eco.db.conn.execute("SELECT reason FROM ledger WHERE user_id=?", (U,))
     )
 
 
 def test_small_gains_and_losses_are_not_taxed_on_spot_and_margin(eco):
     a = eco.for_guild(G)
-    a.credit(U, 100_000, "テスト")
-    a.crypto_buy(U, 10_000, 1000)
-    win = a.crypto_sell(U, None, 1100)  # 利益 約1,000
+    a.wallet.credit(U, 100_000, "テスト")
+    a.crypto.crypto_buy(U, 10_000, 1000)
+    win = a.crypto.crypto_sell(U, None, 1100)  # 利益 約1,000
     assert win.ok and 0 < win.profit <= 10_000 and win.tax == 0  # 1万ペリカまでの利益は、非課税
-    a.crypto_buy(U, 10_000, 1000)
-    lose = a.crypto_sell(U, None, 900)
+    a.crypto.crypto_buy(U, 10_000, 1000)
+    lose = a.crypto.crypto_sell(U, None, 900)
     assert lose.profit < 0 and lose.tax == 0
 
 
 def test_a_big_margin_gain_is_taxed_when_closed_by_the_player(eco):
     a = eco.for_guild(G)
-    a.credit(U, 600_000, "テスト")
-    assert a.long_open(U, 400_000, 1000, 5, "cs").ok  # 40万ペリカぶんの信用買い（担保8万）
-    margin = a.margin_position(U, "cs", "long")[2]
-    before = a.balance(U)
-    res = a.long_close(U, None, 1300, "cs")  # 価格 +30%: 利益 約12万
+    a.wallet.credit(U, 600_000, "テスト")
+    assert a.margin.long_open(U, 400_000, 1000, 5, "cs").ok  # 40万ペリカぶんの信用買い（担保8万）
+    margin = a.margin.margin_position(U, "cs", "long")[2]
+    before = a.wallet.balance(U)
+    res = a.margin.long_close(U, None, 1300, "cs")  # 価格 +30%: 利益 約12万
     assert res.ok and res.profit > 100_000
     assert res.tax == market.capital_gains_tax(res.profit) > 0
-    assert a.balance(U) == before + margin + res.profit - res.tax  # 担保 + 利益 - 税
+    assert a.wallet.balance(U) == before + margin + res.profit - res.tax  # 担保 + 利益 - 税
 
 
 def test_forced_sales_do_not_pay_the_gains_tax(eco):
     a = eco.for_guild(G)
-    a.credit(U, 500_000, "テスト")
-    a.crypto_buy(U, 200_000, 1000)
-    with eco._lock, eco._conn:  # 強制執行などが使う売却（taxable を付けない）
-        forced = a._crypto_sell_locked(U, None, 1300, "cs")
+    a.wallet.credit(U, 500_000, "テスト")
+    a.crypto.crypto_buy(U, 200_000, 1000)
+    with a.db.tx():  # 強制執行などが使う売却（taxable を付けない）
+        forced = a.crypto.crypto_sell_locked_for(a.crypto.guild_id, U, None, 1300, "cs")
     assert forced.ok and forced.profit > 50_000 and forced.tax == 0
 
 
 def test_holdings_without_buttons_does_not_pass_view_none(cog):
-    """保有が無くてボタンも無いとき、view=None を渡さない（本物の discord.py は None で落ちる）。"""
+    """保有が無くてもボタンも無いとき、view=None を渡さない（本物の discord.py は None で落ちる）。"""
     it = It()
     run(MarketCog.holdings.callback(cog, it))
     assert it.sent[-1].get("view", 0) is not None

@@ -5,18 +5,21 @@ import random
 import pytest
 
 from domain import arena as a
-from infra.db.economy import Economy
+from infra.db.repositories import open_repositories
 
 U, V = 1, 2
 NOW = 1_000_000.0
 
 
 @pytest.fixture
-def eco(tmp_path):
-    e = Economy(str(tmp_path / "t.db"))
-    e.credit(U, 50_000, "テスト")
-    e.credit(V, 50_000, "テスト")
-    return e
+def repos(tmp_path):
+    bundle = open_repositories(str(tmp_path / "t.db"))
+    try:
+        bundle.wallet.credit(U, 50_000, "テスト")
+        bundle.wallet.credit(V, 50_000, "テスト")
+        yield bundle
+    finally:
+        bundle.close()
 
 
 def test_group_size_matches_format():
@@ -103,106 +106,106 @@ def test_battle_frames_loser_reaches_zero_and_winner_survives():
     assert last[0] == 0 and last[2] == 0
 
 
-def test_arena_tournament_ensure_creates_once_per_format_and_is_idempotent(eco):
-    duel1 = eco.arena_tournament_ensure("duel", NOW, rng=random.Random(1))
-    duel2 = eco.arena_tournament_ensure("duel", NOW, rng=random.Random(2))  # 2回目は作り直さない
+def test_arena_tournament_ensure_creates_once_per_format_and_is_idempotent(repos):
+    duel1 = repos.arena.arena_tournament_ensure("duel", NOW, rng=random.Random(1))
+    duel2 = repos.arena.arena_tournament_ensure("duel", NOW, rng=random.Random(2))  # 2回目は作り直さない
     assert duel1["id"] == duel2["id"]
     assert len(duel1["fighters"]) == 4
     assert len({f["group_no"] for f in duel1["fighters"]}) == 2
 
-    royale = eco.arena_tournament_ensure("royale", NOW, rng=random.Random(1))
+    royale = repos.arena.arena_tournament_ensure("royale", NOW, rng=random.Random(1))
     assert royale["id"] != duel1["id"]  # 1on1とバトロワは、別の大会として両立する
     assert len(royale["fighters"]) == 16
     assert len({f["group_no"] for f in royale["fighters"]}) == 4
 
 
-def test_arena_tournaments_ensure_today_creates_both_formats(eco):
-    both = eco.arena_tournaments_ensure_today(NOW, rng=random.Random(1))
+def test_arena_tournaments_ensure_today_creates_both_formats(repos):
+    both = repos.arena.arena_tournaments_ensure_today(NOW, rng=random.Random(1))
     assert {t["format"] for t in both} == {"duel", "royale"}
 
 
-def test_arena_bet_validates_range_eliminated_and_closed_stage(eco):
-    t = eco.arena_tournament_ensure("duel", NOW, rng=random.Random(1))
+def test_arena_bet_validates_range_eliminated_and_closed_stage(repos):
+    t = repos.arena.arena_tournament_ensure("duel", NOW, rng=random.Random(1))
     fid = t["fighters"][0]["id"]
-    assert eco.arena_bet(U, fid, a.MIN_STAKE - 1, NOW)[0] is False
-    assert eco.arena_bet(U, fid, a.MAX_STAKE + 1, NOW)[0] is False
-    before = eco.balance(U)
-    ok, reason = eco.arena_bet(U, fid, 1_000, NOW)
+    assert repos.arena.arena_bet(U, fid, a.MIN_STAKE - 1, NOW)[0] is False
+    assert repos.arena.arena_bet(U, fid, a.MAX_STAKE + 1, NOW)[0] is False
+    before = repos.wallet.balance(U)
+    ok, reason = repos.arena.arena_bet(U, fid, 1_000, NOW)
     assert ok and reason == ""
-    assert eco.balance(U) == before - 1_000
-    eco.arena_run_semis(t["id"], rng=random.Random(1))
-    fighters_after = eco.arena_fighters(t["id"])
+    assert repos.wallet.balance(U) == before - 1_000
+    repos.arena.arena_run_semis(t["id"], rng=random.Random(1))
+    fighters_after = repos.arena.arena_fighters(t["id"])
     eliminated = next(f for f in fighters_after if f["stage"] == "out")
-    assert eco.arena_bet(V, eliminated["id"], 1_000, NOW)[0] is False  # 脱落した戦士には賭けられない
+    assert repos.arena.arena_bet(V, eliminated["id"], 1_000, NOW)[0] is False  # 脱落した戦士には賭けられない
 
 
-def test_arena_run_semis_advances_exactly_two_finalists_and_settles_group_bets(eco):
-    t = eco.arena_tournament_ensure("duel", NOW, rng=random.Random(3))
+def test_arena_run_semis_advances_exactly_two_finalists_and_settles_group_bets(repos):
+    t = repos.arena.arena_tournament_ensure("duel", NOW, rng=random.Random(3))
     fighters = t["fighters"]
-    eco.arena_bet(U, fighters[0]["id"], 2_000, NOW)
-    eco.arena_bet(V, fighters[1]["id"], 2_000, NOW)
-    before = eco.balance(U) + eco.balance(V)
-    result = eco.arena_run_semis(t["id"], rng=random.Random(5))
+    repos.arena.arena_bet(U, fighters[0]["id"], 2_000, NOW)
+    repos.arena.arena_bet(V, fighters[1]["id"], 2_000, NOW)
+    before = repos.wallet.balance(U) + repos.wallet.balance(V)
+    result = repos.arena.arena_run_semis(t["id"], rng=random.Random(5))
     assert result is not None and len(result["finalists"]) == 2
-    after_fighters = eco.arena_fighters(t["id"])
+    after_fighters = repos.arena.arena_fighters(t["id"])
     assert sum(1 for f in after_fighters if f["stage"] == "final") == 2
     assert sum(1 for f in after_fighters if f["stage"] == "out") == len(fighters) - 2
-    bets = eco.arena_my_bets(t["id"], U) + eco.arena_my_bets(t["id"], V)
+    bets = repos.arena.arena_my_bets(t["id"], U) + repos.arena.arena_my_bets(t["id"], V)
     assert all(b["settled"] for b in bets)
-    after = eco.balance(U) + eco.balance(V)
+    after = repos.wallet.balance(U) + repos.wallet.balance(V)
     assert after <= before + 2_000 * (a.MAX_ODDS - 1)  # 新しいペリカを大量発生させていない
 
 
-def test_arena_run_semis_for_royale_advances_four_finalists(eco):
-    t = eco.arena_tournament_ensure("royale", NOW, rng=random.Random(3))
-    result = eco.arena_run_semis(t["id"], rng=random.Random(5))
+def test_arena_run_semis_for_royale_advances_four_finalists(repos):
+    t = repos.arena.arena_tournament_ensure("royale", NOW, rng=random.Random(3))
+    result = repos.arena.arena_run_semis(t["id"], rng=random.Random(5))
     assert result is not None and len(result["finalists"]) == 4  # 4組の準決勝→決勝は4人
-    after_fighters = eco.arena_fighters(t["id"])
+    after_fighters = repos.arena.arena_fighters(t["id"])
     assert sum(1 for f in after_fighters if f["stage"] == "final") == 4
     assert sum(1 for f in after_fighters if f["stage"] == "out") == 12
 
 
-def test_arena_run_final_crowns_champion_and_pays_without_minting_money(eco):
-    t = eco.arena_tournament_ensure("duel", NOW, rng=random.Random(3))
-    eco.arena_run_semis(t["id"], rng=random.Random(5))
-    finalists = [f for f in eco.arena_fighters(t["id"]) if f["stage"] == "final"]
-    eco.arena_bet(U, finalists[0]["id"], 3_000, NOW)
-    eco.arena_bet(V, finalists[1]["id"], 3_000, NOW)
-    before = eco.balance(U) + eco.balance(V)
-    result = eco.arena_run_final(t["id"], rng=random.Random(7))
+def test_arena_run_final_crowns_champion_and_pays_without_minting_money(repos):
+    t = repos.arena.arena_tournament_ensure("duel", NOW, rng=random.Random(3))
+    repos.arena.arena_run_semis(t["id"], rng=random.Random(5))
+    finalists = [f for f in repos.arena.arena_fighters(t["id"]) if f["stage"] == "final"]
+    repos.arena.arena_bet(U, finalists[0]["id"], 3_000, NOW)
+    repos.arena.arena_bet(V, finalists[1]["id"], 3_000, NOW)
+    before = repos.wallet.balance(U) + repos.wallet.balance(V)
+    result = repos.arena.arena_run_final(t["id"], rng=random.Random(7))
     assert result is not None and result["champion"] in (finalists[0]["name"], finalists[1]["name"])
-    after = eco.balance(U) + eco.balance(V)
+    after = repos.wallet.balance(U) + repos.wallet.balance(V)
     # 負けた側の賭け(3,000)が原資。決勝はオッズにブーストがかかるが、原資を超えて配当しない
     assert after - before <= 3_000
-    tour = eco.arena_tournament_get_by_day(eco._arena_today(NOW), "duel")
+    tour = repos.arena.arena_tournament_get_by_day(repos.arena.arena_today(NOW), "duel")
     assert tour is not None and tour["status"] == "done"
 
 
-def test_arena_run_final_for_royale_settles_three_losers_at_once(eco):
-    t = eco.arena_tournament_ensure("royale", NOW, rng=random.Random(3))
-    eco.arena_run_semis(t["id"], rng=random.Random(5))
-    pre_finalist_ids = {f["id"] for f in eco.arena_fighters(t["id"]) if f["stage"] == "final"}
-    result = eco.arena_run_final(t["id"], rng=random.Random(7))
+def test_arena_run_final_for_royale_settles_three_losers_at_once(repos):
+    t = repos.arena.arena_tournament_ensure("royale", NOW, rng=random.Random(3))
+    repos.arena.arena_run_semis(t["id"], rng=random.Random(5))
+    pre_finalist_ids = {f["id"] for f in repos.arena.arena_fighters(t["id"]) if f["stage"] == "final"}
+    result = repos.arena.arena_run_final(t["id"], rng=random.Random(7))
     assert result is not None
     assert len(result["runner_up"]) == 3  # 決勝は4人同時なので、負けは3人
-    after_fighters = {f["id"]: f for f in eco.arena_fighters(t["id"])}
+    after_fighters = {f["id"]: f for f in repos.arena.arena_fighters(t["id"])}
     finalists_after = [after_fighters[fid] for fid in pre_finalist_ids]
     assert sum(1 for f in finalists_after if f["result"] == "won") == 1
     assert sum(1 for f in finalists_after if f["result"] == "lost") == 3
 
 
-def test_arena_payout_scales_down_when_pool_is_insufficient(eco):
-    t = eco.arena_tournament_ensure("duel", NOW, rng=random.Random(3))
+def test_arena_payout_scales_down_when_pool_is_insufficient(repos):
+    t = repos.arena.arena_tournament_ensure("duel", NOW, rng=random.Random(3))
     fighters = t["fighters"]
     group1 = [f for f in fighters if f["group_no"] == 1]
     # 勝つ方に大量、負ける方には少額だけ賭けておく（原資が足りない状況を作る）
-    eco.credit(U, 100_000, "テスト")
+    repos.wallet.credit(U, 100_000, "テスト")
     winner_bias = group1[0]
-    eco.arena_bet(U, winner_bias["id"], a.MAX_STAKE, NOW)
-    eco.arena_bet(V, group1[1]["id"], a.MIN_STAKE, NOW)
-    before = eco.balance(U)
-    eco.arena_run_semis(t["id"], rng=random.Random(1))
-    my_bet = next(b for b in eco.arena_my_bets(t["id"], U) if b["fighter_id"] == winner_bias["id"])
+    repos.arena.arena_bet(U, winner_bias["id"], a.MAX_STAKE, NOW)
+    repos.arena.arena_bet(V, group1[1]["id"], a.MIN_STAKE, NOW)
+    before = repos.wallet.balance(U)
+    repos.arena.arena_run_semis(t["id"], rng=random.Random(1))
+    my_bet = next(b for b in repos.arena.arena_my_bets(t["id"], U) if b["fighter_id"] == winner_bias["id"])
     if my_bet["payout"] > 0:  # 勝っていれば、配当は原資（負け分）を超えない
         assert my_bet["payout"] <= a.MIN_STAKE * a.MAX_ODDS + 1
-    assert eco.balance(U) - before == my_bet["payout"]  # 賭け金はbet時点で引かれ済み。差分=配当そのもの
+    assert repos.wallet.balance(U) - before == my_bet["payout"]  # 賭け金はbet時点で引かれ済み。差分=配当そのもの

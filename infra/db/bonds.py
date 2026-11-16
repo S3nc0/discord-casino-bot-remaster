@@ -1,4 +1,4 @@
-"""債券の記録（Economy に混ぜ込む部品）。購入・満期の決着・倒産抽選・売却。
+"""債券の記録。購入・満期の決着・倒産抽選・売却。
 
 表の定義は infra/db/schema/tables.py にある。利率などの数字は domain/bonds.py。
 満期の利息は、帝愛の手元現金から払う（新しく作らない。現金が足りなければ利息が減る。元本は必ず全額返す）。
@@ -6,31 +6,58 @@
 
 import random
 import time
-from typing import Optional
+from typing import Any, Optional
 
 from domain import bonds as bonds_mod
-from domain import market as market_mod
 from domain.errors import fail
-from infra.db.base import EcoBase
+from domain.ports.bridges import (
+    IBankIncomeSink,
+    IDebtRepayHook,
+    IMarginCollateralGuard,
+    NoOpDebtRepayHook,
+    NoOpMarginCollateralGuard,
+)
+from domain.ports.repos import IBondRepo
+from infra.db.account import AccountCore
+from infra.db.base import EcoDb, ScopedRepo
 
 
-class BondMixin(EcoBase):
+class BondRepo(ScopedRepo, IBondRepo):
     """債券（元本を預かり、満期に利息つきで返す。ジャンク債は倒産することがある）。購入・満期の決着・解約。"""
 
-    def bond_buy(self, user_id: int, kind_key: str, amount: int, now: float) -> tuple:
+    def __init__(
+        self,
+        db: EcoDb,
+        account: AccountCore,
+        bank: IBankIncomeSink,
+        debt_repay: Optional[IDebtRepayHook] = None,
+        collateral_guard: Optional[IMarginCollateralGuard] = None,
+        guild_id: int = 0,
+        strict: bool = False,
+    ) -> None:
+        super().__init__(db, guild_id, strict)
+        self._account = account
+        self._bank = bank
+        self._debt_repay: IDebtRepayHook = debt_repay or NoOpDebtRepayHook()
+        self._collateral_guard: IMarginCollateralGuard = collateral_guard or NoOpMarginCollateralGuard()
+
+    def bond_buy(self, user_id: int, kind_key: str, amount: int, now: float) -> tuple[Any, ...]:
         """債券を買う。(成功か, Failure | "") を返す。"""
         kind = bonds_mod.KINDS.get(kind_key)
         if kind is None:
             return False, fail("bond_invalid_kind")
-        with self._lock, self._conn:
-            self._ensure(user_id)
+        with self._db.tx():
+            gid = self._g()
+            self._account.ensure(gid, user_id)
             if amount < bonds_mod.MIN_AMOUNT:
                 return False, fail("bond_min_amount", min_amount=bonds_mod.MIN_AMOUNT)
-            if self._debt(user_id) > 0:
-                return False, fail("debt_blocks", debt=self._debt(user_id), verb="買えません")
-            if self._balance(user_id) < amount:
-                return False, fail("insufficient_balance", balance=self._balance(user_id))
-            held = self._bond_held(user_id, kind_key)
+            debt = self._account.debt(gid, user_id)
+            if debt > 0:
+                return False, fail("debt_blocks", debt=debt, verb="買えません")
+            bal = self._account.raw_balance(gid, user_id)
+            if bal < amount:
+                return False, fail("insufficient_balance", balance=bal)
+            held = self._bond_held(gid, user_id, kind_key)
             if held + amount > kind.max_total:
                 return False, fail(
                     "bond_max_total",
@@ -39,31 +66,40 @@ class BondMixin(EcoBase):
                     held=held,
                     room=kind.max_total - held,
                 )
-            self._apply(user_id, -amount, f"債券購入:{kind.name}")
+            self._account.apply(gid, user_id, -amount, f"債券購入:{kind.name}")
             self._conn.execute(
                 "INSERT INTO bonds (guild_id, user_id, kind, principal, due, ts) VALUES (?, ?, ?, ?, ?, ?)",
-                (self._g(), user_id, kind_key, amount, now + kind.hours * 3600, now),
+                (gid, user_id, kind_key, amount, now + kind.hours * 3600, now),
             )
             return True, ""
 
-    def _bond_held(self, user_id: int, kind_key: str) -> int:
+    def _bond_held(self, guild_id: int, user_id: int, kind_key: str) -> int:
         return self._conn.execute(
             "SELECT COALESCE(SUM(principal), 0) FROM bonds WHERE guild_id=? AND user_id=? AND kind=? AND status='active'",
-            (self._g(), user_id, kind_key),
+            (guild_id, user_id, kind_key),
         ).fetchone()[0]
 
-    def bond_values(self) -> dict:
+    def bond_values(self) -> dict[int, int]:
         """{ユーザーID: 預けている元本の合計}（このサーバーの、保有中の債券。ランキングの総資産に含める）。"""
         with self._lock:
+            gid = self._g()
             return {
                 r["user_id"]: r["p"]
                 for r in self._conn.execute(
                     "SELECT user_id, SUM(principal) AS p FROM bonds WHERE guild_id=? AND status='active' GROUP BY user_id",
-                    (self._g(),),
+                    (gid,),
                 )
             }
 
-    def bond_list(self, user_id: int, recent: int = 5) -> dict:
+    def collect_values(self, guild_id: int, totals: dict[int, int]) -> None:
+        with self._lock:
+            for r in self._conn.execute(
+                "SELECT user_id, SUM(principal) AS p FROM bonds WHERE guild_id=? AND status='active' GROUP BY user_id",
+                (guild_id,),
+            ):
+                totals[r["user_id"]] = totals.get(r["user_id"], 0) + r["p"]
+
+    def bond_list(self, user_id: int, recent: int = 5) -> dict[str, Any]:
         """保有中（満期が近い順）と、直近に決着したもの（新しい順）。"""
         with self._lock:
             rows = self._conn.execute(
@@ -73,17 +109,14 @@ class BondMixin(EcoBase):
         done = [dict(r) for r in reversed(rows) if r["status"] != "active"][:recent]
         return {"active": active, "done": done}
 
-    def bond_settle(self, now: float, rng=None) -> list:
-        """ジャンク債の倒産抽選と、満期を過ぎた債券の決着（このサーバー全員分）。決着した行（status と paid つき）を返す。
-
-        倒産抽選は、前回の抽選から now（満期を過ぎていれば満期）までの時間ぶんを、まとめて1回で引く（確率 1-exp(-λ×経過時間)）。
-        1分ごとに呼ばれても、止まっていたあとにまとめて呼ばれても、倒産する確率の合計は同じ。
-        """
+    def bond_settle(self, now: float, rng: Any = None) -> list[Any]:
+        """ジャンク債の倒産抽選と、満期を過ぎた債券の決着（このサーバー全員分）。決着した行（status と paid つき）を返す。"""
         rng = rng or random
         out = []
-        with self._lock, self._conn:
+        with self._db.tx():
+            gid = self._g()
             for row in self._conn.execute(
-                "SELECT * FROM bonds WHERE guild_id=? AND status='active' ORDER BY id", (self._g(),)
+                "SELECT * FROM bonds WHERE guild_id=? AND status='active' ORDER BY id", (gid,)
             ).fetchall():
                 kind = bonds_mod.KINDS[row["kind"]]
                 until = min(now, row["due"])
@@ -96,48 +129,49 @@ class BondMixin(EcoBase):
                     self._conn.execute("UPDATE bonds SET checked=? WHERE id=?", (until, row["id"]))
                 if row["due"] > now:
                     continue
-                # 利息は、帝愛の手元現金から払う（新しく作らない。預金者には手を付けない。現金が足りなければ、利息が減る）
                 interest = max(0, bonds_mod.maturity_payout(kind, row["principal"]) - row["principal"])
                 got_interest = 0
                 if interest:
-                    state = self._bank_sync(now)
+                    state = self._bank.bank_sync_for(gid, now)
                     got_interest = int(min(interest, state["cash"]))
                     if got_interest:
-                        self._bank_set(state["cash"] - got_interest, state["loaned"])
+                        self._bank.bank_set_for(gid, state["cash"] - got_interest, state["loaned"])
                 paid = row["principal"] + got_interest
-                self._ensure(row["user_id"])
-                self._apply(row["user_id"], paid, f"債券償還:{kind.name}", income=got_interest)
-                self._repay_all_of(row["user_id"], row["principal"], f"帝愛への返済（債券の元本:{kind.name}）")
+                self._account.ensure(gid, row["user_id"])
+                self._account.apply(gid, row["user_id"], paid, f"債券償還:{kind.name}", income=got_interest)
+                self._debt_repay.repay_all_of_for(
+                    gid, row["user_id"], row["principal"], f"帝愛への返済（債券の元本:{kind.name}）"
+                )
                 self._conn.execute("UPDATE bonds SET status='paid', paid=? WHERE id=?", (paid, row["id"]))
                 out.append({**dict(row), "status": "paid", "paid": paid})
         return out
 
-    def bond_price(self, row: dict, now: float) -> int:
+    def bond_price(self, row: dict[str, Any], now: float) -> int:
         """その債券を、いま売ったときの手取り（売れない債券は 0）。表示用。"""
         kind = bonds_mod.KINDS[row["kind"]]
         return bonds_mod.sale_value(kind, row["principal"], now, row["due"]) if kind.sellable else 0
 
-    def bond_cancel(self, user_id: int, bond_id: int, now: Optional[float] = None) -> tuple:
+    def bond_cancel(self, user_id: int, bond_id: int, now: Optional[float] = None) -> tuple[Any, ...]:
         """満期前に、DCF の値段で売る（通常債だけ）。(成功か, 理由か受け取った額) を返す。"""
-        with self._lock, self._conn:
+        with self._db.tx():
+            gid = self._g()
             row = self._conn.execute(
                 "SELECT kind, principal FROM bonds WHERE id=? AND guild_id=? AND user_id=? AND status='active'",
-                (bond_id, self._g(), user_id),
+                (bond_id, gid, user_id),
             ).fetchone()
-            if row is not None and self._margin_rows(user_id):
-                drop = row["principal"] * market_mod.COLLATERAL_HAIRCUT.get(row["kind"], 0.0)
-                after = self._margin_status_locked(user_id, self.latest_prices(), drop_collateral=drop)
-                if after["ratio"] is not None and after["ratio"] < market_mod.OPEN_RATIO:
-                    return False, fail(
-                        "crypto_collateral_locked", ratio=after["ratio"], open_ratio=market_mod.OPEN_RATIO
-                    )
-            return self._bond_cancel_locked(user_id, bond_id, now)
+            if row is not None:
+                reason = self._collateral_guard.check_bond_cancel(gid, user_id, row["kind"], row["principal"])
+                if reason is not None:
+                    return False, reason
+            return self.bond_cancel_locked_for(gid, user_id, bond_id, now)
 
-    def _bond_cancel_locked(self, user_id: int, bond_id: int, now: Optional[float] = None) -> tuple:
+    def bond_cancel_locked_for(
+        self, guild_id: int, user_id: int, bond_id: int, now: Optional[float] = None
+    ) -> tuple[Any, ...]:
         """bond_cancel の本体（呼び出し側が、ロックとトランザクションの中で使う）。"""
         row = self._conn.execute(
             "SELECT * FROM bonds WHERE id=? AND guild_id=? AND user_id=? AND status='active'",
-            (bond_id, self._g(), user_id),
+            (bond_id, guild_id, user_id),
         ).fetchone()
         if row is None:
             return False, fail("bond_not_found")
@@ -145,6 +179,6 @@ class BondMixin(EcoBase):
         if not kind.sellable:
             return False, fail("bond_not_sellable", name=kind.name)
         refund = bonds_mod.sale_value(kind, row["principal"], time.time() if now is None else now, row["due"])
-        self._apply(user_id, refund, "返金:債券売却")  # もともと自分のお金なので、借金の徴収はしない
+        self._account.apply(guild_id, user_id, refund, "返金:債券売却")  # もともと自分のお金なので、借金の徴収はしない
         self._conn.execute("UPDATE bonds SET status='cancelled', paid=? WHERE id=?", (refund, bond_id))
         return True, refund

@@ -15,7 +15,7 @@
 | アプリケーション | `services/` | ユースケース・実行制御（二重プレイ防止など）。`domain/` の契約とルールにのみ依存 |
 | ドメイン | `domain/` | 純粋な業務ルール・ゲーム計算（`games/`）・値型・水平ポート契約（`ports/`）。SQLite にも Discord にも触らない |
 | インフラストラクチャ | `infra/` | SQLite 永続化（`db/`）・YAML カタログ読み込み（`catalogs.py`）・時刻・パス解決（`paths.py`） |
-| 設定カタログ | `catalogs/` | 商品・スキン・確率表・配当表・ヘルプ文面などの静的な定義（YAML）。`infra/catalogs.py` で型検証して読み込む |
+| 設定カタログ | `catalogs/` | 商品・確率表・配当表などの UI 非依存なゲームバランス/マスタ定義（YAML）。`infra/catalogs/` で型検証して読み込む |
 
 ## 最上位
 
@@ -26,7 +26,7 @@
 | `config.example.json` | 設定ファイルの見本（トークンなどは空）。`config.json` を作るときのひな形 |
 | `config.json` | 実際の設定（Bot のトークンなど）。**秘匿情報なので Git に入れない**（`.gitignore` 済み） |
 | `config.json.migrated-to-server` | 古い設定ファイルの控え。`config.json.*` として Git に入れない |
-| `catalogs/` | YAML の静的カタログ群（ショップ・スキン・遺物・債券・ミッション・イベント・地下作業・競馬・証券・帝愛・経済・ゲーム・ヘルプ） |
+| `catalogs/` | YAML の静的カタログ群（ショップ・スキン・遺物・債券・ミッション・イベント・地下作業・競馬・証券・帝愛・経済・ゲーム） |
 | `data/` | 実行時のデータ。`casino.db`（SQLite 本体）と `bot.lock`（二重起動の防止）。**Git に入れない** |
 | `README.md` | 概要・コマンド一覧・導入手順・運用・docs への案内 |
 | `docs/` | 機能ごとの、くわしい仕様（`casino.md`・`stocks.md`・`teiai.md`・`horse.md`・`labor.md`・`arena.md`・`shop.md`・`admin.md`） |
@@ -39,53 +39,58 @@
 
 ## `cogs/` — コマンドと画面
 
-`loader.py` に列挙された `*_cog.py` / `cog.py` が Discord に読み込まれる Cog です。
+`loader.py` に列挙された `*_cog.py` / `cog.py` が Discord に読み込まれる Cog です。静的文言テーブル・AA・ラベル定義は各サブパッケージの `texts.py`（プレゼンテーション静的テキスト層）に分離しています。
 
 | パス | 内容 |
 |---|---|
 | `loader.py` | 読み込む Cog モジュール一覧（`COG_MODULES`）と `load_all_cogs()`（`main.py` とテストで共有） |
-| `shared/` | 共通 Discord 基盤（`bot.py` / `cog_ports.py` / `ui.py` / `confirm.py` / `messages/` / `approval_guard.py` / `ranking.py` / `announce.py` / `amount.py` / `horse_display.py`） |
-| `casino/` | `/カジノ`。`cog.py` と進行演出（`common.py`・`simple.py`・`blackjack.py`・`chinchiro.py`・`pachinko.py`） |
+| `shared/` | 共通 Discord 基盤（`bot.py` / `bridges.py` / `ui.py` / `texts.py` / `tasks.py` / `confirm.py` / `messages/` / `approval_guard.py` / `ranking.py` / `announce.py` / `amount.py` / `horse_display.py`）。`CasinoBot` と Cog 間ブリッジ（`bridges.py`: `BotBridges`・名目的基底クラス群）により Service Locator なしで疎結合に連携、`tasks.py` で承認済みギルド走査を共通化 |
+| `casino/` | `/カジノ`。`cog.py` と進行演出・静的台本（`common.py`・`simple.py`・`blackjack.py`・`chinchiro.py`・`pachinko.py`・`texts.py`） |
 | `economy/` | `/ペリカ`。`cog.py`・`boards.py`（残高・デイリー・ランキング・掲示板自動更新・送金・履歴） |
-| `teiai/` | `/ペリカ 帝愛` のパネル（`panel.py`）と海外逃亡の演出（`escape.py`） |
-| `shop/` | `/ショップ`。`cog.py`・`actions.py`・`embeds.py`・`views.py`・`discord_ops.py`（ロール・ニックネーム反映） |
+| `teiai/` | `/ペリカ 帝愛` のパネル（`panel.py`）と海外逃亡の演出（`escape.py`）、静的 AA・状態文言（`texts.py`） |
+| `shop/` | `/ショップ`。`cog.py`・`actions.py`・`embeds.py`・`texts.py`・`views.py`・`discord_ops.py`（ロール・ニックネーム反映） |
 | `horse/` | `/競馬`。`cog.py`・`cards.py`・`betting.py`・`stable.py`・`views.py`（ファサード） |
 | `market/` | `/証券` と債券定期処理。`cog.py`・`feed.py`・`bond_cog.py`・`embeds.py`・`bond_embeds.py`・`orders.py`・`views.py` |
-| `loan/` | `/貸付`。ユーザー同士の貸し借り |
-| `p2p/` | プレイヤー間の市場と競り（`cog.py`・`embeds.py`） |
+| `loan/` | `/貸付`。ユーザー同士の貸し借り（`cog.py`・`embeds.py`・`views.py`） |
+| `p2p/` | プレイヤー間の市場と競り（`cog.py`・`embeds.py`・`views.py`） |
 | `labor/` | `/地下 作業`・`/地下 ランキング`。クリッカー、作業員の雇用、鉱石の掘り出し |
 | `arena/` | `/闘技場`。地下闘技場。`cog.py`（進行・掲示）・`views.py`（賭けパネル）・`embeds.py` |
-| `quiz/` | `/クイズ`。`cog.py`・`embeds.py`・`views.py`（4 択クイズと報酬） |
+| `quiz/` | `/クイズ`。`cog.py`・`embeds.py`・`texts.py`・`views.py`（4 択クイズと報酬） |
 | `raffle/` | 抽選。参加費を預かり、締切で 1 人に全額を渡す |
-| `event/` | 突発イベントの告知（1 日 1 回、30 分だけ勝ち分が増える） |
-| `weekly/` | 週間ランキングの自動発表（毎週月曜 0 時）と限定称号の授与 |
-| `admin/` | サーバー承認と `/運営` コマンド（`cog.py`・`approval_ops.py`・`economy_ops.py`・`content_ops.py`・`embeds.py`・`views.py`・`purge.py`・`targets.py`） |
-| `help/` | `/help`。カテゴリ別の案内 |
+| `event/` | 突発イベントの告知（`cog.py`・`texts.py`、1 日 1 回、30 分だけ勝ち分が増える） |
+| `weekly/` | 週間ランキングの自動発表（毎週月曜 0 時）と限定称号の付与 |
+| `admin/` | サーバー承認と `/運営` コマンド（`cog.py`・`approval_ops.py`・`economy_ops.py`・`content_ops.py`・`embeds.py`・`texts.py`・`views.py`・`purge.py`・`targets.py`） |
+| `help/` | `/help`。カテゴリ別の案内（`cog.py`・`texts.py`） |
 
 ## `services/` — アプリケーションサービス
 
-`cogs/` と `domain/`・`infra/` を仲介し、ユースケース単位のトランザクション・時間取得・状態遷移を調停します。
+`cogs/` と `domain/`・`infra/` を仲介し、ユースケース単位のトランザクション・時刻取得・状態遷移を調停します（Constructor DI でリポジトリ・ポートを受け取り、`: Any` 抜け道や Service Locator を持たない）。
 
 | パス | 内容 |
 |---|---|
-| `container.py` / `__init__.py` | `ServiceRegistry`、`build_services()`、`services_of(bot)` |
+| `container.py` / `__init__.py` | `ServiceRegistry`、`build_services()` |
 | `session.py` | `Sessions(ISessionGuard)`。同じ人が同時に複数のゲームを始めないようにする排他制御 |
 | `casino.py` | `CasinoService`。カジノ開始検証・escrow預かり・RTP/イベント補正・精算・記録 |
 | `market.py` | `MarketService`。市場価格進行・ボラティリティ/決算更新・保有スナップショット |
 | `horse.py` | `HorseService`。定時レース生成・締切オッズ確定・発走精算の調整 |
 | `economy.py` | `EconomyService`。デイリー受取・送金・週間ランキング補完の調整 |
 | `labor.py` | `LaborService`。地下作業の日次キー取得・クリック履歴レポート生成 |
+| `arena.py` | `ArenaService`。闘技場トーナメント生成・進行時刻取得・準決勝/決勝処理の調停 |
+| `loan.py` | `LoanService`。個人間貸付（提案・募集・承諾・返済・期日チェック）の調停 |
+| `p2p.py` | `P2PService`。プレイヤー間売買・競り・出品者手持ち照会の調停 |
+| `shop.py` | `ShopService`。ショップ・帝愛の競売・持ち物・称号解決の調停 |
 
 ## `domain/` — 純粋なルール・値型・ポート契約
 
-### `ports/` — DIP / ISP 水平インターフェース
+### `ports/` — DIP 水平インターフェース（名目的基底クラス群）
 
 | パス | 内容 |
 |---|---|
-| `catalogs.py` / `catalog_types/` | `ICatalogs` カタログ取得契約と責務別構造型プロトコル（`shop`・`economy`・`market`・`games`） |
+| `catalogs.py` / `catalog_types/` | `ICatalogs` カタログ取得契約と責務別公称データ契約（`shop`・`economy`・`market`・`games`・`arena`） |
 | `clock.py` | `IClock`（現在時刻・日付の抽象契約） |
 | `session.py` | `ISessionGuard`（二重プレイ防止セッション管理の契約） |
-| `economy.py` | `IGuildScopable` / `IGuildApprovalStore` / `IRankingReader` / `IEscrowPort` / `IWalletPort` / `IEconomy` |
+| `repos/` | 領域別 DB リポジトリ用名目的基底クラス群（`base.py`・`economy.py`・`teiai.py`・`market.py`・`social.py`・`games.py`・`bundle.py` / `__init__.py` で `IRepositoryBundle` 等を集約再エクスポート） |
+| `bridges.py` | リポジトリ・サービス間の循環を防ぐ細粒度ブリッジ契約と Null Object / Composite（`NoOp*`・`Composite*`・`IValuationSource`・`IAssetCollector`・`IAssetSeizureStep` 等） |
 
 ### `games/` — ゲームのルール（純粋な計算）
 
@@ -95,22 +100,22 @@
 | `roulette.py` | ルーレット。賭け方と払い戻し |
 | `blackjack.py` | ブラックジャックのルール |
 | `chinchiro.py` | チンチロの役と勝敗 |
-| `pachinko.py` | パチンコ。当たりの確率、リーチ・予告の設計、演出の台本、還元率の計算 |
+| `pachinko.py` | パチンコ。当たりの確率、リーチ・予告の抽選、還元率の計算 |
 | `rtplevel.py` | 還元率のレベル（1〜6）と `MIN_BET` |
 
 ### ドメインモジュール（DB・Discord 非依存）
 
 | パス | 内容 |
 |---|---|
-| `types.py` | 結果データクラス（`DailyResult` 等）と共有定数（`INITIAL_BALANCE`・`DAILY_*`・`PART_LABELS`・`asset_groups` 等） |
+| `types.py` | 結果データクラス（`DailyResult` 等）と共有定数（`INITIAL_BALANCE`・`DAILY_*`・`asset_groups` 等） |
 | `errors.py` | 構造化エラー・通知イベント（`Failure`・`Notice`・`fail`・`notice`） |
 | `approval.py` | サーバー許可リストと承認状態の純粋判定 |
 | `nick.py` | 称号をニックネームの後ろに付け外しする文字列処理 |
 | `relics.py` | 発掘品の効果（持っている間、種類ごとに +1%） |
-| `labor.py` | 地下作業の数字・鉱石の表・抽選・契約の決算の計算 |
+| `labor.py` | 地下作業の数字・鉱石の表・抽選・契約の決済の計算 |
 | `horse.py` | 競馬の数字とレースのシミュレーション |
 | `arena.py` | 地下闘技場の数字（戦士生成・武器強度・試合シミュレーション・オッズ・配当スケール） |
-| `market.py` / `market_events.py` | 証券の価格変動・売買計算・チャート / ボラティリティ予告と相関崩壊警報 |
+| `market.py` / `market_events.py` | 証券の価格変動・売買計算・チャート / ボラティリティ予報と相関崩壊警報 |
 | `options.py` | オプションの値付け・銘柄表示名 |
 | `bonds.py` | 債券の種類・利率・期間 |
 | `teiai.py` | 帝愛ファイナンス（借金・身分・銀行）の数字 |
@@ -127,19 +132,21 @@
 | パス | 内容 |
 |---|---|
 | `paths.py` | ルート・`catalogs/`・`config.json`・`data/casino.db` の基準パス解決 |
-| `catalogs/` | `catalogs/*.yaml` を責務別に読み込み・Pydantic 型検証・キャッシュするパッケージ（`loader.py`・`shop.py`・`economy.py`・`games.py`・`market.py`・`ui.py`・`arena.py`、`YamlCatalogs(ICatalogs)`） |
+| `catalogs/` | `catalogs/*.yaml` を責務別に読み込み・Pydantic 型検証・キャッシュするパッケージ（`loader.py`・`shop.py`・`economy.py`・`games.py`・`market.py`・`arena.py`、`YamlCatalogs(ICatalogs)`） |
 | `clock.py` | `ConfigClock(IClock)` とタイムゾーンに基づく現在時刻・日付の取得 |
 | `logthrottle.py` | 同じ原因のログを出し続けないための間引き |
 
-### `infra/db/` — SQLite 永続化・`Economy` 実装
+### `infra/db/` — SQLite 永続化・独立リポジトリ群
 
 | パス | 内容 |
 |---|---|
-| `base.py` | `EcoDb`（共有 DB 接続・ロック）と全 Mixin が継承する型付き基底クラス `EcoBase` |
+| `base.py` | `EcoDb`（共有 DB 接続・ロック・`tx()`・`close()`）、`ScopedRepo`（ギルドスコープ共通基底）、`validate_guild_id()` |
 | `schema/` | DB の表定義（`tables.py`）と旧版からの列追加・データ移行（`migrations.py`） |
-| `economy.py` | `Economy(IEconomy)` Facade（DB バインド・サーバー分離・台帳プリミティブ・全 Mixin 統合） |
-| `escrow.py` / `wallet.py` | 賭け金預かり・精算（`EscrowMixin`）と残高・デイリー・ランキング・統計・送金（`WalletMixin`） |
-| `assets.py` / `auction.py` / `bank.py` / `bonds.py` / `crypto.py` / `debt.py` / `earnings.py` / `events.py` / `guild.py` / `horse.py` / `labor.py` / `loans.py` / `margin.py` / `market.py` / `market_events.py` / `notices.py` / `options.py` / `p2p.py` / `pachinko.py` / `quiz.py` / `race.py` / `raffle.py` / `records.py` / `relics.py` / `rtp.py` / `shop.py` / `arena.py` | 機能別の DB 操作 Mixin 群 |
+| `repositories.py` | `RepositoryBundle` と `open_repositories()`（全リポジトリの構築・ブリッジ接続・`for_guild(gid)` スコープ切り替え・`db` 管理） |
+| `lazy_bridges.py` | 初期化時の循環参照を解決する遅延解決ブリッジラッパー（`Lazy*`） |
+| `account.py` | `AccountCore`（口座残高・台帳記帳・借金ライフサイクルフックの共有プリミティブ） |
+| `escrow.py` / `wallet.py` | 賭け金預かり・精算（`EscrowRepo`）と残高・デイリー・ランキング・統計・送金（`WalletRepo`） |
+| `assets.py` / `auction.py` / `bank.py` / `bonds.py` / `crypto.py` / `debt.py` / `earnings.py` / `events.py` / `guild.py` / `horse.py` / `labor.py` / `loans.py` / `margin.py` / `market.py` / `market_events.py` / `notices.py` / `options.py` / `p2p.py` / `pachinko.py` / `quiz.py` / `race.py` / `raffle.py` / `records.py` / `relics.py` / `rtp.py` / `shop.py` / `arena.py` | 機能別の独立リポジトリ群と `IAssetCollector` / `IAssetSeizureStep` / `ILiquidationStep` 戦略群（各 `domain/ports/repos/` 契約を継承実装） |
 
 ## `tests/` — 自動テスト
 
@@ -147,9 +154,10 @@
 
 | パス | 内容 |
 |---|---|
-| `conftest.py` | テスト共通の準備（`Economy.for_guild` シングルスコープ、ミッション・イベント固定など） |
+| `conftest.py` | テスト共通の準備（`ScopedRepo.for_guild`・`RepositoryBundle.for_guild` シングルスコーピング、ミッション・イベント固定など） |
+| `support.py` | テスト共有ビルダー（`make_test_bot`・`make_*_cog`・`make_casino_deps` 等） |
 | `domain/` | 純粋ドメインロジック・`domain/games/` の単体テスト |
-| `infra/` | `catalogs/*.yaml` 検証・DB 永続化・`Economy` ギルド分離・銀行・証拠金・P2P 等のテスト |
+| `infra/` | `catalogs/*.yaml` 検証・DB 永続化・`RepositoryBundle` ギルド分離・ポート境界＆規約ガード（`test_architecture_ports.py`）・Bridge OCP/ISP/LSP 検証（`test_bridge_ocp_lsp.py`）・銀行・証拠金・P2P 等のテスト |
 | `cogs/` | Cog・埋め込み・モーダル・承認・共通 UI 部品のテスト |
 | `flows/` | コマンド一覧・画面フロー全体の統合検証（`test_flows.py`） |
 

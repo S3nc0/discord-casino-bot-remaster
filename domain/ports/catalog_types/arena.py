@@ -1,43 +1,26 @@
-"""地下闘技場カタログの構造的契約。"""
+"""地下闘技場カタログの公称データ契約。"""
 
 from collections.abc import Sequence
-from typing import Protocol
+from dataclasses import dataclass
 
 
-class ArenaCatalogProto(Protocol):
-    @property
-    def semi_hour(self) -> int: ...
-    @property
-    def final_hour(self) -> int: ...
-    @property
-    def fighter_names(self) -> Sequence[str]: ...
-    @property
-    def base_power_min(self) -> int: ...
-    @property
-    def base_power_max(self) -> int: ...
-    @property
-    def weapon_cap(self) -> float: ...
-    @property
-    def weapon_scale(self) -> int: ...
-    @property
-    def takeout(self) -> float: ...
-    @property
-    def max_odds(self) -> float: ...
-    @property
-    def final_odds_boost(self) -> float: ...
-    @property
-    def luck(self) -> float: ...
-    @property
-    def min_stake(self) -> int: ...
-    @property
-    def max_stake(self) -> int: ...
-    @property
-    def spectator_count_min(self) -> int: ...
-    @property
-    def spectator_count_max(self) -> int: ...
-    @property
-    def spectator_min_bet(self) -> int: ...
-    @property
-    def spectator_max_bet(self) -> int: ...
-    @property
-    def house_topup_max(self) -> int: ...
+@dataclass(frozen=True)
+class ArenaCatalogContract:
+    semi_hour: int
+    final_hour: int
+    fighter_names: Sequence[str]
+    base_power_min: int
+    base_power_max: int
+    weapon_cap: float
+    weapon_scale: int
+    takeout: float
+    max_odds: float
+    final_odds_boost: float
+    luck: float
+    min_stake: int
+    max_stake: int
+    spectator_count_min: int
+    spectator_count_max: int
+    spectator_min_bet: int
+    spectator_max_bet: int
+    house_topup_max: int

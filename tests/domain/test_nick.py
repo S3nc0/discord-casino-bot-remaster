@@ -8,8 +8,8 @@ import pytest
 
 from cogs.shop import cog as shop_cog
 from domain import nick, shop
-from infra.db.economy import Economy
-from services.session import Sessions
+from infra.db.repositories import open_repositories
+from tests.support import make_shop_cog, make_test_bot
 
 TITLES = [i.name for i in shop.of_kind(shop.TITLE)]
 
@@ -123,33 +123,33 @@ def run(coro):
 
 @pytest.fixture
 def eco(tmp_path):
-    e = Economy(str(tmp_path / "n.db"))
-    e.set_nick_pref(10, 1, True)
+    e = open_repositories(str(tmp_path / "n.db"))
+    e.guild.set_nick_pref(10, 1, True)
     return e
 
 
 def test_apply_sets_and_restores_nickname(eco):
     g, m = guild_for(), Member()
-    run(shop_cog.apply_title_nick(g, m, "常連", eco))
+    run(shop_cog.apply_title_nick(g, m, "常連", eco.guild))
     assert m.nick == "たつ【常連】"
-    run(shop_cog.apply_title_nick(g, m, "地下の帝王", eco))
+    run(shop_cog.apply_title_nick(g, m, "地下の帝王", eco.guild))
     assert m.nick == "たつ【地下の帝王】"
-    run(shop_cog.apply_title_nick(g, m, None, eco))
+    run(shop_cog.apply_title_nick(g, m, None, eco.guild))
     assert m.nick is None  # 元の「ニックネームなし」に戻る
-    assert eco.get_nick_state(10, 1) is None  # 記録も消える
+    assert eco.guild.get_nick_state(10, 1) is None  # 記録も消える
 
 
 def test_long_nickname_round_trip_through_the_bot(eco):
     g, m = guild_for(), Member(nick_="あ" * 30)
-    run(shop_cog.apply_title_nick(g, m, "常連", eco))
+    run(shop_cog.apply_title_nick(g, m, "常連", eco.guild))
     assert m.nick != "あ" * 30 and nick.ulen(m.nick) <= 32
-    run(shop_cog.apply_title_nick(g, m, None, eco))
+    run(shop_cog.apply_title_nick(g, m, None, eco.guild))
     assert m.nick == "あ" * 30  # 切り詰めた名前ではなく、完全な元の名前
 
 
 def test_apply_does_nothing_when_nothing_changes(eco):
     g, m = guild_for(), Member(nick_="あだ名")
-    run(shop_cog.apply_title_nick(g, m, None, eco))
+    run(shop_cog.apply_title_nick(g, m, None, eco.guild))
     assert m.edits == []  # 無駄な API 呼び出しをしない
 
 
@@ -167,7 +167,7 @@ def test_apply_explains_why_it_cannot_change_the_nickname(case, expect):
     ]
     m = Member(role_pos=5 if case == "higher_role" else 1)
     with pytest.raises(shop_cog.ShopError) as exc:
-        run(shop_cog.apply_title_nick(g, m, "常連", Economy(":memory:")))
+        run(shop_cog.apply_title_nick(g, m, "常連", open_repositories(":memory:").guild))
     assert expect in str(exc.value) and m.edits == []
 
 
@@ -181,8 +181,8 @@ def test_apply_reports_any_discord_failure_instead_of_pretending_success(eco, st
 
     m.edit = fail
     with pytest.raises(shop_cog.ShopError):
-        run(shop_cog.apply_title_nick(g, m, "常連", eco))
-    assert eco.get_nick_state(10, 1) is None  # 失敗したときは、記録を残さない
+        run(shop_cog.apply_title_nick(g, m, "常連", eco.guild))
+    assert eco.guild.get_nick_state(10, 1) is None  # 失敗したときは、記録を残さない
 
 
 # ------------------------------ コマンドの流れ ------------------------------ #
@@ -202,15 +202,15 @@ class FakeInteraction:
 
 @pytest.fixture
 def setup(tmp_path):
-    eco = Economy(str(tmp_path / "t.db"))
-    eco.credit(1, 50_000, "テスト")
-    cog = shop_cog.ShopCog(SimpleNamespace(economy=eco, sessions=Sessions(cooldown=0), get_guild=lambda gid: None))
-    return eco, cog
+    bot = make_test_bot(str(tmp_path / "t.db"))
+    bot.repos.wallet.credit(1, 50_000, "テスト")
+    cog = make_shop_cog(bot)
+    return bot.repos, cog
 
 
 def buy_title(eco, item_id):
     it = shop.BY_ID[item_id]
-    assert eco.purchase(1, it.id, shop.label(it), it.price, True).ok
+    assert eco.shop.purchase(1, it.id, shop.label(it), it.price, True).ok
 
 
 def mode(value):
@@ -220,12 +220,12 @@ def mode(value):
 def test_turning_on_applies_the_equipped_title(setup):
     eco, cog = setup
     buy_title(eco, "title_regular")
-    eco.equip(1, "title", "title_regular")
+    eco.shop.equip(1, "title", "title_regular")
     g, m = guild_for(), Member()
     cog.bot.get_guild = lambda gid: g if gid == g.id else None
     it = FakeInteraction(m, g)
     run(cog.set_title_display(it, "on"))
-    assert m.nick == "たつ【常連】" and eco.nick_pref(g.id, 1)
+    assert m.nick == "たつ【常連】" and eco.guild.nick_pref(g.id, 1)
 
 
 def test_turning_on_is_refused_when_the_bot_cannot_change_the_nickname(setup):
@@ -233,7 +233,7 @@ def test_turning_on_is_refused_when_the_bot_cannot_change_the_nickname(setup):
     g, m = guild_for(owner_id=1), Member()
     it = FakeInteraction(m, g)
     run(cog.set_title_display(it, "on"))
-    assert "持ち主" in it.sent[-1]["embed"].description and not eco.nick_pref(g.id, 1)  # 設定は有効にならない
+    assert "持ち主" in it.sent[-1]["embed"].description and not eco.guild.nick_pref(g.id, 1)  # 設定は有効にならない
 
 
 def test_equipping_a_title_updates_the_nickname_only_when_enabled(setup):
@@ -243,8 +243,8 @@ def test_equipping_a_title_updates_the_nickname_only_when_enabled(setup):
     cog.bot.get_guild = lambda gid: g if gid == g.id else None
     it = FakeInteraction(m, g)
     run(cog.use_item(it, "title_regular"))
-    assert m.nick is None and eco.get_profile(1)["title"] == "title_regular"  # 設定がOFFなら名前は変えない
-    eco.set_nick_pref(g.id, 1, True)
+    assert m.nick is None and eco.shop.get_profile(1)["title"] == "title_regular"  # 設定がOFFなら名前は変えない
+    eco.guild.set_nick_pref(g.id, 1, True)
     run(cog.use_item(FakeInteraction(m, g), "title_regular"))
     assert m.nick == "たつ【常連】"
 
@@ -252,27 +252,27 @@ def test_equipping_a_title_updates_the_nickname_only_when_enabled(setup):
 def test_unequipping_the_title_restores_the_nickname(setup):
     eco, cog = setup
     buy_title(eco, "title_regular")
-    eco.equip(1, "title", "title_regular")
-    eco.set_nick_pref(10, 1, True)
+    eco.shop.equip(1, "title", "title_regular")
+    eco.guild.set_nick_pref(10, 1, True)
     g, m = guild_for(), Member(nick_="あだ名【常連】")
     cog.bot.get_guild = lambda gid: g if gid == g.id else None
     run(cog.unequip_item(FakeInteraction(m, g), "title"))
-    assert m.nick == "あだ名" and eco.get_profile(1)["title"] is None
+    assert m.nick == "あだ名" and eco.shop.get_profile(1)["title"] is None
 
 
 def test_turning_off_restores_the_nickname_and_the_setting(setup):
     eco, cog = setup
-    eco.set_nick_pref(10, 1, True)
+    eco.guild.set_nick_pref(10, 1, True)
     g, m = guild_for(), Member(nick_="あだ名【地下の帝王】")
     run(cog.set_title_display(FakeInteraction(m, g), "off"))
-    assert m.nick == "あだ名" and not eco.nick_pref(10, 1)
+    assert m.nick == "あだ名" and not eco.guild.nick_pref(10, 1)
 
 
 def test_title_change_is_applied_only_to_the_server_where_it_was_made(setup):
     eco, cog = setup
     buy_title(eco, "title_regular")
-    eco.set_nick_pref(10, 1, True)
-    eco.set_nick_pref(20, 1, True)
+    eco.guild.set_nick_pref(10, 1, True)
+    eco.guild.set_nick_pref(20, 1, True)
     g1, g2 = guild_for(gid=10), guild_for(gid=20)
     m1, m2 = Member(), Member()
     guilds = {10: (g1, m1), 20: (g2, m2)}
@@ -289,10 +289,10 @@ def test_title_change_is_applied_only_to_the_server_where_it_was_made(setup):
 
 def test_nick_prefs_are_stored_per_server(setup):
     eco, _ = setup
-    eco.set_nick_pref(10, 1, True)
-    assert eco.nick_pref(10, 1) and not eco.nick_pref(20, 1) and eco.nick_pref_guilds(1) == [10]
-    eco.set_nick_pref(10, 1, False)
-    assert eco.nick_pref_guilds(1) == []
+    eco.guild.set_nick_pref(10, 1, True)
+    assert eco.guild.nick_pref(10, 1) and not eco.guild.nick_pref(20, 1) and eco.guild.nick_pref_guilds(1) == [10]
+    eco.guild.set_nick_pref(10, 1, False)
+    assert eco.guild.nick_pref_guilds(1) == []
 
 
 # ----------------- レビュー指摘（状態の整合・失敗の扱い）の回帰テスト ----------------- #
@@ -305,18 +305,18 @@ def test_turning_off_never_touches_nicknames_of_people_who_never_enabled_it(setu
 
 def test_enabling_again_after_a_failure_keeps_the_existing_setting(setup):
     eco, cog = setup
-    eco.set_nick_pref(10, 1, True)  # すでにON
+    eco.guild.set_nick_pref(10, 1, True)  # すでにON
     g = guild_for(can=False)  # いまは権限がなく、失敗する
     m = Member()
     it = FakeInteraction(m, g)
     run(cog.set_title_display(it, "on"))
-    assert eco.nick_pref(10, 1)  # 既存の設定は消えない
+    assert eco.guild.nick_pref(10, 1)  # 既存の設定は消えない
 
 
 def test_failed_first_enable_is_rolled_back(setup):
     eco, cog = setup
     buy_title(eco, "title_regular")
-    eco.equip(1, "title", "title_regular")
+    eco.shop.equip(1, "title", "title_regular")
     g, m = guild_for(), Member()
     cog.bot.get_guild = lambda gid: g
 
@@ -326,7 +326,7 @@ def test_failed_first_enable_is_rolled_back(setup):
     m.edit = fail
     it = FakeInteraction(m, g)
     run(cog.set_title_display(it, "on"))
-    assert not eco.nick_pref(10, 1)  # 付けられなかったので、設定もONにならない
+    assert not eco.guild.nick_pref(10, 1)  # 付けられなかったので、設定もONにならない
     assert (
         "ニックネームに付けられません" in it.sent[-1]["embed"].title and "503" not in it.sent[-1]["embed"].description
     )  # エラー番号などの開発者向けの表示は出さない
@@ -335,7 +335,7 @@ def test_failed_first_enable_is_rolled_back(setup):
 def test_server_error_is_reported_when_equipping_not_shown_as_success(setup):
     eco, cog = setup
     buy_title(eco, "title_regular")
-    eco.set_nick_pref(10, 1, True)
+    eco.guild.set_nick_pref(10, 1, True)
     g, m = guild_for(), Member()
     cog.bot.get_guild = lambda gid: g
 
@@ -352,9 +352,9 @@ def test_server_error_is_reported_when_equipping_not_shown_as_success(setup):
 def test_failures_in_other_servers_are_counted_not_swallowed(setup):
     eco, cog = setup
     buy_title(eco, "title_regular")
-    eco.equip(1, "title", "title_regular")
-    eco.set_nick_pref(10, 1, True)
-    eco.set_nick_pref(20, 1, True)
+    eco.shop.equip(1, "title", "title_regular")
+    eco.guild.set_nick_pref(10, 1, True)
+    eco.guild.set_nick_pref(20, 1, True)
     g1, g2 = guild_for(gid=10), guild_for(gid=20, can=False)  # 2つ目は権限がなくて反映できない
     m1, m2 = Member(), Member()
     g1.get_member, g2.get_member = (lambda uid: m1), (lambda uid: m2)
@@ -367,14 +367,14 @@ def test_rapid_repeated_changes_end_in_the_latest_state(setup):
     eco, cog = setup
     for t in ("title_rookie", "title_regular"):
         buy_title(eco, t)
-    eco.set_nick_pref(10, 1, True)
+    eco.guild.set_nick_pref(10, 1, True)
     g, m = guild_for(), Member()
     cog.bot.get_guild = lambda gid: g
 
     async def burst():
-        eco.equip(1, "title", "title_rookie")
+        eco.shop.equip(1, "title", "title_rookie")
         a = cog._sync_title_nick(1, g, m)
-        eco.equip(1, "title", "title_regular")
+        eco.shop.equip(1, "title", "title_regular")
         b = cog._sync_title_nick(1, g, m)
         await asyncio.gather(a, b)
 
@@ -384,10 +384,10 @@ def test_rapid_repeated_changes_end_in_the_latest_state(setup):
 
 def test_leaving_a_server_removes_its_nick_settings(setup):
     eco, cog = setup
-    eco.set_nick_pref(10, 1, True)
-    eco.set_nick_pref(20, 1, True)
+    eco.guild.set_nick_pref(10, 1, True)
+    eco.guild.set_nick_pref(20, 1, True)
     run(cog.on_guild_remove(SimpleNamespace(id=10)))
-    assert eco.nick_pref_guilds(1) == [20]
+    assert eco.guild.nick_pref_guilds(1) == [20]
 
 
 def test_old_database_without_nick_state_columns_is_migrated(tmp_path):
@@ -401,7 +401,7 @@ def test_old_database_without_nick_state_columns_is_migrated(tmp_path):
     con.execute("INSERT INTO nick_prefs VALUES (10, 1)")
     con.commit()
     con.close()
-    eco = Economy(path)  # 古い表でも、起動時に列が足される
-    assert eco.nick_pref(10, 1)
-    eco.set_nick_state(10, 1, None, "tatu【常連】")
-    assert eco.get_nick_state(10, 1) == (None, "tatu【常連】")
+    eco = open_repositories(path)  # 古い表でも、起動時に列が足される
+    assert eco.guild.nick_pref(10, 1)
+    eco.guild.set_nick_state(10, 1, None, "tatu【常連】")
+    assert eco.guild.get_nick_state(10, 1) == (None, "tatu【常連】")

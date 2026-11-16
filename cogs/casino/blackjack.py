@@ -5,8 +5,9 @@ import random
 import discord
 
 from cogs.casino.common import (
+    CasinoDeps,
     GameContext,
-    OwnerView,
+    GameOwnerView,
     ReplayView,
     game_title,
     log_display_failure,
@@ -14,34 +15,38 @@ from cogs.casino.common import (
     signed,
     start_game,
 )
+from cogs.casino.texts import (
+    BLACKJACK_FLAIR_BLACKJACK,
+    BLACKJACK_FLAIR_DOUBLED,
+    BLACKJACK_FLAIR_TWENTY_ONE,
+)
+from cogs.casino.texts import (
+    BLACKJACK_RESULT_TEXT as RESULT_TEXT,
+)
+from cogs.casino.texts import (
+    BLACKJACK_TITLE as TITLE,
+)
 from cogs.shared import ui
 from cogs.shared.confirm import confirm_action
 from cogs.shared.messages import format_failure
 from domain.games import blackjack as rules
-from infra import catalogs
-
-_BJ_CFG = catalogs.games().blackjack
-_COLORS = {"ok": ui.OK, "info": ui.INFO, "warn": ui.WARN, "error": ui.ERROR, "gold": ui.GOLD, "dark": ui.DARK}
 
 RNG = random.SystemRandom()
-TITLE = _BJ_CFG.title
-
-RESULT_TEXT = {k: (v.text, _COLORS[v.color]) for k, v in _BJ_CFG.result_text.items()}
 
 
 def flair(res: str, g) -> str:
     """ブラックジャックの勝ち方に応じた一言（大勝ちの演出は倍率で決まるので、ここでは勝ち方を祝う）。"""
     if res == "blackjack":
-        return _BJ_CFG.flair.blackjack
+        return BLACKJACK_FLAIR_BLACKJACK
     if res == "win" and g.doubled:
-        return _BJ_CFG.flair.doubled
+        return BLACKJACK_FLAIR_DOUBLED
     if res == "win" and rules.value(g.player) == 21 and len(g.player) >= 3:
-        return _BJ_CFG.flair.twenty_one
+        return BLACKJACK_FLAIR_TWENTY_ONE
     return ""
 
 
-async def play_blackjack(interaction: discord.Interaction, bot, bet: int):
-    ctx = await start_game(interaction, bot, bet, "ブラックジャック")
+async def play_blackjack(interaction: discord.Interaction, deps: CasinoDeps, bet: int):
+    ctx = await start_game(interaction, deps, bet, "ブラックジャック")
     if ctx is None:
         return
     try:
@@ -56,7 +61,7 @@ async def play_blackjack(interaction: discord.Interaction, bot, bet: int):
         raise
 
 
-class BlackjackView(OwnerView):
+class BlackjackView(GameOwnerView):
     def __init__(self, ctx: GameContext, origin: discord.Interaction, game: rules.Game):
         super().__init__(ctx, timeout=90)
         self.origin = origin
@@ -79,7 +84,7 @@ class BlackjackView(OwnerView):
     def replay_view(self) -> ReplayView:
         """結果の下に付ける「もう一度」ボタン（ダブルで増えた賭け金ではなく、最初の賭け金）。"""
         view = ReplayView(
-            self.ctx.bot, self.ctx.user_id, self.base_bet, lambda it, b: play_blackjack(it, self.ctx.bot, b)
+            self.ctx.deps, self.ctx.user_id, self.base_bet, lambda it, b: play_blackjack(it, self.ctx.deps, b)
         )
         view.origin = self.origin
         return view
@@ -89,7 +94,7 @@ class BlackjackView(OwnerView):
             return self._final
         g = self.game
         res = g.result()
-        bet = self.ctx.economy.escrow_amount(self.ctx.escrow_id) or self.ctx.bet
+        bet = self.ctx.casino.escrow_amount(self.ctx.guild_id, self.ctx.escrow_id) or self.ctx.bet
         self.ctx.bet = bet
         payout = rules.payout(res, bet)
         won = res in ("win", "blackjack")
@@ -164,10 +169,11 @@ class BlackjackView(OwnerView):
             return await interaction.response.send_message(
                 embed=ui.error_embed("ダブルできません", "ダブルは、最初の2枚のときだけ選べます。"), ephemeral=True
             )
-        eco = self.ctx.economy
-        if not eco.add_to_escrow(self.ctx.escrow_id, self.ctx.bet):
-            need = self.ctx.bet - eco.balance(interaction.user.id)
-            can, why = eco.can_borrow_for_bet(interaction.user.id, need)
+        gid, uid, eid = self.ctx.guild_id, interaction.user.id, self.ctx.escrow_id
+        casino = self.ctx.casino
+        if not casino.add_to_escrow(gid, eid, self.ctx.bet):
+            need = self.ctx.bet - casino.balance(gid, uid)
+            can, why = casino.can_borrow_for_bet(gid, uid, need)
             if not can:
                 return await interaction.response.send_message(
                     embed=ui.error_embed(
@@ -190,14 +196,14 @@ class BlackjackView(OwnerView):
                 or len(self.game.player) != 2
             ):
                 return
-            if not eco.add_to_escrow(self.ctx.escrow_id, self.ctx.bet, credit=True):
+            if not casino.add_to_escrow(gid, eid, self.ctx.bet, credit=True):
                 return await interaction.followup.send(
                     embed=ui.error_embed("ダブルできません", "帝愛から借りられませんでした。"), ephemeral=True
                 )
-            self.ctx.bet = eco.escrow_amount(self.ctx.escrow_id)
+            self.ctx.bet = casino.escrow_amount(gid, eid)
             self.game.double()
             return await self._after_origin()
-        self.ctx.bet = eco.escrow_amount(self.ctx.escrow_id)
+        self.ctx.bet = casino.escrow_amount(gid, eid)
         self.game.double()
         await self._after(interaction)
 

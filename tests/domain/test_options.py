@@ -9,8 +9,9 @@ import pytest
 from cogs.market.cog import MarketCog
 from domain import market, teiai
 from domain import options as opt
-from infra.db.economy import INITIAL_BALANCE, Economy
-from services.session import Sessions
+from domain.types import INITIAL_BALANCE
+from infra.db.repositories import open_repositories
+from tests.support import make_market_cog, make_test_bot
 
 pytestmark = pytest.mark.real_scope
 
@@ -21,15 +22,15 @@ HOURS = 3600
 
 @pytest.fixture
 def eco(tmp_path):
-    e = Economy(str(tmp_path / "t.db"), strict=True).for_guild(G)
+    e = open_repositories(str(tmp_path / "t.db"), strict=True).for_guild(G)
     now = time.time()
     for key, price in START.items():
-        e.market_set(now, price, 0, key)
+        e.market.market_set(now, price, 0, key)
     return e
 
 
 def set_price(eco, key, price, ts=None):
-    eco.market_set(time.time() + 1 if ts is None else ts, price, 0, key)
+    eco.market.market_set(time.time() + 1 if ts is None else ts, price, 0, key)
 
 
 # ----------------------------- 値付け ----------------------------- #
@@ -73,138 +74,140 @@ def test_strikes_are_five_percent_out_of_the_money():
 
 # ----------------------------- 購入 ----------------------------- #
 def test_buy_charges_the_premium_and_records_strike_and_expiry(eco):
-    ok, res = eco.option_buy(U, opt.CALL, "cs", 1_000, 5_000.0)
+    ok, res = eco.options.option_buy(U, opt.CALL, "cs", 1_000, 5_000.0)
     assert ok and res["strike"] == 1030.0 and res["expiry"] == 5_000.0 + 6 * HOURS
-    assert 900 < res["cost"] <= 1_000 and eco.balance(U) == INITIAL_BALANCE - res["cost"]
-    row = eco.option_list(U)["active"][0]
+    assert 900 < res["cost"] <= 1_000 and eco.wallet.balance(U) == INITIAL_BALANCE - res["cost"]
+    row = eco.options.option_list(U)["active"][0]
     assert row["units"] == res["units"] and row["premium"] == res["cost"] and row["kind"] == "call"
 
 
 def test_premium_feeds_the_bank(eco):
-    eco.credit(A, 5_000, "テスト")
-    eco.bank_deposit(A, 5_000, 1.0)
-    before = eco.bank_status(1.0)["cash"]
-    ok, res = eco.option_buy(U, opt.PUT, "cs", 1_000, 1.0)
-    assert ok and eco.bank_status(1.0)["cash"] == pytest.approx(before + res["cost"])
+    eco.wallet.credit(A, 5_000, "テスト")
+    eco.bank.bank_deposit(A, 5_000, 1.0)
+    before = eco.bank.bank_status(1.0)["cash"]
+    ok, res = eco.options.option_buy(U, opt.PUT, "cs", 1_000, 1.0)
+    assert ok and eco.bank.bank_status(1.0)["cash"] == pytest.approx(before + res["cost"])
 
 
 def test_buy_rules(eco):
-    assert not eco.option_buy(U, "call", "cs", 50)[0]  # 最低額
-    assert not eco.option_buy(U, "straddle", "cs", 1_000)[0]  # 種類
-    assert not eco.option_buy(U, "call", "cs", INITIAL_BALANCE + 1)[0]  # 残高不足
-    with eco._lock, eco._conn:
-        eco._conn.execute("UPDATE users SET debt=100 WHERE user_id=?", (U,))
-    assert eco.option_buy(U, "call", "cs", 1_000)[1].code == "debt_blocks"
+    assert not eco.options.option_buy(U, "call", "cs", 50)[0]  # 最低額
+    assert not eco.options.option_buy(U, "straddle", "cs", 1_000)[0]  # 種類
+    assert not eco.options.option_buy(U, "call", "cs", INITIAL_BALANCE + 1)[0]  # 残高不足
+    with eco.db.tx():
+        eco.db.conn.execute("UPDATE users SET debt=100 WHERE user_id=?", (U,))
+    assert eco.options.option_buy(U, "call", "cs", 1_000)[1].code == "debt_blocks"
 
 
 def test_open_premium_cap(eco):
-    eco.credit(U, 100_000, "テスト")
-    assert eco.option_buy(U, "call", "cs", 15_000)[0]
-    ok, why = eco.option_buy(U, "put", "cs", 10_000)
+    eco.wallet.credit(U, 100_000, "テスト")
+    assert eco.options.option_buy(U, "call", "cs", 15_000)[0]
+    ok, why = eco.options.option_buy(U, "put", "cs", 10_000)
     assert not ok and why.code == "option_max_open_premium" and why.params["max_open"] == opt.MAX_OPEN_PREMIUM
 
 
 # ----------------------------- 満期の決済 ----------------------------- #
 def test_call_pays_the_difference_above_the_strike_and_loss_is_the_premium_only(eco):
-    eco.credit(A, 500_000, "テスト")
-    eco.bank_deposit(A, 500_000, 1.0)  # 配当を払える銀行
-    ok, res = eco.option_buy(U, opt.CALL, "cs", 1_000, 1.0)
+    eco.wallet.credit(A, 500_000, "テスト")
+    eco.bank.bank_deposit(A, 500_000, 1.0)  # 配当を払える銀行
+    ok, res = eco.options.option_buy(U, opt.CALL, "cs", 1_000, 1.0)
     set_price(
         eco, "cs", 1070.0, ts=res["expiry"] - 10
     )  # 満期の直前の価格: 行使価格 1,030 を 40 超える（配当は、掛け金の50倍が上限）
-    done = eco.option_settle(res["expiry"] + 1)
+    done = eco.options.option_settle(res["expiry"] + 1)
     assert [d["status"] for d in done] == ["exercised"]
     assert done[0]["paid"] == min(int(res["units"] * 40 / market.UNIT), opt.PAYOUT_CAP_MULT * 1_000)
-    assert eco.option_list(U)["active"] == []
+    assert eco.options.option_list(U)["active"] == []
 
 
 def test_put_pays_when_price_falls_and_out_of_the_money_pays_nothing(eco):
-    eco.credit(A, 500_000, "テスト")
-    eco.bank_deposit(A, 500_000, 1.0)
-    ok, res = eco.option_buy(U, opt.PUT, "cs", 1_000, 1.0)  # 行使価格 970
+    eco.wallet.credit(A, 500_000, "テスト")
+    eco.bank.bank_deposit(A, 500_000, 1.0)
+    ok, res = eco.options.option_buy(U, opt.PUT, "cs", 1_000, 1.0)  # 行使価格 970
     set_price(eco, "cs", 930.0, ts=res["expiry"] - 10)  # 行使価格 970 を 40 下回る
-    assert eco.option_settle(res["expiry"] + 1)[0]["paid"] == min(
+    assert eco.options.option_settle(res["expiry"] + 1)[0]["paid"] == min(
         int(res["units"] * 40 / market.UNIT), opt.PAYOUT_CAP_MULT * 1_000
     )
-    ok, res2 = eco.option_buy(U, opt.PUT, "cs", 500, 2.0)  # 買い直し（行使価格 900 の少し下）
+    ok, res2 = eco.options.option_buy(U, opt.PUT, "cs", 500, 2.0)  # 買い直し（行使価格 900 の少し下）
     set_price(eco, "cs", 2000.0, ts=res2["expiry"] - 10)  # 上がった: 外れ
-    done = eco.option_settle(res2["expiry"] + 1)
+    done = eco.options.option_settle(res2["expiry"] + 1)
     assert done[-1]["status"] == "expired" and done[-1]["paid"] == 0
 
 
 def test_settlement_uses_the_price_at_expiry_not_the_latest(eco):
-    eco.credit(A, 50_000, "テスト")
-    eco.bank_deposit(A, 50_000, 1.0)
-    ok, res = eco.option_buy(U, opt.CALL, "cs", 1_000, 1.0)
+    eco.wallet.credit(A, 50_000, "テスト")
+    eco.bank.bank_deposit(A, 50_000, 1.0)
+    ok, res = eco.options.option_buy(U, opt.CALL, "cs", 1_000, 1.0)
     set_price(eco, "cs", 1100.0, ts=res["expiry"] - 10)  # 満期の時点では 1,100
     set_price(eco, "cs", 900.0, ts=res["expiry"] + 500)  # あとで下がっても、関係ない
-    done = eco.option_settle(res["expiry"] + 1000)
+    done = eco.options.option_settle(res["expiry"] + 1000)
     assert done[0]["final"] == 1100.0 and done[0]["paid"] > 0
 
 
 def test_payout_is_capped_at_fifty_times_the_premium(eco):
-    eco.credit(A, 50_000, "テスト")
-    eco.bank_deposit(A, 50_000, 1.0)
-    ok, res = eco.option_buy(U, opt.CALL, "gold", 200, 1.0)  # 値動きの小さい銘柄の、安いコール
+    eco.wallet.credit(A, 50_000, "テスト")
+    eco.bank.bank_deposit(A, 50_000, 1.0)
+    ok, res = eco.options.option_buy(U, opt.CALL, "gold", 200, 1.0)  # 値動きの小さい銘柄の、安いコール
     set_price(eco, "gold", START["gold"] * 3, ts=res["expiry"] - 10)  # 3倍に急騰
-    done = eco.option_settle(res["expiry"] + 1)
+    done = eco.options.option_settle(res["expiry"] + 1)
     assert done[0]["paid"] == res["cost"] * opt.PAYOUT_CAP_MULT
 
 
 def test_the_bank_pays_only_what_it_has_and_never_creates_money(eco):
-    ok, res = eco.option_buy(U, opt.CALL, "cs", 1_000, 1.0)  # 預金者なし: 銀行の手元は、掛け金だけ
-    cash = eco.bank_status(1.0)["cash"]
+    ok, res = eco.options.option_buy(U, opt.CALL, "cs", 1_000, 1.0)  # 預金者なし: 銀行の手元は、掛け金だけ
+    cash = eco.bank.bank_status(1.0)["cash"]
     set_price(eco, "cs", 3000.0, ts=res["expiry"] - 10)  # 大当たり
-    done = eco.option_settle(res["expiry"] + 1)
-    assert done[0]["paid"] <= cash and eco.bank_status(res["expiry"] + 1)["cash"] >= 0
+    done = eco.options.option_settle(res["expiry"] + 1)
+    assert done[0]["paid"] <= cash and eco.bank.bank_status(res["expiry"] + 1)["cash"] >= 0
 
 
 def test_winnings_above_the_premium_count_as_income_for_the_debt_withholding(eco):
-    eco.credit(A, 50_000, "テスト")
-    eco.bank_deposit(A, 50_000, 1.0)
-    ok, res = eco.option_buy(U, opt.CALL, "cs", 1_000, 1.0)
-    with eco._lock, eco._conn:  # 買ったあとに、借金ができた
-        eco._conn.execute("UPDATE users SET debt=20000 WHERE user_id=?", (U,))
+    eco.wallet.credit(A, 50_000, "テスト")
+    eco.bank.bank_deposit(A, 50_000, 1.0)
+    ok, res = eco.options.option_buy(U, opt.CALL, "cs", 1_000, 1.0)
+    with eco.db.tx():  # 買ったあとに、借金ができた
+        eco.db.conn.execute("UPDATE users SET debt=20000 WHERE user_id=?", (U,))
     set_price(eco, "cs", 1300.0, ts=res["expiry"] - 10)
-    done = eco.option_settle(res["expiry"] + 1)
+    done = eco.options.option_settle(res["expiry"] + 1)
     profit = done[0]["paid"] - res["cost"]
-    assert profit > 0 and eco.debt(U) == 20_000 - int(
+    assert profit > 0 and eco.debt.debt(U) == 20_000 - int(
         profit * teiai.REPAY_RATE
     )  # 純利益の3割が、借金の返済に天引きされる
 
 
 # ----------------------------- 売却・差し押さえ・ランキング ----------------------------- #
 def test_selling_before_expiry_pays_the_bid_price_less_than_the_premium_at_first(eco):
-    eco.credit(A, 5_000, "テスト")
-    eco.bank_deposit(A, 5_000, 1.0)
-    ok, res = eco.option_buy(U, opt.CALL, "cs", 1_000, 1.0)
-    ok, got = eco.option_sell(U, res["id"], 1.0)
+    eco.wallet.credit(A, 5_000, "テスト")
+    eco.bank.bank_deposit(A, 5_000, 1.0)
+    ok, res = eco.options.option_buy(U, opt.CALL, "cs", 1_000, 1.0)
+    ok, got = eco.options.option_sell(U, res["id"], 1.0)
     assert ok and 0 < got < res["cost"]  # 売買の手数料（スプレッド）の分だけ、買った直後は損
-    assert eco.option_list(U)["active"] == [] and eco.option_list(U)["done"][0]["status"] == "sold"
-    assert not eco.option_sell(U, res["id"], 1.0)[0]  # 二重には売れない
+    assert eco.options.option_list(U)["active"] == [] and eco.options.option_list(U)["done"][0]["status"] == "sold"
+    assert not eco.options.option_sell(U, res["id"], 1.0)[0]  # 二重には売れない
 
 
 def test_option_gains_value_when_the_price_moves_in_favour(eco):
-    ok, res = eco.option_buy(U, opt.CALL, "cs", 1_000, 1.0)
-    row = eco.option_list(U)["active"][0]
+    ok, res = eco.options.option_buy(U, opt.CALL, "cs", 1_000, 1.0)
+    row = eco.options.option_list(U)["active"][0]
     now = 1.0
-    base = eco.option_value(row, now, {"cs": 1000.0})
-    assert eco.option_value(row, now, {"cs": 1040.0}) > base > eco.option_value(row, now, {"cs": 960.0})
+    base = eco.options.option_value(row, now, {"cs": 1000.0})
+    assert eco.options.option_value(row, now, {"cs": 1040.0}) > base > eco.options.option_value(row, now, {"cs": 960.0})
 
 
 def test_options_count_in_the_ranking_and_are_seized_for_debt(eco):
-    ok, res = eco.option_buy(U, opt.CALL, "cs", 1_000)
-    assert dict((u, v) for _, u, v in eco.top(5))[U] > INITIAL_BALANCE - res["cost"]  # 掛け金は、評価額として残る
-    eco.debit_up_to(U, eco.balance(U), "テスト")
-    with eco._lock, eco._conn:
-        covered = eco._seize_assets(U, 10_000, "テスト")
-    assert covered > 0 and eco.option_list(U)["active"] == []
+    ok, res = eco.options.option_buy(U, opt.CALL, "cs", 1_000)
+    assert (
+        dict((u, v) for _, u, v in eco.wallet.top(5))[U] > INITIAL_BALANCE - res["cost"]
+    )  # 掛け金は、評価額として残る
+    eco.wallet.debit_up_to(U, eco.wallet.balance(U), "テスト")
+    with eco.db.tx():
+        covered = eco.debt._seize_assets_for(eco.debt.guild_id, U, 10_000, "テスト")
+    assert covered > 0 and eco.options.option_list(U)["active"] == []
 
 
 # ----------------------------- コマンド ----------------------------- #
-def make_cog(eco_root):
+def make_cog(bot):
     """このファイルで読み込んだ MarketCog で作る（他のテストが cogs を読み込み直しても、クラスがずれない）。"""
-    cog = MarketCog(SimpleNamespace(economy=eco_root, sessions=Sessions(cooldown=0), config={}))
+    cog = make_market_cog(bot)
     cog._prices()
     return cog
 
@@ -215,9 +218,9 @@ def choice(value):
 
 @pytest.fixture
 def cog(tmp_path):
-    root = Economy(str(tmp_path / "c.db"), strict=True)
-    root.for_guild(G).credit(U, 20_000, "テスト")
-    return make_cog(root)
+    bot = make_test_bot(str(tmp_path / "c.db"), strict=True)
+    bot.repos.for_guild(G).wallet.credit(U, 20_000, "テスト")
+    return make_cog(bot)
 
 
 def test_order_call_shows_condition_returns_and_holdings_and_settle_sells_it(cog):
@@ -228,8 +231,8 @@ def test_order_call_shows_condition_returns_and_holdings_and_settle_sells_it(cog
     embed = it.sent[-1]["embed"]
     assert "爆騰コール" in embed.title and "最大損失はこの掛け金のみ" in embed.description
     assert "勝利条件" in embed.description and "想定リターン" in embed.description
-    eco = cog.bot.economy.for_guild(G)
-    oid = eco.option_list(U)["active"][0]["id"]
+    eco = cog.bot.repos.for_guild(G)
+    oid = eco.options.option_list(U)["active"][0]["id"]
     it = It()
     asyncio.run(MarketCog.holdings.callback(cog, it))
     text = it.sent[-1]["embed"].description
@@ -237,7 +240,7 @@ def test_order_call_shows_condition_returns_and_holdings_and_settle_sells_it(cog
     assert (f"opt:{oid}", "🚀 爆騰コール #" + str(oid) + " 売却") in cog.positions(U, G)
     it = it_sell = It()
     asyncio.run(MarketCog.settle.callback(cog, it_sell, f"opt:{oid}", None))
-    assert "売りました" in it.sent[-1]["embed"].title and eco.option_list(U)["active"] == []
+    assert "売りました" in it.sent[-1]["embed"].title and eco.options.option_list(U)["active"] == []
 
 
 def test_order_put_and_refusals(cog):
@@ -266,32 +269,30 @@ def test_default_target_follows_each_symbols_volatility():
 
 
 def test_a_chosen_target_sets_the_strike_and_a_farther_one_is_cheaper_per_unit(eco):
-    eco.credit(U, 100_000, "テスト")
-    near = eco.option_buy(U, opt.CALL, "cs", 1_000, 1.0, strike_pct=0.01)[1]
-    far = eco.option_buy(U, opt.CALL, "cs", 1_000, 1.0, strike_pct=0.10)[1]
+    eco.wallet.credit(U, 100_000, "テスト")
+    near = eco.options.option_buy(U, opt.CALL, "cs", 1_000, 1.0, strike_pct=0.01)[1]
+    far = eco.options.option_buy(U, opt.CALL, "cs", 1_000, 1.0, strike_pct=0.10)[1]
     assert near["strike"] == 1010.0 and far["strike"] == 1100.0
     assert far["units"] > near["units"]  # 遠い基準は、1口が安いので、同じ掛け金で多く買える
-    default = eco.option_buy(U, opt.PUT, "teio", 1_000, 1.0)[1]
+    default = eco.options.option_buy(U, opt.PUT, "teio", 1_000, 1.0)[1]
     assert default["strike"] == round(START["teio"] * (1 - opt.default_strike_pct("teio")), 2)
 
 
 def test_target_validation_and_writing_with_a_target(eco):
-    eco.credit(U, 100_000, "テスト")
+    eco.wallet.credit(U, 100_000, "テスト")
     for bad in (0.0, -0.01, 0.51, 1.0):
-        ok, why = eco.option_buy(U, opt.CALL, "cs", 1_000, 1.0, strike_pct=bad)
+        ok, why = eco.options.option_buy(U, opt.CALL, "cs", 1_000, 1.0, strike_pct=bad)
         assert not ok and why.code == "option_target_pct_range"
-    eco.credit(A, 50_000, "テスト")
-    eco.bank_deposit(A, 50_000, 1.0)
-    ok, res = eco.option_write(U, opt.CALL, "cs", 5_000, 1.0, strike_pct=0.08)
+    eco.wallet.credit(A, 50_000, "テスト")
+    eco.bank.bank_deposit(A, 50_000, 1.0)
+    ok, res = eco.options.option_write(U, opt.CALL, "cs", 5_000, 1.0, strike_pct=0.08)
     assert ok and res["strike"] == round(START["cs"] * 1.08, 2)
-    assert not eco.option_write(U, opt.CALL, "cs", 5_000, 1.0, strike_pct=0.9)[0]
+    assert not eco.options.option_write(U, opt.CALL, "cs", 5_000, 1.0, strike_pct=0.9)[0]
 
 
 def test_buy_amount_suggests_shares_of_the_balance_only_before_typing(eco):
-    cog = MarketCog(
-        SimpleNamespace(economy=eco.parent if hasattr(eco, "parent") else eco, config={}, sessions=Sessions())
-    )
-    eco.set_balance(U, 8_000, "テスト")
+    cog = make_market_cog(make_test_bot(repos=eco))
+    eco.wallet.set_balance(U, 8_000, "テスト")
     it = SimpleNamespace(guild_id=G, user=SimpleNamespace(id=U))
 
     async def names(current):

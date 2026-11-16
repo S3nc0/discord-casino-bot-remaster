@@ -5,6 +5,7 @@
 """
 
 import time
+from typing import TYPE_CHECKING
 
 import discord
 from discord import app_commands
@@ -14,13 +15,13 @@ from cogs.shared import ui
 from cogs.shared.messages import format_failure
 from domain import labor as lab
 from domain import relics, shop
-from services import services_of
+from domain.ports.repos import ILaborRepo, IRelicRepo
+from services.labor import LaborService
+
+if TYPE_CHECKING:
+    from cogs.shared.bot import CasinoBot
 
 VIEW_TIMEOUT = 900  # 画面が反応する時間（秒）。過ぎたら、`/地下 作業` で開き直す
-
-
-def today(bot) -> str:
-    return services_of(bot).labor.today_key()
 
 
 def fatigue_label(fatigue: float) -> str:
@@ -183,21 +184,39 @@ def ranking_embed(data: dict, daily: bool) -> discord.Embed:
     return e
 
 
-class LaborView(discord.ui.View):
-    def __init__(self, bot, user_id: int, guild_id: int):
-        super().__init__(timeout=VIEW_TIMEOUT)
-        self.bot, self.user_id, self.guild_id = bot, user_id, guild_id
+class LaborView(ui.OwnerView):
+    def __init__(
+        self,
+        labor: ILaborRepo,
+        relics_repo: IRelicRepo,
+        labor_svc: LaborService,
+        user_id: int,
+        guild_id: int,
+    ) -> None:
+        super().__init__(
+            user_id,
+            timeout=VIEW_TIMEOUT,
+            owner_message="これは他の人の作業場です。`/地下 作業` で自分の作業場を開けます。",
+        )
+        self._labor = labor
+        self._relics = relics_repo
+        self._svc = labor_svc
+        self.user_id = user_id
+        self.guild_id = guild_id
         self.state: dict = {}
         self.tab = "work"
         self.refresh()
 
     # -------------------------------------------------------------- #
-    def eco(self):
-        return self.bot.economy.for_guild(self.guild_id)
+    def _today(self) -> str:
+        return self._svc.today_key()
+
+    def eco(self) -> ILaborRepo:
+        return self._labor.for_guild(self.guild_id)
 
     def refresh(self) -> None:
         """いまの状態を読み直して、ボタンを組み直す。"""
-        self.state = self.eco().labor_state(self.user_id, time.time(), today(self.bot))
+        self.state = self.eco().labor_state(self.user_id, time.time(), self._today())
         s = self.state
         self.clear_items()
         collect = discord.ui.Button(
@@ -305,14 +324,6 @@ class LaborView(discord.ui.View):
             merge.callback = self._merge
             self.add_item(merge)
 
-    async def interaction_check(self, interaction: discord.Interaction) -> bool:
-        if interaction.user.id != self.user_id:
-            await interaction.response.send_message(
-                "これは他の人の作業場です。`/地下 作業` で自分の作業場を開けます。", ephemeral=True
-            )
-            return False
-        return True
-
     async def _show(self, interaction: discord.Interaction, note: str = "") -> None:
         self.refresh()
         embed = hire_embed(self.state, note) if self.tab == "hire" else panel_embed(self.state, note)
@@ -320,7 +331,7 @@ class LaborView(discord.ui.View):
 
     # -------------------------------------------------------------- #
     async def _work(self, interaction: discord.Interaction):
-        r = self.eco().labor_click(self.user_id, time.time(), today(self.bot))
+        r = self.eco().labor_click(self.user_id, time.time(), self._today())
         if not r["ok"]:
             return await self._show(interaction, "" if r.get("quiet") else f"⚠ {r['reason']}")
         note = f"⛏ **+{r['pay']:,}**"
@@ -333,24 +344,24 @@ class LaborView(discord.ui.View):
         await self._show(interaction, note)
 
     async def _drink(self, interaction: discord.Interaction):
-        ok, reason = self.eco().labor_drink(self.user_id, time.time(), today(self.bot))
+        ok, reason = self.eco().labor_drink(self.user_id, time.time(), self._today())
         await self._show(
             interaction,
             f"🥤 ぐいっと飲んだ。疲労が {lab.DRINK_RECOVER:.0f} 回復した！" if ok else f"⚠ {format_failure(reason)}",
         )
 
     async def _collect(self, interaction: discord.Interaction):
-        got = self.eco().labor_collect(self.user_id, time.time(), today(self.bot), detail=True)
-        amount, found, relics = got["amount"], got["ores"], got["relics"]
+        got = self.eco().labor_collect(self.user_id, time.time(), self._today(), detail=True)
+        amount, found, collected_relics = got["amount"], got["ores"], got["relics"]
         note = f"💰 **{amount:,}** ペリカを、まとめて手元に移しました。" if amount else ""
         if got["skimmed"]:
             note += f"\n🎗️ ピンハネされた **{got['skimmed']:,}** ペリカは、慈善団体に寄付されます"
         if found:
             note += f"\n💎 掘り出し: {ore_text(found)}"
-        if relics:
-            note += f"\n🏺 発掘品が持ち物に入りました: {relic_text(relics)}"
+        if collected_relics:
+            note += f"\n🏺 発掘品が持ち物に入りました: {relic_text(collected_relics)}"
         await self._show(interaction, note)
-        big_relics = {i: n for i, n in relics.items() if i.removeprefix("relic_") in lab.RELIC_BIG}
+        big_relics = {i: n for i, n in collected_relics.items() if i.removeprefix("relic_") in lab.RELIC_BIG}
         if big_relics:  # 大当たりの発掘品も、みんなに知らせる
             await interaction.followup.send(
                 f"🎉 {interaction.user.mention} の作業員が、**{relic_text(big_relics)}** を掘り当てた！"
@@ -370,7 +381,7 @@ class LaborView(discord.ui.View):
 
     def _hirer(self, kind: str):
         async def callback(interaction: discord.Interaction):
-            ok, reason = self.eco().labor_hire(self.user_id, kind, time.time(), today(self.bot))
+            ok, reason = self.eco().labor_hire(self.user_id, kind, time.time(), self._today())
             await self._show(
                 interaction,
                 f"{lab.WORKER_MARK[kind]} **{lab.WORKER_NAME[kind]}** を雇った！"
@@ -382,14 +393,14 @@ class LaborView(discord.ui.View):
 
     async def _dismiss(self, interaction: discord.Interaction):
         kind = ui.selected_values(interaction)[0]
-        ok, reason = self.eco().labor_dismiss(self.user_id, kind, time.time(), today(self.bot))
+        ok, reason = self.eco().labor_dismiss(self.user_id, kind, time.time(), self._today())
         await self._show(
             interaction, f"**{lab.WORKER_NAME[kind]}** を解雇した。" if ok else f"⚠ {format_failure(reason)}"
         )
 
     async def _renew(self, interaction: discord.Interaction):
         want = not self.state["renew"]
-        self.eco().labor_set_renew(self.user_id, want, time.time(), today(self.bot))
+        self.eco().labor_set_renew(self.user_id, want, time.time(), self._today())
         await self._show(
             interaction,
             "🔁 自動更新を **オン** にした。契約が切れたら、貯まった稼ぎから契約料を払います。"
@@ -398,13 +409,13 @@ class LaborView(discord.ui.View):
         )
 
     async def _dorm(self, interaction: discord.Interaction):
-        ok, reason = self.eco().labor_dorm(self.user_id, time.time(), today(self.bot))
+        ok, reason = self.eco().labor_dorm(self.user_id, time.time(), self._today())
         await self._show(
             interaction, "🏠 寮を強化した！　雇える人数が増えた。" if ok else f"⚠ {format_failure(reason)}"
         )
 
     async def _merge(self, interaction: discord.Interaction):
-        ok, result = self.eco().relic_merge(self.user_id, ui.selected_values(interaction)[0])
+        ok, result = self._relics.for_guild(self.guild_id).relic_merge(self.user_id, ui.selected_values(interaction)[0])
         if not ok:
             return await self._show(interaction, f"⚠ {format_failure(result)}")
         item = shop.BY_ID[result]
@@ -412,7 +423,7 @@ class LaborView(discord.ui.View):
 
     def _upgrader(self, tool: str):
         async def callback(interaction: discord.Interaction):
-            ok, reason = self.eco().labor_upgrade(self.user_id, tool, time.time(), today(self.bot))
+            ok, reason = self.eco().labor_upgrade(self.user_id, tool, time.time(), self._today())
             await self._show(
                 interaction,
                 f"{lab.TOOL_MARK[tool]} **{lab.TOOL_NAME[tool]}** を強化した！（{lab.TOOL_EFFECT[tool]}）"
@@ -424,8 +435,17 @@ class LaborView(discord.ui.View):
 
 
 class LaborCog(commands.Cog):
-    def __init__(self, bot):
+    def __init__(
+        self,
+        bot: commands.Bot,
+        labor: ILaborRepo,
+        relics_repo: IRelicRepo,
+        labor_svc: LaborService,
+    ) -> None:
         self.bot = bot
+        self._labor = labor
+        self._relics = relics_repo
+        self._svc = labor_svc
         # (サーバー, 人) → 最後に開いた作業場の (チャンネルID, メッセージID)。新しく開いたら、前のを消す（チャンネルが作業場で埋まらないように）
         self._panels: dict = {}
 
@@ -434,7 +454,7 @@ class LaborCog(commands.Cog):
     @group.command(name="作業", description="ボタンを押して稼ぐ（元手は0）。稼いだら、作業員を雇って放置でも稼ぐ")
     async def work(self, interaction: discord.Interaction):
         gid = ui.guild_id_of(interaction)
-        view = LaborView(self.bot, interaction.user.id, gid)
+        view = LaborView(self._labor, self._relics, self._svc, interaction.user.id, gid)
         key = (gid, interaction.user.id)
         old = self._panels.pop(key, None)
         await interaction.response.send_message(embed=panel_embed(view.state), view=view)
@@ -456,13 +476,13 @@ class LaborCog(commands.Cog):
         period=[app_commands.Choice(name="通算", value="total"), app_commands.Choice(name="今日", value="today")]
     )
     async def ranking(self, interaction: discord.Interaction, period: str = "total"):
-        eco = self.bot.economy.for_guild(interaction.guild_id)
+        eco = self._labor.for_guild(ui.guild_id_of(interaction))
         daily = period == "today"
-        data = eco.labor_top(10, today(self.bot) if daily else None, interaction.user.id)
+        data = eco.labor_top(10, self._svc.today_key() if daily else None, interaction.user.id)
         await interaction.response.send_message(
             embed=ranking_embed(data, daily), allowed_mentions=discord.AllowedMentions.none()
         )
 
 
-async def setup(bot):
-    await bot.add_cog(LaborCog(bot))
+async def setup(bot: "CasinoBot") -> None:
+    await bot.add_cog(LaborCog(bot, bot.repos.labor, bot.repos.relics, bot.services.labor))

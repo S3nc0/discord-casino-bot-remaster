@@ -1,0 +1,234 @@
+"""テスト用の共有ビルダー（RepositoryBundle・ServiceRegistry・BotBridges・各 Cog の Constructor DI 組み立て）。"""
+
+from types import SimpleNamespace
+from typing import Any, Optional
+
+from cogs.shared.bridges import (
+    BotBridges,
+    IApprovalBridge,
+    IEventAdminBridge,
+    IHorseAdminBridge,
+    IHorseButtonBridge,
+    ILoanButtonBridge,
+    IP2PListingBridge,
+    IP2PNavigationBridge,
+    IQuizAdminBridge,
+    IQuizButtonBridge,
+    IRaffleAdminBridge,
+    IShopTitleBridge,
+)
+from domain.ports.session import ISessionGuard
+from infra.db.repositories import RepositoryBundle, open_repositories
+from services import ServiceRegistry, build_services
+from services.session import Sessions
+
+
+def make_test_bot(
+    db_path: str = ":memory:",
+    *,
+    legacy_guild_id: Optional[int] = None,
+    strict: bool = False,
+    config: Optional[dict[str, Any]] = None,
+    sessions: Optional[ISessionGuard] = None,
+    repos: Optional[RepositoryBundle] = None,
+) -> SimpleNamespace:
+    """テスト用の軽量 Bot コンテナ（repos / services / sessions / bridges / config を保持）を組み立てる。"""
+    cfg = {} if config is None else config
+    bundle = repos if repos is not None else open_repositories(db_path, legacy_guild_id=legacy_guild_id, strict=strict)
+    sess = sessions if sessions is not None else Sessions(cooldown=0)
+    services: ServiceRegistry = build_services(cfg, bundle, sess)
+    cogs: dict[str, Any] = {}
+    return SimpleNamespace(
+        config=cfg,
+        repos=bundle,
+        sessions=sess,
+        services=services,
+        bridges=BotBridges(),
+        guilds=[],
+        get_guild=lambda _gid: None,
+        get_cog=lambda name: cogs.get(name),
+        _cogs=cogs,
+    )
+
+
+def make_economy_cog(bot: Any):
+    from cogs.economy.cog import EconomyCog
+
+    return EconomyCog(
+        bot,
+        config=bot.config,
+        economy_svc=bot.services.economy,
+        wallet=bot.repos.wallet,
+        records=bot.repos.records,
+        bank=bot.repos.bank,
+        debt=bot.repos.debt,
+        loans=bot.repos.loans,
+        shop_repo=bot.repos.shop,
+        notices=bot.repos.notices,
+        crypto=bot.repos.crypto,
+        bonds_repo=bot.repos.bonds,
+        assets=bot.repos.assets,
+        guild_repo=bot.repos.guild,
+        sessions=bot.sessions,
+        clock=bot.services.clock,
+    )
+
+
+def make_market_cog(bot: Any):
+    from cogs.market.cog import MarketCog
+
+    return MarketCog(
+        bot,
+        config=bot.config,
+        market_svc=bot.services.market,
+        market_data=bot.repos.market,
+        market_events_repo=bot.repos.market_events,
+        earnings_repo=bot.repos.earnings,
+        crypto=bot.repos.crypto,
+        margin=bot.repos.margin,
+        bonds_repo=bot.repos.bonds,
+        options_repo=bot.repos.options,
+        wallet=bot.repos.wallet,
+        debt=bot.repos.debt,
+        guild_repo=bot.repos.guild,
+        sessions=bot.sessions,
+    )
+
+
+def make_bond_cog(bot: Any):
+    from cogs.market.bond_cog import BondCog
+
+    return BondCog(
+        bot,
+        config=bot.config,
+        guild_repo=bot.repos.guild,
+        bonds_repo=bot.repos.bonds,
+        options_repo=bot.repos.options,
+        bank_repo=bot.repos.bank,
+    )
+
+
+def make_p2p_cog(bot: Any):
+    from cogs.p2p.cog import P2PCog
+
+    cog = P2PCog(bot, bot.config, bot.services.p2p, bot.repos.guild, bot.sessions)
+    bot.bridges.register(IP2PListingBridge, cog)
+    bot.bridges.register(IP2PNavigationBridge, cog)
+    return cog
+
+
+def make_shop_cog(bot: Any):
+    from cogs.shop.cog import ShopCog
+
+    cog = ShopCog(bot, bot.config, bot.services.shop, bot.repos.guild, bot.sessions)
+    bot.bridges.register(IShopTitleBridge, cog)
+    return cog
+
+
+def make_horse_cog(bot: Any):
+    from cogs.horse.cog import HorseCog
+
+    cog = HorseCog(
+        bot,
+        bot.config,
+        bot.services.horse,
+        bot.repos.horses,
+        bot.repos.races,
+        bot.repos.shop,
+        bot.repos.guild,
+    )
+    bot.bridges.register(IHorseAdminBridge, cog)
+    bot.bridges.register(IHorseButtonBridge, cog)
+    return cog
+
+
+def make_quiz_cog(bot: Any):
+    from cogs.quiz.cog import QuizCog
+
+    cog = QuizCog(bot, bot.config, bot.repos.quiz, bot.repos.guild)
+    bot.bridges.register(IQuizAdminBridge, cog)
+    bot.bridges.register(IQuizButtonBridge, cog)
+    return cog
+
+
+def make_raffle_cog(bot: Any):
+    from cogs.raffle.cog import RaffleCog
+
+    cog = RaffleCog(bot, bot.config, bot.repos.raffle, bot.repos.guild)
+    bot.bridges.register(IRaffleAdminBridge, cog)
+    return cog
+
+
+def make_event_cog(bot: Any):
+    from cogs.event.cog import EventCog
+
+    cog = EventCog(bot, bot.config, bot.repos.events, bot.repos.guild, bot.services.clock)
+    bot.bridges.register(IEventAdminBridge, cog)
+    return cog
+
+
+def make_approval_cog(bot: Any):
+    from cogs.admin.cog import ApprovalCog
+
+    cog = ApprovalCog(
+        bot,
+        config=bot.config,
+        guild_repo=bot.repos.guild,
+        wallet=bot.repos.wallet,
+        rtp=bot.repos.rtp,
+        pachinko=bot.repos.pachinko,
+        quiz_repo=bot.repos.quiz,
+        labor_svc=bot.services.labor,
+    )
+    bot.bridges.register(IApprovalBridge, cog)
+    return cog
+
+
+def make_ranking_repos(repos: RepositoryBundle):
+    from cogs.shared.ranking import RankingRepos
+
+    return RankingRepos(
+        wallet=repos.wallet,
+        crypto=repos.crypto,
+        bonds=repos.bonds,
+        assets=repos.assets,
+    )
+
+
+def make_casino_deps(bot: Any):
+    from cogs.casino.common import CasinoDeps
+
+    return CasinoDeps(casino=bot.services.casino, guild_repo=bot.repos.guild, config=bot.config)
+
+
+def make_loan_cog(bot: Any):
+    from cogs.loan.cog import LoanCog
+
+    cog = LoanCog(bot, bot.config, bot.services.loan, bot.repos.wallet, bot.repos.guild)
+    bot.bridges.register(ILoanButtonBridge, cog)
+    return cog
+
+
+def make_labor_cog(bot: Any):
+    from cogs.labor.cog import LaborCog
+
+    return LaborCog(bot, bot.repos.labor, bot.repos.relics, bot.services.labor)
+
+
+def make_arena_cog(bot: Any):
+    from cogs.arena.cog import ArenaCog
+
+    return ArenaCog(bot, bot.config, bot.services.arena, bot.repos.guild)
+
+
+def make_weekly_cog(bot: Any):
+    from cogs.weekly.cog import WeeklyCog
+
+    return WeeklyCog(
+        bot,
+        bot.config,
+        bot.services.economy,
+        bot.repos.records,
+        bot.repos.guild,
+        clock=bot.services.clock,
+    )

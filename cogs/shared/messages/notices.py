@@ -1,17 +1,9 @@
 """通知イベント（Notice）の Discord UI 向けフォーマッタ定義。"""
 
-from typing import Any, Callable
+from cogs.shared.messages.base import MessageEntry
+from cogs.shared.messages.games import MessageFormatter as BaseMessageFormatter
 
-NoticeFormatter = str | Callable[[dict[str, Any]], str]
-
-
-def _p2p_won_failed(p: dict[str, Any]) -> str:
-    from cogs.shared.messages import format_failure
-
-    return (
-        f"⚠️ **{p['label']}** は落札しましたが、{format_failure(p['reason'])}"
-        f"そのため取引は成立せず、{p['refund']:,}ペリカ は返りました。"
-    )
+NoticeFormatter = MessageEntry
 
 
 NOTICE_FORMATTERS: dict[str, NoticeFormatter] = {
@@ -52,9 +44,20 @@ NOTICE_FORMATTERS: dict[str, NoticeFormatter] = {
         f"入札 {p['refund']:,}ペリカ は返りました。"
     ),
     "p2p_won": lambda p: f"🎉 **{p['label']}** を **{p['bid']:,}ペリカ** で落札しました。",
-    "p2p_won_failed": _p2p_won_failed,
     "p2p_buyer_cannot_receive": lambda p: (
         f"**{p['label']}** は、買い手が受け取れず、取引が成立しませんでした（品は戻りました）。"
     ),
     "p2p_unsold": lambda p: f"**{p['label']}** は、売れ残りました（品は戻りました）。",
 }
+
+
+class MessageFormatter(BaseMessageFormatter):
+    """通知イベントの整形を重ねた最終 UI フォーマッタ。"""
+
+    def _register_entries(self) -> None:
+        super()._register_entries()
+        self.notices.update(NOTICE_FORMATTERS)
+        self.notices["p2p_won_failed"] = lambda p: (
+            f"⚠️ **{p['label']}** は落札しましたが、{self.format_failure(p['reason'])}"
+            f"そのため取引は成立せず、{p['refund']:,}ペリカ は返りました。"
+        )

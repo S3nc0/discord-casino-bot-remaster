@@ -6,10 +6,9 @@ from types import SimpleNamespace
 import discord
 import pytest
 
-from cogs.admin.cog import ApprovalCog
 from cogs.admin.purge import PROGRESS_EVERY, can_read_history, delete_own_messages
 from cogs.admin.views import PurgeConfirm
-from infra.db.economy import Economy
+from tests.support import make_approval_cog, make_test_bot
 
 ME, OWNER, FRIEND, OTHER = 99, 1, 2, 7
 
@@ -130,15 +129,11 @@ def make_cog(tmp_path, channel):
     guild = SimpleNamespace(
         id=5, name="鯖5", me=object(), text_channels=[channel], system_channel=channel, get_channel=lambda cid: channel
     )
-    bot = SimpleNamespace(
-        config={"owner_ids": [OWNER]},
-        economy=Economy(str(tmp_path / "t.db")),
-        guilds=[guild],
-        get_guild=lambda gid: guild if gid == 5 else None,
-        get_cog=lambda name: None,
-        user=SimpleNamespace(id=ME),
-    )
-    return ApprovalCog(bot)
+    bot = make_test_bot(db_path=str(tmp_path / "t.db"), config={"owner_ids": [OWNER]})
+    bot.guilds = [guild]
+    bot.get_guild = lambda gid: guild if gid == 5 else None
+    bot.user = SimpleNamespace(id=ME)
+    return make_approval_cog(bot)
 
 
 def test_the_command_is_owner_only_and_asks_for_confirmation_before_deleting(tmp_path):

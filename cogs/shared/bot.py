@@ -1,39 +1,41 @@
 """Bot 本体の型付き基盤クラス。
 
-main.py と各 Cog が共有する属性（config, economy, sessions, services）を
+main.py と各 Cog が共有する依存コンテナ（config, repos, sessions, services, bridges）を
 動的な後付けではなく型付き属性として定義する。
 """
 
-from typing import TYPE_CHECKING, Any, Optional
+from typing import Any, Optional
 
 from discord.ext import commands
 
-from domain.ports import ISessionGuard
+from cogs.shared.bridges import BotBridges
+from domain.ports.repos import IRepositoryBundle
+from domain.ports.session import ISessionGuard
 from services import ServiceRegistry, build_services
-
-if TYPE_CHECKING:
-    from infra.db.economy import Economy
 
 
 class CasinoBot(commands.Bot):
     """ペリカカジノ Bot 本体。"""
 
     config: dict[str, Any]
-    economy: "Economy"
+    repos: IRepositoryBundle
     sessions: ISessionGuard
     services: ServiceRegistry
+    bridges: BotBridges
 
     def __init__(
         self,
         *,
         config: dict[str, Any],
-        economy: "Economy",
+        repos: IRepositoryBundle,
         sessions: ISessionGuard,
         services: Optional[ServiceRegistry] = None,
+        bridges: Optional[BotBridges] = None,
         **kwargs: Any,
     ) -> None:
         super().__init__(**kwargs)
         self.config = config
-        self.economy = economy
+        self.repos = repos
         self.sessions = sessions
-        self.services = services if services is not None else build_services(config, economy, sessions)
+        self.services = services if services is not None else build_services(config, repos, sessions)
+        self.bridges = bridges if bridges is not None else BotBridges()

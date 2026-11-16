@@ -7,8 +7,14 @@ import discord
 
 from cogs.admin.embeds import LEVEL_NAME, click_history_embed, pachinko_stats_embed, rtp_table_embed
 from cogs.shared import ui
-from cogs.shared.cog_ports import IEventCogPort, require_cog_port
-from services import services_of
+
+
+async def _require_bridge(interaction: discord.Interaction, bridge, feature_label: str):
+    if bridge is None:
+        await interaction.response.send_message(
+            embed=ui.error_embed(f"{feature_label}が読み込まれていません"), ephemeral=True
+        )
+    return bridge
 
 
 async def grant(cog, interaction: discord.Interaction, guild_id: str, user_id: str, amount: int, reason: str) -> None:
@@ -16,7 +22,7 @@ async def grant(cog, interaction: discord.Interaction, guild_id: str, user_id: s
     if picked is None:
         return
     guild, member = picked
-    balance = cog.bot.economy.for_guild(guild.id).credit(member.id, amount, f"付与（管理）{reason}".strip())
+    balance = cog._wallet.for_guild(guild.id).credit(member.id, amount, f"付与（管理）{reason}".strip())
     await interaction.response.send_message(
         embed=ui.ok_embed(
             "付与しました",
@@ -34,7 +40,7 @@ async def set_balance(
     if picked is None:
         return
     guild, member = picked
-    before, after, debt_before, debt_after = cog.bot.economy.for_guild(guild.id).set_balance(
+    before, after, debt_before, debt_after = cog._wallet.for_guild(guild.id).set_balance(
         member.id, amount, f"残高の設定（管理）{reason}".strip()
     )
     await interaction.response.send_message(
@@ -70,11 +76,11 @@ async def event_start(
             embed=ui.error_embed("開く先がありません", "許可されているサーバーがありません。"), ephemeral=True
         )
         return
-    event_cog = await require_cog_port(cog.bot, interaction, "EventCog", IEventCogPort, "イベント機能")
-    if event_cog is None:
+    event_bridge = await _require_bridge(interaction, cog.event_bridge(), "イベント機能")
+    if event_bridge is None:
         return
     await interaction.response.defer(ephemeral=True)
-    lines = [(await event_cog.start_manual(g, game, boost, minutes, channel))[1] for g in targets]
+    lines = [(await event_bridge.start_manual(g, game, boost, minutes, channel))[1] for g in targets]
     await interaction.followup.send(
         embed=ui.ok_embed(f"特別イベントを開きました（{len(targets)}サーバー）", "\n".join(lines)[:3900]),
         ephemeral=True,
@@ -84,11 +90,11 @@ async def event_start(
 async def event_stop(cog, interaction: discord.Interaction, guild_id: Optional[str]) -> None:
     if guild_id and await cog._pick_guild(interaction, guild_id) is None:
         return
-    event_cog = await require_cog_port(cog.bot, interaction, "EventCog", IEventCogPort, "イベント機能")
-    if event_cog is None:
+    event_bridge = await _require_bridge(interaction, cog.event_bridge(), "イベント機能")
+    if event_bridge is None:
         return
     await interaction.response.defer(ephemeral=True)
-    lines = [(await event_cog.stop_manual(g))[1] for g in cog._event_targets(guild_id)]
+    lines = [(await event_bridge.stop_manual(g))[1] for g in cog._event_targets(guild_id)]
     await interaction.followup.send(
         embed=ui.embed("特別イベントを終わらせました", "\n".join(lines)[:3900] or "対象がありません。", ui.INFO),
         ephemeral=True,
@@ -99,15 +105,15 @@ async def rtp_set(cog, interaction: discord.Interaction, guild_id: str, game: st
     guild = await cog._pick_guild(interaction, guild_id)
     if guild is None:
         return
-    eco = cog.bot.economy.for_guild(guild.id)
-    changed = eco.rtp_level_set(None if game == "*" else game, level)
+    rtp = cog._rtp.for_guild(guild.id)
+    changed = rtp.rtp_level_set(None if game == "*" else game, level)
     await interaction.response.send_message(
         embeds=[
             ui.ok_embed(
                 "還元率のレベルを変えました",
                 f"{guild.name}: {'、'.join(changed)} → レベル {level}（{LEVEL_NAME[level]}）",
             ),
-            rtp_table_embed(eco.rtp_levels(), f"🎚️ {guild.name} の還元率"),
+            rtp_table_embed(rtp.rtp_levels(), f"🎚️ {guild.name} の還元率"),
         ],
         ephemeral=True,
     )
@@ -118,9 +124,7 @@ async def rtp_list(cog, interaction: discord.Interaction, guild_id: Optional[str
     if guild_id and guild is None:
         return
     targets = [guild] if guild else cog._allowed_guilds()
-    embeds = [
-        rtp_table_embed(cog.bot.economy.for_guild(g.id).rtp_levels(), f"🎚️ {g.name} の還元率") for g in targets[:10]
-    ]
+    embeds = [rtp_table_embed(cog._rtp.for_guild(g.id).rtp_levels(), f"🎚️ {g.name} の還元率") for g in targets[:10]]
     await interaction.response.send_message(embeds=embeds or [ui.error_embed("対象がありません")], ephemeral=True)
 
 
@@ -131,7 +135,7 @@ async def pachinko_stats(cog, interaction: discord.Interaction, guild_id: Option
         if guild is None:
             return
     since = time.time() - days * 86400 if days else None
-    data = cog.bot.economy.pachinko_stats(guild.id if guild else None, since)
+    data = cog._pachinko.pachinko_stats(guild.id if guild else None, since)
     scope = (guild.name if guild else "全サーバー") + (f"・過去{days}日" if days else "・全期間")
     await interaction.response.send_message(embed=pachinko_stats_embed(data, scope), ephemeral=True)
 
@@ -141,9 +145,8 @@ async def click_history(cog, interaction: discord.Interaction, guild_id: str, us
     if picked is None:
         return
     guild, member = picked
-    labor_svc = services_of(cog.bot).labor
-    report = labor_svc.click_report(guild.id, member.id, hours)
-    tz = labor_svc.utc_offset()
+    report = cog._labor_svc.click_report(guild.id, member.id, hours)
+    tz = cog._labor_svc.utc_offset()
     await interaction.response.send_message(
         embed=click_history_embed(f"{guild.name} の {member.display_name}", report, tz, hours), ephemeral=True
     )

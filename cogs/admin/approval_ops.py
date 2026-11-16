@@ -13,7 +13,7 @@ from domain import approval
 
 async def request_approval(cog, guild: discord.Guild, renotify_after: int) -> int:
     """持ち主に承認を依頼する DM を送る。届いた人数を返す（DM を受け取れない人には届かない）。"""
-    cog.bot.economy.mark_guild_notified(
+    cog._guild_repo.mark_guild_notified(
         guild.id
     )  # 送信（await）の前に記録する。同時に来た別のコマンドが、重ねて依頼しないように
     embed = approval_request_embed(guild)
@@ -21,7 +21,7 @@ async def request_approval(cog, guild: discord.Guild, renotify_after: int) -> in
     view.add_item(ApprovalButton("allow", guild.id))
     view.add_item(ApprovalButton("deny", guild.id))
     delivered = 0
-    for uid in approval.owner_ids(cog.bot.config):
+    for uid in approval.owner_ids(cog._config):
         try:
             user = cog.bot.get_user(uid) or await cog.bot.fetch_user(uid)
             await user.send(embed=embed, view=view)
@@ -33,11 +33,11 @@ async def request_approval(cog, guild: discord.Guild, renotify_after: int) -> in
 
 async def ensure_requested(cog, guild: discord.Guild, renotify_after: int, reset_denied: bool = False) -> None:
     """承認待ちとして記録し、まだ依頼していなければ依頼する。しばらく前の依頼なら催促する。"""
-    if guild is None or guild.id in approval.preapproved(cog.bot.config):
+    if guild is None or guild.id in approval.preapproved(cog._config):
         return
-    row = cog.bot.economy.get_guild_status(guild.id)
+    row = cog._guild_repo.get_guild_status(guild.id)
     if row is None or (row["status"] == approval.DENIED and reset_denied):
-        cog.bot.economy.set_guild_status(guild.id, approval.PENDING, guild.name)
+        cog._guild_repo.set_guild_status(guild.id, approval.PENDING, guild.name)
         await cog.request_approval(guild)
     elif row["status"] == approval.PENDING:
         if row["notified_at"] is None or time.time() - row["notified_at"] > renotify_after:
@@ -58,23 +58,23 @@ async def announce_approved(guild: discord.Guild) -> None:
 
 
 async def handle_guild_join(cog, guild: discord.Guild) -> None:
-    if not approval.requires_approval(cog.bot.config):
+    if not approval.requires_approval(cog._config):
         return
-    row = cog.bot.economy.get_guild_status(guild.id)
+    row = cog._guild_repo.get_guild_status(guild.id)
     if row and row["status"] == approval.APPROVED:
         return  # 承認済みのサーバーに追加し直された
     await cog.ensure_requested(guild, reset_denied=True)
 
 
 async def handle_ready(cog) -> None:
-    if not approval.requires_approval(cog.bot.config):
+    if not approval.requires_approval(cog._config):
         return
     for guild in cog.bot.guilds:  # Bot が止まっている間に追加されたサーバーも拾う
         await cog.ensure_requested(guild)
 
 
 async def server_list(cog, interaction: discord.Interaction) -> None:
-    e = server_list_embed(cog.bot.guilds, cog.bot.economy.list_guild_status(), cog.bot.config)
+    e = server_list_embed(cog.bot.guilds, cog._guild_repo.list_guild_status(), cog._config)
     await interaction.response.send_message(embed=e, ephemeral=True)
 
 
@@ -86,7 +86,7 @@ async def server_allow(cog, interaction: discord.Interaction, guild_id: str) -> 
         return
     gid = int(guild_id)
     guild = cog.bot.get_guild(gid)
-    cog.bot.economy.set_guild_status(gid, approval.APPROVED, guild.name if guild else None, interaction.user.id)
+    cog._guild_repo.set_guild_status(gid, approval.APPROVED, guild.name if guild else None, interaction.user.id)
     if guild is not None:
         await cog.announce_approved(guild)
     await interaction.response.send_message(
@@ -107,7 +107,7 @@ async def server_revoke(cog, interaction: discord.Interaction, guild_id: str) ->
         )
         return
     gid = int(guild_id)
-    if gid in approval.preapproved(cog.bot.config):
+    if gid in approval.preapproved(cog._config):
         await interaction.response.send_message(
             embed=ui.warn_embed(
                 "取り消せません",
@@ -117,14 +117,14 @@ async def server_revoke(cog, interaction: discord.Interaction, guild_id: str) ->
         )
         return
     guild = cog.bot.get_guild(gid)
-    cog.bot.economy.set_guild_status(gid, approval.DENIED, guild.name if guild else None, interaction.user.id)
+    cog._guild_repo.set_guild_status(gid, approval.DENIED, guild.name if guild else None, interaction.user.id)
     left = ""
     if guild is not None:
         try:
             await guild.leave()
             left = "Bot はそのサーバーから退出しました。"
         except discord.HTTPException:
-            left = "退出はできませんでしたが、コマンドは使えなくなりました。"
+            left = "退出はできませんでしたが、コマンドは使えないままです。"
     await interaction.response.send_message(
         embed=ui.ok_embed("取り消しました", f"`{gid}` の許可を取り消しました。{left}"), ephemeral=True
     )

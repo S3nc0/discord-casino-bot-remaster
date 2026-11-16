@@ -1,101 +1,71 @@
-"""ショップ・スキン・発掘品カタログの構造的契約。"""
+"""ショップ・スキン・発掘品カタログの公称データ契約。"""
 
 from collections.abc import Mapping
-from typing import Protocol
+from dataclasses import dataclass
 
 
-class ShopItemProto(Protocol):
-    @property
-    def id(self) -> str: ...
-    @property
-    def name(self) -> str: ...
-    @property
-    def kind(self) -> str: ...
-    @property
-    def price(self) -> int: ...
-    @property
-    def value(self) -> int | str | None: ...
-    @property
-    def desc(self) -> str: ...
-    @property
-    def limited(self) -> bool: ...
-    @property
-    def mark(self) -> str: ...
+@dataclass(frozen=True)
+class ShopItemContract:
+    id: str
+    name: str
+    kind: str
+    price: int
+    value: int | str | None
+    desc: str
+    limited: bool
+    mark: str
 
 
-class StockRuleProto(Protocol):
-    @property
-    def max(self) -> int: ...
-    @property
-    def per_hour(self) -> float: ...
+@dataclass(frozen=True)
+class StockRuleContract:
+    max: int
+    per_hour: float
 
 
-class ShopCatalogProto(Protocol):
-    @property
-    def kind_labels(self) -> Mapping[str, str]: ...
-    @property
-    def role_prefix(self) -> str: ...
-    @property
-    def insurance_cap(self) -> int: ...
-    @property
-    def auto_used(self) -> tuple[str, ...]: ...
-    @property
-    def items(self) -> tuple[ShopItemProto, ...]: ...
-    @property
-    def stock_rules(self) -> Mapping[str, StockRuleProto]: ...
-    @property
-    def confirm_from(self) -> int: ...
-    @property
-    def status_nick_minutes(self) -> int: ...
-    @property
-    def status_nick_per_guild(self) -> int: ...
+@dataclass(frozen=True)
+class ShopCatalogContract:
+    kind_labels: Mapping[str, str]
+    role_prefix: str
+    insurance_cap: int
+    auto_used: tuple[str, ...]
+    items: tuple[ShopItemContract, ...]
+    stock_rules: Mapping[str, StockRuleContract]
+    confirm_from: int
+    status_nick_minutes: int
+    status_nick_per_guild: int
 
 
-class SkinProto(Protocol):
-    @property
-    def item_id(self) -> str: ...
-    @property
-    def games(self) -> tuple[str, ...]: ...
-    @property
-    def title_prefix(self) -> str: ...
-    @property
-    def start_line(self) -> str: ...
-    @property
-    def win_line(self) -> str: ...
-    @property
-    def lose_line(self) -> str: ...
-    @property
-    def dice_mark(self) -> str: ...
-    @property
-    def role_win(self) -> Mapping[str, str] | None: ...
-    @property
-    def role_lose(self) -> Mapping[str, str] | None: ...
-    @property
-    def roll_comment(self) -> str: ...
-    @property
-    def banner(self) -> str: ...
+@dataclass(frozen=True)
+class SkinContract:
+    item_id: str
+    games: tuple[str, ...]
+    title_prefix: str
+    start_line: str
+    win_line: str
+    lose_line: str
+    dice_mark: str
+    role_win: Mapping[str, str] | None
+    role_lose: Mapping[str, str] | None
+    roll_speaker: str
+    roll_mark: str
+    banner: str
 
 
-class SkinsCatalogProto(Protocol):
-    @property
-    def slot_of_game(self) -> Mapping[str, str]: ...
-    @property
-    def skins(self) -> tuple[SkinProto, ...]: ...
+@dataclass(frozen=True)
+class SkinsCatalogContract:
+    slot_of_game: Mapping[str, str]
+    skins: tuple[SkinContract, ...]
 
 
-class RelicBuffProto(Protocol):
-    @property
-    def effect(self) -> str: ...
-    @property
-    def description(self) -> str: ...
+@dataclass(frozen=True)
+class RelicBuffContract:
+    effect: str
+    description: str
 
 
-class RelicsCatalogProto(Protocol):
-    @property
-    def buff_rate(self) -> float: ...
-    @property
-    def merge_count(self) -> int: ...
-    @property
-    def star_max(self) -> int: ...
-    @property
-    def buffs(self) -> Mapping[str, RelicBuffProto]: ...
+@dataclass(frozen=True)
+class RelicsCatalogContract:
+    buff_rate: float
+    merge_count: int
+    star_max: int
+    buffs: Mapping[str, RelicBuffContract]

@@ -8,11 +8,18 @@ from cogs.admin.embeds import bulk_preview_lines
 from cogs.admin.purge import can_read_history
 from cogs.admin.views import AnnounceModal, PurgeConfirm, QuizBulkConfirm
 from cogs.shared import ui
-from cogs.shared.cog_ports import IArenaCogPort, IHorseCogPort, IQuizCogPort, IRaffleCogPort, require_cog_port
 from domain import quizimport
 
 MAX_IMAGE_BYTES = ui.MAX_IMAGE_BYTES
 MAX_IMPORT_BYTES = 200 * 1024
+
+
+async def _require_bridge(interaction: discord.Interaction, bridge, feature_label: str):
+    if bridge is None:
+        await interaction.response.send_message(
+            embed=ui.error_embed(f"{feature_label}が読み込まれていません"), ephemeral=True
+        )
+    return bridge
 
 
 async def special_race(
@@ -29,10 +36,10 @@ async def special_race(
     ok, channel = await cog._pick_channel(interaction, guild, channel_id)
     if not ok:
         return
-    horse_cog = await require_cog_port(cog.bot, interaction, "HorseCog", IHorseCogPort, "競馬")
-    if horse_cog is None:
+    horse_bridge = await _require_bridge(interaction, cog.horse_bridge(), "競馬")
+    if horse_bridge is None:
         return
-    race_id = await horse_cog.start_special(guild, entry_min, bet_min, channel)
+    race_id = await horse_bridge.start_special(guild, entry_min, bet_min, channel)
     await interaction.response.send_message(
         embed=ui.ok_embed(
             "臨時レースを開催しました",
@@ -56,10 +63,10 @@ async def host_arena(
     ok, channel = await cog._pick_channel(interaction, guild, channel_id)
     if not ok:
         return
-    arena_cog = await require_cog_port(cog.bot, interaction, "ArenaCog", IArenaCogPort, "闘技場")
-    if arena_cog is None:
+    arena_bridge = await _require_bridge(interaction, cog.arena_bridge(), "闘技場")
+    if arena_bridge is None:
         return
-    status = await arena_cog.host_now(guild, channel, advance, fmt)
+    status = await arena_bridge.host_now(guild, channel, advance, fmt)
     await interaction.response.send_message(
         embed=ui.ok_embed(
             "闘技場を開催しました",
@@ -142,11 +149,11 @@ async def raffle_start(
     ok, channel = await cog._pick_channel(interaction, guild, channel_id)
     if not ok:
         return
-    raffle_cog = await require_cog_port(cog.bot, interaction, "RaffleCog", IRaffleCogPort, "抽選機能")
-    if raffle_cog is None:
+    raffle_bridge = await _require_bridge(interaction, cog.raffle_bridge(), "抽選機能")
+    if raffle_bridge is None:
         return
     await interaction.response.defer(ephemeral=True)
-    ok, text = await raffle_cog.host(guild, interaction.user.id, fee, minutes, channel)
+    ok, text = await raffle_bridge.host(guild, interaction.user.id, fee, minutes, channel)
     await interaction.followup.send(
         embed=ui.ok_embed("抽選を始めました", text) if ok else ui.error_embed("始められません", text),
         ephemeral=True,
@@ -160,11 +167,11 @@ async def raffle_repost(cog, interaction: discord.Interaction, guild_id: str, ch
     ok, channel = await cog._pick_channel(interaction, guild, channel_id)
     if not ok:
         return
-    raffle_cog = await require_cog_port(cog.bot, interaction, "RaffleCog", IRaffleCogPort, "抽選機能")
-    if raffle_cog is None:
+    raffle_bridge = await _require_bridge(interaction, cog.raffle_bridge(), "抽選機能")
+    if raffle_bridge is None:
         return
     await interaction.response.defer(ephemeral=True)
-    ok, text = await raffle_cog.repost(guild, channel)
+    ok, text = await raffle_bridge.repost(guild, channel)
     await interaction.followup.send(
         embed=ui.ok_embed("出し直しました", text) if ok else ui.error_embed("出し直せません", text), ephemeral=True
     )
@@ -174,11 +181,11 @@ async def raffle_cancel(cog, interaction: discord.Interaction, guild_id: str) ->
     guild = await cog._pick_guild(interaction, guild_id)
     if guild is None:
         return
-    raffle_cog = await require_cog_port(cog.bot, interaction, "RaffleCog", IRaffleCogPort, "抽選機能")
-    if raffle_cog is None:
+    raffle_bridge = await _require_bridge(interaction, cog.raffle_bridge(), "抽選機能")
+    if raffle_bridge is None:
         return
     await interaction.response.defer(ephemeral=True)
-    ok, text = await raffle_cog.cancel(guild)
+    ok, text = await raffle_bridge.cancel(guild)
     await interaction.followup.send(
         embed=ui.ok_embed("中止しました", text) if ok else ui.error_embed("中止できません", text), ephemeral=True
     )
@@ -197,10 +204,10 @@ async def quiz_add(
     ok, channel = await cog._pick_channel(interaction, guild, channel_id)
     if not ok:
         return
-    quiz_cog = await require_cog_port(cog.bot, interaction, "QuizCog", IQuizCogPort, "クイズ機能")
-    if quiz_cog is None:
+    quiz_bridge = await _require_bridge(interaction, cog.quiz_bridge(), "クイズ機能")
+    if quiz_bridge is None:
         return
-    await interaction.response.send_modal(quiz_cog.add_modal(announce_flag, guild, channel))
+    await interaction.response.send_modal(quiz_bridge.add_modal(announce_flag, guild, channel))
 
 
 async def quiz_bulk(
@@ -239,7 +246,7 @@ async def quiz_bulk(
         return
     quizzes, errors = quizimport.parse_bulk(text)
     if not errors:
-        existing = cog.bot.economy.quiz_existing_questions()
+        existing = cog._quiz.quiz_existing_questions()
         errors = [
             f"{i}問目: すでに登録されている問題です（同じ問題文）。"
             for i, q in enumerate(quizzes, start=1)
@@ -266,17 +273,17 @@ async def quiz_bulk(
 
 
 async def quiz_list(cog, interaction: discord.Interaction) -> None:
-    quiz_cog = await require_cog_port(cog.bot, interaction, "QuizCog", IQuizCogPort, "クイズ機能")
-    if quiz_cog is None:
+    quiz_bridge = await _require_bridge(interaction, cog.quiz_bridge(), "クイズ機能")
+    if quiz_bridge is None:
         return
-    await interaction.response.send_message(embed=quiz_cog.listing_embed(), ephemeral=True)
+    await interaction.response.send_message(embed=quiz_bridge.listing_embed(), ephemeral=True)
 
 
 async def quiz_delete(cog, interaction: discord.Interaction, quiz_id: int) -> None:
-    quiz_cog = await require_cog_port(cog.bot, interaction, "QuizCog", IQuizCogPort, "クイズ機能")
-    if quiz_cog is None:
+    quiz_bridge = await _require_bridge(interaction, cog.quiz_bridge(), "クイズ機能")
+    if quiz_bridge is None:
         return
-    if not quiz_cog.remove(quiz_id):
+    if not quiz_bridge.remove(quiz_id):
         await interaction.response.send_message(embed=ui.error_embed("その番号の問題はありません"), ephemeral=True)
         return
     await interaction.response.send_message(embed=ui.ok_embed(f"クイズ #{quiz_id} を削除しました"), ephemeral=True)

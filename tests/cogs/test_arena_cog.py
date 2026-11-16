@@ -9,7 +9,7 @@ import pytest
 from cogs.arena import cog as arena_cog
 from cogs.arena import views
 from domain import arena as a
-from infra.db.economy import Economy
+from tests.support import make_arena_cog, make_test_bot
 
 U, V = 1, 2
 JST = datetime.timezone(datetime.timedelta(hours=9))
@@ -46,22 +46,26 @@ class Chan:
 
 @pytest.fixture
 def setup(tmp_path, monkeypatch):
-    eco = Economy(str(tmp_path / "t.db"))
+    bot = make_test_bot(str(tmp_path / "t.db"))
     chan = Chan()
     guild = SimpleNamespace(id=0, me=object(), system_channel=chan, get_channel=lambda cid: chan, name="g")
-    bot = SimpleNamespace(economy=SimpleNamespace(for_guild=lambda gid: eco), config={}, guilds=[guild])
-    monkeypatch.setattr(arena_cog.approval, "is_allowed", lambda *a: True)
+    bot.guilds = [guild]
+    monkeypatch.setattr("domain.approval.is_allowed", lambda *a: True)
     monkeypatch.setattr("cogs.arena.cog.announce_channel", lambda g, e: chan)
 
     async def nap(_):
         return None
 
     monkeypatch.setattr(arena_cog.asyncio, "sleep", nap)
-    return eco, chan, guild, bot, arena_cog.ArenaCog(bot)
+    cog = make_arena_cog(bot)
+    try:
+        yield bot.repos, chan, guild, bot, cog
+    finally:
+        bot.repos.close()
 
 
-def _at(monkeypatch, now):
-    monkeypatch.setattr("cogs.arena.cog.time.time", lambda: now)
+def _at(monkeypatch, bot, now):
+    monkeypatch.setattr(bot.services.arena, "now_ts", lambda: now)
 
 
 def embed_titles(chan):
@@ -69,73 +73,73 @@ def embed_titles(chan):
 
 
 def test_run_once_creates_both_formats_and_announces_each(setup, monkeypatch):
-    eco, chan, guild, bot, cog = setup
-    _at(monkeypatch, DAY_START)  # 1時: 大会は作られるが、準決勝はまだ
+    repos, chan, guild, bot, cog = setup
+    _at(monkeypatch, bot, DAY_START)  # 1時: 大会は作られるが、準決勝はまだ
     asyncio.run(cog.run_once())
     contents = [s["content"] for s in chan.sent if "content" in s]
     assert any("1on1" in c and "始まりました" in c for c in contents)
     assert any("バトルロイヤル" in c and "始まりました" in c for c in contents)
-    duel = eco.arena_tournament_get_by_day(eco._arena_today(DAY_START), "duel")
-    royale = eco.arena_tournament_get_by_day(eco._arena_today(DAY_START), "royale")
+    duel = repos.arena.arena_tournament_get_by_day(repos.arena.arena_today(DAY_START), "duel")
+    royale = repos.arena.arena_tournament_get_by_day(repos.arena.arena_today(DAY_START), "royale")
     assert duel["status"] == "semi_betting" and royale["status"] == "semi_betting"
 
 
 def test_run_once_advances_both_formats_through_semis_and_final(setup, monkeypatch):
-    eco, chan, guild, bot, cog = setup
-    _at(monkeypatch, DAY_START)
+    repos, chan, guild, bot, cog = setup
+    _at(monkeypatch, bot, DAY_START)
     asyncio.run(cog.run_once())
 
-    _at(monkeypatch, jst(a.SEMI_HOUR + 1))  # 準決勝の時刻を過ぎた
+    _at(monkeypatch, bot, jst(a.SEMI_HOUR + 1))  # 準決勝の時刻を過ぎた
     asyncio.run(cog.run_once())
-    day = eco._arena_today(DAY_START)
-    duel = eco.arena_tournament_get_by_day(day, "duel")
-    royale = eco.arena_tournament_get_by_day(day, "royale")
+    day = repos.arena.arena_today(DAY_START)
+    duel = repos.arena.arena_tournament_get_by_day(day, "duel")
+    royale = repos.arena.arena_tournament_get_by_day(day, "royale")
     assert duel["status"] == "final_betting" and royale["status"] == "final_betting"
     titles = embed_titles(chan)
     assert titles.count("🏛️ 準決勝、決着！") == 2  # 1on1・バトロワそれぞれ1回
     assert any("開戦！" in t for t in titles)  # 演出も投稿している
     asyncio.run(cog.run_once())  # 2回目は、もう準決勝を走らせない（status は変わらない）
-    assert eco.arena_tournament_get_by_day(day, "duel")["status"] == "final_betting"
+    assert repos.arena.arena_tournament_get_by_day(day, "duel")["status"] == "final_betting"
 
-    _at(monkeypatch, jst(a.FINAL_HOUR + 1))  # 決勝の時刻を過ぎた
+    _at(monkeypatch, bot, jst(a.FINAL_HOUR + 1))  # 決勝の時刻を過ぎた
     asyncio.run(cog.run_once())
-    assert eco.arena_tournament_get_by_day(day, "duel")["status"] == "done"
-    assert eco.arena_tournament_get_by_day(day, "royale")["status"] == "done"
+    assert repos.arena.arena_tournament_get_by_day(day, "duel")["status"] == "done"
+    assert repos.arena.arena_tournament_get_by_day(day, "royale")["status"] == "done"
     assert embed_titles(chan).count("👑 決勝、決着！") == 2
 
 
 def test_run_once_does_not_re_announce_after_a_bot_restart(setup, monkeypatch):
-    eco, chan, guild, bot, cog = setup
-    _at(monkeypatch, DAY_START)
+    repos, chan, guild, bot, cog = setup
+    _at(monkeypatch, bot, DAY_START)
     asyncio.run(cog.run_once())
     assert len(chan.sent) == 2  # 1on1・バトロワ、それぞれ1件ずつの告知
-    cog2 = arena_cog.ArenaCog(bot)  # Bot再起動相当（_panels等はリセットされる）
-    _at(monkeypatch, jst(2.0))  # 再起動は、少し時間が経ってから
+    cog2 = make_arena_cog(bot)  # Bot再起動相当（_panels等はリセットされる）
+    _at(monkeypatch, bot, jst(2.0))  # 再起動は、少し時間が経ってから
     asyncio.run(cog2.run_once())
     assert len(chan.sent) == 2  # 再起動後、同じ大会をもう一度告知しない
 
 
 def test_host_now_creates_and_posts_without_waiting_for_the_scheduled_hour(setup, monkeypatch):
-    eco, chan, guild, bot, cog = setup
-    _at(monkeypatch, jst(3.0))  # 準決勝の時刻(SEMI_HOUR)より前
+    repos, chan, guild, bot, cog = setup
+    _at(monkeypatch, bot, jst(3.0))  # 準決勝の時刻(SEMI_HOUR)より前
     status = asyncio.run(cog.host_now(guild, None, advance=False, fmt="duel"))
     assert status == "🥊 1on1: 準決勝・受付中"
     assert "今日の🥊 1on1の大会です" in chan.sent[0]["content"]
-    t = eco.arena_tournament_get_by_day(eco._arena_today(jst(3.0)), "duel")
+    t = repos.arena.arena_tournament_get_by_day(repos.arena.arena_today(jst(3.0)), "duel")
     assert t is not None and t["status"] == "semi_betting"  # まだ決着させていない
 
 
 def test_host_now_with_no_format_handles_both(setup, monkeypatch):
-    eco, chan, guild, bot, cog = setup
-    _at(monkeypatch, jst(3.0))
+    repos, chan, guild, bot, cog = setup
+    _at(monkeypatch, bot, jst(3.0))
     status = asyncio.run(cog.host_now(guild, None, advance=False))
     assert "1on1" in status and "バトルロイヤル" in status
     assert len(chan.sent) == 2
 
 
 def test_host_now_with_advance_settles_the_current_stage_right_away(setup, monkeypatch):
-    eco, chan, guild, bot, cog = setup
-    _at(monkeypatch, jst(3.0))  # 準決勝の時刻より前でも、advance なら決着させる
+    repos, chan, guild, bot, cog = setup
+    _at(monkeypatch, bot, jst(3.0))  # 準決勝の時刻より前でも、advance なら決着させる
     status = asyncio.run(cog.host_now(guild, None, advance=True, fmt="duel"))
     assert status == "🥊 1on1: 終了"  # 準決勝・決勝とも、間を置かず決着させる
     titles = embed_titles(chan)
@@ -145,17 +149,17 @@ def test_host_now_with_advance_settles_the_current_stage_right_away(setup, monke
 
 
 def test_bet_panel_select_and_stake_modal_place_a_real_bet(setup, monkeypatch):
-    eco, chan, guild, bot, cog = setup
-    eco.credit(V, 10_000, "テスト")
-    _at(monkeypatch, DAY_START)
-    t = eco.arena_tournament_ensure("duel", DAY_START)
-    panel = views.BetPanel(bot, t)
+    repos, chan, guild, bot, cog = setup
+    repos.wallet.credit(V, 10_000, "テスト")
+    _at(monkeypatch, bot, DAY_START)
+    t = repos.arena.arena_tournament_ensure("duel", DAY_START)
+    panel = views.BetPanel(bot.services.arena, t)
     bettable = views.bettable_fighters(t)
     assert bettable  # 受付中なら、賭けられる戦士がいる
     fighter = bettable[0]
     modal = views.StakeModal(panel, fighter)
     modal.stake._value = "500"
-    before = eco.balance(V)
+    before = repos.wallet.balance(V)
 
     sent = []
 
@@ -165,17 +169,17 @@ def test_bet_panel_select_and_stake_modal_place_a_real_bet(setup, monkeypatch):
 
     it = SimpleNamespace(guild=guild, guild_id=0, user=SimpleNamespace(id=V), response=Resp())
     asyncio.run(modal.on_submit(it))
-    assert eco.balance(V) == before - 500
+    assert repos.wallet.balance(V) == before - 500
     assert "賭けました" in sent[0]["embed"].title
 
 
 def test_bet_panel_has_no_select_once_betting_is_closed(setup):
-    eco, chan, guild, bot, cog = setup
-    t = eco.arena_tournament_ensure("duel", DAY_START)
-    eco.arena_run_semis(t["id"])
-    t = eco.arena_tournament_get_by_day(t["day"], "duel")
+    repos, chan, guild, bot, cog = setup
+    t = repos.arena.arena_tournament_ensure("duel", DAY_START)
+    repos.arena.arena_run_semis(t["id"])
+    t = repos.arena.arena_tournament_get_by_day(t["day"], "duel")
     assert views.bettable_fighters(t)  # 決勝の受付中は、決勝進出の2人に賭けられる
-    panel = views.BetPanel(bot, t)
+    panel = views.BetPanel(bot.services.arena, t)
     assert len(panel.children) == 1  # Select が1つだけ出る
 
 
@@ -188,10 +192,10 @@ class FakeMessage:
 
 
 def test_stake_modal_bet_refreshes_the_posted_panel_message(setup):
-    eco, chan, guild, bot, cog = setup
-    eco.credit(V, 10_000, "テスト")
-    t = eco.arena_tournament_ensure("duel", DAY_START)
-    panel = views.BetPanel(bot, t)
+    repos, chan, guild, bot, cog = setup
+    repos.wallet.credit(V, 10_000, "テスト")
+    t = repos.arena.arena_tournament_ensure("duel", DAY_START)
+    panel = views.BetPanel(bot.services.arena, t)
     panel.message = FakeMessage()
     fighter = views.bettable_fighters(t)[0]
     modal = views.StakeModal(panel, fighter)
@@ -208,24 +212,24 @@ def test_stake_modal_bet_refreshes_the_posted_panel_message(setup):
 
 
 def test_tournament_embed_shows_who_bet_how_much_on_each_fighter(setup):
-    eco, chan, guild, bot, cog = setup
-    eco.credit(U, 10_000, "テスト")
-    eco.credit(V, 10_000, "テスト")
-    t = eco.arena_tournament_ensure("duel", DAY_START)
+    repos, chan, guild, bot, cog = setup
+    repos.wallet.credit(U, 10_000, "テスト")
+    repos.wallet.credit(V, 10_000, "テスト")
+    t = repos.arena.arena_tournament_ensure("duel", DAY_START)
     fighter = views.bettable_fighters(t)[0]
-    eco.arena_bet(U, fighter["id"], 1_500, DAY_START)
-    eco.arena_bet(V, fighter["id"], 700, DAY_START)
-    panel = views.BetPanel(bot, eco.arena_tournament_get_by_day(t["day"], "duel"))
+    repos.arena.arena_bet(U, fighter["id"], 1_500, DAY_START)
+    repos.arena.arena_bet(V, fighter["id"], 700, DAY_START)
+    panel = views.BetPanel(bot.services.arena, repos.arena.arena_tournament_get_by_day(t["day"], "duel"))
     desc = panel.embed().description
     assert f"<@{U}>" in desc and "1,500" in desc
     assert f"<@{V}>" in desc and "700" in desc
 
 
 def test_run_once_refreshes_the_auto_posted_panel_after_semis(setup, monkeypatch):
-    eco, chan, guild, bot, cog = setup
-    _at(monkeypatch, DAY_START)
+    repos, chan, guild, bot, cog = setup
+    _at(monkeypatch, bot, DAY_START)
     asyncio.run(cog.run_once())
-    day = eco._arena_today(DAY_START)
+    day = repos.arena.arena_today(DAY_START)
     panel = cog._panels[(guild.id, day, "duel")]
     refreshed = []
     orig_refresh = panel.refresh
@@ -235,6 +239,6 @@ def test_run_once_refreshes_the_auto_posted_panel_after_semis(setup, monkeypatch
         await orig_refresh()
 
     panel.refresh = spy
-    _at(monkeypatch, jst(a.SEMI_HOUR + 1))
+    _at(monkeypatch, bot, jst(a.SEMI_HOUR + 1))
     asyncio.run(cog.run_once())
     assert refreshed == [True]

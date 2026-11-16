@@ -1,0 +1,242 @@
+"""証券市場・現物・信用・債券・オプション・決算のリポジトリポート契約。"""
+
+from typing import TYPE_CHECKING, Any, Optional
+
+from domain.ports.bridges import (
+    IMarginCollateralGuard,
+    IMarginRatioReader,
+    IMarketPriceReader,
+    ISpotCollateralReader,
+    IValuationSource,
+)
+from domain.ports.repos.base import IGuildScopedRepo
+
+if TYPE_CHECKING:
+    from domain.earnings import MemoInfo
+    from domain.types import CryptoResult
+
+
+class IMarketDataRepo(IGuildScopedRepo, IMarketPriceReader):
+    def market_latest(self, symbol: str = "cs") -> Optional[tuple[Any, ...]]:
+        raise NotImplementedError
+
+    def market_set(self, ts: float, price: float, event: int = 0, symbol: str = "cs") -> None:
+        raise NotImplementedError
+
+    def market_fair_get(self, symbol: str) -> Optional[float]:
+        raise NotImplementedError
+
+    def market_fair_set(self, symbol: str, fair: float, pin: int, ts: float) -> None:
+        raise NotImplementedError
+
+    def market_pin(self, symbol: str) -> int:
+        raise NotImplementedError
+
+    def market_history(self, since: float, symbol: str = "cs") -> list[Any]:
+        raise NotImplementedError
+
+    def market_prune(self, before: float) -> None:
+        raise NotImplementedError
+
+    def swap_chart_post(
+        self, channel_id: int, message_id: int, guild_id: int, period: str, ts: float, symbol: str = "cs"
+    ) -> Optional[int]:
+        raise NotImplementedError
+
+    def live_chart_posts(self) -> list[Any]:
+        raise NotImplementedError
+
+    def end_chart_post(self, channel_id: int) -> None:
+        raise NotImplementedError
+
+    def delete_chart_post(self, channel_id: int) -> None:
+        raise NotImplementedError
+
+    def delete_guild_chart_posts(self, guild_id: int) -> None:
+        raise NotImplementedError
+
+    def prune_chart_posts(self, before_ts: float) -> None:
+        raise NotImplementedError
+
+    def list_chart_boards(self) -> list[Any]:
+        raise NotImplementedError
+
+    def delete_chart_board(self, guild_id: int) -> None:
+        raise NotImplementedError
+
+
+class IMarketEventRepo(IGuildScopedRepo):
+    def market_events(self, now: Optional[float] = None) -> list[Any]:
+        raise NotImplementedError
+
+    def vol_multipliers(self, now: Optional[float] = None) -> dict[str, Any]:
+        raise NotImplementedError
+
+    def event_step(
+        self, now: float, rng: Any = None, force: Optional[dict[str, Any]] = None
+    ) -> Optional[dict[str, Any]]:
+        raise NotImplementedError
+
+
+class IEarningsRepo(IGuildScopedRepo):
+    def earnings_ensure(self, now: float, tz_hours: float, rng: Any = None) -> Optional[dict[str, Any]]:
+        raise NotImplementedError
+
+    def earnings_jumps(self, now: float, seconds: float) -> list[Any]:
+        raise NotImplementedError
+
+    def earnings_upcoming(self, now: Optional[float] = None) -> Optional[dict[str, Any]]:
+        raise NotImplementedError
+
+    def earnings_to_announce(self, now: float) -> list[Any]:
+        raise NotImplementedError
+
+    def earnings_release_due(self, now: float) -> list[Any]:
+        raise NotImplementedError
+
+    def earnings_memo(self, user_id: int, now: Optional[float] = None, rng: Any = None) -> Optional["MemoInfo"]:
+        raise NotImplementedError
+
+    def insider_stock(self, now: Optional[float] = None) -> Optional[dict[str, Any]]:
+        raise NotImplementedError
+
+    def insider_buy(self, user_id: int, now: Optional[float] = None, rng: Any = None) -> tuple[Any, ...]:
+        raise NotImplementedError
+
+
+class ICryptoRepo(IGuildScopedRepo, ISpotCollateralReader, IValuationSource):
+    def crypto_holding(self, user_id: int, symbol: str = "cs") -> tuple[Any, ...]:
+        raise NotImplementedError
+
+    def holdings(self, user_id: int) -> list[Any]:
+        raise NotImplementedError
+
+    def crypto_holders(self, limit: int = 10, symbol: str = "cs") -> list[Any]:
+        raise NotImplementedError
+
+    def crypto_values(self) -> dict[int, int]:
+        raise NotImplementedError
+
+    def crypto_buy(self, user_id: int, amount: int, price: float, symbol: str = "cs") -> "CryptoResult":
+        raise NotImplementedError
+
+    def crypto_sell(self, user_id: int, units: Optional[int], price: float, symbol: str = "cs") -> "CryptoResult":
+        raise NotImplementedError
+
+
+class IMarginRepo(IGuildScopedRepo, IMarginCollateralGuard, IMarginRatioReader, IValuationSource):
+    def margin_position(self, user_id: int, symbol: str, side: str) -> tuple[Any, ...]:
+        raise NotImplementedError
+
+    def short_position(self, user_id: int, symbol: str = "cs") -> tuple[Any, ...]:
+        raise NotImplementedError
+
+    def long_position(self, user_id: int, symbol: str = "cs") -> tuple[Any, ...]:
+        raise NotImplementedError
+
+    def margin_positions(self, user_id: int) -> list[Any]:
+        raise NotImplementedError
+
+    def short_positions(self, user_id: int) -> list[Any]:
+        raise NotImplementedError
+
+    def long_positions(self, user_id: int) -> list[Any]:
+        raise NotImplementedError
+
+    def short_holders(self, limit: int = 10, symbol: str = "cs") -> list[Any]:
+        raise NotImplementedError
+
+    def margin_equity(self) -> dict[int, int]:
+        raise NotImplementedError
+
+    def margin_status(self, user_id: int, prices: Optional[dict[str, Any]] = None) -> dict[str, Any]:
+        raise NotImplementedError
+
+    def short_open(self, user_id: int, units: int, price: float, leverage: int, symbol: str = "cs") -> "CryptoResult":
+        raise NotImplementedError
+
+    def long_open(self, user_id: int, units: int, price: float, leverage: int, symbol: str = "cs") -> "CryptoResult":
+        raise NotImplementedError
+
+    def margin_close(
+        self, user_id: int, side: str, units: Optional[int], price: float, symbol: str = "cs"
+    ) -> "CryptoResult":
+        raise NotImplementedError
+
+    def short_close(self, user_id: int, units: Optional[int], price: float, symbol: str = "cs") -> "CryptoResult":
+        raise NotImplementedError
+
+    def long_close(self, user_id: int, units: Optional[int], price: float, symbol: str = "cs") -> "CryptoResult":
+        raise NotImplementedError
+
+    def margin_cut_map(self, prices: Optional[dict[str, Any]] = None) -> list[Any]:
+        raise NotImplementedError
+
+    def margin_interest(self, now: float) -> list[Any]:
+        raise NotImplementedError
+
+    def margin_losscut(self, prices: dict[str, Any]) -> list[Any]:
+        raise NotImplementedError
+
+
+class IBondRepo(IGuildScopedRepo, IValuationSource):
+    def bond_buy(self, user_id: int, kind_key: str, amount: int, now: float) -> tuple[Any, ...]:
+        raise NotImplementedError
+
+    def bond_values(self) -> dict[int, int]:
+        raise NotImplementedError
+
+    def bond_list(self, user_id: int, recent: int = 5) -> dict[str, Any]:
+        raise NotImplementedError
+
+    def bond_settle(self, now: float, rng: Any = None) -> list[Any]:
+        raise NotImplementedError
+
+    def bond_price(self, row: dict[str, Any], now: float) -> int:
+        raise NotImplementedError
+
+    def bond_cancel(self, user_id: int, bond_id: int, now: Optional[float] = None) -> tuple[Any, ...]:
+        raise NotImplementedError
+
+
+class IOptionRepo(IGuildScopedRepo, IValuationSource):
+    def option_buy(
+        self,
+        user_id: int,
+        kind: str,
+        symbol: str,
+        amount: int,
+        now: Optional[float] = None,
+        symbol2: Optional[str] = None,
+        strike_pct: Optional[float] = None,
+    ) -> tuple[Any, ...]:
+        raise NotImplementedError
+
+    def option_write(
+        self,
+        user_id: int,
+        kind: str,
+        symbol: str,
+        amount: int,
+        now: Optional[float] = None,
+        strike_pct: Optional[float] = None,
+    ) -> tuple[Any, ...]:
+        raise NotImplementedError
+
+    def option_close_cost(self, row: Any, now: float, prices: dict[str, Any]) -> int:
+        raise NotImplementedError
+
+    def option_value(self, row: Any, now: float, prices: dict[str, Any]) -> int:
+        raise NotImplementedError
+
+    def option_values(self) -> dict[int, int]:
+        raise NotImplementedError
+
+    def option_list(self, user_id: int, recent: int = 5) -> dict[str, Any]:
+        raise NotImplementedError
+
+    def option_sell(self, user_id: int, option_id: int, now: Optional[float] = None) -> tuple[Any, ...]:
+        raise NotImplementedError
+
+    def option_settle(self, now: float) -> list[Any]:
+        raise NotImplementedError

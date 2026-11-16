@@ -1,19 +1,16 @@
 """共通・経済・ショップ・帝愛・貸付・P2P 領域の失敗メッセージ定義。"""
 
-from typing import Any, Callable
+from typing import Any
 
-FailureFormatter = str | Callable[[dict[str, Any]], str]
+from cogs.shared.messages.base import MessageEntry
+from cogs.shared.messages.base import MessageFormatter as BaseMessageFormatter
+
+FailureFormatter = MessageEntry
 
 
 def _shop_out_of_stock(p: dict[str, Any]) -> str:
     when = f"（次の補充: <t:{int(p['next_at'])}:R>）" if p.get("next_at") else ""
     return f"在庫が足りません（いまの在庫: {p['stock']}個）{when}。在庫は1人ずつ別々で、時間がたつと補充されます。"
-
-
-def _loan_borrower_blocked(p: dict[str, Any]) -> str:
-    from cogs.shared.messages import format_failure
-
-    return "借りる人が、いまは借りられない状態です。" + format_failure(p["inner"])
 
 
 ECONOMY_FAILURES: dict[str, FailureFormatter] = {
@@ -96,7 +93,6 @@ ECONOMY_FAILURES: dict[str, FailureFormatter] = {
     "loan_request_ended": "この募集はもう終わっています（ほかの人が貸したか、取り下げられました）。",
     "loan_self_lend": "自分の募集には、貸せません。",
     "loan_request_expired": "募集の期限が過ぎました。",
-    "loan_borrower_blocked": _loan_borrower_blocked,
     "loan_max_lender_active": lambda p: f"同時に貸せるのは {p['max_active']} 件までです。",
     "loan_self_offer": "自分には貸せません。",
     "loan_max_lender_open": lambda p: f"承諾待ちの提案は {p['max_open']} 件までです。",
@@ -134,3 +130,14 @@ ECONOMY_FAILURES: dict[str, FailureFormatter] = {
     "p2p_cancel_not_found": "取り消せる出品が見つかりません。",
     "p2p_cancel_has_bid": "入札が入っているので、取り消せません。",
 }
+
+
+class MessageFormatter(BaseMessageFormatter):
+    """経済・ショップ・帝愛・貸付・P2P 領域の失敗フォーマッタを重ねた実装。"""
+
+    def _register_entries(self) -> None:
+        super()._register_entries()
+        self.failures.update(ECONOMY_FAILURES)
+        self.failures["loan_borrower_blocked"] = lambda p: (
+            "借りる人が、いまは借りられない状態です。" + self.format_failure(p["inner"])
+        )

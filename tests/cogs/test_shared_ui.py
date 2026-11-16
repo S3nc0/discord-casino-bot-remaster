@@ -78,37 +78,37 @@ def test_owner_view_silent_and_custom_rejection():
 
 # ---- cogs.shared.confirm.user_session & confirmed_reply ---- #
 def test_user_session_lifecycle_and_exception_cleanup():
-    bot = SimpleNamespace(sessions=Sessions(cooldown=0))
+    sessions = Sessions(cooldown=0)
 
     async def run():
         it, sent, _ = make_interaction(1)
-        async with user_session(bot, it) as ok:
+        async with user_session(sessions, it) as ok:
             assert ok is True
-            assert bot.sessions.is_active(1)
-        assert not bot.sessions.is_active(1)
+            assert sessions.is_active(1)
+        assert not sessions.is_active(1)
         assert sent == []
 
         with pytest.raises(RuntimeError):
-            async with user_session(bot, it) as ok:
+            async with user_session(sessions, it) as ok:
                 assert ok is True
                 raise RuntimeError("boom")
-        assert not bot.sessions.is_active(1)
+        assert not sessions.is_active(1)
 
     asyncio.run(run())
 
 
 def test_user_session_rejects_when_already_busy():
-    bot = SimpleNamespace(sessions=Sessions())
-    assert bot.sessions.try_start(1) is None
+    sessions = Sessions()
+    assert sessions.try_start(1) is None
 
     async def run():
         it, sent, _ = make_interaction(1)
-        async with user_session(bot, it, busy_title="いまは買えません") as ok:
+        async with user_session(sessions, it, busy_title="いまは買えません") as ok:
             assert ok is False
         assert len(sent) == 1
         assert "いまは買えません" in sent[0]["embed"].title
         assert sent[0]["ephemeral"] is True
-        assert bot.sessions.is_active(1)  # 既存のセッションを勝手に閉じない
+        assert sessions.is_active(1)  # 既存のセッションを勝手に閉じない
 
     asyncio.run(run())
 
@@ -186,11 +186,27 @@ def test_messages_format_failures_notices_and_memo():
     assert "<t:999:F>" in format_memo(MemoInfo("CSトークン", 1, 999.0, 0.8))
 
 
-def test_get_cog_port_handles_missing_and_present_cogs():
-    from cogs.shared.cog_ports import IShopCogPort, get_cog_port
+def test_bot_bridges_stores_and_exposes_typed_bridges():
+    from cogs.shared.bridges import BotBridges, IApprovalBridge, IShopTitleBridge, NoOpShopTitleBridge
 
-    assert get_cog_port(SimpleNamespace(), "ShopCog", IShopCogPort) is None
-    assert get_cog_port(SimpleNamespace(get_cog=lambda _name: None), "ShopCog", IShopCogPort) is None
-    shop_stub = SimpleNamespace(sync_title_nick=lambda *_a, **_k: None)
-    bot = SimpleNamespace(get_cog=lambda name: shop_stub if name == "ShopCog" else None)
-    assert get_cog_port(bot, "ShopCog", IShopCogPort) is shop_stub
+    bridges = BotBridges()
+    assert bridges.resolve(IShopTitleBridge) is None
+    assert bridges.resolve(IApprovalBridge) is None
+    assert not bridges.has(IShopTitleBridge)
+    assert isinstance(bridges.resolve_or(IShopTitleBridge, NoOpShopTitleBridge()), NoOpShopTitleBridge)
+
+    class StubShop(IShopTitleBridge):
+        async def sync_title_nick(self, user_id, here=None, member=None):
+            return ("ok", 1)
+
+        async def after_bankruptcy(self, guild, member):
+            return None
+
+    stub = StubShop()
+    bridges.register(IShopTitleBridge, stub)
+    assert bridges.has(IShopTitleBridge)
+    assert bridges.resolve(IShopTitleBridge) is stub
+    assert bridges.resolve_or(IShopTitleBridge, NoOpShopTitleBridge()) is stub
+    assert isinstance(bridges.resolve(IShopTitleBridge), IShopTitleBridge)
+    bridges.unregister(IShopTitleBridge, stub)
+    assert not bridges.has(IShopTitleBridge)

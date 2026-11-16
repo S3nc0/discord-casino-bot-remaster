@@ -1,4 +1,4 @@
-"""帝愛の競売（Economy に混ぜ込む部品）。破産で差し押さえたショップの品を、カタギが買えるようにする。
+"""帝愛の競売。破産で差し押さえたショップの品を、カタギが買えるようにする。
 
 出品されるのは、消耗品と見た目の品（称号・カード・演出・色ロール）。コレクションと限定品は出さない。
 値段は、定価の AUCTION_START から1日ごとに AUCTION_STEP ずつ下がり、AUCTION_FLOOR で止まる（domain/teiai.py）。
@@ -6,13 +6,16 @@
 """
 
 import time
-from typing import Optional
+from typing import Any, Optional
 
 from domain import shop as shop_mod
 from domain import teiai
 from domain.errors import fail
+from domain.ports.bridges import IBankIncomeSink, IStatusReader
+from domain.ports.repos import IAuctionRepo
 from domain.types import PurchaseResult
-from infra.db.base import EcoBase
+from infra.db.account import AccountCore
+from infra.db.base import EcoDb, ScopedRepo
 
 
 def listable(item_id: str) -> bool:
@@ -26,15 +29,31 @@ def listable(item_id: str) -> bool:
     )
 
 
-class AuctionMixin(EcoBase):
-    def _auction_list_locked(self, item_id: str, qty: int, now: float) -> None:
+class AuctionRepo(ScopedRepo, IAuctionRepo):
+    """帝愛の競売の棚管理・購入。"""
+
+    def __init__(
+        self,
+        db: EcoDb,
+        account: AccountCore,
+        status_reader: IStatusReader,
+        bank: IBankIncomeSink,
+        guild_id: int = 0,
+        strict: bool = False,
+    ) -> None:
+        super().__init__(db, guild_id, strict)
+        self._account = account
+        self._status_reader = status_reader
+        self._bank = bank
+
+    def auction_list_locked_for(self, guild_id: int, item_id: str, qty: int, now: float) -> None:
         if qty > 0 and listable(item_id):
             self._conn.execute(
                 "INSERT INTO seized_items (guild_id, item_id, qty, listed_at) VALUES (?, ?, ?, ?)",
-                (self._g(), item_id, qty, now),
+                (guild_id, item_id, qty, now),
             )
 
-    def _purge_unlistable_auctions(self) -> int:
+    def purge_unlistable_auctions(self) -> int:
         """競売の棚から、いまは競売に出さない品（称号など）の出品を消す（全サーバー）。消した行数を返す。"""
         ids = [r["item_id"] for r in self._conn.execute("SELECT DISTINCT item_id FROM seized_items")]
         gone = [i for i in ids if not listable(i)]
@@ -47,7 +66,7 @@ class AuctionMixin(EcoBase):
         now = time.time() if now is None else now
         return max(1, round(shop_mod.BY_ID[item_id].price * teiai.auction_rate(listed_at, now)))
 
-    def auction_list(self, now: Optional[float] = None) -> list:
+    def auction_list(self, now: Optional[float] = None) -> list[Any]:
         """競売の棚。品ごとに、残りの数と、いちばん安い（古い）出品の値段。[{item_id, qty, price, rate}]"""
         now = time.time() if now is None else now
         with self._lock:
@@ -55,7 +74,7 @@ class AuctionMixin(EcoBase):
                 "SELECT item_id, qty, listed_at FROM seized_items WHERE guild_id=? AND qty>0 ORDER BY listed_at, id",
                 (self._g(),),
             ).fetchall()
-        out = {}
+        out: dict[str, dict[str, Any]] = {}
         for r in rows:
             if r["item_id"] not in shop_mod.BY_ID:
                 continue
@@ -77,25 +96,26 @@ class AuctionMixin(EcoBase):
         item = shop_mod.BY_ID.get(item_id)
         if item is None or qty < 1:
             return PurchaseResult(False, fail("auction_item_unavailable"))
-        with self._lock, self._conn:
-            self._ensure(user_id)
-            if self.status(user_id, now) != teiai.KATAGI:
-                return PurchaseResult(False, fail("auction_katagi_only"), self._balance(user_id))
+        with self._db.tx():
+            gid = self._g()
+            self._account.ensure(gid, user_id)
+            if self._status_reader.status_for(gid, user_id, now) != teiai.KATAGI:
+                return PurchaseResult(False, fail("auction_katagi_only"), self._account.raw_balance(gid, user_id))
             have = self._conn.execute(
                 "SELECT qty FROM inventory WHERE guild_id=? AND user_id=? AND item_id=? AND qty>0",
-                (self._g(), user_id, item_id),
+                (gid, user_id, item_id),
             ).fetchone()
             if item.unique and have:
-                return PurchaseResult(False, fail("already_owned"), self._balance(user_id))
+                return PurchaseResult(False, fail("already_owned"), self._account.raw_balance(gid, user_id))
             if item.unique:
                 qty = 1
             rows = self._conn.execute(
                 "SELECT id, qty, listed_at FROM seized_items WHERE guild_id=? AND item_id=? AND qty>0 "
                 "ORDER BY listed_at, id",
-                (self._g(), item_id),
+                (gid, item_id),
             ).fetchall()
             if sum(r["qty"] for r in rows) < qty:
-                return PurchaseResult(False, fail("auction_insufficient_qty"), self._balance(user_id))
+                return PurchaseResult(False, fail("auction_insufficient_qty"), self._account.raw_balance(gid, user_id))
             take, total, need = [], 0, qty
             for r in rows:
                 n = min(need, r["qty"])
@@ -104,19 +124,20 @@ class AuctionMixin(EcoBase):
                 need -= n
                 if need == 0:
                     break
-            if self._balance(user_id) < total:
+            bal = self._account.raw_balance(gid, user_id)
+            if bal < total:
                 return PurchaseResult(
                     False,
-                    fail("insufficient_balance_need", need=total, balance=self._balance(user_id)),
-                    self._balance(user_id),
+                    fail("insufficient_balance_need", need=total, balance=bal),
+                    bal,
                 )
-            self._apply(user_id, -total, f"競売:{shop_mod.label(item)}" + (f"×{qty}" if qty > 1 else ""))
+            self._account.apply(gid, user_id, -total, f"競売:{shop_mod.label(item)}" + (f"×{qty}" if qty > 1 else ""))
             for row_id, n in take:
                 self._conn.execute("UPDATE seized_items SET qty = qty - ? WHERE id=?", (n, row_id))
             self._conn.execute(
                 "INSERT INTO inventory (guild_id, user_id, item_id, qty) VALUES (?, ?, ?, ?) "
                 "ON CONFLICT(guild_id, user_id, item_id) DO UPDATE SET qty = qty + excluded.qty",
-                (self._g(), user_id, item_id, qty),
+                (gid, user_id, item_id, qty),
             )
-            self._bank_income(total, teiai.AUCTION_YIELD_SHARE, now)
-            return PurchaseResult(True, balance=self._balance(user_id))
+            self._bank.bank_income_for(gid, total, teiai.AUCTION_YIELD_SHARE, now)
+            return PurchaseResult(True, balance=self._account.raw_balance(gid, user_id))
