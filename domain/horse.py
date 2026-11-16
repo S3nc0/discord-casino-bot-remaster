@@ -180,7 +180,7 @@ def random_stats(rng: random.Random, total: int = STAT_TOTAL) -> dict:
     """範囲内で、合計が total になる、ランダムな配分（NPC馬用。にんじんと同じ CARROT_POINTS 刻みにそろえる）。"""
     unit = CARROT_POINTS
     while True:
-        raw = [rng.random() ** 0.8 + 0.25 for _ in STAT_KEYS]
+        raw = [rng.random() ** 3.0 + 0.08 for _ in STAT_KEYS]  # 偏りを強めて、特化型のNPCも出るようにする
         scale = (total - STAT_MIN * len(STAT_KEYS)) / sum(raw)
         vals = [STAT_MIN + unit * round(r * scale / unit) for r in raw]
         vals[0] += total - sum(vals)  # 端数は先頭に寄せる（total・unit とも5の倍数なので、刻みは保たれる）
