@@ -6,19 +6,14 @@ from typing import Optional
 import discord
 
 from cogs.admin.embeds import LEVEL_NAME, click_history_embed, pachinko_stats_embed, rtp_table_embed
+from cogs.admin.targets import pick_channel, pick_guild, pick_member
 from cogs.shared import ui
-
-
-async def _require_bridge(interaction: discord.Interaction, bridge, feature_label: str):
-    if bridge is None:
-        await interaction.response.send_message(
-            embed=ui.error_embed(f"{feature_label}が読み込まれていません"), ephemeral=True
-        )
-    return bridge
+from cogs.shared.bridges import IEventAdminBridge, require_bridge
+from cogs.shared.tasks import allowed_guilds
 
 
 async def grant(cog, interaction: discord.Interaction, guild_id: str, user_id: str, amount: int, reason: str) -> None:
-    picked = await cog._pick_member(interaction, guild_id, user_id, "付与")
+    picked = await pick_member(cog.bot, interaction, guild_id, user_id, "付与")
     if picked is None:
         return
     guild, member = picked
@@ -36,7 +31,7 @@ async def grant(cog, interaction: discord.Interaction, guild_id: str, user_id: s
 async def set_balance(
     cog, interaction: discord.Interaction, guild_id: str, user_id: str, amount: int, reason: str
 ) -> None:
-    picked = await cog._pick_member(interaction, guild_id, user_id, "設定")
+    picked = await pick_member(cog.bot, interaction, guild_id, user_id, "設定")
     if picked is None:
         return
     guild, member = picked
@@ -64,10 +59,10 @@ async def event_start(
     guild_id: Optional[str],
     channel_id: Optional[str],
 ) -> None:
-    picked = await cog._pick_guild(interaction, guild_id) if guild_id else None
+    picked = await pick_guild(cog.bot, interaction, guild_id) if guild_id else None
     if guild_id and picked is None:
         return
-    ok, channel = await cog._pick_channel(interaction, picked, channel_id)
+    ok, channel = await pick_channel(interaction, picked, channel_id)
     if not ok:
         return
     targets = cog._event_targets(guild_id)
@@ -76,7 +71,7 @@ async def event_start(
             embed=ui.error_embed("開く先がありません", "許可されているサーバーがありません。"), ephemeral=True
         )
         return
-    event_bridge = await _require_bridge(interaction, cog.event_bridge(), "イベント機能")
+    event_bridge = await require_bridge(interaction, cog.bot, IEventAdminBridge, "イベント機能", cog._event_bridge)
     if event_bridge is None:
         return
     await interaction.response.defer(ephemeral=True)
@@ -88,9 +83,9 @@ async def event_start(
 
 
 async def event_stop(cog, interaction: discord.Interaction, guild_id: Optional[str]) -> None:
-    if guild_id and await cog._pick_guild(interaction, guild_id) is None:
+    if guild_id and await pick_guild(cog.bot, interaction, guild_id) is None:
         return
-    event_bridge = await _require_bridge(interaction, cog.event_bridge(), "イベント機能")
+    event_bridge = await require_bridge(interaction, cog.bot, IEventAdminBridge, "イベント機能", cog._event_bridge)
     if event_bridge is None:
         return
     await interaction.response.defer(ephemeral=True)
@@ -102,7 +97,7 @@ async def event_stop(cog, interaction: discord.Interaction, guild_id: Optional[s
 
 
 async def rtp_set(cog, interaction: discord.Interaction, guild_id: str, game: str, level: int) -> None:
-    guild = await cog._pick_guild(interaction, guild_id)
+    guild = await pick_guild(cog.bot, interaction, guild_id)
     if guild is None:
         return
     rtp = cog._rtp.for_guild(guild.id)
@@ -120,10 +115,10 @@ async def rtp_set(cog, interaction: discord.Interaction, guild_id: str, game: st
 
 
 async def rtp_list(cog, interaction: discord.Interaction, guild_id: Optional[str]) -> None:
-    guild = await cog._pick_guild(interaction, guild_id) if guild_id else None
+    guild = await pick_guild(cog.bot, interaction, guild_id) if guild_id else None
     if guild_id and guild is None:
         return
-    targets = [guild] if guild else cog._allowed_guilds()
+    targets = [guild] if guild else allowed_guilds(cog.bot, cog._guild_repo, cog._config)
     embeds = [rtp_table_embed(cog._rtp.for_guild(g.id).rtp_levels(), f"🎚️ {g.name} の還元率") for g in targets[:10]]
     await interaction.response.send_message(embeds=embeds or [ui.error_embed("対象がありません")], ephemeral=True)
 
@@ -131,7 +126,7 @@ async def rtp_list(cog, interaction: discord.Interaction, guild_id: Optional[str
 async def pachinko_stats(cog, interaction: discord.Interaction, guild_id: Optional[str], days: Optional[int]) -> None:
     guild = None
     if guild_id:
-        guild = await cog._pick_guild(interaction, guild_id)
+        guild = await pick_guild(cog.bot, interaction, guild_id)
         if guild is None:
             return
     since = time.time() - days * 86400 if days else None
@@ -141,12 +136,12 @@ async def pachinko_stats(cog, interaction: discord.Interaction, guild_id: Option
 
 
 async def click_history(cog, interaction: discord.Interaction, guild_id: str, user_id: str, hours: int) -> None:
-    picked = await cog._pick_member(interaction, guild_id, user_id, "確認")
+    picked = await pick_member(cog.bot, interaction, guild_id, user_id, "確認")
     if picked is None:
         return
     guild, member = picked
     report = cog._labor_svc.click_report(guild.id, member.id, hours)
-    tz = cog._labor_svc.utc_offset()
+    tz = cog._labor_svc.clock.offset_hours()
     await interaction.response.send_message(
         embed=click_history_embed(f"{guild.name} の {member.display_name}", report, tz, hours), ephemeral=True
     )

@@ -124,7 +124,7 @@ class ArenaCog(commands.Cog, IArenaAdminBridge):
     ) -> Optional[dict[str, Any]]:
         """準決勝を決着させ、演出・結果投稿・パネル更新まで行う（時刻は見ない。呼ぶ側が判断する）。"""
         pre_fighters = t["fighters"]
-        result = self._arena.run_semis(guild.id, t["id"])
+        result = self._arena.arena.for_guild(guild.id).arena_run_semis(t["id"])
         if result:
             channel = await self._channel(guild)
             if channel is not None:
@@ -153,7 +153,7 @@ class ArenaCog(commands.Cog, IArenaAdminBridge):
     ) -> Optional[dict[str, Any]]:
         """決勝を決着させ、演出・結果投稿・パネル更新まで行う（時刻は見ない。呼ぶ側が判断する）。"""
         pre_finalists = [f for f in t["fighters"] if f["stage"] == "final"]
-        result = self._arena.run_final(guild.id, t["id"])
+        result = self._arena.arena.for_guild(guild.id).arena_run_final(t["id"])
         if result:
             channel = await self._channel(guild)
             if channel is not None and len(pre_finalists) == 2:
@@ -184,7 +184,7 @@ class ArenaCog(commands.Cog, IArenaAdminBridge):
 
         fmt を省略すると、1on1・バトロワの両方を対象にする。
         """
-        now = self._arena.now_ts()
+        now = self._arena.clock.now_ts()
         results = []
         for f in arena_mod.FORMATS if fmt is None else [fmt]:
             t = self._arena.ensure_tournament(guild.id, f, now)
@@ -233,7 +233,7 @@ class ArenaCog(commands.Cog, IArenaAdminBridge):
             await self._advance_final(guild, t, day_key)
 
     async def run_once(self) -> None:
-        now = self._arena.now_ts()
+        now = self._arena.clock.now_ts()
         tz_hour = self._arena.jst_hour(now)
 
         async def _handle(guild: discord.Guild) -> None:

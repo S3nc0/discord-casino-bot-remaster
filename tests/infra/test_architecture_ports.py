@@ -107,13 +107,17 @@ def test_domain_has_no_outward_dependencies():
     assert not violations, "\n".join(violations)
 
 
-def test_services_no_infra_db_cogs_or_any_economy():
-    """services/ は infra.db・cogs・discord に依存せず、economy を Any 型にしない。"""
+def test_services_no_infra_cogs_or_any_economy():
+    """services/（Composition Root 用 container.py 除く）は infra・cogs・discord・time.time() に依存せず、economy を Any 型にしない。"""
     violations: list[str] = []
     for path in _iter_py("services"):
+        rel = path.relative_to(ROOT)
         for mod in _imported_modules(path):
-            if mod == "infra.db" or mod.startswith("infra.db.") or mod.split(".")[0] in ("cogs", "discord"):
-                violations.append(f"{path.relative_to(ROOT)} imports {mod}")
+            top = mod.split(".")[0]
+            if top in ("cogs", "discord"):
+                violations.append(f"{rel} imports {mod}")
+            elif top == "infra" and path.name != "container.py":
+                violations.append(f"{rel} imports {mod}")
 
         tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
         for node in ast.walk(tree):
@@ -121,12 +125,20 @@ def test_services_no_infra_db_cogs_or_any_economy():
                 for arg in [*node.args.posonlyargs, *node.args.args, *node.args.kwonlyargs]:
                     if arg.arg in ("economy", "_economy", "eco") and isinstance(arg.annotation, ast.Name):
                         if arg.annotation.id == "Any":
-                            violations.append(f"{path.relative_to(ROOT)}:{node.lineno} param {arg.arg}: Any")
+                            violations.append(f"{rel}:{node.lineno} param {arg.arg}: Any")
             elif isinstance(node, ast.AnnAssign) and isinstance(node.annotation, ast.Name):
                 target = node.target
                 name = target.attr if isinstance(target, ast.Attribute) else getattr(target, "id", "")
                 if name in ("economy", "_economy", "eco") and node.annotation.id == "Any":
-                    violations.append(f"{path.relative_to(ROOT)}:{node.lineno} attr {name}: Any")
+                    violations.append(f"{rel}:{node.lineno} attr {name}: Any")
+            elif (
+                isinstance(node, ast.Call)
+                and isinstance(node.func, ast.Attribute)
+                and isinstance(node.func.value, ast.Name)
+                and node.func.value.id == "time"
+                and node.func.attr == "time"
+            ):
+                violations.append(f"{rel}:{node.lineno} calls time.time() instead of IClock")
     assert not violations, "\n".join(violations)
 
 

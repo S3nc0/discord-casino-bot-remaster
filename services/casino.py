@@ -2,7 +2,6 @@
 
 import datetime
 import logging
-import time
 from collections.abc import Iterable
 from dataclasses import dataclass
 from typing import Any, Optional
@@ -12,11 +11,9 @@ from domain import skins
 from domain.games.rtplevel import DEFAULT_RTP_POLICY, IRtpPolicy
 from domain.ports.clock import IClock
 from domain.ports.repos import (
-    IDebtRepo,
     IEscrowRepo,
     IEventRepo,
     INoticeRepo,
-    IPachinkoRepo,
     IRecordRepo,
     IRtpRepo,
     IShopRepo,
@@ -64,53 +61,17 @@ class CasinoService:
         sessions: ISessionGuard,
         clock: IClock,
         rtp_policy: IRtpPolicy = DEFAULT_RTP_POLICY,
-        debt: Optional[IDebtRepo] = None,
-        pachinko: Optional[IPachinkoRepo] = None,
     ) -> None:
-        self._wallet = wallet
-        self._escrow = escrow
+        self.wallet = wallet
+        self.escrow = escrow
         self._shop = shop
-        self._rtp = rtp
+        self.rtp = rtp
         self._events = events
         self._notices = notices
         self._records = records
-        self._sessions = sessions
-        self._clock = clock
+        self.sessions = sessions
+        self.clock = clock
         self._rtp_policy = rtp_policy
-        self._debt = debt
-        self._pachinko = pachinko
-
-    def balance(self, guild_id: int, user_id: int) -> int:
-        return self._wallet.for_guild(guild_id).balance(user_id)
-
-    def debt_amount(self, guild_id: int, user_id: int) -> int:
-        if self._debt is None:
-            return 0
-        return self._debt.for_guild(guild_id).debt(user_id)
-
-    def can_borrow_for_bet(self, guild_id: int, user_id: int, need: int) -> tuple[Any, ...]:
-        if self._debt is None:
-            return (False, "")
-        return self._debt.for_guild(guild_id).can_borrow_for_bet(user_id, need)
-
-    def escrow_amount(self, guild_id: int, escrow_id: int) -> int:
-        return self._escrow.for_guild(guild_id).escrow_amount(escrow_id)
-
-    def add_to_escrow(self, guild_id: int, escrow_id: int, extra: int, credit: bool = False) -> bool:
-        return self._escrow.for_guild(guild_id).add_to_escrow(escrow_id, extra, credit=credit)
-
-    def rtp_level(self, guild_id: int, game: str) -> int:
-        return self._rtp.for_guild(guild_id).rtp_level_get(game)
-
-    def record_pachinko(self, guild_id: int, user_id: int, bet: int, balls: int, result: Any) -> None:
-        if self._pachinko is not None:
-            self._pachinko.for_guild(guild_id).pachinko_record_set(user_id, bet, balls, result)
-
-    def today(self) -> datetime.date:
-        return self._clock.today()
-
-    def now(self) -> datetime.datetime:
-        return self._clock.now()
 
     def begin_game(
         self,
@@ -121,10 +82,10 @@ class CasinoService:
         balance_factor: int = 1,
     ) -> BeginGameResult:
         """排他セッションを取得し、賭け金を検証して預かる。失敗時はセッションを解放して返す。"""
-        wallet = self._wallet.for_guild(guild_id)
-        escrow_repo = self._escrow.for_guild(guild_id)
+        wallet = self.wallet.for_guild(guild_id)
+        escrow_repo = self.escrow.for_guild(guild_id)
         shop_repo = self._shop.for_guild(guild_id)
-        reason = self._sessions.try_start(user_id)
+        reason = self.sessions.try_start(user_id)
         if reason:
             return BeginGameResult(False, reason_kind="session", reason=reason)
         escrow_id: Optional[int] = None
@@ -142,7 +103,7 @@ class CasinoService:
             return BeginGameResult(True, escrow_id=escrow_id, skin=skin, balance=balance)
         finally:
             if escrow_id is None:
-                self._sessions.end(user_id)
+                self.sessions.end(user_id)
 
     def settle_game(
         self,
@@ -161,12 +122,12 @@ class CasinoService:
         now: Optional[datetime.datetime] = None,
     ) -> SettleGameResult:
         """RTP・突発イベント補正を適用して預かり金を精算し、通知とミッション/連勝記録を更新する。"""
-        rtp_repo = self._rtp.for_guild(guild_id)
-        escrow_repo = self._escrow.for_guild(guild_id)
+        rtp_repo = self.rtp.for_guild(guild_id)
+        escrow_repo = self.escrow.for_guild(guild_id)
         event_repo = self._events.for_guild(guild_id)
         notice_repo = self._notices.for_guild(guild_id)
         record_repo = self._records.for_guild(guild_id)
-        current_now = self._clock.now() if now is None else now
+        current_now = self.clock.now() if now is None else now
         rtp_shift = 0
         level = rtp_repo.rtp_level_get(game)
         if level != self._rtp_policy.default_level and not rtp_done:
@@ -174,7 +135,7 @@ class CasinoService:
             rtp_shift, payout = adjusted - payout, adjusted
         event_bonus = 0
         boost = events_mod.best_boost(
-            game, events_mod.active(guild_id, current_now), event_repo.manual_event_get(time.time())
+            game, events_mod.active(guild_id, current_now), event_repo.manual_event_get(current_now.timestamp())
         )
         if boost:
             event_bonus = events_mod.bonus(bet, payout, boost)
@@ -182,10 +143,10 @@ class CasinoService:
         try:
             result = escrow_repo.settle_with_penalty(escrow_id, payout, game, penalty)
         except Exception:
-            self._sessions.end(user_id)
+            self.sessions.end(user_id)
             raise
         if not keep_session:
-            self._sessions.end(user_id)
+            self.sessions.end(user_id)
         if result is None:
             _log.warning("精算済みの預かり金を再度精算しようとしました（%s, escrow=%s）", game, escrow_id)
             return SettleGameResult(duplicate=True, event_bonus=event_bonus, rtp_shift=rtp_shift)
@@ -207,12 +168,9 @@ class CasinoService:
             events=ev_result,
         )
 
-    def release_session(self, user_id: int) -> None:
-        self._sessions.end(user_id)
-
     def abort_game(self, guild_id: int, user_id: int, escrow_id: int) -> None:
-        escrow_repo = self._escrow.for_guild(guild_id)
+        escrow_repo = self.escrow.for_guild(guild_id)
         try:
             escrow_repo.refund(escrow_id)
         finally:
-            self._sessions.end(user_id)
+            self.sessions.end(user_id)

@@ -206,7 +206,7 @@ def cog(root):
     root.for_guild(G).wallet.credit(U, 30_000, "テスト")
     bot = make_test_bot(repos=root)
     cog = make_market_cog(bot)
-    cog._prices()
+    cog._market_svc.latest_prices()
     return cog
 
 
@@ -217,7 +217,7 @@ def test_summary_shows_event_alert_and_cut_zones(cog):
         for i in range(61):
             price = START[s.key] * ((1.10 if s.key == "cs" else 1.0) ** (i / 60))
             cog.bot.repos.market.market_set(now - (60 - i) * 60, price, 0, s.key)
-    cog.bot.repos.for_guild(G).margin.long_open(U, 20_000, cog._price("cs"), 5, "cs")
+    cog.bot.repos.for_guild(G).margin.long_open(U, 20_000, cog._market_svc.latest_price("cs"), 5, "cs")
     embed = cog.summary_embed(G)
     names = [f.name for f in embed.fields]
     assert any("市場イベント" in n for n in names) and any("相関崩壊" in n for n in names)

@@ -107,10 +107,12 @@ def test_channel_autocomplete_lists_only_postable_channels_of_the_chosen_guild_f
 
 
 def test_pick_channel_validates(tmp_path):
+    from cogs.admin.targets import pick_channel
+
     guild, chans = make_guild()
     cog, eco, bot = make_admin(tmp_path, [guild])
     log = []
-    pick = lambda guild_, cid: asyncio.run(cog._pick_channel(dm(OWNER, log), guild_, cid))  # noqa: E731
+    pick = lambda guild_, cid: asyncio.run(pick_channel(dm(OWNER, log), guild_, cid))  # noqa: E731
     assert pick(guild, None) == (True, None) and pick(None, None) == (True, None)
     assert pick(guild, "11") == (True, chans[11])
     assert pick(None, "11") == (False, None) and "サーバー" in log[-1][2]  # サーバーなしでチャンネルだけは不可

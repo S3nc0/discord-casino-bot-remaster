@@ -208,7 +208,7 @@ def test_options_count_in_the_ranking_and_are_seized_for_debt(eco):
 def make_cog(bot):
     """このファイルで読み込んだ MarketCog で作る（他のテストが cogs を読み込み直しても、クラスがずれない）。"""
     cog = make_market_cog(bot)
-    cog._prices()
+    cog._market_svc.latest_prices()
     return cog
 
 

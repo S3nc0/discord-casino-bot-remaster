@@ -30,26 +30,29 @@ from domain.ports.repos import (
     IWalletRepo,
 )
 from domain.ports.session import ISessionGuard
-from domain.types import DailyResult, PurchaseResult, TransferResult
+from domain.types import DailyResult, TransferResult
 from services.arena import ArenaService
 from services.casino import CasinoService
 from services.economy import EconomyService
 from services.horse import HorseService
 from services.labor import LaborService
 from services.loan import LoanService
-from services.p2p import P2PService
 from services.shop import ShopService
 
 
 class FakeClock(IClock):
-    def __init__(self, dt: datetime.datetime) -> None:
+    def __init__(self, dt: datetime.datetime, offset: float = 9.0) -> None:
         self._dt = dt
+        self._offset = offset
 
     def now(self) -> datetime.datetime:
         return self._dt
 
     def today(self) -> datetime.date:
         return self._dt.date()
+
+    def offset_hours(self) -> float:
+        return self._offset
 
 
 class FakeSessions(ISessionGuard):
@@ -81,6 +84,9 @@ class StubWallet(IWalletRepo):
 
     def balance(self, user_id: int) -> int:
         return self._balances.get(user_id, 0)
+
+    def peek_stats(self, user_id: int) -> Optional[dict[str, Any]]:
+        return {"balance": self._balances.get(user_id, 0)} if user_id in self._balances else None
 
     def claim_daily(self, user_id: int, today: datetime.date, slot: Optional[int] = None) -> DailyResult:
         return DailyResult(True, 500, 1, self._balances.get(user_id, 0) + 500)
@@ -255,17 +261,17 @@ def test_casino_service_works_with_narrow_bridge_stubs():
 def test_economy_horse_and_labor_services_work_with_narrow_stubs():
     clock = FakeClock(datetime.datetime(2026, 11, 15, 12, 0))
     wallet = StubWallet({1: 5000})
-    econ_svc = EconomyService(wallet, StubNotices(), StubEarnings(), StubRecords(), clock, {"timezone_offset_hours": 9})
+    econ_svc = EconomyService(wallet, StubNotices(), StubEarnings(), StubRecords(), clock)
     assert econ_svc.claim_daily(10, 1, clock.now(), 0).result.ok
     assert econ_svc.backfill_weekly() == 7
     assert econ_svc.transfer(10, 1, 2, 1000, 0.1, 10_000, 3).ok and wallet.transfers
 
     races = StubRaces()
-    horse_svc = HorseService(races, {"timezone_offset_hours": 9})
+    horse_svc = HorseService(races, clock)
     assert horse_svc.close_entries_and_set_odds(10, 42) == {"id": 42, "status": "betting"}
     assert len(races.odds_set) == 1
 
-    labor_svc = LaborService(StubLabor(), clock, {"timezone_offset_hours": 9})
+    labor_svc = LaborService(StubLabor(), clock)
     assert labor_svc.today_key() == "2026-11-15"
     assert labor_svc.click_report(10, 1, 24)["clicks"] == 3
 
@@ -302,8 +308,8 @@ class StubP2P(IP2PRepo):
     def p2p_label(self, row: Any) -> str:
         return "にんじん"
 
-    def p2p_buy(self, buyer_id: int, listing_id: int, now=None) -> tuple[Any, ...]:
-        return (True, 1000)
+    def p2p_active(self, kind=None, now=None, limit=25, mode=None, order="end") -> list[Any]:
+        return [{"id": 1}]
 
     def p2p_count(self, now=None) -> int:
         return 1
@@ -314,9 +320,6 @@ class StubHorse(IHorseRepo):
 
     def for_guild(self, guild_id: int) -> Self:
         return self
-
-    def horse_get(self, horse_id: int) -> Optional[dict[str, Any]]:
-        return {"id": horse_id, "name": "ハヤテ"}
 
     def auction_horses(self, now=None) -> list[Any]:
         return []
@@ -353,11 +356,14 @@ class StubShopForService(StubShop):
     def shop_stock(self, user_id: int, item_id: str, now=None) -> Optional[dict[str, Any]]:
         return None
 
-    def purchase(self, user_id: int, item_id: str, label: str, price: int, unique: bool, qty: int = 1, now=None):
-        return PurchaseResult(True, balance=4000)
+    def arm(self, user_id: int, item_id: str) -> bool:
+        return item_id == shop_mod.INSURANCE
+
+    def get_profile(self, user_id: int, raw: bool = False) -> dict[str, Any]:
+        return {"card_color": None, "card_icon": None, "title": None, "insurance": 2}
 
 
-def test_arena_loan_p2p_and_shop_services_work_with_narrow_stubs():
+def test_arena_loan_and_shop_services_work_with_narrow_stubs():
     clock = FakeClock(datetime.datetime(2026, 11, 15, 20, 0, tzinfo=datetime.timezone(datetime.timedelta(hours=9))))
 
     arena_svc = ArenaService(StubArena(), clock)
@@ -368,10 +374,6 @@ def test_arena_loan_p2p_and_shop_services_work_with_narrow_stubs():
     loan_svc = LoanService(StubLoan(), clock)
     outcome = loan_svc.process_tick(1)
     assert len(outcome.expired) == 1 and len(outcome.due_soon) == 1 and len(outcome.collected) == 1
-
-    p2p_svc = P2PService(StubP2P(), StubHorse(), StubShopForService(), StubWallet({1: 5000}))
-    assert p2p_svc.buy(1, 10, 1) == (True, 1000)
-    assert p2p_svc.horse_of_listing(1, {"kind": "horse", "ref": "7"}) == {"id": 7, "name": "ハヤテ"}
 
     shop_svc = ShopService(
         StubShopForService(),
@@ -387,5 +389,9 @@ def test_arena_loan_p2p_and_shop_services_work_with_narrow_stubs():
     assert shop_svc.precheck_buy(1, 1, owned, 1).status == "owned"
     carrot = shop_mod.BY_ID[shop_mod.CARROT]
     assert shop_svc.precheck_buy(1, 1, carrot, 1).ok
-    assert shop_svc.purchase_item(1, 1, carrot, 1).ok
-    assert shop_svc.p2p_count(1) == 1
+    assert shop_svc.arm_consumable(1, 1, shop_mod.INSURANCE) == 2
+    assert shop_svc.arm_consumable(1, 1, carrot.id) is None
+    cat = shop_svc.catalog_snapshot(1, 1, "home", [])
+    assert cat["balance"] == 5000 and cat["waiting"] == 0
+    auc = shop_svc.auction_snapshot(1, 1, None, True, None, None, "end", 25)
+    assert auc["tab"] == "players" and auc["p2p_total"] == 1 and auc["p2p_rows"] == [({"id": 1}, "にんじん")]

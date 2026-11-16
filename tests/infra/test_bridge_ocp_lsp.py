@@ -264,11 +264,13 @@ def test_deferred_and_dynamic_cog_bridges_are_load_order_independent(tmp_path):
     )
 
     # 未登録時は NoOp へ安全にフォールバックし、後から登録されると実体を解決する
+    from cogs.shared.bridges import resolve_bridge
+
     assert isinstance(eco._shop_bridge, DeferredShopTitleBridge)
     assert asyncio.run(eco._shop_bridge.sync_title_nick(U)) == ("", 0)
     assert asyncio.run(weekly._shop_bridge.sync_title_nick(U)) == ("", 0)
-    assert shop_cog.p2p_bridge() is None
-    assert approval.event_bridge() is None
+    assert resolve_bridge(shop_cog.bot, IP2PNavigationBridge, shop_cog._p2p_bridge) is None
+    assert resolve_bridge(approval.bot, IEventAdminBridge, approval._event_bridge) is None
 
     sync_calls: list[int] = []
 
@@ -280,7 +282,16 @@ def test_deferred_and_dynamic_cog_bridges_are_load_order_independent(tmp_path):
         async def after_bankruptcy(self, guild, member):
             return None
 
-    p2p_cog = P2PCog(bot, bot.config, bot.services.p2p, bot.repos.guild, bot.sessions)
+    p2p_cog = P2PCog(
+        bot,
+        bot.config,
+        bot.repos.p2p,
+        bot.repos.horses,
+        bot.repos.shop,
+        bot.repos.wallet,
+        bot.repos.guild,
+        bot.sessions,
+    )
     event_cog = EventCog(bot, bot.config, bot.repos.events, bot.repos.guild, bot.services.clock)
 
     bot.bridges.register(IShopTitleBridge, StubShop())
@@ -291,12 +302,12 @@ def test_deferred_and_dynamic_cog_bridges_are_load_order_independent(tmp_path):
     assert asyncio.run(eco._shop_bridge.sync_title_nick(U)) == ("", 1)
     assert asyncio.run(weekly._shop_bridge.sync_title_nick(U)) == ("", 1)
     assert sync_calls == [U, U]
-    assert shop_cog.p2p_bridge() is p2p_cog
-    assert approval.event_bridge() is event_cog
+    assert resolve_bridge(shop_cog.bot, IP2PNavigationBridge, shop_cog._p2p_bridge) is p2p_cog
+    assert resolve_bridge(approval.bot, IEventAdminBridge, approval._event_bridge) is event_cog
 
     # アンロード時に自身の登録だけを解除できる
     bot.bridges.unregister(IEventAdminBridge, event_cog)
-    assert approval.event_bridge() is None
+    assert resolve_bridge(approval.bot, IEventAdminBridge, approval._event_bridge) is None
 
 
 def test_cog_bridge_isp_splits_and_noop_buttons_follow_lsp():

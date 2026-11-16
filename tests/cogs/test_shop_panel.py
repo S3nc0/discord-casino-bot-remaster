@@ -204,12 +204,14 @@ def test_inventory_screen_has_unequip_and_title_toggle_and_back(cog):
 
 
 def test_title_toggle_buttons_call_the_existing_handler(cog, monkeypatch):
+    from cogs.shop import actions
+
     called = []
 
-    async def fake(self_, interaction, mode):
+    async def fake(cog_, interaction, mode):
         called.append(mode)
 
-    monkeypatch.setattr(ShopCog, "set_title_display", fake)
+    monkeypatch.setattr(actions, "set_title_display", fake)
     view = ShopView(cog, 1, 0, screen="inv")
     for mode in ("on", "off"):
         run(view._make_nick(mode)(It()))
@@ -224,7 +226,7 @@ def test_only_the_owner_can_use_the_panel(cog):
 
 
 def test_unused_catalog_text_no_longer_points_to_removed_commands(cog):
-    text = cog._catalog_embed(0, 1).description + cog._inventory_embed(0, 1).description
+    text = ShopView(cog, 1, 0).embed().description + ShopView(cog, 1, 0, screen="inv").embed().description
     assert "/ショップ " not in text
 
 

@@ -185,6 +185,8 @@ def test_cog_run_once_settles_every_guild(eco, monkeypatch):
 
 
 def test_buy_command_settles_first_and_replies(eco):
+    from cogs.market import orders
+
     bot = make_test_bot(repos=eco)
     cog = make_market_cog(bot)
     sent = []
@@ -194,8 +196,8 @@ def test_buy_command_settles_first_and_replies(eco):
             sent.append(kw["embed"].title)
 
     inter = SimpleNamespace(user=SimpleNamespace(id=1), guild=SimpleNamespace(id=1), guild_id=1, response=Resp())
-    asyncio.run(cog._bond_buy(inter, "junk", 2000))
-    asyncio.run(cog._bond_buy(inter, "junk", 9000))  # 上限超え
+    asyncio.run(orders.bond_buy(cog, inter, "junk", 2000))
+    asyncio.run(orders.bond_buy(cog, inter, "junk", 9000))  # 上限超え
     assert sent == ["✅ 🗑️ ジャンク債を買いました", "❌ 買えません"]
 
 

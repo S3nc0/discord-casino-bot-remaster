@@ -69,16 +69,18 @@ def test_cds_on_someone_else_is_public_and_on_yourself_is_private(bot):
 
 
 def test_bond_sale_is_public_on_success_and_private_on_failure(bot):
+    from cogs.market import orders
+
     cog = make_market_cog(bot)
-    cog._prices()
+    cog._market_svc.latest_prices()
     eco = bot.repos.for_guild(G)
     assert eco.bonds.bond_buy(U, "normal", 1_000, time.time())[0]
     bond_id = eco.bonds.bond_list(U)["active"][0]["id"]
     it = It()
-    run(cog._bond_cancel(it, bond_id))
+    run(orders.bond_cancel(cog, it, bond_id))
     assert public(it) and "債券を売りました" in it.sent[-1]["embed"].title
     it = It()
-    run(cog._bond_cancel(it, 999))
+    run(orders.bond_cancel(cog, it, 999))
     assert not public(it) and "❌" in it.sent[-1]["embed"].title
     assert bonds.NORMAL
 

@@ -44,7 +44,7 @@
 | パス | 内容 |
 |---|---|
 | `loader.py` | 読み込む Cog モジュール一覧（`COG_MODULES`）と `load_all_cogs()`（`main.py` とテストで共有） |
-| `shared/` | 共通 Discord 基盤（`bot.py` / `bridges.py` / `ui.py` / `texts.py` / `tasks.py` / `confirm.py` / `messages/` / `approval_guard.py` / `ranking.py` / `announce.py` / `amount.py` / `horse_display.py`）。`CasinoBot` と Cog 間ブリッジ（`bridges.py`: `BotBridges`・名目的基底クラス群）により Service Locator なしで疎結合に連携、`tasks.py` で承認済みギルド走査を共通化 |
+| `shared/` | 共通 Discord 基盤（`bot.py` / `bridges.py` / `ui.py` / `texts.py` / `tasks.py` / `confirm.py` / `messages/` / `approval_guard.py` / `ranking.py` / `announce.py` / `amount.py` / `horse_display.py`）。`CasinoBot` と Cog 間ブリッジ（`bridges.py`: `BotBridges`・`resolve_bridge` / `require_bridge`・名目的基底クラス群）により Service Locator なしで疎結合に連携、`tasks.py` で承認済みギルド走査を共通化 |
 | `casino/` | `/カジノ`。`cog.py` と進行演出・静的台本（`common.py`・`simple.py`・`blackjack.py`・`chinchiro.py`・`pachinko.py`・`texts.py`） |
 | `economy/` | `/ペリカ`。`cog.py`・`boards.py`（残高・デイリー・ランキング・掲示板自動更新・送金・履歴） |
 | `teiai/` | `/ペリカ 帝愛` のパネル（`panel.py`）と海外逃亡の演出（`escape.py`）、静的 AA・状態文言（`texts.py`） |
@@ -77,7 +77,6 @@
 | `labor.py` | `LaborService`。地下作業の日次キー取得・クリック履歴レポート生成 |
 | `arena.py` | `ArenaService`。闘技場トーナメント生成・進行時刻取得・準決勝/決勝処理の調停 |
 | `loan.py` | `LoanService`。個人間貸付（提案・募集・承諾・返済・期日チェック）の調停 |
-| `p2p.py` | `P2PService`。プレイヤー間売買・競り・出品者手持ち照会の調停 |
 | `shop.py` | `ShopService`。ショップ・帝愛の競売・持ち物・称号解決の調停 |
 
 ## `domain/` — 純粋なルール・値型・ポート契約
@@ -87,7 +86,7 @@
 | パス | 内容 |
 |---|---|
 | `catalogs.py` / `catalog_types/` | `ICatalogs` カタログ取得契約と責務別公称データ契約（`shop`・`economy`・`market`・`games`・`arena`） |
-| `clock.py` | `IClock`（現在時刻・日付の抽象契約） |
+| `clock.py` | `IClock`（現在時刻・日付・UTCオフセット・タイムスタンプの抽象契約） |
 | `session.py` | `ISessionGuard`（二重プレイ防止セッション管理の契約） |
 | `repos/` | 領域別 DB リポジトリ用名目的基底クラス群（`base.py`・`economy.py`・`teiai.py`・`market.py`・`social.py`・`games.py`・`bundle.py` / `__init__.py` で `IRepositoryBundle` 等を集約再エクスポート） |
 | `bridges.py` | リポジトリ・サービス間の循環を防ぐ細粒度ブリッジ契約と Null Object / Composite（`NoOp*`・`Composite*`・`IValuationSource`・`IAssetCollector`・`IAssetSeizureStep` 等） |

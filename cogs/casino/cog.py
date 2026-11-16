@@ -13,7 +13,7 @@ from cogs.casino.pachinko import play_pachinko
 from cogs.casino.simple import play_roulette, play_slot
 from cogs.shared.amount import balance_choices
 from domain.games import pachinko as pachinko_game
-from domain.ports.repos import IGuildRepo, IWalletRepo
+from domain.ports.repos import IDebtRepo, IGuildRepo, IPachinkoRepo, IWalletRepo
 from services.casino import CasinoService
 
 if TYPE_CHECKING:
@@ -28,10 +28,18 @@ class Casino(commands.Cog):
         config: dict[str, Any],
         casino_svc: CasinoService,
         wallet: IWalletRepo,
+        debt: IDebtRepo,
+        pachinko: IPachinkoRepo,
         guild_repo: IGuildRepo,
     ) -> None:
         self._wallet = wallet
-        self._deps = CasinoDeps(casino=casino_svc, guild_repo=guild_repo, config=config)
+        self._deps = CasinoDeps(
+            casino=casino_svc,
+            debt=debt,
+            pachinko=pachinko,
+            guild_repo=guild_repo,
+            config=config,
+        )
 
     casino = app_commands.Group(name="カジノ", description="🎰 ペリカを賭けて遊ぶ（遊びのゲーム用の仮想通貨です）")
 
@@ -108,4 +116,13 @@ class Casino(commands.Cog):
 
 
 async def setup(bot: "CasinoBot") -> None:
-    await bot.add_cog(Casino(bot.config, bot.services.casino, bot.repos.wallet, bot.repos.guild))
+    await bot.add_cog(
+        Casino(
+            bot.config,
+            bot.services.casino,
+            bot.repos.wallet,
+            bot.repos.debt,
+            bot.repos.pachinko,
+            bot.repos.guild,
+        )
+    )

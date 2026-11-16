@@ -7,6 +7,7 @@ import discord
 import pytest
 from discord import app_commands
 
+from cogs.economy import boards
 from cogs.economy.cog import BOARD_INTERVAL_MINUTES, EconomyCog
 from cogs.shared import ranking
 from infra.db.repositories import open_repositories
@@ -179,7 +180,11 @@ def test_refresh_edits_the_same_message_with_latest_ranking(eco):
     run(EconomyCog.board_set.callback(cog, FakeInteraction(guild), ch))
     mid = eco.guild.get_leaderboard(10)["message_id"]
     eco.wallet.credit(1, 50_000, "テスト")
-    run(cog._refresh_board(eco.guild.get_leaderboard(10)))
+    run(
+        boards.refresh_board(
+            cog.bot, cog._ranking_repos, cog._guild_repo, eco.guild.get_leaderboard(10), BOARD_INTERVAL_MINUTES
+        )
+    )
     msg = ch.messages[mid]
     assert (
         len(msg.embeds) == 2 and "53,000ペリカ" in msg.embeds[-1].description
@@ -192,7 +197,11 @@ def test_refresh_reposts_when_the_message_was_deleted(eco):
     run(EconomyCog.board_set.callback(cog, FakeInteraction(guild), ch))
     old = eco.guild.get_leaderboard(10)["message_id"]
     del ch.messages[old]  # 誰かが消した
-    run(cog._refresh_board(eco.guild.get_leaderboard(10)))
+    run(
+        boards.refresh_board(
+            cog.bot, cog._ranking_repos, cog._guild_repo, eco.guild.get_leaderboard(10), BOARD_INTERVAL_MINUTES
+        )
+    )
     new = eco.guild.get_leaderboard(10)["message_id"]
     assert new != old and new in ch.messages  # 投稿し直して、IDを更新する
 
@@ -201,7 +210,11 @@ def test_refresh_forgets_the_board_when_the_channel_is_gone(eco):
     cog, guild, ch = make(eco)
     run(EconomyCog.board_set.callback(cog, FakeInteraction(guild), ch))
     guild.get_channel = lambda cid: None
-    run(cog._refresh_board(eco.guild.get_leaderboard(10)))
+    run(
+        boards.refresh_board(
+            cog.bot, cog._ranking_repos, cog._guild_repo, eco.guild.get_leaderboard(10), BOARD_INTERVAL_MINUTES
+        )
+    )
     assert eco.guild.get_leaderboard(10) is None
 
 
@@ -210,7 +223,9 @@ def test_refresh_keeps_the_board_when_permissions_are_temporarily_missing(eco):
     run(EconomyCog.board_set.callback(cog, FakeInteraction(guild), ch))
     board = eco.guild.get_leaderboard(10)
     ch.edit_error = http_error(403)
-    run(cog._refresh_board(board))  # 例外を出さず、次の周期で再試行する
+    run(
+        boards.refresh_board(cog.bot, cog._ranking_repos, cog._guild_repo, board, BOARD_INTERVAL_MINUTES)
+    )  # 例外を出さず、次の周期で再試行する
     assert eco.guild.get_leaderboard(10) == board
 
 
@@ -218,22 +233,26 @@ def test_refresh_does_nothing_when_the_bot_is_not_in_the_guild_right_now(eco):
     cog, guild, ch = make(eco)
     run(EconomyCog.board_set.callback(cog, FakeInteraction(guild), ch))
     cog.bot.get_guild = lambda gid: None
-    run(cog._refresh_board(eco.guild.get_leaderboard(10)))
+    run(
+        boards.refresh_board(
+            cog.bot, cog._ranking_repos, cog._guild_repo, eco.guild.get_leaderboard(10), BOARD_INTERVAL_MINUTES
+        )
+    )
     assert eco.guild.get_leaderboard(10) is not None
 
 
-def test_one_failing_server_does_not_stop_the_others(eco):
+def test_one_failing_server_does_not_stop_the_others(eco, monkeypatch):
     cog, guild, ch = make(eco)
     eco.guild.set_leaderboard(99, 1, 1)
     eco.guild.set_leaderboard(10, ch.id, 5)
     calls = []
 
-    async def fake_refresh(board):
+    async def fake_refresh(bot, ranking_repos, guild_repo, board, interval_minutes):
         calls.append(board["guild_id"])
         if board["guild_id"] == 99:
             raise RuntimeError("壊れた掲示板")
 
-    cog._refresh_board = fake_refresh
+    monkeypatch.setattr(boards, "refresh_board", fake_refresh)
     run(EconomyCog.refresh_boards.coro(cog))
     assert sorted(calls) == [10, 99]
 

@@ -4,6 +4,7 @@ import time
 
 import discord
 
+from cogs.market import orders
 from cogs.shared import ui
 from domain import market, market_events
 from domain import options as opt
@@ -49,7 +50,7 @@ class OptionAmountModal(discord.ui.Modal):
                 ephemeral=True,
             )
             return
-        await self.cog._option_buy(interaction, self.kind, self.symbol, int(raw))
+        await orders.option_buy(self.cog, interaction, self.kind, self.symbol, int(raw))
 
 
 class MarketView(ui.OwnerView):

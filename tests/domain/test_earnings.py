@@ -134,17 +134,19 @@ def test_ordinary_earnings_stay_inside_the_band_and_do_not_pin(eco, monkeypatch)
 
 # ----------------------------- 告知・表示・メモ ----------------------------- #
 def test_board_shows_the_upcoming_earnings_only_after_the_announce(eco):
-    cog = make_cog(eco)
+    make_cog(eco)
     with eco.db.tx():
         now = time.time()
         eco.db.conn.execute(
             "INSERT INTO earnings (symbol, announce_at, release_at, direction, size) VALUES ('teio', ?, ?, 1, 0.1)",
             (now + 3600, now + 86400),
         )
-    assert cog.earnings_lines() == ""  # まだ予告前
+    from cogs.market import embeds as market_embeds
+
+    assert market_embeds.earnings_lines(eco.earnings.earnings_upcoming(time.time())) == ""  # まだ予告前
     with eco.db.tx():
         eco.db.conn.execute("UPDATE earnings SET announce_at=?", (now - 60,))
-    text = cog.earnings_lines()
+    text = market_embeds.earnings_lines(eco.earnings.earnings_upcoming(time.time()))
     assert market.BY_KEY["teio"].name in text and "決算発表" in text
 
 
@@ -250,6 +252,7 @@ def test_insider_buy_refuses_debtors_and_the_broke_without_charging(eco):
 
 
 def test_shop_panel_has_a_market_tab_and_buying_shows_the_memo_privately(eco, monkeypatch):
+    from cogs.shop import actions as shop_actions
     from cogs.shop import cog as shop_cog
 
     bot = make_test_bot(repos=eco)
@@ -261,7 +264,7 @@ def test_shop_panel_has_a_market_tab_and_buying_shows_the_memo_privately(eco, mo
     async def yes(*a, **k):
         return True
 
-    monkeypatch.setattr(shop_cog, "confirm_action", yes)
+    monkeypatch.setattr(shop_actions, "confirm_action", yes)
     sent = []
 
     class It:
@@ -277,7 +280,7 @@ def test_shop_panel_has_a_market_tab_and_buying_shows_the_memo_privately(eco, mo
             self.followup = SimpleNamespace(send=send)
 
     assert "market" in shop_cog.TABS and shop_cog.tab_items("market")[0].name == "裏情報メモ（決算）"
-    asyncio.run(cog.buy_item(It(), "insider_memo", 1))
+    asyncio.run(shop_actions.buy_item(cog, It(), "insider_memo", 1))
     assert sent and sent[-1]["ephemeral"] is True and "極秘メモ" in sent[-1]["embed"].description
     assert "insider_memo" not in eco.for_guild(10).shop.inventory(1)  # 持ち物には増えない
     assert not cog.bot.sessions.is_active(1)

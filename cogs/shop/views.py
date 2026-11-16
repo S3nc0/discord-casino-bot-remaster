@@ -5,7 +5,8 @@ from typing import TYPE_CHECKING, Any, Optional
 import discord
 
 from cogs.shared import ui
-from cogs.shared.bridges import IP2PNavigationBridge
+from cogs.shared.bridges import IP2PNavigationBridge, resolve_bridge
+from cogs.shop import actions
 from cogs.shop.embeds import (
     MAX_QTY,
     P2P_FILTERS,
@@ -44,23 +45,34 @@ class ShopView(ui.OwnerView):
         self.picked: tuple[str, str] | None = (
             None  # 選んだ景品 (種類, 値)。「🛒 購入」を押すまで、買わない。種類は shop / auction / horse
         )
-        self.auction_tab = None  # 競売の画面のタブ（players / teiai）。None は、開いたときに決める
+        self.auction_tab: str | None = None  # 競売の画面のタブ（players / teiai）。None は、開いたときに決める
         self.p2p_filter, self.p2p_order = "all", "end"  # プレイヤーの出品の、絞り込みと並び順
+        self._screen_data: dict[str, Any] = {}
         self._build()
 
     # ---- 見た目 ---- #
     def embed(self) -> discord.Embed:
+        from cogs.shop.embeds import auction_embed, catalog_embed, inventory_embed
+
         if self.screen == "inv":
-            return self.cog._inventory_embed(self.guild_id, self.user_id)
+            return inventory_embed(self._screen_data["inv"], self._screen_data["prof"])
         if self.screen == "auction":
-            return self.cog._auction_embed(
-                self.guild_id,
-                self.user_id,
-                tab=self.auction_tab or self._default_auction_tab(),
+            return auction_embed(
+                self._screen_data["balance"],
+                tab=self._screen_data["tab"],
                 p2p_filter=self.p2p_filter,
                 p2p_order=self.p2p_order,
+                p2p_rows=self._screen_data["p2p_rows"],
+                listed=self._screen_data["listed"],
+                horses=self._screen_data["horses"],
             )
-        return self.cog._catalog_embed(self.guild_id, self.user_id, self.tab)
+        return catalog_embed(
+            self._screen_data["inv"],
+            self._screen_data["balance"],
+            tab=self.tab,
+            waiting=self._screen_data["waiting"],
+            stocks=self._screen_data["stocks"],
+        )
 
     def _build(self) -> None:
         self.clear_items()
@@ -93,9 +105,11 @@ class ShopView(ui.OwnerView):
         go.callback = self._to_inventory
         self.add_item(go)
         items = tab_items(self.tab) if self.tab != "home" else []
+        snap = self.cog.service.catalog_snapshot(self.guild_id, self.user_id, self.tab, items)
+        self._screen_data = snap
         if items:
-            inv = self.cog.service.inventory(self.guild_id, self.user_id)
-            stocks = self.cog.service.stocks_for_items(self.guild_id, self.user_id, items)
+            inv = snap["inv"]
+            stocks = snap["stocks"]
             mixed = len(TABS[self.tab][1]) > 1
             buy = discord.ui.Select(
                 placeholder="買う景品を選ぶ（安い順）",
@@ -131,7 +145,7 @@ class ShopView(ui.OwnerView):
 
     def _p2p(self) -> Optional[IP2PNavigationBridge]:
         """プレイヤー間の取引ブリッジ。読み込まれていなければ None（画面に出さない）。"""
-        return self.cog.p2p_bridge()
+        return resolve_bridge(self.cog.bot, IP2PNavigationBridge, self.cog._p2p_bridge)
 
     async def _on_player(self, interaction: discord.Interaction):
         p2p = self._p2p()
@@ -163,10 +177,10 @@ class ShopView(ui.OwnerView):
         assert self.picked is not None
         kind, value = self.picked
         if kind == "horse":
-            horse = next(
-                (h for h in self.cog.service.auction_horses(self.guild_id) if str(h["id"]) == value),
-                None,
-            )
+            horses = self._screen_data.get("horses")
+            if horses is None:
+                horses = self.cog.service.horses.for_guild(self.guild_id).auction_horses()
+            horse = next((h for h in horses if str(h["id"]) == value), None)
             return horse["name"] if horse else "競走馬"
         item = shop.BY_ID.get(value)
         return item.name if item else "景品"
@@ -178,19 +192,26 @@ class ShopView(ui.OwnerView):
 
         return callback
 
-    def _default_auction_tab(self) -> str:
-        """競売の画面を開いたときのタブ。プレイヤーの出品があれば、そちら。なければ、帝愛の棚。"""
-        return "players" if self._p2p() is not None and self.cog.service.p2p_count(self.guild_id) else "teiai"
-
     def _build_auction(self) -> None:
-        if self.auction_tab is None:
-            self.auction_tab = self._default_auction_tab()
-        listed = self.cog.service.auction_items(self.guild_id)
-        horses = self.cog.service.auction_horses(self.guild_id)
         p2p_bridge = self._p2p()
+        _label, kind, mode = self.P2P_FILTERS[self.p2p_filter]
+        snap = self.cog.service.auction_snapshot(
+            self.guild_id,
+            self.user_id,
+            self.auction_tab,
+            p2p_bridge is not None,
+            kind,
+            mode,
+            self.p2p_order,
+            SHOWN,
+        )
+        self._screen_data = snap
+        self.auction_tab = snap["tab"]
+        listed = snap["listed"]
+        horses = snap["horses"]
         # 上の段: タブ（いまのタブは青）と、出品・自分の取引・ショップへもどる
         if p2p_bridge is not None:
-            p2p_total = self.cog.service.p2p_count(self.guild_id)
+            p2p_total = snap["p2p_total"]
             for tab, label in (
                 ("players", f"🤝 プレイヤーの出品（{p2p_total}）"),
                 ("teiai", f"🕴️ 帝愛の棚（{len(listed) + len(horses)}）"),
@@ -208,13 +229,11 @@ class ShopView(ui.OwnerView):
             mine = discord.ui.Button(label="📋 自分の取引", style=discord.ButtonStyle.secondary, row=0)
             mine.callback = self._on_mine
             self.add_item(mine)
-        else:
-            self.auction_tab = "teiai"
         back = discord.ui.Button(label="🛍️ ショップ", style=discord.ButtonStyle.secondary, row=0)
         back.callback = self._to_shop
         self.add_item(back)
         if self.auction_tab == "players":
-            self._build_auction_players()
+            self._build_auction_players(snap["p2p_rows"])
         else:
             self._build_auction_teiai(listed, horses)
 
@@ -225,11 +244,7 @@ class ShopView(ui.OwnerView):
 
         return callback
 
-    def _p2p_rows(self) -> list[Any]:
-        _label, kind, mode = self.P2P_FILTERS[self.p2p_filter]
-        return self.cog.service.p2p_active(self.guild_id, kind, SHOWN, mode, self.p2p_order)
-
-    def _build_auction_players(self) -> None:
+    def _build_auction_players(self, p2p_rows: list[tuple[dict[str, Any], str]]) -> None:
         """プレイヤーの出品のタブ: 絞り込み・並べ替え・出品の選択肢。"""
         for key, (label, _kind, _mode) in self.P2P_FILTERS.items():
             btn = discord.ui.Button(
@@ -249,14 +264,13 @@ class ShopView(ui.OwnerView):
         )
         order.callback = self._on_p2p_order
         self.add_item(order)
-        rows = self._p2p_rows()
-        if rows:
+        if p2p_rows:
             pick = discord.ui.Select(
                 placeholder="見る出品を選ぶ（選ぶと、買う・入札できる）",
                 row=3,
                 options=[
                     discord.SelectOption(
-                        label=self.cog.service.p2p_label(self.guild_id, r)[:100],
+                        label=item_label[:100],
                         value=str(r["id"]),
                         description=(
                             f"定価 {r['price']:,}ペリカ"
@@ -264,7 +278,7 @@ class ShopView(ui.OwnerView):
                             else f"競り {(r['bid'] or r['price']):,}ペリカ" + ("（入札あり）" if r["bid"] else "")
                         ),
                     )
-                    for r in rows
+                    for r, item_label in p2p_rows
                 ],
             )
             pick.callback = self._on_player
@@ -333,7 +347,9 @@ class ShopView(ui.OwnerView):
             self._add_buy_button()
 
     def _build_inventory(self) -> None:
-        inv = self.cog.service.inventory(self.guild_id, self.user_id)
+        shop_repo = self.cog.service.shop.for_guild(self.guild_id)
+        inv = shop_repo.inventory(self.user_id)
+        self._screen_data = {"inv": inv, "prof": shop_repo.get_profile(self.user_id)}
         owned = [
             i
             for i in (shop.BY_ID.get(item_id) for item_id in inv)
@@ -403,11 +419,11 @@ class ShopView(ui.OwnerView):
             )
         kind, value = self.picked
         if kind == "horse":
-            await self.cog.buy_auction_horse(interaction, int(value))
+            await actions.buy_auction_horse(self.cog, interaction, int(value))
         elif kind == "auction":
-            await self.cog.buy_auction(interaction, value, self.qty)
+            await actions.buy_auction(self.cog, interaction, value, self.qty)
         else:
-            await self.cog.buy_item(interaction, value, self.qty if self.tab in ("item", "horse") else 1)
+            await actions.buy_item(self.cog, interaction, value, self.qty if self.tab in ("item", "horse") else 1)
 
     async def _to_auction(self, interaction: discord.Interaction):
         self.screen, self.qty, self.picked, self.auction_tab = "auction", 1, None, None  # タブは、開くたびに決め直す
@@ -422,13 +438,13 @@ class ShopView(ui.OwnerView):
         await self._redraw(interaction)
 
     async def _on_use(self, interaction: discord.Interaction):
-        await self.cog.use_item(interaction, ui.selected_values(interaction)[0])
+        await actions.use_item(self.cog, interaction, ui.selected_values(interaction)[0])
 
     async def _on_unequip(self, interaction: discord.Interaction):
-        await self.cog.unequip_item(interaction, ui.selected_values(interaction)[0])
+        await actions.unequip_item(self.cog, interaction, ui.selected_values(interaction)[0])
 
     def _make_nick(self, mode: str):
         async def callback(interaction: discord.Interaction):
-            await self.cog.set_title_display(interaction, mode)
+            await actions.set_title_display(self.cog, interaction, mode)
 
         return callback

@@ -233,7 +233,7 @@ class EconomyCog(commands.Cog):
         now = self._clock.now()
         outcome = self._economy_svc.claim_daily(ui.guild_id_of(interaction), interaction.user.id, now, slot_of(now))
         result = outcome.result
-        utc_offset = self._economy_svc.utc_offset()
+        utc_offset = self._clock.offset_hours()
         if not result.ok:
             return await interaction.response.send_message(
                 embed=ui.warn_embed(
@@ -376,9 +376,7 @@ class EconomyCog(commands.Cog):
         )
         lines.append(f"🎁 3つ全部で、さらに **+{ui.pelica(missions_mod.COMPLETE_BONUS)}**")
         lines.append(f"🔥 いまの連勝: **{streak}** ／ 自己ベスト: **{best}**")
-        lines.append(
-            f"🕛 次の更新: **{reset_label(self._economy_svc.utc_offset())}**（<t:{int(tomorrow.timestamp())}:R>）"
-        )
+        lines.append(f"🕛 次の更新: **{reset_label(self._clock.offset_hours())}**（<t:{int(tomorrow.timestamp())}:R>）")
         await interaction.response.send_message(
             embed=ui.embed("📜 今日のミッション", "\n".join(lines), ui.GOLD), ephemeral=True
         )
@@ -402,12 +400,6 @@ class EconomyCog(commands.Cog):
         )
 
     # ------------------- 自動で更新されるランキング掲示板（boards.py へ委譲） ------------------- #
-    def _board_embed(self, guild_id: int) -> discord.Embed:
-        return boards.board_embed(self._ranking_repos, guild_id, BOARD_INTERVAL_MINUTES)
-
-    async def _refresh_board(self, board: dict) -> None:
-        await boards.refresh_board(self.bot, self._ranking_repos, self._guild_repo, board, BOARD_INTERVAL_MINUTES)
-
     async def cog_load(self):
         self.refresh_boards.start()
 
@@ -418,7 +410,9 @@ class EconomyCog(commands.Cog):
     async def refresh_boards(self):
         for board in self._guild_repo.list_leaderboards():
             try:
-                await self._refresh_board(board)
+                await boards.refresh_board(
+                    self.bot, self._ranking_repos, self._guild_repo, board, BOARD_INTERVAL_MINUTES
+                )
             except Exception as exc:  # 1つのサーバーの失敗で、他のサーバーの更新を止めない
                 print(f"ランキング掲示板の更新に失敗: {board}: {exc!r}")
 
@@ -429,9 +423,6 @@ class EconomyCog(commands.Cog):
     @commands.Cog.listener()
     async def on_guild_remove(self, guild: discord.Guild):
         self._guild_repo.delete_leaderboard(guild.id)
-
-    async def _delete_board_message(self, guild: discord.Guild, board: Optional[dict]) -> None:
-        await boards.delete_board_message(guild, board)
 
     @group.command(
         name="ランキング掲示", description="[管理者] ランキングを投稿して自動で更新する／止める（サーバー管理）"
@@ -448,9 +439,6 @@ class EconomyCog(commands.Cog):
         await boards.board_set(
             self._ranking_repos, self._guild_repo, interaction, channel, stop, BOARD_INTERVAL_MINUTES
         )
-
-    async def _board_unset(self, interaction: discord.Interaction):
-        await boards.board_unset(self._guild_repo, interaction)
 
     async def _transfer_autocomplete(self, interaction: discord.Interaction, current: str):
         """送る金額の欄に、残高を見せる。"""

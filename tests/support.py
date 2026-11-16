@@ -111,7 +111,16 @@ def make_bond_cog(bot: Any):
 def make_p2p_cog(bot: Any):
     from cogs.p2p.cog import P2PCog
 
-    cog = P2PCog(bot, bot.config, bot.services.p2p, bot.repos.guild, bot.sessions)
+    cog = P2PCog(
+        bot,
+        bot.config,
+        bot.repos.p2p,
+        bot.repos.horses,
+        bot.repos.shop,
+        bot.repos.wallet,
+        bot.repos.guild,
+        bot.sessions,
+    )
     bot.bridges.register(IP2PListingBridge, cog)
     bot.bridges.register(IP2PNavigationBridge, cog)
     return cog
@@ -198,7 +207,13 @@ def make_ranking_repos(repos: RepositoryBundle):
 def make_casino_deps(bot: Any):
     from cogs.casino.common import CasinoDeps
 
-    return CasinoDeps(casino=bot.services.casino, guild_repo=bot.repos.guild, config=bot.config)
+    return CasinoDeps(
+        casino=bot.services.casino,
+        debt=bot.repos.debt,
+        pachinko=bot.repos.pachinko,
+        guild_repo=bot.repos.guild,
+        config=bot.config,
+    )
 
 
 def make_loan_cog(bot: Any):

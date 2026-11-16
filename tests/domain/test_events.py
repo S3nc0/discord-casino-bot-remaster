@@ -128,7 +128,6 @@ def test_event_missed_while_down_is_not_announced(tmp_path, monkeypatch):
 
 
 # ----------------------------- 持ち主が開く特別イベント ----------------------------- #
-import time  # noqa: E402
 
 
 def test_bonus_takes_a_custom_boost_and_best_boost_never_stacks():
@@ -182,14 +181,14 @@ def test_settle_applies_the_manual_boost_for_its_game_only(tmp_path, monkeypatch
     bot = make_bot(tmp_path, monkeypatch, now)
     deps = make_casino_deps(bot)
     eco = bot.repos.for_guild(G)
-    t = time.time()
+    t = bot.services.clock.now_ts()
     eco.events.manual_event_start("スロット", 100, t - 10, t + 600)
     for game, expect in (("スロット", 2000), ("ルーレット", 0)):
         eid = eco.escrow.place_bet(1, 1000, game)
         ctx = common.GameContext(deps, 1, eid, game, 1000, G)
         net = ctx.settle(3000)
         assert ctx.event_bonus == expect and net == 2000 + expect  # 勝ち分2000に+100%
-    eco.events.manual_event_stop(time.time())  # 終わらせたあとは付かない
+    eco.events.manual_event_stop(t)  # 終わらせたあとは付かない
     eid = eco.escrow.place_bet(1, 1000, "スロット")
     ctx = common.GameContext(deps, 1, eid, "スロット", 1000, G)
     assert ctx.settle(3000) == 2000 and ctx.event_bonus == 0
@@ -201,7 +200,7 @@ def test_manual_boost_does_not_stack_with_the_scheduled_event(tmp_path, monkeypa
     bot = make_bot(tmp_path, monkeypatch, now)
     deps = make_casino_deps(bot)
     eco = bot.repos.for_guild(G)
-    t = time.time()
+    t = bot.services.clock.now_ts()
     eco.events.manual_event_start(ev.game, 20, t - 10, t + 600)  # 定例(50%)より小さい特別イベント
     eid = eco.escrow.place_bet(1, 1000, ev.game)
     ctx = common.GameContext(deps, 1, eid, ev.game, 1000, G)
@@ -225,7 +224,10 @@ def test_cog_start_announces_replaces_and_stop_announces_the_end(tmp_path, monke
     e = chan.sent[-1]["embed"]
     assert "特別イベント発生" in e.title and "1.8倍" in e.description and "/カジノ スロット" in e.description
     ok, text = run(cog.start_manual(guild, "ルーレット", 50, 30))
-    assert "置き換え" in text and bot.repos.for_guild(G).events.manual_event_get(time.time())["game"] == "ルーレット"
+    assert (
+        "置き換え" in text
+        and bot.repos.for_guild(G).events.manual_event_get(bot.services.clock.now_ts())["game"] == "ルーレット"
+    )
     ok, text = run(cog.stop_manual(guild))
     assert ok and "終了" in chan.sent[-1]["embed"].title
     ok, text = run(cog.stop_manual(guild))
@@ -234,7 +236,7 @@ def test_cog_start_announces_replaces_and_stop_announces_the_end(tmp_path, monke
 
 def test_cog_announces_the_end_once_when_time_runs_out(tmp_path, monkeypatch):
     cog, bot, guild, chan = make_cog(tmp_path, monkeypatch)
-    t = time.time()
+    t = bot.services.clock.now_ts()
     bot.repos.for_guild(G).events.manual_event_start("ルーレット", 50, t - 100, t - 1)  # 時間が過ぎた
     run(cog.run_once())
     run(cog.run_once())
@@ -245,7 +247,7 @@ def test_cog_announces_the_end_once_when_time_runs_out(tmp_path, monkeypatch):
 def test_a_removed_game_in_a_running_manual_event_does_not_break_the_announcements(tmp_path, monkeypatch):
     """廃止したゲーム（例: コイン）の特別イベントが DB に残っていても、終了の告知で落ちない。"""
     cog, bot, guild, chan = make_cog(tmp_path, monkeypatch)
-    t = time.time()
+    t = bot.services.clock.now_ts()
     bot.repos.for_guild(G).events.manual_event_start("コイン", 50, t - 100, t - 1)
     run(cog.run_once())
     assert len(chan.sent) == 1 and "終了" in chan.sent[0]["embed"].title

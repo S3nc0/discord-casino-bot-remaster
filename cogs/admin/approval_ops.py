@@ -38,10 +38,10 @@ async def ensure_requested(cog, guild: discord.Guild, renotify_after: int, reset
     row = cog._guild_repo.get_guild_status(guild.id)
     if row is None or (row["status"] == approval.DENIED and reset_denied):
         cog._guild_repo.set_guild_status(guild.id, approval.PENDING, guild.name)
-        await cog.request_approval(guild)
+        await request_approval(cog, guild, renotify_after)
     elif row["status"] == approval.PENDING:
         if row["notified_at"] is None or time.time() - row["notified_at"] > renotify_after:
-            await cog.request_approval(guild)
+            await request_approval(cog, guild, renotify_after)
 
 
 async def announce_approved(guild: discord.Guild) -> None:

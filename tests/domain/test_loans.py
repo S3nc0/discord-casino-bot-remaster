@@ -1,6 +1,7 @@
 """貸し借り: 日割り単利、承諾でお金が移る、返済、期限の自動回収、延滞の強制徴収、ボタンと通知。"""
 
 import asyncio
+import datetime
 import time
 from types import SimpleNamespace
 
@@ -275,11 +276,22 @@ def click(uid, log):
 
 
 def test_buttons_accept_decline_cancel_with_the_right_people(eco, monkeypatch):
+    from domain.ports.clock import IClock
     from services.loan import LoanService
+
+    class _Clock(IClock):
+        def now(self) -> datetime.datetime:
+            return datetime.datetime.fromtimestamp(NOW + 5)
+
+        def today(self) -> datetime.date:
+            return self.now().date()
+
+        def offset_hours(self) -> float:
+            return 9.0
 
     monkeypatch.setattr("domain.approval.is_allowed", lambda *a: True)
     config = {"owner_ids": [OWNER]}
-    svc = LoanService(eco.loans, SimpleNamespace(now=lambda: SimpleNamespace(timestamp=lambda: NOW + 5)))
+    svc = LoanService(eco.loans, _Clock())
     lid = offer(eco)
     log = []
     asyncio.run(handle_button(svc, eco.guild, config, click(C, log), "accept", lid))  # 関係ない人
@@ -352,7 +364,7 @@ def test_run_once_collects_notifies_and_expires(eco, monkeypatch):
     bot.guilds = [guild]
     cog = make_loan_cog(bot)
     now = 1_700_000_000.0
-    monkeypatch.setattr(bot.services.loan, "now_ts", lambda: now)
+    monkeypatch.setattr(bot.services.loan.clock, "now_ts", lambda: now)
     pending = eco.loans.loan_offer(A, B, 100, 20, 5, 777, now - 2 * DAY)[1]  # とっくに承諾期限切れ
     eco.loans.loan_set_message(pending, 4242)
     soon = eco.loans.loan_offer(A, C, 500, 10, 3, 777, now - 3 * DAY)[1]
