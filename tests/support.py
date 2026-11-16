@@ -111,16 +111,7 @@ def make_bond_cog(bot: Any):
 def make_p2p_cog(bot: Any):
     from cogs.p2p.cog import P2PCog
 
-    cog = P2PCog(
-        bot,
-        bot.config,
-        bot.repos.p2p,
-        bot.repos.horses,
-        bot.repos.shop,
-        bot.repos.wallet,
-        bot.repos.guild,
-        bot.sessions,
-    )
+    cog = P2PCog(bot, bot.config, bot.services.p2p, bot.repos.guild, bot.sessions)
     bot.bridges.register(IP2PListingBridge, cog)
     bot.bridges.register(IP2PNavigationBridge, cog)
     return cog
