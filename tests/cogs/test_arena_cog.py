@@ -88,6 +88,17 @@ def test_run_once_creates_and_announces_then_advances_through_semis_and_final(se
     assert any("決勝、決着" in s.get("embed", SimpleNamespace(title="")).title for s in chan.sent)
 
 
+def test_run_once_does_not_re_announce_after_a_bot_restart(setup, monkeypatch):
+    eco, chan, guild, bot, cog = setup
+    _at(monkeypatch, DAY_START)
+    asyncio.run(cog.run_once())
+    assert len(chan.sent) == 1  # 開幕の告知が1件だけ
+    cog2 = arena_cog.ArenaCog(bot)  # Bot再起動相当（_panels等はリセットされる）
+    _at(monkeypatch, jst(2.0))  # 再起動は、少し時間が経ってから
+    asyncio.run(cog2.run_once())
+    assert len(chan.sent) == 1  # 再起動後、同じ大会をもう一度告知しない
+
+
 def test_bet_panel_select_and_stake_modal_place_a_real_bet(setup, monkeypatch):
     eco, chan, guild, bot, cog = setup
     eco.credit(V, 10_000, "テスト")

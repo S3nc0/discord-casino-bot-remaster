@@ -32,7 +32,6 @@ class ArenaCog(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
         self._busy = set()
-        self._announced = set()  # (guild_id, day) のうち、今日の開幕を告知済みのもの
         self._panels = {}  # (guild_id, day) → 自動投稿した掲示のBetPanel（段が進むたび、同じメッセージを書き換える）
 
     async def cog_load(self):
@@ -106,8 +105,7 @@ class ArenaCog(commands.Cog):
                 day_key = (guild.id, t["day"])
                 tz = datetime.timezone(datetime.timedelta(hours=9))
                 tz_hour = datetime.datetime.fromtimestamp(now, tz).hour
-                if day_key not in self._announced:
-                    self._announced.add(day_key)
+                if t["created"] == now:  # このBotプロセスで初めてではなく、大会そのものが今できたときだけ告知する
                     channel = await self._channel(guild, eco)
                     if channel is not None:
                         panel = BetPanel(self.bot, t)
