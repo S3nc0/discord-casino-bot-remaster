@@ -121,7 +121,7 @@ class ArenaMixin(EcoBase):
             self._conn.execute("UPDATE arena_fighters SET bet_total = bet_total + ? WHERE id=?", (amount, fighter_id))
             return True, ""
 
-    def _arena_settle_group(self, tournament_id: int, stage: str, winner: dict, losers: list) -> None:
+    def _arena_settle_group(self, tournament_id: int, stage: str, winner: dict, losers: list, win_odds: float) -> None:
         """1試合ぶんを精算する。敗者側の賭け（観客ぶんも含む）が、勝者側のプレイヤーの配当の原資になる。"""
         loser_ids = [f["id"] for f in losers]
         losers_pool = 0
@@ -142,7 +142,7 @@ class ArenaMixin(EcoBase):
             self._conn.execute(
                 f"UPDATE arena_fighters SET stage='out', result='lost' WHERE id IN ({placeholders})", loser_ids
             )
-        rate = arena_mod.payout_rate(len(losers) + 1)
+        rate = win_odds
         win_bets = self._conn.execute(
             "SELECT * FROM arena_bets WHERE tournament_id=? AND stage=? AND fighter_id=? AND settled=0",
             (tournament_id, stage, winner["id"]),
@@ -171,7 +171,8 @@ class ArenaMixin(EcoBase):
                 bet_totals = {f["name"]: f["bet_total"] for f in group}
                 win_idx = arena_mod.simulate_match(group, bet_totals, rng)
                 winner, losers = group[win_idx], [f for i, f in enumerate(group) if i != win_idx]
-                self._arena_settle_group(tournament_id, "semi", winner, losers)
+                win_odds = arena_mod.match_odds(group)[winner["name"]]
+                self._arena_settle_group(tournament_id, "semi", winner, losers, win_odds)
                 finalists.append(winner)
                 groups[group_no] = {"winner": winner["name"], "losers": [f["name"] for f in losers]}
             for w in finalists:
@@ -192,7 +193,8 @@ class ArenaMixin(EcoBase):
             bet_totals = {f["name"]: f["bet_total"] for f in finalists}
             win_idx = arena_mod.simulate_match(finalists, bet_totals, rng)
             champion, runner_up = finalists[win_idx], finalists[1 - win_idx]
-            self._arena_settle_group(tournament_id, "final", champion, [runner_up])
+            win_odds = arena_mod.match_odds(finalists)[champion["name"]]
+            self._arena_settle_group(tournament_id, "final", champion, [runner_up], win_odds)
             self._conn.execute("UPDATE arena_tournaments SET status='done' WHERE id=?", (tournament_id,))
             return {"champion": champion["name"], "runner_up": runner_up["name"]}
 

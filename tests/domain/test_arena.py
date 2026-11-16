@@ -29,9 +29,18 @@ def test_group_size_matches_format():
     assert a.group_size("duel") == 2 and a.group_size("royale") == 4
 
 
-def test_payout_rate_depends_on_match_size_not_day_format():
-    assert a.payout_rate(2) == a.DUEL_PAYOUT  # 決勝はバトロワの日でも2人なので2倍
-    assert a.payout_rate(4) == a.ROYALE_PAYOUT
+def test_win_weights_favor_the_stronger_fighter_and_sum_to_one():
+    fighters = [{"name": "強い", "base_power": 80, "bet_total": 0}, {"name": "弱い", "base_power": 20, "bet_total": 0}]
+    w = a.win_weights(fighters)
+    assert w[0] > w[1]
+    assert abs(sum(w) - 1) < 1e-9
+
+
+def test_match_odds_are_higher_for_the_weaker_fighter_and_respect_the_cap():
+    fighters = [{"name": "強い", "base_power": 60, "bet_total": 0}, {"name": "弱い", "base_power": 40, "bet_total": 0}]
+    odds = a.match_odds(fighters)
+    assert odds["弱い"] > odds["強い"] > 1.0
+    assert all(o <= a.MAX_ODDS for o in odds.values())
 
 
 def test_generate_fighters_count_matches_format_and_names_are_unique():
@@ -116,7 +125,7 @@ def test_arena_run_semis_advances_exactly_two_finalists_and_settles_group_bets(e
     bets = eco.arena_my_bets(t["id"], U) + eco.arena_my_bets(t["id"], V)
     assert all(b["settled"] for b in bets)
     after = eco.balance(U) + eco.balance(V)
-    assert after <= before + 2_000 * (a.ROYALE_PAYOUT - 1)  # 新しいペリカを大量発生させていない
+    assert after <= before + 2_000 * (a.MAX_ODDS - 1)  # 新しいペリカを大量発生させていない
 
 
 def test_arena_run_final_crowns_champion_and_pays_without_minting_money(eco):
@@ -148,5 +157,5 @@ def test_arena_payout_scales_down_when_pool_is_insufficient(eco):
     eco.arena_run_semis(t["id"], rng=random.Random(1))
     my_bet = next(b for b in eco.arena_my_bets(t["id"], U) if b["fighter_id"] == winner_bias["id"])
     if my_bet["payout"] > 0:  # 勝っていれば、配当は原資（負け分）を超えない
-        assert my_bet["payout"] <= a.MIN_STAKE * a.payout_rate(2) + 1
+        assert my_bet["payout"] <= a.MIN_STAKE * a.MAX_ODDS + 1
     assert eco.balance(U) - before == my_bet["payout"]  # 賭け金はbet時点で引かれ済み。差分=配当そのもの

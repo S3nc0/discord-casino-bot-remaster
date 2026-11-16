@@ -31,11 +31,14 @@ def bettor_text(uid: int, amount: int) -> str:
     return f"{who} {ui.pelica(amount)}"
 
 
-def fighter_line(f: dict, bettors: list) -> str:
+def fighter_line(f: dict, bettors: list, odds: float) -> str:
     bonus = arena_mod.weapon_bonus(f["bet_total"])
     mark = {"semi": "⏳", "final": "🏅", "out": "💀"}[f["stage"]]
     weapon = f" 🗡️+{bonus:.0%}" if bonus > 0 else ""
-    line = f"{mark} **{f['name']}**　強さ {f['base_power']}{weapon}　賭け総額 {ui.pelica(f['bet_total'])}"
+    line = (
+        f"{mark} **{f['name']}**　強さ {f['base_power']}{weapon}　単勝 {odds:.1f}倍　"
+        f"賭け総額 {ui.pelica(f['bet_total'])}"
+    )
     if bettors:
         shown = "／".join(bettor_text(b["user_id"], b["amount"]) for b in bettors[:BETTORS_SHOWN])
         rest = len(bettors) - BETTORS_SHOWN
@@ -69,12 +72,14 @@ def tournament_embed(t: dict, semi_hour: int, final_hour: int, breakdown: dict) 
             groups.setdefault(f["group_no"], []).append(f)
     for group_no in sorted(groups):
         lines.append(f"__準決勝 第{group_no}組__")
-        lines.extend(fighter_line(f, breakdown.get(f["id"], [])) for f in groups[group_no])
+        odds = arena_mod.match_odds(groups[group_no])
+        lines.extend(fighter_line(f, breakdown.get(f["id"], []), odds[f["name"]]) for f in groups[group_no])
         lines.append("")
     if finalists or t["status"] in ("final_betting", "done"):
         lines.append("__決勝__")
         if finalists:
-            lines.extend(fighter_line(f, breakdown.get(f["id"], [])) for f in finalists)
+            odds = arena_mod.match_odds(finalists)
+            lines.extend(fighter_line(f, breakdown.get(f["id"], []), odds[f["name"]]) for f in finalists)
         else:
             lines.append("（準決勝の結果で決まります）")
     title = "🏛️ 地下闘技場"

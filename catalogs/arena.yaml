@@ -4,8 +4,8 @@ base_power_min: 20
 base_power_max: 80
 weapon_cap: 1.0
 weapon_scale: 50000
-duel_payout: 2.0
-royale_payout: 6.0
+takeout: 0.15
+max_odds: 20.0
 luck: 0.25
 min_stake: 100
 max_stake: 20000

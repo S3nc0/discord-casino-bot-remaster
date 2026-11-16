@@ -5,10 +5,12 @@
   - 1on1の日: 準決勝2試合（各2人）→ 決勝1試合（準決勝の勝者2人）。
   - バトロワの日: 準決勝2試合（各4人）→ 決勝1試合（準決勝の勝者2人、1on1）。
 - 戦士への賭け総額（大会を通じて累積）に応じて、その戦士は「武器」で強くなる（上限あり。必ず勝てるわけではない）。
-- 配当は、1on1勝者2倍・バトロワ勝者6倍。ただし、その試合に集まった賭け金（負けた側の賭け＋観客の初期ランダム分）を
+- 配当は、戦士の強さ（武器込み）だけから見積もった勝率にもとづくオッズ制（horse.pyの単勝オッズと同方式）。
+  賭け総額の人数には左右されない。ただし、その試合に集まった賭け金（負けた側の賭け＋観客の初期ランダム分）を
   超えて配当しない（新しくペリカを作らない。原資が足りなければ、配当は比例して減る）。
 """
 
+import math
 import random
 
 from domain.ports import get_catalogs
@@ -25,8 +27,8 @@ BASE_POWER_MAX = _CFG.base_power_max
 WEAPON_CAP = _CFG.weapon_cap  # 武器による強さの上乗せの上限（1.0 なら、最大で素の強さの2倍）
 WEAPON_SCALE = _CFG.weapon_scale  # この賭け総額で、上限に達する
 
-DUEL_PAYOUT = _CFG.duel_payout  # 1on1 勝者の配当倍率
-ROYALE_PAYOUT = _CFG.royale_payout  # バトロワ勝者の配当倍率
+TAKEOUT = _CFG.takeout  # オッズから引く控除
+MAX_ODDS = _CFG.max_odds  # 単勝オッズの上限
 LUCK = _CFG.luck  # 試合ごとの運（強さだけで決まらないようにする）
 
 MIN_STAKE = _CFG.min_stake
@@ -51,9 +53,24 @@ def group_size(fmt: str) -> int:
     return ROYALE_GROUP if fmt == "royale" else DUEL_GROUP
 
 
-def payout_rate(fighter_count: int) -> float:
-    """配当倍率は、その試合の参加人数で決まる（決勝はバトロワの日でも2人なので2倍になる）。"""
-    return ROYALE_PAYOUT if fighter_count > DUEL_GROUP else DUEL_PAYOUT
+def win_weights(fighters: list[dict]) -> list[float]:
+    """純粋な強さ（武器込み）だけから見積もる、各戦士の勝つ確率（合計1）。賭け総額の人数には左右されない。"""
+    weights = [effective_power(f["base_power"], f.get("bet_total", 0)) for f in fighters]
+    total = sum(weights) or 1
+    return [w / total for w in weights]
+
+
+def _odds(prob: float, takeout: float, cap: float) -> float:
+    """確率から、控除を引いた倍率（小数1桁に切り捨て・1.0倍以上・cap以下）。"""
+    if prob <= 0:
+        return cap
+    return max(1.0, min(cap, math.floor((1 - takeout) / prob * 10) / 10))
+
+
+def match_odds(fighters: list[dict]) -> dict:
+    """試合に出る戦士ごとの単勝オッズ（{名前: 倍率}）。"""
+    probs = win_weights(fighters)
+    return {f["name"]: _odds(p, TAKEOUT, MAX_ODDS) for f, p in zip(fighters, probs)}
 
 
 def generate_fighters(fmt: str, rng: random.Random) -> list[dict]:
