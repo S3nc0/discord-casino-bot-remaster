@@ -64,19 +64,19 @@ def setup(tmp_path, monkeypatch):
         bot.repos.close()
 
 
-def _at(monkeypatch, now):
-    monkeypatch.setattr("cogs.arena.cog.time.time", lambda: now)
+def _at(monkeypatch, bot, now):
+    monkeypatch.setattr(bot.services.arena, "now_ts", lambda: now)
 
 
 def test_run_once_creates_and_announces_then_advances_through_semis_and_final(setup, monkeypatch):
     repos, chan, guild, bot, cog = setup
-    _at(monkeypatch, DAY_START)  # 1時: 大会は作られるが、準決勝はまだ
+    _at(monkeypatch, bot, DAY_START)  # 1時: 大会は作られるが、準決勝はまだ
     asyncio.run(cog.run_once())
     assert "今日の大会が始まりました" in chan.sent[0]["content"]
     t = repos.arena.arena_tournament_get_by_day(repos.arena.arena_today(DAY_START))
     assert t["status"] == "semi_betting"
 
-    _at(monkeypatch, jst(a.SEMI_HOUR + 1))  # 準決勝の時刻を過ぎた
+    _at(monkeypatch, bot, jst(a.SEMI_HOUR + 1))  # 準決勝の時刻を過ぎた
     asyncio.run(cog.run_once())
     t = repos.arena.arena_tournament_get_by_day(t["day"])
     assert t["status"] == "final_betting"
@@ -85,7 +85,7 @@ def test_run_once_creates_and_announces_then_advances_through_semis_and_final(se
     asyncio.run(cog.run_once())  # 2回目は、もう準決勝を走らせない（status は変わらない）
     assert repos.arena.arena_tournament_get_by_day(t["day"])["status"] == "final_betting"
 
-    _at(monkeypatch, jst(a.FINAL_HOUR + 1))  # 決勝の時刻を過ぎた
+    _at(monkeypatch, bot, jst(a.FINAL_HOUR + 1))  # 決勝の時刻を過ぎた
     asyncio.run(cog.run_once())
     t = repos.arena.arena_tournament_get_by_day(t["day"])
     assert t["status"] == "done"
@@ -95,9 +95,9 @@ def test_run_once_creates_and_announces_then_advances_through_semis_and_final(se
 def test_bet_panel_select_and_stake_modal_place_a_real_bet(setup, monkeypatch):
     repos, chan, guild, bot, cog = setup
     repos.wallet.credit(V, 10_000, "テスト")
-    _at(monkeypatch, DAY_START)
+    _at(monkeypatch, bot, DAY_START)
     t = repos.arena.arena_tournament_ensure(DAY_START)
-    panel = views.BetPanel(repos.arena, t)
+    panel = views.BetPanel(bot.services.arena, t)
     bettable = views.bettable_fighters(t)
     assert bettable  # 受付中なら、賭けられる戦士がいる
     fighter = bettable[0]
@@ -123,7 +123,7 @@ def test_bet_panel_has_no_select_once_betting_is_closed(setup):
     repos.arena.arena_run_semis(t["id"])
     t = repos.arena.arena_tournament_get_by_day(t["day"])
     assert views.bettable_fighters(t)  # 決勝の受付中は、決勝進出の2人に賭けられる
-    panel = views.BetPanel(repos.arena, t)
+    panel = views.BetPanel(bot.services.arena, t)
     assert len(panel.children) == 1  # Select が1つだけ出る
 
 
@@ -139,7 +139,7 @@ def test_stake_modal_bet_refreshes_the_posted_panel_message(setup):
     repos, chan, guild, bot, cog = setup
     repos.wallet.credit(V, 10_000, "テスト")
     t = repos.arena.arena_tournament_ensure(DAY_START)
-    panel = views.BetPanel(repos.arena, t)
+    panel = views.BetPanel(bot.services.arena, t)
     panel.message = FakeMessage()
     fighter = views.bettable_fighters(t)[0]
     modal = views.StakeModal(panel, fighter)
@@ -163,7 +163,7 @@ def test_tournament_embed_shows_who_bet_how_much_on_each_fighter(setup):
     fighter = views.bettable_fighters(t)[0]
     repos.arena.arena_bet(U, fighter["id"], 1_500, DAY_START)
     repos.arena.arena_bet(V, fighter["id"], 700, DAY_START)
-    panel = views.BetPanel(repos.arena, repos.arena.arena_tournament_get_by_day(t["day"]))
+    panel = views.BetPanel(bot.services.arena, repos.arena.arena_tournament_get_by_day(t["day"]))
     desc = panel.embed().description
     assert f"<@{U}>" in desc and "1,500" in desc
     assert f"<@{V}>" in desc and "700" in desc
@@ -171,7 +171,7 @@ def test_tournament_embed_shows_who_bet_how_much_on_each_fighter(setup):
 
 def test_run_once_refreshes_the_auto_posted_panel_after_semis(setup, monkeypatch):
     repos, chan, guild, bot, cog = setup
-    _at(monkeypatch, DAY_START)
+    _at(monkeypatch, bot, DAY_START)
     asyncio.run(cog.run_once())
     day = repos.arena.arena_today(DAY_START)
     panel = cog._panels[(guild.id, day)]
@@ -183,6 +183,6 @@ def test_run_once_refreshes_the_auto_posted_panel_after_semis(setup, monkeypatch
         await orig_refresh()
 
     panel.refresh = spy
-    _at(monkeypatch, jst(a.SEMI_HOUR + 1))
+    _at(monkeypatch, bot, jst(a.SEMI_HOUR + 1))
     asyncio.run(cog.run_once())
     assert refreshed == [True]

@@ -239,7 +239,7 @@ def make_labor_cog(bot: Any):
 def make_arena_cog(bot: Any):
     from cogs.arena.cog import ArenaCog
 
-    return ArenaCog(bot, bot.config, bot.repos.arena, bot.repos.guild)
+    return ArenaCog(bot, bot.config, bot.services.arena, bot.repos.guild)
 
 
 def make_weekly_cog(bot: Any):

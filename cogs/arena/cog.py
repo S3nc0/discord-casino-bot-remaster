@@ -7,10 +7,8 @@
 """
 
 import asyncio
-import datetime
 import logging
 import random
-import time
 from typing import TYPE_CHECKING, Any, Optional
 
 import discord
@@ -23,8 +21,9 @@ from cogs.shared import ui
 from cogs.shared.announce import announce_channel
 from cogs.shared.tasks import run_for_allowed_guilds
 from domain import arena as arena_mod
-from domain.ports.repos import IArenaRepo, IGuildRepo
+from domain.ports.repos import IGuildRepo
 from infra import logthrottle
+from services.arena import ArenaService
 
 if TYPE_CHECKING:
     from cogs.shared.bot import CasinoBot
@@ -40,12 +39,12 @@ class ArenaCog(commands.Cog):
         self,
         bot: commands.Bot,
         config: dict[str, Any],
-        arena_repo: IArenaRepo,
+        arena_svc: ArenaService,
         guild_repo: IGuildRepo,
     ) -> None:
         self.bot = bot
         self._config = config
-        self._arena = arena_repo
+        self._arena = arena_svc
         self._guild_repo = guild_repo
         self._busy: set[int] = set()
         self._announced: set[tuple[int, str]] = set()  # (guild_id, day) のうち、今日の開幕を告知済みのもの
@@ -58,16 +57,12 @@ class ArenaCog(commands.Cog):
         self.tick.cancel()
 
     group = app_commands.Group(
-        name="闘技場", description="🏛️ 地下闘技場（1日1回の大会・NPC戦士に賭ける）", guild_only=True
+        name="闘技場", description="🏟️ 地下闘技場（1日1回の大会・NPC戦士に賭ける）", guild_only=True
     )
-
-    def g(self, interaction: discord.Interaction) -> IArenaRepo:
-        return self._arena.for_guild(ui.guild_id_of(interaction))
 
     @group.command(name="大会", description="今日の大会の状況を見る・賭ける")
     async def tournament(self, interaction: discord.Interaction) -> None:
-        arena = self.g(interaction)
-        t = arena.arena_tournament_ensure(time.time())
+        t = self._arena.ensure_tournament(ui.guild_id_of(interaction))
         panel = BetPanel(self._arena, t)
         await interaction.response.send_message(embed=panel.embed(), view=panel)
         try:
@@ -115,14 +110,12 @@ class ArenaCog(commands.Cog):
             logthrottle.warn(("arena-anim", cid), f"闘技場の演出を表示できません: {exc!r}")
 
     async def run_once(self) -> None:
-        now = time.time()
+        now = self._arena.now_ts()
+        tz_hour = self._arena.jst_hour(now)
 
         async def _handle(guild: discord.Guild) -> None:
-            arena = self._arena.for_guild(guild.id)
-            t = arena.arena_tournament_ensure(now)
+            t = self._arena.ensure_tournament(guild.id, now)
             day_key = (guild.id, t["day"])
-            tz = datetime.timezone(datetime.timedelta(hours=9))
-            tz_hour = datetime.datetime.fromtimestamp(now, tz).hour
             if day_key not in self._announced:
                 self._announced.add(day_key)
                 channel = await self._channel(guild)
@@ -138,7 +131,7 @@ class ArenaCog(commands.Cog):
                     self._panels[day_key] = panel
             if t["status"] == "semi_betting" and tz_hour >= arena_mod.SEMI_HOUR:
                 pre_fighters = t["fighters"]
-                result = arena.arena_run_semis(t["id"])
+                result = self._arena.run_semis(guild.id, t["id"])
                 if result:
                     channel = await self._channel(guild)
                     if channel is not None:
@@ -162,10 +155,10 @@ class ArenaCog(commands.Cog):
                         )
                     if day_key in self._panels:
                         await self._panels[day_key].refresh()
-            t = arena.arena_tournament_ensure(now)  # 準決勝の決着を反映して読み直す
+            t = self._arena.ensure_tournament(guild.id, now)  # 準決勝の決着を反映して読み直す
             if t["status"] == "final_betting" and tz_hour >= arena_mod.FINAL_HOUR:
                 pre_finalists = [f for f in t["fighters"] if f["stage"] == "final"]
-                result = arena.arena_run_final(t["id"])
+                result = self._arena.run_final(guild.id, t["id"])
                 if result:
                     channel = await self._channel(guild)
                     if channel is not None and len(pre_finalists) == 2:
@@ -196,4 +189,4 @@ class ArenaCog(commands.Cog):
 
 
 async def setup(bot: "CasinoBot") -> None:
-    await bot.add_cog(ArenaCog(bot, bot.config, bot.repos.arena, bot.repos.guild))
+    await bot.add_cog(ArenaCog(bot, bot.config, bot.services.arena, bot.repos.guild))
