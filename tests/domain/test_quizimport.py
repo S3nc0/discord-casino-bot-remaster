@@ -120,16 +120,17 @@ class FakeFile:
 
 
 def make(tmp_path, broadcasts=None):
+    from cogs.shared.bridges import IQuizAdminBridge
+
     eco = open_repositories(str(tmp_path / "t.db"))
-    quiz_cog = SimpleNamespace(broadcast=None)
 
-    async def broadcast(qid, guild=None, channel=None):
-        (broadcasts if broadcasts is not None else []).append(qid)
-        return 2
+    class StubQuiz(IQuizAdminBridge):
+        async def broadcast(self, quiz_id, guild=None, channel=None):
+            (broadcasts if broadcasts is not None else []).append(quiz_id)
+            return 2
 
-    quiz_cog.broadcast = broadcast
     bot = make_test_bot(repos=eco, config={"owner_ids": [OWNER]})
-    bot.bridges.quiz = quiz_cog
+    bot.bridges.register(IQuizAdminBridge, StubQuiz())
     return make_approval_cog(bot), eco
 
 

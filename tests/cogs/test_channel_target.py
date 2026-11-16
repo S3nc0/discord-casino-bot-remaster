@@ -46,16 +46,18 @@ def make_guild(gid=5, name="鯖5"):
 
 
 def make_admin(tmp_path, guilds, cogs=None):
+    from cogs.shared.bridges import IEventAdminBridge, IQuizAdminBridge, IRaffleAdminBridge
+
     by_id = {g.id: g for g in guilds}
     bot = make_test_bot(db_path=str(tmp_path / "t.db"), config={"owner_ids": [OWNER]})
     bot.guilds = list(guilds)
     bot.get_guild = lambda gid: by_id.get(gid)
     if cogs and "QuizCog" in cogs:
-        bot.bridges.quiz = cogs["QuizCog"]
+        bot.bridges.register(IQuizAdminBridge, cogs["QuizCog"])
     if cogs and "EventCog" in cogs:
-        bot.bridges.event = cogs["EventCog"]
+        bot.bridges.register(IEventAdminBridge, cogs["EventCog"])
     if cogs and "RaffleCog" in cogs:
-        bot.bridges.raffle = cogs["RaffleCog"]
+        bot.bridges.register(IRaffleAdminBridge, cogs["RaffleCog"])
     return make_approval_cog(bot), bot.repos, bot
 
 
@@ -246,18 +248,18 @@ def test_quiz_broadcast_can_target_one_guild_and_channel(tmp_path, monkeypatch):
 
 
 def test_bulk_register_announces_to_the_chosen_target(tmp_path):
+    from cogs.shared.bridges import IQuizAdminBridge
     from tests.domain.test_quizimport import ONE, FakeFile
 
     guild, chans = make_guild()
     calls = []
-    quiz_cog = SimpleNamespace()
 
-    async def broadcast(qid, g=None, c=None):
-        calls.append((qid, g, c))
-        return 1
+    class StubQuiz(IQuizAdminBridge):
+        async def broadcast(self, quiz_id, guild=None, channel=None):
+            calls.append((quiz_id, guild, channel))
+            return 1
 
-    quiz_cog.broadcast = broadcast
-    cog, eco, bot = make_admin(tmp_path, [guild], {"QuizCog": quiz_cog})
+    cog, eco, bot = make_admin(tmp_path, [guild], {"QuizCog": StubQuiz()})
     log, shown = [], {}
 
     class R:

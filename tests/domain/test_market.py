@@ -696,18 +696,16 @@ def test_drift_fades_out_as_the_price_rises_toward_the_band_and_stops_there():
 
 def test_a_step_without_any_shock_moves_the_price_by_exactly_the_drift(monkeypatch):
     class Calm:
-        @staticmethod
-        def gauss(mu, sigma):
+        def gauss(self, mu, sigma):
             return 0.0
 
-        @staticmethod
-        def random():
+        def random(self):
             return 1.0  # 有事なし
 
     prices = {s.key: s.start for s in market.SYMBOLS}
-    with_drift, _ = market.next_prices(prices, Calm)
+    with_drift, _ = market.next_prices(prices, Calm())
     monkeypatch.setattr(market, "drift_per_minute", lambda sym, price: 0.0)
-    without, _ = market.next_prices(prices, Calm)
+    without, _ = market.next_prices(prices, Calm())
     for sym in market.SYMBOLS:
         assert with_drift[sym.key] / without[sym.key] == pytest.approx(math.exp(sym.drift / 1440), rel=1e-4)
 

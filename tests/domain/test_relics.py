@@ -59,12 +59,10 @@ def test_chance_round_keeps_the_average_exact():
 
 # ----------------------------- 効果 ----------------------------- #
 class _NoCrit:  # 鉱脈ヒットを起こさない（random() が 1.0 なら、しきい値を超えない）
-    @staticmethod
-    def random():
+    def random(self):
         return 1.0
 
-    @staticmethod
-    def choices(*a, **kw):
+    def choices(self, *a, **kw):
         return random.choices(*a, **kw)
 
 
@@ -73,11 +71,11 @@ def test_fossil_raises_click_pay_by_one_percent_on_average(eco, monkeypatch):
     monkeypatch.setattr(lab, "MAX_CLICKS_PER_DAY", 10**9)  # 1日の上限で頭打ちにならないようにする
     plain = 0
     for k in range(1000):
-        plain += eco.labor.labor_click(U, T0 + k * 2000, DAY, rng=_NoCrit)["pay"]  # 疲労が回復するほど、間をあける
+        plain += eco.labor.labor_click(U, T0 + k * 2000, DAY, rng=_NoCrit())["pay"]  # 疲労が回復するほど、間をあける
     other = open_repositories(eco.db.db_path, strict=True).for_guild(G)
     give(other, "relic_fossil", uid=2)
     other.wallet.credit(2, 1_000, "テスト")
-    buffed = sum(other.labor.labor_click(2, T0 + k * 2000, DAY, rng=_NoCrit)["pay"] for k in range(1000))
+    buffed = sum(other.labor.labor_click(2, T0 + k * 2000, DAY, rng=_NoCrit())["pay"] for k in range(1000))
     assert plain == 10 * 1000  # 工具なし・疲労なしで、1回10
     assert 10_020 < buffed < 10_200  # 平均で +1%（確率で切り上げる）
 

@@ -635,15 +635,19 @@ def test_selling_through_the_modal_posts_the_announcement(cog, eco, monkeypatch)
 
 
 def test_the_announce_button_opens_the_detail_for_anyone(cog, eco):
+    from cogs.shared.bridges import BotBridges, IP2PListingBridge
+
     give(eco, S, CARROT)
     _, lid = eco.p2p.p2p_list(S, "item", CARROT, 1, "fixed", 1_000, None, time_now())
     button = p2p_cog.ListingButton(lid)
+    bridges = BotBridges()
+    bridges.register(IP2PListingBridge, cog)
     it = It(B)
-    it.client = SimpleNamespace(bridges=SimpleNamespace(p2p=cog))
+    it.client = SimpleNamespace(bridges=bridges)
     asyncio.run(button.callback(it))
     assert "にんじん" in it.sent[-1]["embed"].title and it.sent[-1]["view"].children
     gone = It(B)
-    gone.client = SimpleNamespace(bridges=SimpleNamespace(p2p=None))
+    gone.client = SimpleNamespace(bridges=BotBridges())
     asyncio.run(button.callback(gone))
     assert "いまは使えません" in gone.sent[-1]["embed"].title
 

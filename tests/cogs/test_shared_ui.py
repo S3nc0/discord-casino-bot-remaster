@@ -187,11 +187,13 @@ def test_messages_format_failures_notices_and_memo():
 
 
 def test_bot_bridges_stores_and_exposes_typed_bridges():
-    from cogs.shared.bridges import BotBridges, IShopTitleBridge
+    from cogs.shared.bridges import BotBridges, IApprovalBridge, IShopTitleBridge, NoOpShopTitleBridge
 
     bridges = BotBridges()
-    assert bridges.shop is None
-    assert bridges.approval is None
+    assert bridges.resolve(IShopTitleBridge) is None
+    assert bridges.resolve(IApprovalBridge) is None
+    assert not bridges.has(IShopTitleBridge)
+    assert isinstance(bridges.resolve_or(IShopTitleBridge, NoOpShopTitleBridge()), NoOpShopTitleBridge)
 
     class StubShop(IShopTitleBridge):
         async def sync_title_nick(self, user_id, here=None, member=None):
@@ -201,6 +203,10 @@ def test_bot_bridges_stores_and_exposes_typed_bridges():
             return None
 
     stub = StubShop()
-    bridges.shop = stub
-    assert bridges.shop is stub
-    assert isinstance(bridges.shop, IShopTitleBridge)
+    bridges.register(IShopTitleBridge, stub)
+    assert bridges.has(IShopTitleBridge)
+    assert bridges.resolve(IShopTitleBridge) is stub
+    assert bridges.resolve_or(IShopTitleBridge, NoOpShopTitleBridge()) is stub
+    assert isinstance(bridges.resolve(IShopTitleBridge), IShopTitleBridge)
+    bridges.unregister(IShopTitleBridge, stub)
+    assert not bridges.has(IShopTitleBridge)

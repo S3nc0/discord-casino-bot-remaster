@@ -420,6 +420,13 @@ def test_manage_tool_grants_to_the_right_server_and_lists_servers(tmp_path, caps
 
 
 def make_admin(tmp_path, guilds=None, extra_cogs=None):
+    from cogs.shared.bridges import (
+        IEventAdminBridge,
+        IHorseAdminBridge,
+        IQuizAdminBridge,
+        IRaffleAdminBridge,
+    )
+
     cogs = dict(extra_cogs or {})
     guild = SimpleNamespace(id=5, name="友達鯖", members=[], fetch_member=None)
     by_id = {5: guild} if guilds is None else guilds
@@ -428,13 +435,13 @@ def make_admin(tmp_path, guilds=None, extra_cogs=None):
     bot.get_guild = lambda gid: by_id.get(gid)
     bot.get_cog = lambda name: cogs.get(name)
     if "RaffleCog" in cogs:
-        bot.bridges.raffle = cogs["RaffleCog"]
+        bot.bridges.register(IRaffleAdminBridge, cogs["RaffleCog"])
     if "QuizCog" in cogs:
-        bot.bridges.quiz = cogs["QuizCog"]
+        bot.bridges.register(IQuizAdminBridge, cogs["QuizCog"])
     if "EventCog" in cogs:
-        bot.bridges.event = cogs["EventCog"]
+        bot.bridges.register(IEventAdminBridge, cogs["EventCog"])
     if "HorseCog" in cogs:
-        bot.bridges.horse = cogs["HorseCog"]
+        bot.bridges.register(IHorseAdminBridge, cogs["HorseCog"])
     return make_approval_cog(bot), bot.repos, guild, bot
 
 
@@ -523,11 +530,16 @@ def test_parse_user_id_and_autocomplete(tmp_path):
 
 def test_raffle_and_quiz_admin_commands_delegate_and_are_owner_only(tmp_path):
     import asyncio
+    from typing import Any, cast
+
+    import discord
+
+    from cogs.shared.bridges import IQuizAdminBridge, IRaffleAdminBridge
 
     calls = []
 
-    class FakeRaffle:
-        async def host(self, guild, host_id, fee, minutes, channel=None):
+    class FakeRaffle(IRaffleAdminBridge):
+        async def host(self, guild, host_id, fee=None, minutes=60, channel=None):
             calls.append(("host", guild.id, fee, minutes))
             return True, "投稿した"
 
@@ -539,16 +551,16 @@ def test_raffle_and_quiz_admin_commands_delegate_and_are_owner_only(tmp_path):
             calls.append(("cancel", guild.id))
             return True, "中止した"
 
-    class FakeQuiz:
-        def add_modal(self, announce=True, guild=None, channel=None):
+    class FakeQuiz(IQuizAdminBridge):
+        def add_modal(self, announce=True, guild=None, channel=None) -> discord.ui.Modal:
             calls.append(("modal", announce))
-            return SimpleNamespace()
+            return cast(discord.ui.Modal, cast(Any, SimpleNamespace()))
 
         def listing_embed(self):
             return __import__("cogs.shared.ui", fromlist=["ui"]).embed("一覧")
 
-        def remove(self, qid):
-            return qid == 1
+        def remove(self, quiz_id):
+            return quiz_id == 1
 
     cog, eco, guild, bot = make_admin(tmp_path, extra_cogs={"RaffleCog": FakeRaffle(), "QuizCog": FakeQuiz()})
     log = []
@@ -710,11 +722,13 @@ def test_announce_cancel_sends_nothing(tmp_path, monkeypatch):
 def test_event_admin_commands_target_one_or_all_allowed_guilds_and_are_owner_only(tmp_path, monkeypatch):
     import asyncio
 
+    from cogs.shared.bridges import IEventAdminBridge
+
     calls = []
 
-    class FakeEvent:
-        async def start_manual(self, guild, game, boost, minutes, channel=None):
-            calls.append(("start", guild.id, game, boost, minutes))
+    class FakeEvent(IEventAdminBridge):
+        async def start_manual(self, guild, game, boost_pct, minutes, channel=None):
+            calls.append(("start", guild.id, game, boost_pct, minutes))
             return True, f"{guild.name}: 開いた"
 
         async def stop_manual(self, guild):

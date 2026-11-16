@@ -3,7 +3,20 @@
 from types import SimpleNamespace
 from typing import Any, Optional
 
-from cogs.shared.bridges import BotBridges
+from cogs.shared.bridges import (
+    BotBridges,
+    IApprovalBridge,
+    IEventAdminBridge,
+    IHorseAdminBridge,
+    IHorseButtonBridge,
+    ILoanButtonBridge,
+    IP2PListingBridge,
+    IP2PNavigationBridge,
+    IQuizAdminBridge,
+    IQuizButtonBridge,
+    IRaffleAdminBridge,
+    IShopTitleBridge,
+)
 from domain.ports.session import ISessionGuard
 from infra.db.repositories import RepositoryBundle, open_repositories
 from services import ServiceRegistry, build_services
@@ -58,7 +71,6 @@ def make_economy_cog(bot: Any):
         guild_repo=bot.repos.guild,
         sessions=bot.sessions,
         clock=bot.services.clock,
-        shop_bridge=bot.bridges.shop,
     )
 
 
@@ -109,7 +121,8 @@ def make_p2p_cog(bot: Any):
         bot.repos.guild,
         bot.sessions,
     )
-    bot.bridges.p2p = cog
+    bot.bridges.register(IP2PListingBridge, cog)
+    bot.bridges.register(IP2PNavigationBridge, cog)
     return cog
 
 
@@ -128,9 +141,8 @@ def make_shop_cog(bot: Any):
         bot.repos.wallet,
         bot.repos.guild,
         bot.sessions,
-        p2p_bridge=bot.bridges.p2p,
     )
-    bot.bridges.shop = cog
+    bot.bridges.register(IShopTitleBridge, cog)
     return cog
 
 
@@ -146,7 +158,8 @@ def make_horse_cog(bot: Any):
         bot.repos.shop,
         bot.repos.guild,
     )
-    bot.bridges.horse = cog
+    bot.bridges.register(IHorseAdminBridge, cog)
+    bot.bridges.register(IHorseButtonBridge, cog)
     return cog
 
 
@@ -154,7 +167,8 @@ def make_quiz_cog(bot: Any):
     from cogs.quiz.cog import QuizCog
 
     cog = QuizCog(bot, bot.config, bot.repos.quiz, bot.repos.guild)
-    bot.bridges.quiz = cog
+    bot.bridges.register(IQuizAdminBridge, cog)
+    bot.bridges.register(IQuizButtonBridge, cog)
     return cog
 
 
@@ -162,7 +176,7 @@ def make_raffle_cog(bot: Any):
     from cogs.raffle.cog import RaffleCog
 
     cog = RaffleCog(bot, bot.config, bot.repos.raffle, bot.repos.guild)
-    bot.bridges.raffle = cog
+    bot.bridges.register(IRaffleAdminBridge, cog)
     return cog
 
 
@@ -170,7 +184,7 @@ def make_event_cog(bot: Any):
     from cogs.event.cog import EventCog
 
     cog = EventCog(bot, bot.config, bot.repos.events, bot.repos.guild, bot.services.clock)
-    bot.bridges.event = cog
+    bot.bridges.register(IEventAdminBridge, cog)
     return cog
 
 
@@ -186,12 +200,8 @@ def make_approval_cog(bot: Any):
         pachinko=bot.repos.pachinko,
         quiz_repo=bot.repos.quiz,
         labor_svc=bot.services.labor,
-        event_bridge=bot.bridges.event,
-        horse_bridge=bot.bridges.horse,
-        raffle_bridge=bot.bridges.raffle,
-        quiz_bridge=bot.bridges.quiz,
     )
-    bot.bridges.approval = cog
+    bot.bridges.register(IApprovalBridge, cog)
     return cog
 
 
@@ -216,7 +226,7 @@ def make_loan_cog(bot: Any):
     from cogs.loan.cog import LoanCog
 
     cog = LoanCog(bot, bot.config, bot.repos.loans, bot.repos.wallet, bot.repos.guild)
-    bot.bridges.loan = cog
+    bot.bridges.register(ILoanButtonBridge, cog)
     return cog
 
 
@@ -235,6 +245,5 @@ def make_weekly_cog(bot: Any):
         bot.services.economy,
         bot.repos.records,
         bot.repos.guild,
-        shop_bridge=bot.bridges.shop,
         clock=bot.services.clock,
     )

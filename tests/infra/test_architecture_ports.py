@@ -150,3 +150,37 @@ def test_cogs_no_infra_db_imports_and_no_service_locators():
             elif isinstance(node, ast.Name) and node.id in forbidden_names:
                 violations.append(f"{rel}:{node.lineno} uses locator {node.id}")
     assert not violations, "\n".join(violations)
+
+
+def test_production_follows_python_coding_conventions():
+    """本番コード全体で abc.ABC / @abstractmethod / Protocol / @staticmethod / 不要な @classmethod を禁止する。"""
+    allowed_classmethod_methods = {"from_custom_id"}
+    targets = [
+        *[p for folder in ("domain", "services", "infra", "cogs") for p in _iter_py(folder)],
+        ROOT / "main.py",
+        ROOT / "manage.py",
+    ]
+    violations: list[str] = []
+    for path in targets:
+        rel = path.relative_to(ROOT)
+        tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Import) and any(a.name == "abc" for a in node.names):
+                violations.append(f"{rel}:{node.lineno} imports abc")
+            elif isinstance(node, ast.ImportFrom) and node.module == "abc":
+                violations.append(f"{rel}:{node.lineno} imports from abc")
+            elif isinstance(node, ast.ClassDef):
+                for base in node.bases:
+                    base_name = base.id if isinstance(base, ast.Name) else getattr(base, "attr", "")
+                    if base_name in ("Protocol", "ABC"):
+                        violations.append(f"{rel}:{node.lineno} class {node.name}({base_name})")
+            elif isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                for dec in node.decorator_list:
+                    dec_str = ast.unparse(dec)
+                    if "abstractmethod" in dec_str:
+                        violations.append(f"{rel}:{node.lineno} @{dec_str} on {node.name}")
+                    elif "staticmethod" in dec_str:
+                        violations.append(f"{rel}:{node.lineno} @staticmethod on {node.name}")
+                    elif "classmethod" in dec_str and node.name not in allowed_classmethod_methods:
+                        violations.append(f"{rel}:{node.lineno} @classmethod on {node.name}")
+    assert not violations, "\n".join(violations)

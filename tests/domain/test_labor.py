@@ -1116,24 +1116,21 @@ def test_labor_click_stops_early_after_three_mechanical_hours(eco):
 
 # ----------------------------- 鉱脈ヒット・コンボ・今日の地層（#40） ----------------------------- #
 class _AlwaysCrit:
-    @staticmethod
-    def random():
+    def random(self):
         return 0.0  # しきい値より必ず下（ヒットし、鉱石も出る）
 
-    @staticmethod
-    def choices(pop, weights, k=1):
+    def choices(self, pop, weights, k=1):
         return [pop[0]]
 
 
 class _NeverCrit:
-    @staticmethod
-    def random():
+    def random(self):
         return 1.0
 
 
 def test_crit_multiplies_pay_and_can_add_an_ore(eco, monkeypatch):
     monkeypatch.setattr(lab, "crit_chance", lambda *a, **k: 1.0)  # 必ずヒットさせる
-    r = eco.labor.labor_click(U, T0, DAY, rng=_AlwaysCrit)
+    r = eco.labor.labor_click(U, T0, DAY, rng=_AlwaysCrit())
     assert r["crit"] and r["ore"] == "coal"
     assert r["pay"] == 10 * lab.CRIT_MULT + lab.ORE_VALUE["coal"]  # Lv0・疲労なしの通常10が5倍、鉱石の売値も乗る
     state = eco.labor.labor_state(U, T0 + 1, DAY)
@@ -1184,7 +1181,7 @@ def test_collected_finds_disappear_but_new_ones_after_collecting_still_show(eco,
 def test_hand_dug_ore_value_is_paid_out_on_collect(eco, monkeypatch):
     monkeypatch.setattr(lab, "crit_chance", lambda *a, **k: 1.0)
     before = eco.wallet.balance(U)
-    r = eco.labor.labor_click(U, T0, DAY, rng=_AlwaysCrit)
+    r = eco.labor.labor_click(U, T0, DAY, rng=_AlwaysCrit())
     assert r["ore"] == "coal"
     got = eco.labor.labor_collect(U, T0 + 1, DAY, detail=True)
     assert got["amount"] == r["pay"]  # 鉱石の売値を含めて、ちゃんとペリカになる
