@@ -7,14 +7,22 @@
 import datetime
 from typing import Any, Optional, Self
 
+from domain import shop as shop_mod
 from domain.games.rtplevel import DEFAULT_RTP_POLICY
 from domain.ports.clock import IClock
 from domain.ports.repos import (
+    IArenaRepo,
+    IAuctionRepo,
+    IDebtRepo,
     IEarningsRepo,
     IEscrowRepo,
     IEventRepo,
+    IGuildRepo,
+    IHorseRepo,
     ILaborRepo,
+    ILoanRepo,
     INoticeRepo,
+    IP2PRepo,
     IRaceRepo,
     IRecordRepo,
     IRtpRepo,
@@ -22,11 +30,15 @@ from domain.ports.repos import (
     IWalletRepo,
 )
 from domain.ports.session import ISessionGuard
-from domain.types import DailyResult, TransferResult
+from domain.types import DailyResult, PurchaseResult, TransferResult
+from services.arena import ArenaService
 from services.casino import CasinoService
 from services.economy import EconomyService
 from services.horse import HorseService
 from services.labor import LaborService
+from services.loan import LoanService
+from services.p2p import P2PService
+from services.shop import ShopService
 
 
 class FakeClock(IClock):
@@ -256,3 +268,124 @@ def test_economy_horse_and_labor_services_work_with_narrow_stubs():
     labor_svc = LaborService(StubLabor(), clock, {"timezone_offset_hours": 9})
     assert labor_svc.today_key() == "2026-11-15"
     assert labor_svc.click_report(10, 1, 24)["clicks"] == 3
+
+
+class StubArena(IArenaRepo):
+    def for_guild(self, guild_id: int) -> Self:
+        return self
+
+    def arena_tournament_ensure(self, now=None, tz_hours=9.0, rng=None) -> dict[str, Any]:
+        return {"id": 1, "day": "2026-11-15", "status": "semi_betting", "fighters": []}
+
+    def arena_bet(self, user_id: int, fighter_id: int, amount: int, now=None) -> tuple[Any, ...]:
+        return (True, amount)
+
+
+class StubLoan(ILoanRepo):
+    def for_guild(self, guild_id: int) -> Self:
+        return self
+
+    def loan_expire_offers(self, now: float) -> list[Any]:
+        return [{"id": 1}]
+
+    def loan_due_soon(self, now: float) -> list[Any]:
+        return [{"id": 2}]
+
+    def loan_collect_due(self, now: float) -> list[Any]:
+        return [{"id": 3, "status": "repaid"}]
+
+
+class StubP2P(IP2PRepo):
+    def for_guild(self, guild_id: int) -> Self:
+        return self
+
+    def p2p_label(self, row: Any) -> str:
+        return "にんじん"
+
+    def p2p_buy(self, buyer_id: int, listing_id: int, now=None) -> tuple[Any, ...]:
+        return (True, 1000)
+
+    def p2p_count(self, now=None) -> int:
+        return 1
+
+
+class StubHorse(IHorseRepo):
+    HORSE_PRICE = 10000
+
+    def for_guild(self, guild_id: int) -> Self:
+        return self
+
+    def horse_get(self, horse_id: int) -> Optional[dict[str, Any]]:
+        return {"id": horse_id, "name": "ハヤテ"}
+
+    def auction_horses(self, now=None) -> list[Any]:
+        return []
+
+
+class StubAuction(IAuctionRepo):
+    def for_guild(self, guild_id: int) -> Self:
+        return self
+
+    def auction_list(self, now=None) -> list[Any]:
+        return []
+
+
+class StubDebt(IDebtRepo):
+    def for_guild(self, guild_id: int) -> Self:
+        return self
+
+    def status(self, user_id: int, now=None) -> str:
+        return "katagi"
+
+
+class StubGuild(IGuildRepo):
+    def for_guild(self, guild_id: int) -> Self:
+        return self
+
+    def nick_pref(self, guild_id: int, user_id: int) -> bool:
+        return False
+
+
+class StubShopForService(StubShop):
+    def inventory(self, user_id: int) -> dict[str, Any]:
+        return {"title_rookie": 1}
+
+    def shop_stock(self, user_id: int, item_id: str, now=None) -> Optional[dict[str, Any]]:
+        return None
+
+    def purchase(self, user_id: int, item_id: str, label: str, price: int, unique: bool, qty: int = 1, now=None):
+        return PurchaseResult(True, balance=4000)
+
+
+def test_arena_loan_p2p_and_shop_services_work_with_narrow_stubs():
+    clock = FakeClock(datetime.datetime(2026, 11, 15, 20, 0, tzinfo=datetime.timezone(datetime.timedelta(hours=9))))
+
+    arena_svc = ArenaService(StubArena(), clock)
+    assert arena_svc.ensure_tournament(1)["status"] == "semi_betting"
+    assert arena_svc.jst_hour() == 20
+    assert arena_svc.place_bet(1, 10, 1, 500) == (True, 500)
+
+    loan_svc = LoanService(StubLoan(), clock)
+    outcome = loan_svc.process_tick(1)
+    assert len(outcome.expired) == 1 and len(outcome.due_soon) == 1 and len(outcome.collected) == 1
+
+    p2p_svc = P2PService(StubP2P(), StubHorse(), StubShopForService(), StubWallet({1: 5000}))
+    assert p2p_svc.buy(1, 10, 1) == (True, 1000)
+    assert p2p_svc.horse_of_listing(1, {"kind": "horse", "ref": "7"}) == {"id": 7, "name": "ハヤテ"}
+
+    shop_svc = ShopService(
+        StubShopForService(),
+        StubAuction(),
+        StubHorse(),
+        StubEarnings(),
+        StubDebt(),
+        StubP2P(),
+        StubWallet({1: 5000}),
+        StubGuild(),
+    )
+    owned = shop_mod.BY_ID["title_rookie"]
+    assert shop_svc.precheck_buy(1, 1, owned, 1).status == "owned"
+    carrot = shop_mod.BY_ID[shop_mod.CARROT]
+    assert shop_svc.precheck_buy(1, 1, carrot, 1).ok
+    assert shop_svc.purchase_item(1, 1, carrot, 1).ok
+    assert shop_svc.p2p_count(1) == 1

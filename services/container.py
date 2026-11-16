@@ -7,11 +7,15 @@ from domain.ports.clock import IClock
 from domain.ports.repos import IRepositoryBundle
 from domain.ports.session import ISessionGuard
 from infra.clock import ConfigClock
+from services.arena import ArenaService
 from services.casino import CasinoService
 from services.economy import EconomyService
 from services.horse import HorseService
 from services.labor import LaborService
+from services.loan import LoanService
 from services.market import MarketService
+from services.p2p import P2PService
+from services.shop import ShopService
 
 
 @dataclass(frozen=True)
@@ -25,6 +29,10 @@ class ServiceRegistry:
     horse: HorseService
     economy: EconomyService
     labor: LaborService
+    arena: ArenaService
+    loan: LoanService
+    p2p: P2PService
+    shop: ShopService
 
 
 def build_services(config: dict[str, Any], repos: IRepositoryBundle, sessions: ISessionGuard) -> ServiceRegistry:
@@ -65,4 +73,22 @@ def build_services(config: dict[str, Any], repos: IRepositoryBundle, sessions: I
             config=config,
         ),
         labor=LaborService(labor=repos.labor, clock=clock, config=config),
+        arena=ArenaService(arena=repos.arena, clock=clock),
+        loan=LoanService(loans=repos.loans, clock=clock),
+        p2p=P2PService(
+            p2p=repos.p2p,
+            horses=repos.horses,
+            shop=repos.shop,
+            wallet=repos.wallet,
+        ),
+        shop=ShopService(
+            shop_repo=repos.shop,
+            auction=repos.auction,
+            horses=repos.horses,
+            earnings=repos.earnings,
+            debt=repos.debt,
+            p2p=repos.p2p,
+            wallet=repos.wallet,
+            guild=repos.guild,
+        ),
     )
