@@ -101,7 +101,7 @@ ticks: 60
 max_ticks: 140
 fatigue_max: 0.22
 noise: 0.03
-luck: 0.020
+luck: 0.03
 
 weekday_hours: [9, 12, 15, 18, 21]
 weekend_hours: [9, 13, 17, 21]
