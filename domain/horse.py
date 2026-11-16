@@ -177,12 +177,13 @@ def move_points(stats: dict, src: str, dst: str, carrots: int = 1) -> tuple:
 
 
 def random_stats(rng: random.Random, total: int = STAT_TOTAL) -> dict:
-    """範囲内で、合計が total になる、ランダムな配分（NPC馬用）。"""
+    """範囲内で、合計が total になる、ランダムな配分（NPC馬用。にんじんと同じ CARROT_POINTS 刻みにそろえる）。"""
+    unit = CARROT_POINTS
     while True:
         raw = [rng.random() ** 0.8 + 0.25 for _ in STAT_KEYS]
         scale = (total - STAT_MIN * len(STAT_KEYS)) / sum(raw)
-        vals = [STAT_MIN + int(r * scale) for r in raw]
-        vals[0] += total - sum(vals)  # 端数は先頭に寄せる
+        vals = [STAT_MIN + unit * round(r * scale / unit) for r in raw]
+        vals[0] += total - sum(vals)  # 端数は先頭に寄せる（total・unit とも5の倍数なので、刻みは保たれる）
         stats = dict(zip(STAT_KEYS, vals))
         if (
             set(stats) == set(STAT_KEYS)
