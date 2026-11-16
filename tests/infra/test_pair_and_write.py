@@ -247,7 +247,7 @@ def choice(value):
 def new_cog(root):
     """このファイルで読み込んだ MarketCog で作る（他のテストが cogs を読み込み直しても、クラスがずれない）。"""
     cog = make_market_cog(make_test_bot(repos=root))
-    cog._prices()
+    cog._market_svc.latest_prices()
     return cog
 
 
@@ -275,7 +275,7 @@ def test_order_pair_needs_a_counterpart_and_shows_the_condition(cog):
 
 
 def test_order_naked_sell_asks_for_confirmation_and_creates_the_position(cog, monkeypatch):
-    from cogs.market import cog as market_cog
+    from cogs.market import orders
     from tests.domain.test_market import It
 
     asked = []
@@ -284,7 +284,7 @@ def test_order_naked_sell_asks_for_confirmation_and_creates_the_position(cog, mo
         asked.append((needed, title, text))
         return interaction.response.send_message
 
-    monkeypatch.setattr(market_cog, "_confirmed_reply", agree)  # 確認ダイアログは、内容だけを記録して通す
+    monkeypatch.setattr(orders, "default_confirmed_reply", agree)  # 確認ダイアログは、内容だけを記録して通す
     it = It()
     asyncio.run(MarketCog.order.callback(cog, it, choice("cs"), 2_000, choice("scall"), None, None))
     assert (
@@ -296,13 +296,13 @@ def test_order_naked_sell_asks_for_confirmation_and_creates_the_position(cog, mo
 
 
 def test_holdings_and_settle_for_a_naked_sell_and_a_pair(cog, monkeypatch):
-    from cogs.market import cog as market_cog
+    from cogs.market import orders
     from tests.domain.test_market import It
 
     async def agree(interaction, needed, title, text, label):
         return interaction.response.send_message
 
-    monkeypatch.setattr(market_cog, "_confirmed_reply", agree)
+    monkeypatch.setattr(orders, "default_confirmed_reply", agree)
     asyncio.run(MarketCog.order.callback(cog, It(), choice("cs"), 2_000, choice("sput"), None, None))
     asyncio.run(MarketCog.order.callback(cog, It(), choice("cs"), 1_000, choice("pair"), None, choice("numa")))
     it = It()

@@ -8,7 +8,8 @@ from types import SimpleNamespace
 
 import pytest
 
-from cogs.market.cog import MarketCog, _units_from
+from cogs.market import orders
+from cogs.market.cog import MarketCog
 from domain import market
 from domain.types import INITIAL_BALANCE
 from infra.db.repositories import open_repositories
@@ -201,7 +202,7 @@ def test_securities_group_has_four_commands_and_order_offers_every_symbol_and_bo
 def make_cog(eco):
     bot = make_test_bot(repos=eco)
     cog = make_market_cog(bot)
-    cog._prices()
+    cog._market_svc.latest_prices()
     return cog
 
 
@@ -210,7 +211,7 @@ def test_buy_other_symbol_via_command_and_holdings_list_it(eco):
 
     cog = make_cog(eco)
     it = It()
-    asyncio.run(cog._buy(it, "gold", 2_000))
+    asyncio.run(orders.buy_spot(cog, it, "gold", 2_000))
     assert "GOLD地金" in it.sent[-1]["embed"].title
     assert eco.for_guild(G).crypto.crypto_holding(U, "gold")[0] > 0 and eco.for_guild(G).crypto.crypto_holding(
         U, "cs"
@@ -282,8 +283,8 @@ def test_positions_and_settle_command_close_each_kind(eco):
     cog = make_cog(eco)
     a = eco.for_guild(G)
     a.wallet.credit(U, 20_000, "テスト")
-    a.crypto.crypto_buy(U, 1_000, cog._price("cs"), "cs")
-    a.margin.short_open(U, 2_000, cog._price("teio"), 1, "teio")  # 確認ボタンが出ない小さい額
+    a.crypto.crypto_buy(U, 1_000, cog._market_svc.latest_price("cs"), "cs")
+    a.margin.short_open(U, 2_000, cog._market_svc.latest_price("teio"), 1, "teio")  # 確認ボタンが出ない小さい額
     a.bonds.bond_buy(U, "normal", 1_000, 1.0)
     a.bonds.bond_buy(U, "junk", 1_000, 1.0)  # ジャンク債は売れない: 候補に出ない
     codes = [c for c, _ in cog.positions(U, G)]
@@ -308,7 +309,7 @@ def test_settle_half_of_a_spot_position(eco):
 
     cog = make_cog(eco)
     a = eco.for_guild(G)
-    a.crypto.crypto_buy(U, 2_000, cog._price("cs"), "cs")
+    a.crypto.crypto_buy(U, 2_000, cog._market_svc.latest_price("cs"), "cs")
     have = a.crypto.crypto_holding(U, "cs")[0]
     asyncio.run(MarketCog.settle.callback(cog, It(), "spot:cs", choice("half")))
     assert a.crypto.crypto_holding(U, "cs")[0] == have - have // 2
@@ -319,7 +320,7 @@ def test_holdings_screen_lists_everything_with_a_button_per_position(eco):
 
     cog = make_cog(eco)
     a = eco.for_guild(G)
-    a.crypto.crypto_buy(U, 1_000, cog._price("gold"), "gold")
+    a.crypto.crypto_buy(U, 1_000, cog._market_svc.latest_price("gold"), "gold")
     a.bonds.bond_buy(U, "normal", 1_000, time.time())
     it = It()
     asyncio.run(MarketCog.holdings.callback(cog, it))
@@ -395,7 +396,7 @@ def test_settle_by_percent_sells_that_share_of_a_spot_position(eco):
 
     cog = make_cog(eco)
     a = eco.for_guild(G)
-    assert a.crypto.crypto_buy(U, 2_000, cog._price("cs"), "cs").ok
+    assert a.crypto.crypto_buy(U, 2_000, cog._market_svc.latest_price("cs"), "cs").ok
     have = a.crypto.crypto_holding(U, "cs")[0]
     assert have > 0
     asyncio.run(MarketCog.settle.callback(cog, It(), "spot:cs", None, 25))
@@ -406,11 +407,11 @@ def test_settle_by_percent_sells_that_share_of_a_spot_position(eco):
 
 
 def test_percent_units_are_at_least_one_unit_and_both_options_are_refused(eco):
-    assert _units_from(1_000, None, choice(1)) == 10
-    assert _units_from(50, None, choice(1)) == 1  # 端数でも、最低1口
-    assert _units_from(1_000, None, choice("half")) == 500
-    assert _units_from(1_000, None, choice(100)) is None
-    assert _units_from(1_000, None, None) is None
+    assert orders.units_from(1_000, None, choice(1)) == 10
+    assert orders.units_from(50, None, choice(1)) == 1  # 端数でも、最低1口
+    assert orders.units_from(1_000, None, choice("half")) == 500
+    assert orders.units_from(1_000, None, choice(100)) is None
+    assert orders.units_from(1_000, None, None) is None
     from tests.domain.test_market import It
 
     cog = make_cog(eco)
@@ -425,7 +426,7 @@ def test_percent_closes_that_share_of_a_margin_position(eco):
     cog = make_cog(eco)
     a = eco.for_guild(G)
     a.wallet.credit(U, 20_000, "テスト")
-    assert a.margin.short_open(U, 10_000, cog._price("cs"), 1, "cs").ok
+    assert a.margin.short_open(U, 10_000, cog._market_svc.latest_price("cs"), 1, "cs").ok
     have = a.margin.short_position(U, "cs")[0]
     asyncio.run(MarketCog.settle.callback(cog, It(), "short:cs", None, 30))
     assert a.margin.short_position(U, "cs")[0] == have - have * 30 // 100

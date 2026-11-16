@@ -10,6 +10,7 @@ from types import SimpleNamespace
 import discord
 import pytest
 
+from cogs.market import feed, orders
 from cogs.market.cog import MarketCog
 from domain import market
 from domain.types import INITIAL_BALANCE
@@ -230,19 +231,19 @@ class It:
 def cog(eco):
     bot = make_test_bot(repos=eco)
     c = make_market_cog(bot)
-    c._price()
+    c._market_svc.latest_price()
     return c
 
 
 def test_buy_sell_holdings_commands(cog):
     it = It()
-    run(cog._buy(it, "cs", 1_000))
+    run(orders.buy_spot(cog, it, "cs", 1_000))
     assert "買いました" in it.sent[-1]["embed"].title
     it = It()
     run(cog.holdings.callback(cog, it))
     assert "保有" in it.sent[-1]["embed"].description
     it = It()
-    run(cog._sell(it, "cs", None, None))
+    run(orders.sell_spot(cog, it, "cs", None, None))
     assert "売りました" in it.sent[-1]["embed"].title
     assert cog.bot.sessions.try_start(U) is None  # 取引のあと、プレイ中のままにならない
 
@@ -250,7 +251,7 @@ def test_buy_sell_holdings_commands(cog):
 def test_trading_is_refused_during_a_game(cog):
     assert cog.bot.sessions.try_start(U) is None
     it = It()
-    run(cog._buy(it, "cs", 1_000))
+    run(orders.buy_spot(cog, it, "cs", 1_000))
     assert "取引できません" in it.sent[-1]["embed"].title
     assert cog.bot.repos.for_guild(G).crypto.crypto_holding(U) == (0, 0)
 
@@ -287,8 +288,8 @@ def test_holders_are_per_server_sorted_and_limited(eco):
 
 
 def test_chart_lists_holders_with_cost_price_and_percent(cog):
-    cog.bot.repos.for_guild(G).crypto.crypto_buy(U, 1_000, cog._price())
-    cog.bot.repos.market.market_set(time_now() + 1, int(cog._price() * 1.1), 0)
+    cog.bot.repos.for_guild(G).crypto.crypto_buy(U, 1_000, cog._market_svc.latest_price())
+    cog.bot.repos.market.market_set(time_now() + 1, int(cog._market_svc.latest_price() * 1.1), 0)
     e = cog.chart_embed("24h", guild_id=G)
     field = next(f for f in e.fields if "保有者" in f.name)
     assert "保有者" in field.name and f"<@{U}>" in field.value and "+" in field.value and "取得" in field.value
@@ -305,15 +306,15 @@ def time_now():
 
 
 def test_sell_shows_position_change_and_remaining(cog):
-    run(cog._buy(It(), "cs", 2_000))
+    run(orders.buy_spot(cog, It(), "cs", 2_000))
     have, _ = cog.bot.repos.for_guild(G).crypto.crypto_holding(U)
-    cog.bot.repos.market.market_set(time_now() + 1, int(cog._price() * 1.2), 0)
+    cog.bot.repos.market.market_set(time_now() + 1, int(cog._market_svc.latest_price() * 1.2), 0)
     it = It()
-    run(cog._sell(it, "cs", have / 2000, None))  # 半分売る
+    run(orders.sell_spot(cog, it, "cs", have / 2000, None))  # 半分売る
     text = it.sent[-1]["embed"].description
     assert "+" in text and "%" in text and "取得" in text and "残りの持ち分" in text and "評価損益" in text
     it = It()
-    run(cog._sell(it, "cs", None, None))
+    run(orders.sell_spot(cog, it, "cs", None, None))
     assert "全部売りました" in it.sent[-1]["embed"].description
 
 
@@ -420,14 +421,14 @@ def test_chart_command_registers_a_live_chart_that_updates_then_ends(cog):
     post = cog.bot.repos.market.live_chart_posts()[0]
     assert post["channel_id"] == 5 and post["guild_id"] == G and post["period"] == "24h"
     now = post["ts"] + 120
-    run(cog._refresh_post(post, now, {}))  # 2分後: 更新される（まだ続く）
+    run(feed.refresh_post(cog.bot, cog._market, cog, post, now, {}))  # 2分後: 更新される（まだ続く）
     assert (
         len(ch.edits) == 1
         and "自動で更新（あと" in ch.edits[0][1].footer.text
         and cog.bot.repos.market.live_chart_posts()
     )
     end = post["ts"] + market_cog.LIVE_MINUTES * 60
-    run(cog._refresh_post(post, end, {}))  # 60分後: 最後に1回書き換えて、終わる
+    run(feed.refresh_post(cog.bot, cog._market, cog, post, end, {}))  # 60分後: 最後に1回書き換えて、終わる
     assert "更新は終了しました" in ch.edits[-1][1].footer.text and cog.bot.repos.market.live_chart_posts() == []
     assert len(ch.edits) == 2  # 終わったあとは、もう更新しない
 
@@ -448,7 +449,7 @@ def test_tick_updates_only_live_posts_and_shares_one_embed_per_view(cog, monkeyp
     monkeypatch.setattr(cog, "chart_embed", lambda *a, **kw: built.append(1) or orig(*a, **kw))
     cache = {}
     for post in cog.bot.repos.market.live_chart_posts():
-        run(cog._refresh_post(post, now, cache))
+        run(feed.refresh_post(cog.bot, cog._market, cog, post, now, cache))
     assert len(chans[5].edits) == 1 and len(chans[6].edits) == 1 and chans[7].edits == []
     assert len(built) == 1  # 同じ表示は、1回だけ作って使い回す
 
@@ -459,13 +460,13 @@ def test_deleted_chart_stops_being_updated_and_errors_do_not_stop_others(cog):
     cog.bot.repos.market.swap_chart_post(5, 105, G, "24h", time.time())
     post = cog.bot.repos.market.live_chart_posts()[0]
     ch.error = discord.NotFound(SimpleNamespace(status=404, reason="x"), "gone")  # 誰かがチャートを消した
-    run(cog._refresh_post(post, time.time(), {}))
+    run(feed.refresh_post(cog.bot, cog._market, cog, post, time.time(), {}))
     assert cog.bot.repos.market.live_chart_posts() == []
     cog.bot.repos.market.swap_chart_post(5, 106, G, "24h", time.time())
     ch.error = discord.Forbidden(
         SimpleNamespace(status=403, reason="x"), "no"
     )  # 権限が無い: 例外にせず、次の周期で再試行
-    run(cog._refresh_post(cog.bot.repos.market.live_chart_posts()[0], time.time(), {}))
+    run(feed.refresh_post(cog.bot, cog._market, cog, cog.bot.repos.market.live_chart_posts()[0], time.time(), {}))
     assert cog.bot.repos.market.live_chart_posts()
 
 
@@ -473,7 +474,7 @@ def test_legacy_or_unknown_rows_end_without_crashing(cog):
     ch = EditChan(5)
     live_env(cog, ch)
     cog.bot.repos.market.swap_chart_post(5, 105, 0, "24h", 0)  # 古い版で作られた行（サーバーが分からない）
-    run(cog._refresh_post(cog.bot.repos.market.live_chart_posts()[0], time.time(), {}))
+    run(feed.refresh_post(cog.bot, cog._market, cog, cog.bot.repos.market.live_chart_posts()[0], time.time(), {}))
     assert ch.edits == [] and cog.bot.repos.market.live_chart_posts() == []
 
 
@@ -495,11 +496,11 @@ def test_old_chart_board_is_removed_once(cog):
         cog.bot.repos.db.conn.execute(
             "INSERT INTO chart_boards (guild_id, channel_id, message_id) VALUES (?, 5, 777)", (G,)
         )
-    run(cog._retire_old_boards())
+    run(feed.retire_old_boards(cog.bot, cog._market))
     assert (
         ch.deleted == [777] and cog.bot.repos.market.list_chart_boards() == []
     )  # 掲示のメッセージを消し、設定も捨てる
-    run(cog._retire_old_boards())
+    run(feed.retire_old_boards(cog.bot, cog._market))
     assert ch.deleted == [777]  # 2回目は何もしない
 
 
@@ -594,27 +595,27 @@ def test_short_counts_in_ranking_and_payout_repays_debt(eco):
 
 def test_short_commands(cog):
     it = It()
-    run(cog._short(it, "cs", 1.0, None, 2))
+    run(orders.margin_order(cog, it, "short", "cs", 1.0, None, 2))
     assert "空売りしました" in it.sent[-1]["embed"].title
     assert cog.bot.repos.for_guild(G).margin.short_position(U)[0] == 1_000
     it = It()
     run(MarketCog.holdings.callback(cog, it))
     assert "空売り" in it.sent[-1]["embed"].description and "維持率" in it.sent[-1]["embed"].description
     it = It()
-    run(cog._cover(it, "cs", None, None))
+    run(orders.margin_close(cog, it, "short", "cs", None, None))
     assert (
         "買い戻しました" in it.sent[-1]["embed"].title and cog.bot.repos.for_guild(G).margin.short_position(U)[0] == 0
     )
     it = It()
-    run(cog._cover(it, "cs", None, None))
+    run(orders.margin_close(cog, it, "short", "cs", None, None))
     assert "買い戻せません" in it.sent[-1]["embed"].title  # 建てていない
     it = It()
-    run(cog._cover(it, "cs", 1.0, discord.app_commands.Choice(name="半分", value="half")))
+    run(orders.margin_close(cog, it, "short", "cs", 1.0, discord.app_commands.Choice(name="半分", value="half")))
     assert "どちらか1つ" in it.sent[-1]["embed"].title
 
 
 def test_chart_lists_short_sellers_with_profit_when_price_falls(cog):
-    price = cog._price()
+    price = cog._market_svc.latest_price()
     cog.bot.repos.for_guild(G).margin.short_open(U, 2_000, price, 2)
     cog.bot.repos.market.market_set(time_now() + 1, round(price * 0.9, 2), 0)  # 10%下がった: 空売りは利益
     e = cog.chart_embed("24h", guild_id=G)
@@ -624,16 +625,16 @@ def test_chart_lists_short_sellers_with_profit_when_price_falls(cog):
 
 
 def test_short_can_be_sized_by_amount_or_lots_but_not_both(cog):
-    price = cog._price()
+    price = cog._market_svc.latest_price()
     it = It()
-    run(cog._short(it, "cs", None, 1_000, 2))  # 金額1,000ペリカ分
+    run(orders.margin_order(cog, it, "short", "cs", None, 1_000, 2))  # 金額1,000ペリカ分
     units = cog.bot.repos.for_guild(G).margin.short_position(U)[0]
     assert "空売りしました" in it.sent[-1]["embed"].title and units == int(1_000 * 1_000 // price)
     it = It()
-    run(cog._short(it, "cs", 1.0, 1_000, None))
+    run(orders.margin_order(cog, it, "short", "cs", 1.0, 1_000, None))
     assert "どちらか1つ" in it.sent[-1]["embed"].title
     it = It()
-    run(cog._short(it, "cs", None, None, None))
+    run(orders.margin_order(cog, it, "short", "cs", None, None, None))
     assert "どちらか1つ" in it.sent[-1]["embed"].title
 
 

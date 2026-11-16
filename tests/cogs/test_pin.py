@@ -132,6 +132,10 @@ def test_step_prices_keeps_the_displayed_price_in_the_band_and_records_the_pin(e
     for key, price in START.items():
         assert shown[key] == pytest.approx(round(price * 0.7, 2), abs=0.02)  # 画面は -30% で止まる
         assert eco.market.market_pin(key) == -1 and eco.market.market_fair_get(key) == pytest.approx(price * 0.4)
-    assert "ストップ安" in cog.pin_lines("cs") and "現物の売却" in cog.pin_lines("cs")
+    from cogs.market import embeds as market_embeds
+
+    assert "ストップ安" in market_embeds.pin_lines(
+        eco.market.market_pin("cs")
+    ) and "現物の売却" in market_embeds.pin_lines(eco.market.market_pin("cs"))
     eco.market.market_fair_set("cs", START["cs"], 0, now)
-    assert cog.pin_lines("cs") == ""
+    assert market_embeds.pin_lines(eco.market.market_pin("cs")) == ""

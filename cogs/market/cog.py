@@ -9,32 +9,22 @@ import discord
 from discord import app_commands
 from discord.ext import commands, tasks
 
-from cogs.market import feed
-from cogs.market import orders as orders
+from cogs.market import feed, orders
 from cogs.market.bond_embeds import KIND_CHOICES
 from cogs.market.embeds import (
     CORRELATION_MINUTES,
-    EVENT_TEXT,  # noqa: F401
     HOLDER_ROWS,
     LIVE_MINUTES,
     TICK_MINUTES,
     chart_embed,
-    correlation_lines,
-    correlation_table,
-    cut_lines,
-    earnings_lines,
-    event_lines,
     holdings_embed,
-    pin_lines,
     summary_embed,
 )
-from cogs.market.embeds import alert_lines as _alert_lines
 from cogs.market.views import HoldingsView, MarketView
 from cogs.market.views import OptionAmountModal as OptionAmountModal  # noqa: F401
 from cogs.shared import ui
 from cogs.shared.amount import balance_choices, own_balance, typed_amount
 from cogs.shared.announce import announce_channel
-from domain import approval as approval  # noqa: F401
 from domain import market, market_events
 from domain import options as opt
 from domain.ports import get_catalogs
@@ -66,11 +56,6 @@ BOND_PREFIX = "bond_"
 ORDER_CHOICES = SYMBOL_CHOICES + [
     app_commands.Choice(name=f"債券: {c.name}", value=BOND_PREFIX + c.value) for c in KIND_CHOICES
 ]
-
-_confirmed_reply = orders.default_confirmed_reply
-_reject_lots_and_ratio = orders.reject_lots_and_ratio
-_units_from = orders.units_from
-_worth = orders.worth
 
 
 class MarketCog(commands.Cog):
@@ -112,20 +97,11 @@ class MarketCog(commands.Cog):
     )
 
     # ------------------------------ 価格の更新（MarketService へ委譲） ------------------------------ #
-    def _price(self, symbol: str = market.DEFAULT) -> float:
-        return self._market_svc.latest_price(symbol)
-
-    def _prices(self) -> dict[str, float]:
-        return self._market_svc.latest_prices()
-
-    def _day_reference(self, now: float) -> dict:
-        return self._market_svc.day_reference(now)
-
     def step_prices(self) -> tuple:
         return self._market_svc.step_prices(self._earnings_results, RNG)
 
     async def cog_load(self):
-        self._prices()  # 初回は開始価格を入れる（起動直後でもコマンドが使えるように）
+        self._market_svc.latest_prices()  # 初回は開始価格を入れる（起動直後でもコマンドが使えるように）
         self.tick.start()
 
     async def cog_unload(self) -> None:
@@ -150,7 +126,7 @@ class MarketCog(commands.Cog):
         now, cache = time.time(), {}
         for post in self._market.live_chart_posts():
             try:
-                await self._refresh_post(post, now, cache)
+                await feed.refresh_post(self.bot, self._market, self, post, now, cache)
             except Exception as exc:
                 print(f"チャートの更新に失敗: {post}: {exc!r}")
 
@@ -169,17 +145,11 @@ class MarketCog(commands.Cog):
     async def _before_tick(self):
         await self.bot.wait_until_ready()
         try:
-            await self._retire_old_boards()
+            await feed.retire_old_boards(self.bot, self._market)
         except Exception as exc:
             print(f"古いチャート掲示の後始末に失敗: {exc!r}")
 
     # ------------------------------ 表示 ------------------------------ #
-    def _histories_24h(self, now: float) -> dict[str, list]:
-        return self._market_svc.histories(CORRELATION_MINUTES, now)
-
-    def correlation_lines(self, symbol: str) -> str:
-        return correlation_lines(symbol, self._histories_24h(time.time()))
-
     def chart_embed(
         self,
         period: str = "24h",
@@ -193,7 +163,7 @@ class MarketCog(commands.Cog):
         _label, seconds = market.PERIODS[period]
         hist = self._market.market_history(now - seconds, symbol)
         pin = self._market.market_pin(symbol)
-        hist_24h = self._histories_24h(now)
+        hist_24h = self._market_svc.histories(CORRELATION_MINUTES, now)
         holders = self._crypto.for_guild(guild_id).crypto_holders(HOLDER_ROWS, symbol) if guild_id is not None else ()
         shorts = self._margin.for_guild(guild_id).short_holders(HOLDER_ROWS, symbol) if guild_id is not None else ()
         return chart_embed(
@@ -210,32 +180,10 @@ class MarketCog(commands.Cog):
             now=now,
         )
 
-    def pin_lines(self, symbol: str) -> str:
-        return pin_lines(self._market.market_pin(symbol))
-
-    def correlation_table(self) -> str:
-        return correlation_table(self._histories_24h(time.time()))
-
-    def event_lines(self) -> str:
-        now = time.time()
-        return event_lines(self._market_events.market_events(now), now)
-
-    def earnings_lines(self) -> str:
-        return earnings_lines(self._earnings.earnings_upcoming(time.time()))
-
-    def alert_lines(self) -> str:
-        since = time.time() - (market_events.ALERT_WINDOW + 5) * 60
-        history = {s.key: [p for _, p, _ in self._market.market_history(since, s.key)] for s in market.SYMBOLS}
-        return _alert_lines(history)
-
-    def cut_lines(self, guild_id: int) -> str:
-        prices = self._prices()
-        return cut_lines(prices, self._margin.for_guild(guild_id).margin_cut_map(prices))
-
     def summary_embed(self, guild_id: Optional[int] = None) -> discord.Embed:
         now = time.time()
-        hist_24h = self._histories_24h(now)
-        latest = self._prices()
+        hist_24h = self._market_svc.histories(CORRELATION_MINUTES, now)
+        latest = self._market_svc.latest_prices()
         upcoming = self._earnings.earnings_upcoming(now)
         ev_rows = self._market_events.market_events(now)
         since_alert = now - (market_events.ALERT_WINDOW + 5) * 60
@@ -281,9 +229,6 @@ class MarketCog(commands.Cog):
             logthrottle.warn(("chart-swap", gid), f"前のチャートを消せません: guild={gid}: {exc!r}")
 
     # ------------------------------ 売買 ------------------------------ #
-    async def _trade(self, interaction: discord.Interaction, action):
-        await orders.run_trade(self._sessions, interaction, action)
-
     async def _buy_amount_autocomplete(self, interaction: discord.Interaction, current: str):
         choices = balance_choices(self._wallet, interaction, current, 10, 1_000_000)
         balance = own_balance(self._wallet, interaction.guild_id, interaction.user.id)
@@ -293,57 +238,6 @@ class MarketCog(commands.Cog):
                 if value >= 10:
                     choices.append(app_commands.Choice(name=f"残高の{pct}%（{value:,}ペリカ）", value=value))
         return choices[:25]
-
-    async def _buy(self, interaction: discord.Interaction, symbol: str, amount: int) -> None:
-        await orders.buy_spot(self, interaction, symbol, amount, confirm_fn=_confirmed_reply)
-
-    async def _cover(self, interaction, symbol: str, lots, ratio) -> None:
-        await self._margin_close(interaction, "short", symbol, lots, ratio)
-
-    async def _margin_close(self, interaction, side: str, symbol: str, lots, ratio) -> None:
-        await orders.margin_close(self, interaction, side, symbol, lots, ratio, confirm_fn=_confirmed_reply)
-
-    async def _sell(self, interaction: discord.Interaction, symbol: str, lots, ratio) -> None:
-        await orders.sell_spot(self, interaction, symbol, lots, ratio, confirm_fn=_confirmed_reply)
-
-    async def _short(
-        self, interaction: discord.Interaction, symbol: str, lots=None, amount: Optional[int] = None, leverage: int = 1
-    ) -> None:
-        await self._margin_order(interaction, "short", symbol, lots, amount, leverage)
-
-    async def _margin_order(
-        self,
-        interaction: discord.Interaction,
-        side: str,
-        symbol: str,
-        lots=None,
-        amount: Optional[int] = None,
-        leverage: int = 1,
-    ) -> None:
-        await orders.margin_order(
-            self, interaction, side, symbol, lots=lots, amount=amount, leverage=leverage, confirm_fn=_confirmed_reply
-        )
-
-    async def _option_buy(
-        self,
-        interaction: discord.Interaction,
-        kind: str,
-        symbol: str,
-        amount: int,
-        symbol2: Optional[str] = None,
-        target: Optional[int] = None,
-    ) -> None:
-        await orders.option_buy(
-            self, interaction, kind, symbol, amount, symbol2=symbol2, target=target, confirm_fn=_confirmed_reply
-        )
-
-    async def _option_write(
-        self, interaction: discord.Interaction, kind: str, symbol: str, amount: int, target: Optional[int] = None
-    ) -> None:
-        await orders.option_write(self, interaction, kind, symbol, amount, target=target, confirm_fn=_confirmed_reply)
-
-    async def _option_sell(self, interaction: discord.Interaction, option_id: int) -> None:
-        await orders.option_sell(self, interaction, option_id, confirm_fn=_confirmed_reply)
 
     # ------------------------------ 注文 ------------------------------ #
     @group.command(name="注文", description="買う・信用買い・空売り・債券を買う（銘柄と金額を選ぶだけ）")
@@ -400,7 +294,7 @@ class MarketCog(commands.Cog):
                     ),
                     ephemeral=True,
                 )
-            return await self._bond_buy(interaction, symbol.value[len(BOND_PREFIX) :], amount)
+            return await orders.bond_buy(self, interaction, symbol.value[len(BOND_PREFIX) :], amount)
         if kind in (opt.CALL, opt.PUT, opt.PAIR, "scall", "sput"):
             if lev != 1:
                 return await interaction.response.send_message(
@@ -418,12 +312,18 @@ class MarketCog(commands.Cog):
                     ephemeral=True,
                 )
             if kind in ("scall", "sput"):
-                return await self._option_write(interaction, kind[1:], symbol.value, amount, target)
-            return await self._option_buy(
-                interaction, kind, symbol.value, amount, counterpart.value if counterpart else None, target
+                return await orders.option_write(self, interaction, kind[1:], symbol.value, amount, target=target)
+            return await orders.option_buy(
+                self,
+                interaction,
+                kind,
+                symbol.value,
+                amount,
+                symbol2=counterpart.value if counterpart else None,
+                target=target,
             )
         if kind in ("short", "long"):
-            return await self._margin_order(interaction, kind, symbol.value, amount=amount, leverage=lev)
+            return await orders.margin_order(self, interaction, kind, symbol.value, amount=amount, leverage=lev)
         if lev != 1:
             return await interaction.response.send_message(
                 embed=ui.error_embed(
@@ -435,7 +335,7 @@ class MarketCog(commands.Cog):
             return await interaction.response.send_message(
                 embed=ui.error_embed("金額が大きすぎます", "現物は、1回に1,000,000ペリカまで買えます。"), ephemeral=True
             )
-        await self._buy(interaction, symbol.value, amount)
+        await orders.buy_spot(self, interaction, symbol.value, amount)
 
     # ------------------------------ 保有・決済 ------------------------------ #
     def positions(self, uid: int, guild_id: int) -> list:
@@ -444,13 +344,13 @@ class MarketCog(commands.Cog):
     async def settle_position(self, interaction: discord.Interaction, code: str, ratio=None) -> None:
         kind, _, target = code.partition(":")
         if kind == "spot" and target in market.BY_KEY:
-            return await self._sell(interaction, target, None, ratio)
+            return await orders.sell_spot(self, interaction, target, None, ratio)
         if kind in ("short", "long") and target in market.BY_KEY:
-            return await self._margin_close(interaction, kind, target, None, ratio)
+            return await orders.margin_close(self, interaction, kind, target, None, ratio)
         if kind == "opt" and target.isdigit():
-            return await self._option_sell(interaction, int(target))
+            return await orders.option_sell(self, interaction, int(target))
         if kind == "bond" and target.isdigit():
-            return await self._bond_cancel(interaction, int(target))
+            return await orders.bond_cancel(self, interaction, int(target))
         await interaction.response.send_message(
             embed=ui.error_embed("決済できません", "決済する持ち物を、候補から選んでください。"), ephemeral=True
         )
@@ -512,20 +412,6 @@ class MarketCog(commands.Cog):
                 ephemeral=True,
             )
         await self.settle_position(interaction, position, ratio if percent is None else SimpleNamespace(value=percent))
-
-    # ------------------------------ 債券 ------------------------------ #
-    async def _bond_buy(self, interaction: discord.Interaction, kind_key: str, amount: int) -> None:
-        await orders.bond_buy(self, interaction, kind_key, amount)
-
-    async def _bond_cancel(self, interaction: discord.Interaction, bond_id: int) -> None:
-        await orders.bond_cancel(self, interaction, bond_id)
-
-    # ------------------------------ チャート定期更新（feed.py へ委譲） ------------------------------ #
-    async def _refresh_post(self, post: dict, now: float, cache: dict) -> None:
-        await feed.refresh_post(self.bot, self._market, self, post, now, cache)
-
-    async def _retire_old_boards(self) -> None:
-        await feed.retire_old_boards(self.bot, self._market)
 
     @commands.Cog.listener()
     async def on_guild_remove(self, guild: discord.Guild):
