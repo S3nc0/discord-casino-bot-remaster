@@ -37,20 +37,12 @@ from cogs.shop.embeds import (  # noqa: F401
     tab_items,
 )
 from cogs.shop.views import ShopView
-from domain import shop, teiai
+from domain import teiai
 from domain.ports import get_catalogs
-from domain.ports.repos import (
-    IAuctionRepo,
-    IDebtRepo,
-    IEarningsRepo,
-    IGuildRepo,
-    IHorseRepo,
-    IP2PRepo,
-    IShopRepo,
-    IWalletRepo,
-)
+from domain.ports.repos import IGuildRepo
 from domain.ports.session import ISessionGuard
 from infra import logthrottle
+from services.shop import ShopService
 
 if TYPE_CHECKING:
     from cogs.shared.bot import CasinoBot
@@ -68,26 +60,14 @@ class ShopCog(commands.Cog, IShopTitleBridge):
         self,
         bot: commands.Bot,
         config: dict[str, Any],
-        shop_repo: IShopRepo,
-        auction_repo: IAuctionRepo,
-        horses: IHorseRepo,
-        earnings: IEarningsRepo,
-        debt: IDebtRepo,
-        p2p_repo: IP2PRepo,
-        wallet: IWalletRepo,
+        shop_svc: ShopService,
         guild_repo: IGuildRepo,
         sessions: ISessionGuard,
         p2p_bridge: Optional[IP2PNavigationBridge] = None,
     ) -> None:
         self.bot = bot
         self._config = config
-        self._shop = shop_repo
-        self._auction = auction_repo
-        self._horses = horses
-        self._earnings = earnings
-        self._debt = debt
-        self._p2p = p2p_repo
-        self._wallet = wallet
+        self.service = shop_svc
         self._guild_repo = guild_repo
         self._sessions = sessions
         self._p2p_bridge = p2p_bridge
@@ -105,39 +85,13 @@ class ShopCog(commands.Cog, IShopTitleBridge):
     def _role_lock(self, guild_id: int) -> asyncio.Lock:
         return self._role_locks.setdefault(guild_id, asyncio.Lock())
 
-    def g(self, interaction: discord.Interaction) -> IShopRepo:
-        """このサーバーのショップ記録（景品・在庫はサーバーごとに別々）。"""
-        return self._shop.for_guild(ui.guild_id_of(interaction))
-
-    def auction_of(self, interaction: discord.Interaction) -> IAuctionRepo:
-        return self._auction.for_guild(ui.guild_id_of(interaction))
-
-    def horses_of(self, interaction: discord.Interaction) -> IHorseRepo:
-        return self._horses.for_guild(ui.guild_id_of(interaction))
-
-    def earnings_of(self, interaction: discord.Interaction) -> IEarningsRepo:
-        return self._earnings.for_guild(ui.guild_id_of(interaction))
-
-    def wallet_of(self, interaction: discord.Interaction) -> IWalletRepo:
-        return self._wallet.for_guild(ui.guild_id_of(interaction))
-
     def _equipped_title(self, guild_id: int, user_id: int) -> str | None:
         """そのサーバーで装備している称号（景品はサーバーごとに別々）。"""
-        item = shop.BY_ID.get(self._shop.for_guild(guild_id).get_profile(user_id)["title"])
-        return item.name if item else None
+        return self.service.equipped_title(guild_id, user_id)
 
     def _nick_tag(self, guild_id: int, user_id: int) -> str | None:
         """ニックネームの末尾に付ける名前。"""
-        status = self._debt.for_guild(guild_id).status(user_id)
-        if status != teiai.KATAGI:
-            return teiai.STATUS_NAME[status]
-        if self._guild_repo.nick_pref(guild_id, user_id):
-            return self._equipped_title(guild_id, user_id)  # 自分で選んだ称号の表示を、富豪より優先する
-        return (
-            teiai.STATUS_NAME[teiai.WEALTHY]
-            if self._wallet.for_guild(guild_id).display_status(user_id) == teiai.WEALTHY
-            else None
-        )
+        return self.service.nick_tag(guild_id, user_id)
 
     async def sync_status_nick(self, guild: discord.Guild, member: discord.Member) -> None:
         """身分に合わせて、ニックネームの末尾の【地下労働者】などを付ける・外す。"""
@@ -249,37 +203,24 @@ class ShopCog(commands.Cog, IShopTitleBridge):
         await interaction.response.send_message(embed=view.embed(), view=view, ephemeral=True)
 
     def _catalog_embed(self, guild_id: int, user_id: int, tab: str = "home") -> discord.Embed:
-        shop_repo = self._shop.for_guild(guild_id)
-        inv = shop_repo.inventory(user_id)
-        me = self._wallet.for_guild(guild_id).peek_stats(user_id)
-        balance = me["balance"] if me else 0
+        inv = self.service.inventory(guild_id, user_id)
+        balance = self.service.peek_balance(guild_id, user_id)
         waiting = (
-            len(self._auction.for_guild(guild_id).auction_list())
-            + len(self._horses.for_guild(guild_id).auction_horses())
+            len(self.service.auction_items(guild_id)) + len(self.service.auction_horses(guild_id))
             if tab == "home"
             else 0
         )
-        stocks = (
-            {
-                i.id: st
-                for i in tab_items(tab)
-                if i.id in shop.STOCK_RULES and (st := shop_repo.shop_stock(user_id, i.id)) is not None
-            }
-            if tab != "home"
-            else None
-        )
+        stocks = self.service.stocks_for_items(guild_id, user_id, tab_items(tab)) if tab != "home" else None
         return catalog_embed(inv, balance, tab=tab, waiting=waiting, stocks=stocks)
 
     def _auction_embed(
         self, guild_id: int, user_id: int, tab: str = "teiai", p2p_filter: str = "all", p2p_order: str = "end"
     ) -> discord.Embed:
-        me = self._wallet.for_guild(guild_id).peek_stats(user_id)
-        balance = me["balance"] if me else 0
+        balance = self.service.peek_balance(guild_id, user_id)
         if tab == "players":
             _label, kind, mode = P2P_FILTERS[p2p_filter]
-            p2p_repo = self._p2p.for_guild(guild_id)
-            rows = p2p_repo.p2p_active(kind, limit=SHOWN, mode=mode, order=p2p_order)
-            p2p_rows = [(r, p2p_repo.p2p_label(r)) for r in rows]
+            rows = self.service.p2p_active(guild_id, kind, SHOWN, mode, p2p_order)
+            p2p_rows = [(r, self.service.p2p_label(guild_id, r)) for r in rows]
             return auction_embed(
                 balance,
                 tab=tab,
@@ -292,13 +233,12 @@ class ShopCog(commands.Cog, IShopTitleBridge):
             tab=tab,
             p2p_filter=p2p_filter,
             p2p_order=p2p_order,
-            listed=self._auction.for_guild(guild_id).auction_list(),
-            horses=self._horses.for_guild(guild_id).auction_horses(),
+            listed=self.service.auction_items(guild_id),
+            horses=self.service.auction_horses(guild_id),
         )
 
     def _inventory_embed(self, guild_id: int, user_id: int) -> discord.Embed:
-        shop_repo = self._shop.for_guild(guild_id)
-        return inventory_embed(shop_repo.inventory(user_id), shop_repo.get_profile(user_id))
+        return inventory_embed(self.service.inventory(guild_id, user_id), self.service.profile(guild_id, user_id))
 
     async def buy_auction_horse(self, interaction: discord.Interaction, horse_id: int):
         await actions.buy_auction_horse(self, interaction, horse_id, confirm_fn=confirm_action)
@@ -323,18 +263,6 @@ class ShopCog(commands.Cog, IShopTitleBridge):
 
 
 async def setup(bot: "CasinoBot") -> None:
-    cog = ShopCog(
-        bot,
-        bot.config,
-        bot.repos.shop,
-        bot.repos.auction,
-        bot.repos.horses,
-        bot.repos.earnings,
-        bot.repos.debt,
-        bot.repos.p2p,
-        bot.repos.wallet,
-        bot.repos.guild,
-        bot.sessions,
-    )
+    cog = ShopCog(bot, bot.config, bot.services.shop, bot.repos.guild, bot.sessions)
     bot.bridges.register(IShopTitleBridge, cog)
     await bot.add_cog(cog)

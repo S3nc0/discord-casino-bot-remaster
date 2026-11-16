@@ -251,19 +251,7 @@ def test_deferred_and_dynamic_cog_bridges_are_load_order_independent(tmp_path):
         bot.repos.guild,
         clock=bot.services.clock,
     )
-    shop_cog = ShopCog(
-        bot,
-        bot.config,
-        bot.repos.shop,
-        bot.repos.auction,
-        bot.repos.horses,
-        bot.repos.earnings,
-        bot.repos.debt,
-        bot.repos.p2p,
-        bot.repos.wallet,
-        bot.repos.guild,
-        bot.sessions,
-    )
+    shop_cog = ShopCog(bot, bot.config, bot.services.shop, bot.repos.guild, bot.sessions)
     approval = ApprovalCog(
         bot,
         config=bot.config,

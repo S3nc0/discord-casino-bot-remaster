@@ -120,19 +120,7 @@ def make_p2p_cog(bot: Any):
 def make_shop_cog(bot: Any):
     from cogs.shop.cog import ShopCog
 
-    cog = ShopCog(
-        bot,
-        bot.config,
-        bot.repos.shop,
-        bot.repos.auction,
-        bot.repos.horses,
-        bot.repos.earnings,
-        bot.repos.debt,
-        bot.repos.p2p,
-        bot.repos.wallet,
-        bot.repos.guild,
-        bot.sessions,
-    )
+    cog = ShopCog(bot, bot.config, bot.services.shop, bot.repos.guild, bot.sessions)
     bot.bridges.register(IShopTitleBridge, cog)
     return cog
 
