@@ -85,7 +85,7 @@
 | `clock.py` | `IClock`（現在時刻・日付の抽象契約） |
 | `session.py` | `ISessionGuard`（二重プレイ防止セッション管理の契約） |
 | `repos.py` | DB リポジトリ用名目的基底クラス群（`IDbController`・`IWalletRepo`・`IEscrowRepo`・`IGuildRepo`・`ICasinoStatsRepo`・`IRtpRepo`・`IEventRepo`・`INoticeRepo`・`IWeeklyRepo`・`IRecordRepo`・`ILoanRepo`・`IShopRepo`・`IAuctionRepo`・`IDebtRepo`・`IBankRepo`・`ICryptoRepo`・`IMarginRepo`・`IBondRepo`・`IOptionRepo`・`IAssetRepo`・`IMarketDataRepo`・`IMarketEventRepo`・`IEarningsRepo`・`IRaffleRepo`・`IQuizRepo`・`IP2PRepo`・`IHorseRepo`・`IRaceRepo`・`ILaborRepo`・`IRelicRepo`・`IPachinkoRepo`・`IApprovalAdminRepo`） |
-| `bridges.py` | リポジトリ・サービス間の循環を防ぐ細粒度ブリッジ契約（`IEscrowAccountBridge`・`IWealthyReader`・`IIncomeDebtApplier`・`ILoanDebtorOps`・`IPachinkoStatsReader`・`IAssetPortfolioReader`） |
+| `bridges.py` | リポジトリ・サービス間の循環を防ぐ細粒度ブリッジ契約と Null Object / Composite（`NoOp*`・`Composite*`・`IValuationSource`・`IAssetCollector`・`IAssetSeizureStep` 等） |
 
 ### `games/` — ゲームのルール（純粋な計算）
 
@@ -107,7 +107,7 @@
 | `approval.py` | サーバー許可リストと承認状態の純粋判定 |
 | `nick.py` | 称号をニックネームの後ろに付け外しする文字列処理 |
 | `relics.py` | 発掘品の効果（持っている間、種類ごとに +1%） |
-| `labor.py` | 地下作業の数字・鉱石の表・抽選・契約の決算の計算 |
+| `labor.py` | 地下作業の数字・鉱石の表・抽選・契約の決済の計算 |
 | `horse.py` | 競馬の数字とレースのシミュレーション |
 | `market.py` / `market_events.py` | 証券の価格変動・売買計算・チャート / ボラティリティ予報と相関崩壊警報 |
 | `options.py` | オプションの値付け・銘柄表示名 |
@@ -134,12 +134,13 @@
 
 | パス | 内容 |
 |---|---|
-| `base.py` | `EcoDb`（共有 DB 接続・ロック・`tx()`・`close()`）とギルドスコープ共通基底 `ScopedRepo` |
+| `base.py` | `EcoDb`（共有 DB 接続・ロック・`tx()`・`close()`）、`ScopedRepo`（ギルドスコープ共通基底）、`validate_guild_id()` |
 | `schema/` | DB の表定義（`tables.py`）と旧版からの列追加・データ移行（`migrations.py`） |
 | `repositories.py` | `RepositoryBundle` と `open_repositories()`（全リポジトリの構築・ブリッジ接続・`for_guild(gid)` スコープ切り替え・`db` 管理） |
-| `account.py` | `AccountHelper`（口座残高・台帳記帳・借金天引きの共有プリミティブ） |
+| `lazy_bridges.py` | 初期化時の循環参照を解決する遅延解決ブリッジラッパー（`Lazy*`） |
+| `account.py` | `AccountCore`（口座残高・台帳記帳・借金ライフサイクルフックの共有プリミティブ） |
 | `escrow.py` / `wallet.py` | 賭け金預かり・精算（`EscrowRepo`）と残高・デイリー・ランキング・統計・送金（`WalletRepo`） |
-| `assets.py` / `auction.py` / `bank.py` / `bonds.py` / `crypto.py` / `debt.py` / `earnings.py` / `events.py` / `guild.py` / `horse.py` / `labor.py` / `loans.py` / `margin.py` / `market.py` / `market_events.py` / `notices.py` / `options.py` / `p2p.py` / `pachinko.py` / `quiz.py` / `race.py` / `raffle.py` / `records.py` / `relics.py` / `rtp.py` / `shop.py` | 機能別の独立リポジトリ群（各 `domain/ports/repos.py` 契約を継承実装） |
+| `assets.py` / `auction.py` / `bank.py` / `bonds.py` / `crypto.py` / `debt.py` / `earnings.py` / `events.py` / `guild.py` / `horse.py` / `labor.py` / `loans.py` / `margin.py` / `market.py` / `market_events.py` / `notices.py` / `options.py` / `p2p.py` / `pachinko.py` / `quiz.py` / `race.py` / `raffle.py` / `records.py` / `relics.py` / `rtp.py` / `shop.py` | 機能別の独立リポジトリ群と `IAssetCollector` / `IAssetSeizureStep` / `ILiquidationStep` 戦略群（各 `domain/ports/repos.py` 契約を継承実装） |
 
 ## `tests/` — 自動テスト
 
@@ -150,7 +151,7 @@
 | `conftest.py` | テスト共通の準備（`ScopedRepo.for_guild`・`RepositoryBundle.for_guild` シングルスコーピング、ミッション・イベント固定など） |
 | `support.py` | テスト共有ビルダー（`make_test_bot`・`make_*_cog`・`make_casino_deps` 等） |
 | `domain/` | 純粋ドメインロジック・`domain/games/` の単体テスト |
-| `infra/` | `catalogs/*.yaml` 検証・DB 永続化・`RepositoryBundle` ギルド分離・ポート境界ガード（`test_architecture_ports.py`）・銀行・証拠金・P2P 等のテスト |
+| `infra/` | `catalogs/*.yaml` 検証・DB 永続化・`RepositoryBundle` ギルド分離・ポート境界＆規約ガード（`test_architecture_ports.py`）・Bridge OCP/ISP/LSP 検証（`test_bridge_ocp_lsp.py`）・銀行・証拠金・P2P 等のテスト |
 | `cogs/` | Cog・埋め込み・モーダル・承認・共通 UI 部品のテスト |
 | `flows/` | コマンド一覧・画面フロー全体の統合検証（`test_flows.py`） |
 
