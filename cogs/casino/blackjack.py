@@ -7,7 +7,7 @@ import discord
 from cogs.casino.common import (
     CasinoDeps,
     GameContext,
-    OwnerView,
+    GameOwnerView,
     ReplayView,
     game_title,
     log_display_failure,
@@ -61,7 +61,7 @@ async def play_blackjack(interaction: discord.Interaction, deps: CasinoDeps, bet
         raise
 
 
-class BlackjackView(OwnerView):
+class BlackjackView(GameOwnerView):
     def __init__(self, ctx: GameContext, origin: discord.Interaction, game: rules.Game):
         super().__init__(ctx, timeout=90)
         self.origin = origin

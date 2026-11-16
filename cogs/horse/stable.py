@@ -15,11 +15,11 @@ from domain.ports.repos import IHorseRepo, IRaceRepo, IShopRepo
 from services.horse import HorseService
 
 
-class StyleView(discord.ui.View):
+class StyleView(ui.OwnerView):
     """脚質を選ぶ（選ばなければ、ステータスから自動で決まる）。"""
 
     def __init__(self, stable: "Stable", user_id: int, horse: dict):
-        super().__init__(timeout=300)
+        super().__init__(user_id, timeout=300)
         self.stable, self.user_id, self.horse = stable, user_id, horse
         auto = horse_mod.style_of({k: horse[k] for k in horse_mod.STAT_KEYS})
         options = [
@@ -46,9 +46,6 @@ class StyleView(discord.ui.View):
         )
         return ui.embed(f"🎭 {self.horse['name']} の脚質", f"いまの脚質: **{label}**", ui.INFO)
 
-    async def interaction_check(self, interaction: discord.Interaction) -> bool:
-        return interaction.user.id == self.user_id
-
     async def _on_pick(self, interaction: discord.Interaction):
         value = ui.selected_values(interaction)[0]
         horses = self.stable.horses(interaction)
@@ -64,11 +61,11 @@ class StyleView(discord.ui.View):
         await interaction.response.edit_message(embed=self.embed(), view=None)
 
 
-class GoldCarrotView(discord.ui.View):
+class GoldCarrotView(ui.OwnerView):
     """金にんじんの振り分け。5点ずつ、2か所を選んでから「使う」を押す（押すまで、反映しない）。"""
 
     def __init__(self, stable: "Stable", user_id: int):
-        super().__init__(timeout=300)
+        super().__init__(user_id, timeout=300)
         self.stable, self.user_id = stable, user_id
         assert stable.horse_id is not None
         self.horse_id: int = stable.horse_id
@@ -108,9 +105,6 @@ class GoldCarrotView(discord.ui.View):
 
         return callback
 
-    async def interaction_check(self, interaction: discord.Interaction) -> bool:
-        return interaction.user.id == self.user_id
-
     async def _on_use(self, interaction: discord.Interaction):
         ok, result = self.stable.horses(interaction).horse_gold_carrot(
             interaction.user.id, self.horse_id, self.first, self.second
@@ -125,11 +119,11 @@ class GoldCarrotView(discord.ui.View):
         )
 
 
-class RetireView(discord.ui.View):
+class RetireView(ui.OwnerView):
     """引退の確認。戦績に応じて、引退金をもらう（戦績が悪いと、引退費用を払う）。"""
 
     def __init__(self, stable: "Stable", user_id: int, horse: dict, value: int):
-        super().__init__(timeout=300)
+        super().__init__(user_id, timeout=300)
         self.stable, self.user_id, self.horse, self.value = stable, user_id, horse, value
         ok = discord.ui.Button(label="🎌 引退させる", style=discord.ButtonStyle.danger)
         ok.callback = self._on_ok
@@ -147,9 +141,6 @@ class RetireView(discord.ui.View):
             "引退した馬は、もう戻りません。",
             ui.INFO,
         )
-
-    async def interaction_check(self, interaction: discord.Interaction) -> bool:
-        return interaction.user.id == self.user_id
 
     async def _on_ok(self, interaction: discord.Interaction):
         horses = self.stable.horses(interaction)

@@ -184,7 +184,7 @@ def ranking_embed(data: dict, daily: bool) -> discord.Embed:
     return e
 
 
-class LaborView(discord.ui.View):
+class LaborView(ui.OwnerView):
     def __init__(
         self,
         labor: ILaborRepo,
@@ -193,7 +193,11 @@ class LaborView(discord.ui.View):
         user_id: int,
         guild_id: int,
     ) -> None:
-        super().__init__(timeout=VIEW_TIMEOUT)
+        super().__init__(
+            user_id,
+            timeout=VIEW_TIMEOUT,
+            owner_message="これは他の人の作業場です。`/地下 作業` で自分の作業場を開けます。",
+        )
         self._labor = labor
         self._relics = relics_repo
         self._svc = labor_svc
@@ -319,14 +323,6 @@ class LaborView(discord.ui.View):
             )
             merge.callback = self._merge
             self.add_item(merge)
-
-    async def interaction_check(self, interaction: discord.Interaction) -> bool:
-        if interaction.user.id != self.user_id:
-            await interaction.response.send_message(
-                "これは他の人の作業場です。`/地下 作業` で自分の作業場を開けます。", ephemeral=True
-            )
-            return False
-        return True
 
     async def _show(self, interaction: discord.Interaction, note: str = "") -> None:
         self.refresh()

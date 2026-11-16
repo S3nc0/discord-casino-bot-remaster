@@ -12,7 +12,7 @@ import discord
 from cogs.casino.common import (
     CasinoDeps,
     GameContext,
-    OwnerView,
+    GameOwnerView,
     ReplayView,
     game_title,
     log_display_failure,
@@ -116,7 +116,7 @@ async def play_chinchiro(interaction: discord.Interaction, deps: CasinoDeps, bet
         raise
 
 
-class ChinchiroView(OwnerView):
+class ChinchiroView(GameOwnerView):
     def __init__(self, ctx: GameContext, origin: discord.Interaction, dealer_rolls: list):
         super().__init__(ctx, timeout=60)
         self.origin = origin

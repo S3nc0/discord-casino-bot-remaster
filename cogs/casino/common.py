@@ -267,7 +267,7 @@ class ReplayView(ui.OwnerView):
                 log_display_failure("ボタンの片付け", "時間切れ", exc)
 
 
-class OwnerView(ui.OwnerView):
+class GameOwnerView(ui.OwnerView):
     """賭けた本人だけが押せるボタン。エラーや時間切れでも、賭け金を失わないようにする。"""
 
     def __init__(self, ctx: GameContext, timeout: float = 90):

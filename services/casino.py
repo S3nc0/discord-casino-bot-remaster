@@ -90,7 +90,7 @@ class CasinoService:
 
     def can_borrow_for_bet(self, guild_id: int, user_id: int, need: int) -> tuple[Any, ...]:
         if self._debt is None:
-            return (False, None)
+            return (False, "")
         return self._debt.for_guild(guild_id).can_borrow_for_bet(user_id, need)
 
     def escrow_amount(self, guild_id: int, escrow_id: int) -> int:
