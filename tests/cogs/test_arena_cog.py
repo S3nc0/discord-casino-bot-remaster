@@ -24,6 +24,15 @@ def jst(hour: float) -> float:
 DAY_START = jst(1.0)  # JSTで1時
 
 
+class Msg:
+    def __init__(self, channel):
+        self.id, self.channel = 1, channel
+        self.edits = []
+
+    async def edit(self, **kw):
+        self.edits.append(kw)
+
+
 class Chan:
     id = 55
 
@@ -32,7 +41,7 @@ class Chan:
 
     async def send(self, **kw):
         self.sent.append(kw)
-        return SimpleNamespace(id=1, channel=self)
+        return Msg(self)
 
 
 @pytest.fixture
@@ -43,6 +52,11 @@ def setup(tmp_path, monkeypatch):
     bot = SimpleNamespace(economy=SimpleNamespace(for_guild=lambda gid: eco), config={}, guilds=[guild])
     monkeypatch.setattr(arena_cog.approval, "is_allowed", lambda *a: True)
     monkeypatch.setattr("cogs.arena.cog.announce_channel", lambda g, e: chan)
+
+    async def nap(_):
+        return None
+
+    monkeypatch.setattr(arena_cog.asyncio, "sleep", nap)
     return eco, chan, guild, bot, arena_cog.ArenaCog(bot)
 
 
@@ -63,6 +77,7 @@ def test_run_once_creates_and_announces_then_advances_through_semis_and_final(se
     t = eco.arena_tournament_get_by_day(t["day"])
     assert t["status"] == "final_betting"
     assert any("準決勝、決着" in s.get("embed", SimpleNamespace(title="")).title for s in chan.sent)
+    assert any("開戦！" in s.get("embed", SimpleNamespace(title="")).title for s in chan.sent)  # 演出も投稿している
     asyncio.run(cog.run_once())  # 2回目は、もう準決勝を走らせない（status は変わらない）
     assert eco.arena_tournament_get_by_day(t["day"])["status"] == "final_betting"
 

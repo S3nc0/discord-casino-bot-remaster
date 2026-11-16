@@ -88,6 +88,15 @@ def test_payout_scale_caps_at_available_pool_and_never_exceeds_one():
     assert a.payout_scale(10_000, 0) == 1.0  # 配当が無いなら、常に満額（0倍）扱い
 
 
+def test_battle_frames_loser_reaches_zero_and_winner_survives():
+    frames = a.battle_frames(3, winner_idx=1, rng=random.Random(1), frames=6)
+    assert len(frames) == 7  # 初期状態 + 6コマ
+    assert frames[0] == [100, 100, 100]
+    last = frames[-1]
+    assert last[1] > 0
+    assert last[0] == 0 and last[2] == 0
+
+
 def test_arena_tournament_ensure_creates_once_and_is_idempotent(eco):
     t1 = eco.arena_tournament_ensure(NOW, rng=random.Random(1))
     t2 = eco.arena_tournament_ensure(NOW, rng=random.Random(2))  # 2回目は作り直さない

@@ -6,13 +6,16 @@
 既知の制限: 掲示パネルの賭けボタンは、Bot再起動をまたぐと動かなくなる（再起動後は `/闘技場 大会` で出し直す）。
 """
 
+import asyncio
 import datetime
+import random
 import time
 
 import discord
 from discord import app_commands
 from discord.ext import commands, tasks
 
+from cogs.arena.embeds import battle_embed
 from cogs.arena.views import BetPanel
 from cogs.shared import ui
 from cogs.shared.announce import announce_channel
@@ -21,6 +24,8 @@ from domain import arena as arena_mod
 from infra import logthrottle
 
 NONE = discord.AllowedMentions.none()
+ANIM_FRAMES = 6  # 演出のコマ数
+ANIM_STEP = 1.2  # 演出のコマ間隔（秒）
 
 
 class ArenaCog(commands.Cog):
@@ -76,6 +81,19 @@ class ArenaCog(commands.Cog):
             logthrottle.warn(("arena-post", channel.id), f"地下闘技場の投稿に失敗: channel={channel.id}: {exc!r}")
             return None
 
+    async def _animate_match(self, channel, fighters: list, winner_idx: int, title: str) -> None:
+        """戦闘演出（HPバーのメッセージ書き換え）。勝敗はすでに決まっており、見た目だけ。"""
+        frames = arena_mod.battle_frames(len(fighters), winner_idx, random.Random(), ANIM_FRAMES)
+        msg = await self._post(channel, embed=battle_embed(fighters, frames[0], title))
+        if msg is None:
+            return
+        try:
+            for hp in frames[1:]:
+                await asyncio.sleep(ANIM_STEP)
+                await msg.edit(embed=battle_embed(fighters, hp, title))
+        except discord.HTTPException as exc:
+            logthrottle.warn(("arena-anim", channel.id), f"闘技場の演出を表示できません: {exc!r}")
+
     async def run_once(self) -> None:
         now = time.time()
         for guild in list(self.bot.guilds):
@@ -102,10 +120,19 @@ class ArenaCog(commands.Cog):
                         panel.message = msg
                         self._panels[day_key] = panel
                 if t["status"] == "semi_betting" and tz_hour >= arena_mod.SEMI_HOUR:
+                    pre_fighters = t["fighters"]
                     result = eco.arena_run_semis(t["id"])
                     if result:
                         channel = await self._channel(guild, eco)
                         if channel is not None:
+                            for group_no, info in result["groups"].items():
+                                group_fighters = [f for f in pre_fighters if f["group_no"] == group_no]
+                                winner_idx = next(
+                                    i for i, f in enumerate(group_fighters) if f["name"] == info["winner"]
+                                )
+                                await self._animate_match(
+                                    channel, group_fighters, winner_idx, f"⏳ 準決勝 第{group_no}組、開戦！"
+                                )
                             lines = [
                                 f"第{g}組: **{r['winner']}** が勝利（敗: {'・'.join(r['losers'])}）"
                                 for g, r in result["groups"].items()
@@ -122,9 +149,13 @@ class ArenaCog(commands.Cog):
                             await self._panels[day_key].refresh()
                 t = eco.arena_tournament_ensure(now)  # 準決勝の決着を反映して読み直す
                 if t["status"] == "final_betting" and tz_hour >= arena_mod.FINAL_HOUR:
+                    pre_finalists = [f for f in t["fighters"] if f["stage"] == "final"]
                     result = eco.arena_run_final(t["id"])
                     if result:
                         channel = await self._channel(guild, eco)
+                        if channel is not None and len(pre_finalists) == 2:
+                            winner_idx = 0 if result["champion"] == pre_finalists[0]["name"] else 1
+                            await self._animate_match(channel, pre_finalists, winner_idx, "👑 決勝、開戦！")
                         if channel is not None:
                             await self._post(
                                 channel,

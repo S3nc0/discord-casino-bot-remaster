@@ -46,6 +46,17 @@ def fighter_line(f: dict, bettors: list, odds: float) -> str:
     return line
 
 
+def hp_bar(hp: int, width: int = 10) -> str:
+    filled = round(width * max(0, min(100, hp)) / 100)
+    return "🟥" * filled + "⬛" * (width - filled)
+
+
+def battle_embed(fighters: list, hp: list, title: str) -> discord.Embed:
+    """試合演出（HPバー）の1コマ。勝敗はすでに決まっており、見た目の攻防だけを表示する。"""
+    lines = [f"**{f['name']}**　{hp_bar(h)} {h}%" for f, h in zip(fighters, hp)]
+    return ui.embed(title, "\n".join(lines), ui.GOLD)
+
+
 def _schedule_line(t: dict, semi_hour: int, final_hour: int) -> str:
     today = datetime.date.fromisoformat(t["day"])
     jst = datetime.timezone(datetime.timedelta(hours=9))

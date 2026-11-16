@@ -111,6 +111,27 @@ def simulate_match(fighters: list[dict], bet_totals: dict, rng: random.Random) -
     return rng.choices(range(len(fighters)), weights=weights, k=1)[0]
 
 
+def battle_frames(count: int, winner_idx: int, rng: random.Random, frames: int = 6) -> list[list[int]]:
+    """表示専用のHP(0〜100)の推移。勝敗はすでに決まっている前提で、見た目の攻防だけを作る（ゲーム性には関わらない）。
+
+    [HP配列]をフレーム数+1個返す（先頭は全員100）。負けた側は最後に必ず0、勝った側は必ず残る。
+    """
+    hp = [100.0] * count
+    out = [[round(x) for x in hp]]
+    for _ in range(frames):
+        for j in range(count):
+            if j == winner_idx:
+                hp[j] = max(20.0, hp[j] - rng.uniform(0, 10))
+            else:
+                hp[j] = max(0.0, hp[j] - rng.uniform(12, 25))
+        out.append([round(x) for x in hp])
+    for j in range(count):
+        if j != winner_idx:
+            hp[j] = 0.0
+    out[-1] = [round(x) for x in hp]
+    return out
+
+
 def payout_scale(losers_pool: int, winners_due: int) -> float:
     """配当の原資が足りないとき、比例して減らす倍率（1.0 が満額）。原資を超えて新しいペリカは作らない。"""
     if winners_due <= 0:
