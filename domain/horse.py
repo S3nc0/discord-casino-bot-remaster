@@ -240,8 +240,7 @@ def _mult(r: Runner, p: float, track: Track, luck: float, spurt: float, style: s
     reach = min(1.0, max(0.25, 0.8 * (r.stamina / 50) / dfac))  # ここまでは、バテずに走れる
     if p > reach and reach < 1.0:
         m *= 1 - FATIGUE_MAX * (p - reach) / (1 - reach)
-    if p >= 0.70:
-        m *= 1 + spurt  # ラストスパート（根性）
+        m *= 1 + spurt  # スタミナが切れた分を、根性のラストスパートで補う
     m *= 1 + style_curve(style, p, pace_shift)  # 脚質・展開
     m *= 1 - GOING_PENALTY[track.going] * (1 - (r.power - 20) / 60)  # 馬場
     return m * FORM_MULT[r.form] * (1 + luck)
