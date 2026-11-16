@@ -14,16 +14,16 @@ from cogs.shared.announce import announce_channel
 from cogs.shared.bridges import DeferredShopTitleBridge, IShopTitleBridge
 from cogs.shared.messages import format_standings_lines
 from domain import approval, shop, weekly
+from domain.ports import get_catalogs
 from domain.ports.clock import IClock
 from domain.ports.repos import IGuildRepo, IRecordRepo
-from infra import catalogs, logthrottle
-from infra.clock import ConfigClock
+from infra import logthrottle
 from services.economy import EconomyService
 
 if TYPE_CHECKING:
     from cogs.shared.bot import CasinoBot
 
-CHECK_MINUTES = catalogs.economy().weekly.check_minutes
+CHECK_MINUTES = get_catalogs().economy().weekly.check_minutes
 KING = shop.BY_ID[shop.WEEKLY_KING]
 
 
@@ -44,7 +44,7 @@ class WeeklyCog(commands.Cog):
         self._records = records
         self._guild_repo = guild_repo
         self._shop_bridge: IShopTitleBridge = shop_bridge if shop_bridge is not None else DeferredShopTitleBridge(bot)
-        self._clock: IClock = clock if clock is not None else ConfigClock(config)
+        self._clock: IClock = clock if clock is not None else economy_svc.clock
 
     async def cog_load(self) -> None:
         done = self._economy_svc.backfill_weekly()  # この機能の前に遊んだ分を、台帳から補う（初回だけ）
@@ -141,5 +141,6 @@ async def setup(bot: "CasinoBot") -> None:
             bot.services.economy,
             bot.repos.records,
             bot.repos.guild,
+            clock=bot.services.clock,
         )
     )

@@ -19,7 +19,6 @@ from domain import approval, events
 from domain.ports.clock import IClock
 from domain.ports.repos import IEventRepo, IGuildRepo
 from infra import logthrottle
-from infra.clock import ConfigClock
 
 if TYPE_CHECKING:
     from cogs.shared.bot import CasinoBot
@@ -37,13 +36,13 @@ class EventCog(commands.Cog, IEventAdminBridge):
         config: dict[str, Any],
         events_repo: IEventRepo,
         guild_repo: IGuildRepo,
-        clock: Optional[IClock] = None,
+        clock: IClock,
     ) -> None:
         self.bot = bot
         self._config = config
         self._events = events_repo
         self._guild_repo = guild_repo
-        self._clock: IClock = clock if clock is not None else ConfigClock(config)
+        self._clock = clock
 
     async def cog_load(self) -> None:
         self.tick.start()
@@ -159,6 +158,6 @@ class EventCog(commands.Cog, IEventAdminBridge):
 
 
 async def setup(bot: "CasinoBot") -> None:
-    cog = EventCog(bot, bot.config, bot.repos.events, bot.repos.guild)
+    cog = EventCog(bot, bot.config, bot.repos.events, bot.repos.guild, bot.services.clock)
     bot.bridges.register(IEventAdminBridge, cog)
     await bot.add_cog(cog)

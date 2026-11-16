@@ -34,7 +34,7 @@ class EconomyService:
         self._notices = notices
         self._earnings = earnings
         self._records = records
-        self._clock = clock
+        self.clock = clock
         self._config = config
 
     def utc_offset(self) -> float:
@@ -60,7 +60,7 @@ class EconomyService:
         min_games: int,
         now: Optional[datetime.datetime] = None,
     ) -> TransferResult:
-        now = self._clock.now() if now is None else now
+        now = self.clock.now() if now is None else now
         day_start = datetime.datetime.combine(now.date(), datetime.time(), tzinfo=now.tzinfo).timestamp()
         return self._wallet.for_guild(guild_id).transfer(
             sender_id, receiver_id, amount, fee_rate, daily_limit, day_start, min_games

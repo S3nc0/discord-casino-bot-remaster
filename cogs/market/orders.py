@@ -25,11 +25,11 @@ from cogs.shared.confirm import confirm_action, confirmed_reply, user_session
 from cogs.shared.messages import format_failure
 from domain import bonds, market
 from domain import options as opt
+from domain.ports import get_catalogs
 from domain.ports.session import ISessionGuard
-from infra import catalogs
 
 RNG = random.SystemRandom()
-CONFIRM_FROM = catalogs.market().market.confirm_from  # この額以上の売買は確認ボタンを挟む
+CONFIRM_FROM = get_catalogs().market().market.confirm_from  # この額以上の売買は確認ボタンを挟む
 
 
 async def default_confirmed_reply(interaction: discord.Interaction, needed: bool, title: str, text: str, label: str):

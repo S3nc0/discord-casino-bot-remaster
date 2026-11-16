@@ -37,6 +37,7 @@ from cogs.shared.announce import announce_channel
 from domain import approval as approval  # noqa: F401
 from domain import market, market_events
 from domain import options as opt
+from domain.ports import get_catalogs
 from domain.ports.repos import (
     IBondRepo,
     ICryptoRepo,
@@ -50,14 +51,14 @@ from domain.ports.repos import (
     IWalletRepo,
 )
 from domain.ports.session import ISessionGuard
-from infra import catalogs, logthrottle
+from infra import logthrottle
 from services.market import MarketService
 
 if TYPE_CHECKING:
     from cogs.shared.bot import CasinoBot
 
 RNG = random.SystemRandom()
-KEEP_DAYS = catalogs.market().market.keep_days  # 価格の履歴を残す日数
+KEEP_DAYS = get_catalogs().market().market.keep_days  # 価格の履歴を残す日数
 CONFIRM_FROM = orders.CONFIRM_FROM
 PERIOD_CHOICES = [app_commands.Choice(name=label, value=key) for key, (label, _) in market.PERIODS.items()]
 SYMBOL_CHOICES = [app_commands.Choice(name=f"{s.emoji} {s.name}", value=s.key) for s in market.SYMBOLS]

@@ -19,6 +19,7 @@ from cogs.shared.ranking import RankingRepos
 from cogs.teiai.panel import TeiaiPanel, panel_embed
 from domain import approval, shop, teiai
 from domain import missions as missions_mod
+from domain.ports import get_catalogs
 from domain.ports.clock import IClock
 from domain.ports.repos import (
     IAssetRepo,
@@ -35,13 +36,12 @@ from domain.ports.repos import (
 )
 from domain.ports.session import ISessionGuard
 from domain.types import DAILY_BASE, DAILY_STREAK_BONUS, DAILY_STREAK_CAP
-from infra import catalogs
 from services.economy import EconomyService
 
 if TYPE_CHECKING:
     from cogs.shared.bot import CasinoBot
 
-_ECON_CFG = catalogs.economy()
+_ECON_CFG = get_catalogs().economy()
 _TRANSFER_CFG = _ECON_CFG.transfer
 TRANSFER_FEE_RATE = _TRANSFER_CFG.fee_rate  # 送る側が、送金額の10%を手数料として払う
 TRANSFER_DAILY_LIMIT = _TRANSFER_CFG.daily_limit  # 1日に送れる合計（送る金額だけで数える。手数料は含まない）

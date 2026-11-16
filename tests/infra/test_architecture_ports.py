@@ -131,13 +131,17 @@ def test_services_no_infra_db_cogs_or_any_economy():
 
 
 def test_cogs_no_infra_db_imports_and_no_service_locators():
-    """cogs/ は infra.db を import せず、bot.economy や旧 Service Locator を一切使わない。"""
+    """cogs/ は infra.db / infra.catalogs / infra.clock を import せず、bot.economy や旧 Service Locator を一切使わない。"""
     forbidden_names = {"port_of", "guild_port", "get_cog_port", "require_cog_port", "services_of"}
+    forbidden_infra_prefixes = ("infra.db", "infra.catalogs", "infra.clock")
     violations: list[str] = []
     for path in _iter_py("cogs"):
         rel = path.relative_to(ROOT)
         for mod in _imported_modules(path):
-            if mod == "infra.db" or mod.startswith("infra.db.") or "cog_ports" in mod:
+            if (
+                any(mod == prefix or mod.startswith(prefix + ".") for prefix in forbidden_infra_prefixes)
+                or "cog_ports" in mod
+            ):
                 violations.append(f"{rel} imports {mod}")
 
         tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))

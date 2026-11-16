@@ -29,14 +29,15 @@ from cogs.shared.confirm import confirm_action, confirmed_reply, user_session
 from cogs.shared.messages import format_failure
 from domain import approval, p2p
 from domain import shop as shop_mod
+from domain.ports import get_catalogs
 from domain.ports.repos import IGuildRepo, IHorseRepo, IP2PRepo, IShopRepo, IWalletRepo
 from domain.ports.session import ISessionGuard
-from infra import catalogs, logthrottle
+from infra import logthrottle
 
 if TYPE_CHECKING:
     from cogs.shared.bot import CasinoBot
 
-CONFIRM_FROM = catalogs.economy().p2p.confirm_from  # この金額以上の購入・入札は、確認ボタンを挟む
+CONFIRM_FROM = get_catalogs().economy().p2p.confirm_from  # この金額以上の購入・入札は、確認ボタンを挟む
 SHOWN = 25
 NONE = discord.AllowedMentions.none()
 

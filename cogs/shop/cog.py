@@ -37,6 +37,7 @@ from cogs.shop.embeds import (  # noqa: F401
 )
 from cogs.shop.views import ShopView
 from domain import approval, shop, teiai
+from domain.ports import get_catalogs
 from domain.ports.repos import (
     IAuctionRepo,
     IDebtRepo,
@@ -48,12 +49,12 @@ from domain.ports.repos import (
     IWalletRepo,
 )
 from domain.ports.session import ISessionGuard
-from infra import catalogs, logthrottle
+from infra import logthrottle
 
 if TYPE_CHECKING:
     from cogs.shared.bot import CasinoBot
 
-_SHOP_CFG = catalogs.shop()
+_SHOP_CFG = get_catalogs().shop()
 CONFIRM_FROM = _SHOP_CFG.confirm_from  # この金額以上の購入は、確認ボタンを挟む
 STATUS_NICK_MINUTES = _SHOP_CFG.status_nick_minutes  # 身分のニックネームを付け外しする確認の間隔
 STATUS_NICK_PER_GUILD = _SHOP_CFG.status_nick_per_guild  # 1回の確認で、1サーバーあたり扱う人数の上限

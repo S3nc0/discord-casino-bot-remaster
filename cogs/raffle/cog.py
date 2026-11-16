@@ -18,13 +18,14 @@ from cogs.shared.announce import announce_channel
 from cogs.shared.bridges import BotBridges, IRaffleAdminBridge
 from cogs.shared.messages import format_failure
 from domain import approval
+from domain.ports import get_catalogs
 from domain.ports.repos import IGuildRepo, IRaffleRepo
-from infra import catalogs, logthrottle
+from infra import logthrottle
 
 if TYPE_CHECKING:
     from cogs.shared.bot import CasinoBot
 
-_RAFFLE_CFG = catalogs.economy().raffle
+_RAFFLE_CFG = get_catalogs().economy().raffle
 MIN_FEE = _RAFFLE_CFG.min_fee  # 参加費の最小。上限はない
 RANDOM_FEE_RANGE = _RAFFLE_CFG.random_fee_range  # 参加費を省略したときの、ランダムの範囲
 DEFAULT_MINUTES = _RAFFLE_CFG.default_minutes
