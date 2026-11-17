@@ -43,9 +43,9 @@ def test_check_name_rejects_empty_long_and_markup():
 
 
 def test_invested_and_upgrade_cost_follow_the_build_table():
-    assert co.invested(1) == 300_000 and co.invested(5) == 9_300_000
-    assert co.upgrade_cost(1) == 600_000 and co.upgrade_cost(co.MAX_LEVEL) is None
-    assert co.daily_upkeep(1) == int(300_000 * co.UPKEEP_RATE)
+    assert co.invested(1) == co.BUILD_COSTS[0] and co.invested(co.MAX_LEVEL) == sum(co.BUILD_COSTS)
+    assert co.upgrade_cost(1) == co.BUILD_COSTS[1] and co.upgrade_cost(co.MAX_LEVEL) is None
+    assert co.daily_upkeep(1) == int(co.BUILD_COSTS[0] * co.UPKEEP_RATE)
 
 
 def test_day_state_is_the_same_for_everyone_on_a_day_and_within_its_price_range():
@@ -136,7 +136,8 @@ def test_ship_sells_stock_at_todays_price_from_the_house_account(eco):
     assert eco.company.company_ship(U, later)[1].code == "company_nothing_to_ship"
 
 
-def test_ship_is_limited_by_the_house_budget(eco):
+def test_ship_is_limited_by_the_house_budget(eco, monkeypatch):
+    monkeypatch.setattr(co, "DAILY_GRANT", 0)  # 買取枠なし（胴元の口座だけ）
     found(eco)
     with eco.db.tx():
         eco.bank.house_pay_for(G, house(eco) - 500)  # 買取予算を 500 だけ残す
@@ -147,8 +148,26 @@ def test_ship_is_limited_by_the_house_budget(eco):
     assert eco.company.company_ship(U, NOON + DAY / 2)[1].code == "company_no_budget"
 
 
-def test_company_operations_never_create_pelica(eco):
-    """個人の残高・会社資金・胴元の口座・銀行の現金の合計は、会社の操作では増えない。"""
+def test_daily_grant_covers_the_shortfall_up_to_the_cap_and_resets_next_day(eco, monkeypatch):
+    monkeypatch.setattr(co, "DAILY_GRANT", 300)
+    found(eco)
+    with eco.db.tx():
+        eco.bank.house_pay_for(G, house(eco) - 200)  # 胴元の口座は 200 だけ
+    t = NOON + DAY / 2
+    assert eco.company.company_get(U, t)["budget"] == 200 + 300
+    ok, r = eco.company.company_ship(U, t)
+    assert ok and r["paid"] == 500 and r["left"] > 0  # 口座の 200 と、買取枠の 300 まで
+    assert house(eco) == 0 and eco.company.company_get(U, t)["budget"] == 0
+    assert eco.company.company_ship(U, t)[1].code == "company_no_budget"  # 同じ日は、もう出ない
+    with eco.db.tx():  # 維持費が胴元の口座に入るので、次の日は空にしてから確かめる
+        eco.company.company_get(U, t + DAY)
+        eco.bank.house_pay_for(G, house(eco))
+    ok, r = eco.company.company_ship(U, t + DAY)
+    assert ok and r["paid"] == 300  # 日が変わると、買取枠が戻る
+
+
+def test_company_operations_never_create_pelica_while_the_house_can_pay(eco):
+    """個人の残高・会社資金・胴元の口座・銀行の現金の合計は、胴元の口座で払える間は、会社の操作では増えない。"""
 
     def total():
         c = eco.company.company_get(U, t) or {"funds": 0}
@@ -174,18 +193,19 @@ def test_company_operations_never_create_pelica(eco):
 def test_upgrade_spends_company_funds_and_raises_output(eco):
     found(eco)
     assert eco.company.company_upgrade(U, NOON)[1].code == "company_funds_short"
-    eco.company.company_invest(U, 600_000, NOON)
+    cost = co.BUILD_COSTS[1]
+    eco.company.company_invest(U, cost, NOON)
     budget = house(eco)
     assert eco.company.company_upgrade(U, NOON) == (True, 2)
     c = eco.company.company_get(U, NOON)
-    assert c["funds"] == 0 and c["invested"] == 900_000 and house(eco) == budget + 600_000
-    assert c["daily_output"] == pytest.approx(900_000 * co.KINDS["mine"].yield_rate)
+    assert c["funds"] == 0 and c["invested"] == co.invested(2) and house(eco) == budget + cost
+    assert c["daily_output"] == pytest.approx(co.invested(2) * co.KINDS["mine"].yield_rate)
 
 
 def test_upgrade_stops_at_max_level(eco):
     found(eco)
     rich(eco, U, 10_000_000)
-    assert eco.company.company_invest(U, 9_000_000, NOON)[0]  # Lv2〜5 の建設費の合計
+    assert eco.company.company_invest(U, sum(co.BUILD_COSTS[1:]), NOON)[0]  # Lv2〜5 の建設費の合計
     for level in range(2, co.MAX_LEVEL + 1):
         assert eco.company.company_upgrade(U, NOON) == (True, level)
     assert eco.company.company_upgrade(U, NOON)[1].code == "company_max_level"
@@ -200,7 +220,7 @@ def test_change_kind_resets_level_and_stock(eco):
     assert eco.company.company_change_kind(U, "farm", later) == (True, "")
     c = eco.company.company_get(U, later)
     assert c["kind"] == "farm" and c["level"] == 1 and c["stock"] == 0
-    assert c["funds"] == 1_000_000 - 600_000 - co.BUILD_COSTS[0]
+    assert c["funds"] == 1_000_000 - co.BUILD_COSTS[1] - co.BUILD_COSTS[0]
 
 
 # ----------------------------- 維持費・倒産 ----------------------------- #

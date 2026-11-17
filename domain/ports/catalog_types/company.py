@@ -29,4 +29,5 @@ class CompanyCatalogContract:
     pinhane_rate: float
     storage_days: int
     bankrupt_days: int
+    daily_grant: int
     kinds: tuple[CompanyKindContract, ...]

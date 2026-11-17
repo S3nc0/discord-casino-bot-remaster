@@ -43,6 +43,11 @@ def add_missing_columns(conn: sqlite3.Connection) -> None:
     for col in ("thermo_load", "thermo_capacity", "thermo_ts", "bailout_debt", "thermo_burned", "thermo_bailed"):
         if col not in tb:
             conn.execute(f"ALTER TABLE teiai_bank ADD COLUMN {col} REAL NOT NULL DEFAULT 0")
+    th = {r["name"] for r in conn.execute("PRAGMA table_info(teiai_house)")}
+    if "grant_day" not in th:
+        conn.execute("ALTER TABLE teiai_house ADD COLUMN grant_day TEXT NOT NULL DEFAULT ''")
+    if "grant_used" not in th:
+        conn.execute("ALTER TABLE teiai_house ADD COLUMN grant_used INTEGER NOT NULL DEFAULT 0")
     hs = {r["name"] for r in conn.execute("PRAGMA table_info(horses)")}
     if "bonus" not in hs:
         conn.execute("ALTER TABLE horses ADD COLUMN bonus INTEGER NOT NULL DEFAULT 0")

@@ -228,6 +228,26 @@ class BankRepo(ScopedRepo, IBankRepo):
             self._conn.execute("UPDATE teiai_house SET balance=balance-? WHERE guild_id=?", (paid, guild_id))
         return paid
 
+    def house_grant_left_for(self, guild_id: int, day: str, cap: int) -> int:
+        """会社の買取枠（胴元の口座が足りないとき、帝愛が新しく出す分）の、day の残り。1日の上限は cap。"""
+        row = self._conn.execute(
+            "SELECT grant_day, grant_used FROM teiai_house WHERE guild_id=?", (guild_id,)
+        ).fetchone()
+        used = row["grant_used"] if row and row["grant_day"] == day else 0
+        return max(0, cap - used)
+
+    def house_grant_use_for(self, guild_id: int, day: str, amount: int) -> None:
+        """買取枠から amount を出したと記録する（日が変わっていたら、数え直す）。"""
+        if amount <= 0:
+            return
+        self._conn.execute(
+            "INSERT INTO teiai_house (guild_id, balance, skimmed, grant_day, grant_used) VALUES (?, 0, 0, ?, ?) "
+            "ON CONFLICT(guild_id) DO UPDATE SET "
+            "grant_used=CASE WHEN grant_day=excluded.grant_day THEN grant_used ELSE 0 END + excluded.grant_used, "
+            "grant_day=excluded.grant_day",
+            (guild_id, day, amount),
+        )
+
     def house_account(self) -> dict[str, Any]:
         """帝愛の胴元の口座 {balance: いまの残高, skimmed: これまでのピンハネの合計}。読み取りだけ（なければ 0）。"""
         with self._lock:

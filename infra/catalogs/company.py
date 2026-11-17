@@ -45,6 +45,7 @@ class CompanyCatalog(CompanyCatalogContract):
     pinhane_rate: float = Field(ge=0, lt=1)
     storage_days: int = Field(gt=0)
     bankrupt_days: int = Field(gt=0)
+    daily_grant: int = Field(ge=0)
     kinds: tuple[CompanyKind, ...] = Field(min_length=1)
 
 

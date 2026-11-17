@@ -1,7 +1,7 @@
 """会社（設立・出資・生産・出荷・増築・倒産）の永続化リポジトリ（SRP・Constructor DI）。
 
 数字と決まりは `domain/company.py`、表は `infra/db/schema/tables.py` の `companies`。
-設立費は帝愛銀行へ、建設費・維持費は帝愛の胴元の口座へ入る。出荷の代金は、胴元の口座から出る（残高を超えては払わない）。
+設立費は帝愛銀行へ、建設費・維持費は帝愛の胴元の口座へ入る。出荷の代金は、まず胴元の口座から出て、足りない分は1日の買取枠（DAILY_GRANT）まで帝愛が新しく出す。
 """
 
 import time
@@ -99,6 +99,11 @@ class CompanyRepo(ScopedRepo, ICompanyRepo, IValuationSource):
             return None
         return c
 
+    def _budget_for(self, guild_id: int, day: str) -> int:
+        """帝愛の買取予算（胴元の口座の残高と、今日の買取枠の残り）。"""
+        grant = self._bank.house_grant_left_for(guild_id, day, company_mod.DAILY_GRANT)
+        return self._bank.house_balance_for(guild_id) + grant
+
     def _view(self, c: dict[str, Any], now: float) -> dict[str, Any]:
         """画面に出す形（会社の行に、その日の状態と、計算で出る数字を足す）。"""
         state = company_mod.day_state(c["kind"], c["guild_id"], company_mod.day_of(now))
@@ -113,7 +118,7 @@ class CompanyRepo(ScopedRepo, ICompanyRepo, IValuationSource):
             "yield_mult": state.yield_mult,
             "price": state.price,
             "stock_value": int(c["stock"] * state.price),
-            "budget": self._bank.house_balance_for(c["guild_id"]),
+            "budget": self._budget_for(c["guild_id"], company_mod.day_of(now)),
         }
 
     # ------------------------------------------------------------------ #
@@ -207,12 +212,13 @@ class CompanyRepo(ScopedRepo, ICompanyRepo, IValuationSource):
             c = self._current(gid, user_id, now)
             if c is None:
                 return False, fail("company_none")
-            price = company_mod.day_state(c["kind"], gid, company_mod.day_of(now)).price
-            budget = self._bank.house_balance_for(gid)
-            paid, pinhane, left = company_mod.sale(c["stock"], price, budget)
+            day = company_mod.day_of(now)
+            price = company_mod.day_state(c["kind"], gid, day).price
+            paid, pinhane, left = company_mod.sale(c["stock"], price, self._budget_for(gid, day))
             if paid <= 0:
                 return False, fail("company_no_budget" if int(c["stock"] * price) > 0 else "company_nothing_to_ship")
-            self._bank.house_pay_for(gid, paid)
+            from_house = self._bank.house_pay_for(gid, paid)
+            self._bank.house_grant_use_for(gid, day, paid - from_house)  # 口座で足りない分は、今日の買取枠から
             c["funds"] += paid
             c["stock"] = left
             c["sold_total"] += paid
