@@ -336,7 +336,7 @@ def test_thermostat_only_observes_by_default_and_leaves_bank_cash_alone(eco):
     t = s["thermostat"]
     assert (
         t["enforce"] is False and t["burned"] > 4_000_000
-    )  # 器（下限 30万）を超えた分は、消えるはずだった額として記録
+    )  # 器（下限 E_MIN）を超えた分は、消えるはずだった額として記録
     assert t["load"] == pytest.approx(5_000_000 - t["burned"]) and t["room"] == pytest.approx(0.0, abs=1.0)
     with eco.db.tx():
         assert eco.bank.bank_pay_for(G, 1_000_000, NOW) == 1_000_000
@@ -346,6 +346,8 @@ def test_thermostat_only_observes_by_default_and_leaves_bank_cash_alone(eco):
 
 
 def test_thermostat_enforced_burns_the_excess_inflow_and_shares_only_what_arrived(eco, monkeypatch):
+    from domain import thermostat
+
     monkeypatch.setattr("domain.thermostat.ENFORCE", True)
     eco.wallet.credit(A, 20_000, "テスト")
     eco.bank.bank_deposit(A, 10_000, NOW)
@@ -354,12 +356,14 @@ def test_thermostat_enforced_burns_the_excess_inflow_and_shares_only_what_arrive
         eco.bank.bank_income_for(G, 12_000_000, 0.5, NOW)
     s = eco.bank.bank_status(NOW)
     net = s["cash"] - cash_before
-    assert net == pytest.approx(300_000, rel=0.001)  # 器の下限で頭打ち。残りは熱浴へ消える
+    assert net == pytest.approx(thermostat.E_MIN, rel=0.001)  # 器の下限で頭打ち。残りは熱浴へ消える
     assert s["thermostat"]["burned"] == pytest.approx(12_000_000 - net)
     assert eco.bank.deposit_of(A) == 10_000 + int(net * 0.5)  # 預金者への分配は、届いた分だけが元
 
 
 def test_thermostat_enforced_bails_out_a_shock_so_deposits_are_not_wiped(eco, monkeypatch):
+    from domain import thermostat
+
     monkeypatch.setattr("domain.thermostat.ENFORCE", True)
     eco.wallet.credit(A, 2_000_000, "テスト")
     eco.bank.bank_deposit(A, 1_000_000, NOW)  # 手元 20万・地下融資 80万
@@ -367,22 +371,29 @@ def test_thermostat_enforced_bails_out_a_shock_so_deposits_are_not_wiped(eco, mo
         paid = eco.bank.bank_pay_for(G, 5_000_000, NOW)
     assert paid == 5_000_000
     t = _thermo(eco)
-    assert t["bailed"] == pytest.approx(5_000_000 - 300_000, rel=0.001)  # 銀行が負うのは、器の分（30万）まで
+    assert t["bailed"] == pytest.approx(5_000_000 - thermostat.E_MIN, rel=0.001)  # 銀行が負うのは、器の分まで
     assert t["bailout_debt"] == pytest.approx(t["bailed"]) and t["payout_ratio"] == 0.0
-    # 肩代わりが無ければ預金は全滅する額。負う 30万のうち、手元 20万で足りない 10万だけが預金から減る
-    assert eco.bank.deposit_of(A) == pytest.approx(900_000, rel=0.001)
+    # 肩代わりが無ければ預金は全滅する額。負うのは器の分だけで、手元 20万で足りない分だけが預金から減る
+    shortfall = max(0.0, thermostat.E_MIN - 200_000)
+    assert eco.bank.deposit_of(A) == pytest.approx(1_000_000 - shortfall, rel=0.001)
 
 
 def test_thermostat_state_cools_down_over_time(eco):
+    from domain import thermostat
+
     with eco.db.tx():
         eco.bank.bank_income_for(G, 100_000, 0.0, NOW)
     hot = _thermo(eco)["load"]
     later = eco.bank.bank_status(NOW + 7 * 86400)["thermostat"]
-    assert later["load"] == pytest.approx(hot / 10) and later["capacity"] > 300_000  # 7日で 1/10。器は遅れて育つ
+    assert (
+        later["load"] == pytest.approx(hot / 10) and later["capacity"] > thermostat.E_MIN
+    )  # 7日で 1/10。器は遅れて育つ
 
 
 def test_thermostat_columns_are_added_to_an_existing_database(tmp_path):
     import sqlite3
+
+    from domain import thermostat
 
     path = str(tmp_path / "old.db")
     repos = open_repositories(path, strict=True).for_guild(G)
@@ -397,7 +408,7 @@ def test_thermostat_columns_are_added_to_an_existing_database(tmp_path):
     reopened = open_repositories(path, strict=True).for_guild(G)
     s = reopened.bank.bank_status(NOW)
     assert s["cash"] == pytest.approx(1_000)  # 既存の現金はそのまま
-    assert s["thermostat"]["load"] == 0.0 and s["thermostat"]["capacity"] == pytest.approx(300_000)
+    assert s["thermostat"]["load"] == 0.0 and s["thermostat"]["capacity"] == pytest.approx(thermostat.E_MIN)
 
 
 def test_panel_shows_the_thermostat_and_that_it_is_only_observing(eco):
