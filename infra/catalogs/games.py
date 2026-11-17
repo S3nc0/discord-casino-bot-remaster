@@ -245,6 +245,7 @@ class HorseCatalog(HorseCatalogContract):
     pace_factor: float = Field(ge=0)
     takeout: float = Field(ge=0, lt=1)
     odds_sims: int = Field(gt=0)
+    odds_sim_weight: float = Field(ge=0, le=1)
     max_odds: float = Field(gt=1)
     min_stake: int = Field(gt=0)
     max_stake: int = Field(gt=0)

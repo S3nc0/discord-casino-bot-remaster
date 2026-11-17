@@ -47,6 +47,7 @@ FORM_MULT = {f.value: f.mult for f in _CFG.forms}
 
 TAKEOUT = _CFG.takeout
 ODDS_SIMS = _CFG.odds_sims
+ODDS_SIM_WEIGHT = _CFG.odds_sim_weight
 MAX_ODDS = _CFG.max_odds
 MIN_STAKE, MAX_STAKE = _CFG.min_stake, _CFG.max_stake
 MAX_RACE_STAKE = _CFG.max_race_stake
@@ -390,15 +391,33 @@ def _odds(prob: float, takeout: float, cap: float) -> float:
     return max(1.0, min(cap, math.floor((1 - takeout) / prob * 10) / 10))
 
 
-def make_all_odds(runners: list) -> dict:
-    """戦績で決めた、全部の馬券のオッズ。{"win": {枠: オッズ}, "place": {枠: オッズ}, "quinella": {キー: オッズ}, …}。
+def _blended_probs(runners: list, track: Optional[Track]) -> tuple:
+    """(勝つ確率の並び, 3着以内率の並び)。戦績の見積もりに、このコースでの試走の結果を ODDS_SIM_WEIGHT だけ混ぜる。
 
-    単勝は勝つ確率の見積もり、複勝は3着以内率の見積もり。組み合わせの馬券は、勝つ確率から、着順の確率（強い馬ほど先に決まる）を
-    計算して出す。
+    戦績だけだと、距離・馬場・脚質の相性を読める人の期待値が大きくなりすぎる（賭け金の3倍を超える）。
+    試走を混ぜて、読みの余地は残しつつ、払い戻しが賭け金を大きく超えないようにする。track が無ければ戦績だけ。
+    """
+    win, place = _win_weights(runners), _place_probs(runners)
+    if track is None or ODDS_SIM_WEIGHT <= 0:
+        return win, place
+    sim_win, sim_place = estimate(runners, track, ODDS_SIMS)
+    w = ODDS_SIM_WEIGHT
+    return (
+        [w * s + (1 - w) * r for s, r in zip(sim_win, win)],
+        [min(PLACE_CAP, w * s + (1 - w) * r) for s, r in zip(sim_place, place)],
+    )
+
+
+def make_all_odds(runners: list, track: Optional[Track] = None) -> dict:
+    """全部の馬券のオッズ。{"win": {枠: オッズ}, "place": {枠: オッズ}, "quinella": {キー: オッズ}, …}。
+
+    単勝は勝つ確率の見積もり、複勝は3着以内率の見積もり（戦績と、track があればそのコースでの試走を混ぜる）。
+    組み合わせの馬券は、勝つ確率から、着順の確率（強い馬ほど先に決まる）を計算して出す。
     """
     lanes = [r.lane for r in runners]
-    win = dict(zip(lanes, _win_weights(runners)))
-    place = dict(zip(lanes, _place_probs(runners)))
+    win_probs, place_probs = _blended_probs(runners, track)
+    win = dict(zip(lanes, win_probs))
+    place = dict(zip(lanes, place_probs))
 
     def first_two(a: int, b: int) -> float:  # a が1着・b が2着
         return win[a] * win[b] / (1 - win[a])

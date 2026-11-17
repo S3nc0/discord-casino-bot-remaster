@@ -190,6 +190,7 @@ class HorseCatalogContract:
     pace_factor: float
     takeout: float
     odds_sims: int
+    odds_sim_weight: float
     max_odds: float
     min_stake: int
     max_stake: int

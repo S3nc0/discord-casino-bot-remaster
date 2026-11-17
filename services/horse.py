@@ -27,7 +27,7 @@ class HorseService:
         field = races.race_close_entries(race_id)
         if field is None:
             return None
-        races.race_set_odds(race_id, horse_mod.make_all_odds(field["runners"]))
+        races.race_set_odds(race_id, horse_mod.make_all_odds(field["runners"], field["track"]))
         return races.race_get(race_id)
 
     def run_race(self, guild_id: int, race_id: int) -> Optional[dict[str, Any]]:

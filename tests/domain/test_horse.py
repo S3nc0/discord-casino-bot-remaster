@@ -129,6 +129,20 @@ def test_form_moves_the_odds_but_stats_do_not():
     assert h.make_all_odds(strong)["win"]["1"] == flat  # ステータスは、オッズに入らない
 
 
+def test_odds_mix_in_trial_runs_on_the_track_so_a_strong_horse_pays_less(monkeypatch):
+    monkeypatch.setattr(h, "ODDS_SIMS", 300)
+    base = [_record_runner(i, 8, 1, 3) for i in range(1, 9)]
+    strong = [_record_runner(1, 8, 1, 3, speed=80, stamina=40, power=40, guts=40)] + base[1:]
+    track = h.Track(h.DISTANCES[0], h.GOINGS[0])
+    by_record = h.make_all_odds(strong)
+    mixed = h.make_all_odds(strong, track)
+    assert mixed["win"]["1"] < by_record["win"]["1"]  # このコースで強い馬は、試走の分だけオッズが下がる
+    assert mixed["win"]["2"] > by_record["win"]["2"]  # そのぶん、ほかの馬は上がる
+    assert set(mixed) == set(by_record) and set(mixed["trio"]) == set(by_record["trio"])  # 馬券の種類は同じ
+    monkeypatch.setattr(h, "ODDS_SIM_WEIGHT", 0.0)
+    assert h.make_all_odds(strong, track) == by_record  # 重み 0 なら、戦績だけ
+
+
 def test_npc_records_are_plausible():
     rng = random.Random(3)
     for _ in range(200):

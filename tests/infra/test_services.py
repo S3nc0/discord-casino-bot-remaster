@@ -193,9 +193,10 @@ class StubRaces(IRaceRepo):
         return self
 
     def race_close_entries(self, race_id: int, rng=None) -> Optional[dict[str, Any]]:
-        from domain.horse import Runner
+        from domain.horse import DISTANCES, GOINGS, Runner, Track
 
         return {
+            "track": Track(DISTANCES[0], GOINGS[0]),
             "runners": [
                 Runner(
                     lane=i + 1,
@@ -210,7 +211,7 @@ class StubRaces(IRaceRepo):
                     form=0,
                 )
                 for i in range(6)
-            ]
+            ],
         }
 
     def race_set_odds(self, race_id: int, odds: Any) -> None:

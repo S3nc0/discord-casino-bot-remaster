@@ -85,7 +85,8 @@ styles:
 pace_factor: 0.05
 
 takeout: 0.15
-odds_sims: 8000
+odds_sims: 600           # オッズ用に、同じ出走馬を走らせる回数
+odds_sim_weight: 0.7     # オッズに混ぜる「実際の勝率（上の試走）」の重み。残りは戦績。0 なら戦績だけ
 max_odds: 99.9
 min_stake: 100
 max_stake: 50000
