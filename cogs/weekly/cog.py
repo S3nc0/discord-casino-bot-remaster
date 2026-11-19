@@ -13,12 +13,12 @@ from discord.ext import commands, tasks
 from cogs.shared import logthrottle, ui
 from cogs.shared.announce import announce_channel
 from cogs.shared.bridges import DeferredShopTitleBridge, IShopTitleBridge
-from cogs.shared.messages import format_standings_lines
 from cogs.shared.tasks import run_for_allowed_guilds
-from domain import shop, weekly
+from cogs.weekly.embeds import weekly_embed
+from domain import weekly
 from domain.ports import get_catalogs
 from domain.ports.clock import IClock
-from domain.ports.repos import IGuildRepo, IRecordRepo
+from domain.ports.repos import IGuildRepo
 from services.economy import EconomyService
 
 _log = logging.getLogger(__name__)
@@ -27,7 +27,6 @@ if TYPE_CHECKING:
     from cogs.shared.bot import CasinoBot
 
 CHECK_MINUTES = get_catalogs().economy().weekly.check_minutes
-KING = shop.BY_ID[shop.WEEKLY_KING]
 
 
 class WeeklyCog(commands.Cog):
@@ -36,7 +35,6 @@ class WeeklyCog(commands.Cog):
         bot: commands.Bot,
         config: dict[str, Any],
         economy_svc: EconomyService,
-        records: IRecordRepo,
         guild_repo: IGuildRepo,
         shop_bridge: Optional[IShopTitleBridge] = None,
         clock: Optional[IClock] = None,
@@ -44,7 +42,6 @@ class WeeklyCog(commands.Cog):
         self.bot = bot
         self._config = config
         self._economy_svc = economy_svc
-        self._records = records
         self._guild_repo = guild_repo
         self._shop_bridge: IShopTitleBridge = shop_bridge if shop_bridge is not None else DeferredShopTitleBridge(bot)
         self._clock: IClock = clock if clock is not None else economy_svc.clock
@@ -74,14 +71,12 @@ class WeeklyCog(commands.Cog):
         prev_week = weekly.previous_week_id(today)
 
         async def _handle(guild: discord.Guild) -> None:
-            eco = self._records.for_guild(guild.id)
-            last = eco.weekly_last_announced()
+            last = self._economy_svc.weekly_last_announced(guild.id)
             if last is None:
-                eco.set_weekly_announced(
-                    prev_week
-                )  # 初めて動いたときは、先週までを発表済みとして、次の月曜から発表する
+                # 初めて動いたときは、先週までを発表済みとして、次の月曜から発表する
+                self._economy_svc.set_weekly_announced(guild.id, prev_week)
             elif last < prev_week:
-                await self.announce(guild, eco, prev_week)
+                await self.announce(guild, prev_week)
 
         await run_for_allowed_guilds(
             self.bot,
@@ -91,34 +86,11 @@ class WeeklyCog(commands.Cog):
             error_label="週間ランキングの発表に失敗",
         )
 
-    def _channel(self, guild: discord.Guild):
-        return announce_channel(guild, self._guild_repo)
-
-    def build_embed(self, week: str, result: dict) -> discord.Embed:
-        lines = format_standings_lines(result["standings"], ui.MEDALS)
-        champ = result["champion"]
-        if champ:
-            lines += [
-                "",
-                f"👑 **<@{champ[0]}>** が **{KING.name}** を獲得しました！（通算{result['wins']}回目）",
-                f"今週の稼ぎ **{champ[1]:+,}ペリカ**（{champ[2]}戦）。`/ショップ` の「持ち物」の画面で身につけられます（次の発表まで）。",
-            ]
-        else:
-            lines += [
-                "",
-                f"今週は、{weekly.MIN_PLAYS}ゲーム以上遊んでプラスだった人がいませんでした。王者はお休みです。",
-            ]
-        if result["previous"]:
-            lines.append("前の王者 " + "・".join(f"<@{u}>" for u in result["previous"]) + " の称号は外れました。")
-        e = ui.embed(f"🏆 週間ランキング 発表！（{weekly.week_label(week)}）", "\n".join(lines), ui.GOLD)
-        e.set_footer(text="毎週月曜0時に発表 ｜ 稼ぎ = その週のゲームの損益の合計")
-        return e
-
-    async def announce(self, guild: discord.Guild, records_scoped: IRecordRepo, week: str) -> None:
-        result = records_scoped.weekly_award(week)
+    async def announce(self, guild: discord.Guild, week: str) -> None:
+        result = self._economy_svc.weekly_award(guild.id, week)
         if result is None or not result["standings"]:
             return  # 発表済み、またはその週は誰も遊んでいない
-        channel = self._channel(guild)
+        channel = announce_channel(guild, self._guild_repo)
         if channel is not None:
             champ = result["champion"]
             mentions = discord.AllowedMentions(
@@ -128,7 +100,7 @@ class WeeklyCog(commands.Cog):
                 await ui.send_channel(
                     channel,
                     content=f"🎉 <@{champ[0]}>" if champ else None,
-                    embed=self.build_embed(week, result),
+                    embed=weekly_embed(week, result),
                     allowed_mentions=mentions,
                 )
             except discord.HTTPException as exc:
@@ -146,7 +118,6 @@ async def setup(bot: "CasinoBot") -> None:
             bot,
             bot.config,
             bot.services.economy,
-            bot.repos.records,
             bot.repos.guild,
             clock=bot.services.clock,
         )

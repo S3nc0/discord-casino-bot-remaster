@@ -149,7 +149,7 @@ def make_raffle_cog(bot: Any):
 def make_event_cog(bot: Any):
     from cogs.event.cog import EventCog
 
-    cog = EventCog(bot, bot.config, bot.repos.events, bot.repos.guild, bot.services.clock)
+    cog = EventCog(bot, bot.config, bot.services.event, bot.repos.guild, bot.services.clock)
     bot.bridges.register(IEventAdminBridge, cog)
     return cog
 
@@ -220,7 +220,6 @@ def make_weekly_cog(bot: Any):
         bot,
         bot.config,
         bot.services.economy,
-        bot.repos.records,
         bot.repos.guild,
         clock=bot.services.clock,
     )

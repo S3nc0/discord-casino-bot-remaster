@@ -11,6 +11,7 @@ from services.arena import ArenaService
 from services.casino import CasinoService
 from services.company import CompanyService
 from services.economy import EconomyService
+from services.event import EventService
 from services.horse import HorseService
 from services.labor import LaborService
 from services.loan import LoanService
@@ -43,6 +44,7 @@ class ServiceRegistry:
     quiz: QuizService
     p2p: P2PService
     raffle: RaffleService
+    event: EventService
 
 
 def build_services(config: dict[str, Any], repos: IRepositoryBundle, sessions: ISessionGuard) -> ServiceRegistry:
@@ -108,5 +110,6 @@ def build_services(config: dict[str, Any], repos: IRepositoryBundle, sessions: I
         quiz=QuizService(quiz=repos.quiz, clock=clock),
         p2p=P2PService(p2p=repos.p2p, horses=repos.horses, shop=repos.shop, wallet=repos.wallet),
         raffle=RaffleService(raffle=repos.raffle, clock=clock),
+        event=EventService(events=repos.events, clock=clock),
         ranking=RankingService(wallet=repos.wallet, crypto=repos.crypto, bonds=repos.bonds, assets=repos.assets),
     )

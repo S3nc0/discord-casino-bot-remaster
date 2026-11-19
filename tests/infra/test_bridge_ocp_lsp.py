@@ -229,7 +229,6 @@ def test_deferred_and_dynamic_cog_bridges_are_load_order_independent(tmp_path):
         bot,
         bot.config,
         bot.services.economy,
-        bot.repos.records,
         bot.repos.guild,
         clock=bot.services.clock,
     )
@@ -271,7 +270,7 @@ def test_deferred_and_dynamic_cog_bridges_are_load_order_independent(tmp_path):
         bot.repos.guild,
         bot.sessions,
     )
-    event_cog = EventCog(bot, bot.config, bot.repos.events, bot.repos.guild, bot.services.clock)
+    event_cog = EventCog(bot, bot.config, bot.services.event, bot.repos.guild, bot.services.clock)
 
     bot.bridges.register(IShopTitleBridge, StubShop())
     bot.bridges.register(IP2PListingBridge, p2p_cog)

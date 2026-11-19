@@ -145,5 +145,15 @@ class EconomyService:
             sender_id, receiver_id, amount, fee_rate, daily_limit, day_start, min_games
         )
 
+    def weekly_last_announced(self, guild_id: int) -> Optional[str]:
+        return self._records.for_guild(guild_id).weekly_last_announced()
+
+    def set_weekly_announced(self, guild_id: int, week: str) -> None:
+        self._records.for_guild(guild_id).set_weekly_announced(week)
+
+    def weekly_award(self, guild_id: int, week: str) -> Optional[dict[str, Any]]:
+        """その週の王者に限定称号を贈り、順位を返す（発表済みなら None）。"""
+        return self._records.for_guild(guild_id).weekly_award(week)
+
     def backfill_weekly(self) -> int:
         return self._records.backfill_weekly(self.clock.offset_hours())
