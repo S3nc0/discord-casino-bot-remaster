@@ -12,7 +12,7 @@ DAILY_BASE = _WALLET.daily_base
 DAILY_STREAK_BONUS = _WALLET.daily_streak_bonus  # 連続1日ごとの加算
 DAILY_STREAK_CAP = _WALLET.daily_streak_cap  # 加算は20日分まで（最大 +2,000。1回の額は最大 3,000）
 LIQUID_KEYS = ("cash", "deposit", "crypto", "bonds", "options", "pot", "escrow", "loans_lent")  # 流動資産
-FIXED_KEYS = ("items", "relics", "horses", "tools")  # 固定資産
+FIXED_KEYS = ("items", "relics", "horses", "company", "tools")  # 固定資産
 LIABILITY_KEYS = ("debt", "loans_owed")  # 負債（parts の値はマイナスで持つ）
 PART_KEYS: tuple[str, ...] = LIQUID_KEYS + FIXED_KEYS + LIABILITY_KEYS
 

@@ -270,3 +270,14 @@ def test_forced_execution_takes_company_funds_before_the_rest_becomes_debt(eco):
         eco.debt.owe_for(G, U, cash + 100_000, "テスト")
     c = eco.company.company_get(U, NOON)
     assert c is not None and c["funds"] == 200_000 and c["level"] == 1  # 会社資金から 10万。事業所は残る
+
+
+def test_total_asset_ranking_counts_the_company_without_crashing(eco):
+    """#73: 会社を持つ人がいると、総資産のランキングが KeyError: 'company' で落ちていた。"""
+    from domain.types import FIXED_KEYS, asset_groups
+
+    found(eco)
+    rows = eco.assets.final_assets(None, NOON)
+    me = next(p for uid, _total, p in rows if uid == U)
+    assert "company" in FIXED_KEYS and me["company"] == co.invested(1)
+    assert asset_groups(me)["fixed"] >= co.invested(1)
