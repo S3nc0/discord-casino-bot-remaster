@@ -244,7 +244,7 @@ def test_buy_sell_holdings_commands(cog):
     run(invoke(cog.holdings, cog, it))
     assert "保有" in it.sent[-1]["embed"].description
     it = It()
-    run(orders.sell_spot(cog, as_interaction(it), "cs", None, None))
+    run(orders.sell_spot(cog, as_interaction(it), "cs"))
     assert "売りました" in it.sent[-1]["embed"].title
     assert cog.bot.sessions.try_start(U) is None  # 取引のあと、プレイ中のままにならない
 
@@ -311,11 +311,11 @@ def test_sell_shows_position_change_and_remaining(cog):
     have, _ = cog.bot.repos.for_guild(G).crypto.crypto_holding(U)
     cog.bot.repos.market.market_set(time_now() + 1, int(cog._market_svc.latest_price() * 1.2), 0)
     it = It()
-    run(orders.sell_spot(cog, as_interaction(it), "cs", have / 2000, None))  # 半分売る
+    run(orders.sell_spot(cog, as_interaction(it), "cs", 50))  # 半分売る
     text = it.sent[-1]["embed"].description
     assert "+" in text and "%" in text and "取得" in text and "残りの持ち分" in text and "評価損益" in text
     it = It()
-    run(orders.sell_spot(cog, as_interaction(it), "cs", None, None))
+    run(orders.sell_spot(cog, as_interaction(it), "cs"))
     assert "全部売りました" in it.sent[-1]["embed"].description
 
 
@@ -594,27 +594,21 @@ def test_short_counts_in_ranking_and_payout_repays_debt(eco):
 
 def test_short_commands(cog):
     it = It()
-    run(orders.margin_order(cog, as_interaction(it), "short", "cs", 1.0, None, 2))
+    price = cog._market_svc.latest_price()
+    run(orders.margin_order(cog, as_interaction(it), "short", "cs", 1_000, 2))
     assert "空売りしました" in it.sent[-1]["embed"].title
-    assert cog.bot.repos.for_guild(G).margin.short_position(U)[0] == 1_000
+    assert cog.bot.repos.for_guild(G).margin.short_position(U)[0] == int(1_000 * 2 * 1_000 // price)
     it = It()
     run(invoke(MarketCog.holdings, cog, it))
     assert "空売り" in it.sent[-1]["embed"].description and "維持率" in it.sent[-1]["embed"].description
     it = It()
-    run(orders.margin_close(cog, as_interaction(it), "short", "cs", None, None))
+    run(orders.margin_close(cog, as_interaction(it), "short", "cs"))
     assert (
         "買い戻しました" in it.sent[-1]["embed"].title and cog.bot.repos.for_guild(G).margin.short_position(U)[0] == 0
     )
     it = It()
-    run(orders.margin_close(cog, as_interaction(it), "short", "cs", None, None))
+    run(orders.margin_close(cog, as_interaction(it), "short", "cs"))
     assert "買い戻せません" in it.sent[-1]["embed"].title  # 建てていない
-    it = It()
-    run(
-        orders.margin_close(
-            cog, as_interaction(it), "short", "cs", 1.0, discord.app_commands.Choice(name="半分", value="half")
-        )
-    )
-    assert "どちらか1つ" in it.sent[-1]["embed"].title
 
 
 def test_chart_lists_short_sellers_with_profit_when_price_falls(cog):
@@ -627,18 +621,57 @@ def test_chart_lists_short_sellers_with_profit_when_price_falls(cog):
     assert not any("空売り" in f.name for f in cog.chart_embed("24h", guild_id=20).fields)  # 別サーバーは載らない
 
 
-def test_short_can_be_sized_by_amount_or_lots_but_not_both(cog):
+def test_margin_order_takes_the_collateral_and_builds_collateral_times_leverage(cog):
+    """金額は預ける証拠金。建玉総額は 証拠金 × レバレッジ で、引かれる担保は証拠金を超えない(#78)。"""
     price = cog._market_svc.latest_price()
+    before = cog._economy_svc.balance_of(G, U)
     it = It()
-    run(orders.margin_order(cog, as_interaction(it), "short", "cs", None, 1_000, 2))  # 金額1,000ペリカ分
+    run(orders.margin_order(cog, as_interaction(it), "short", "cs", 1_000, 2))
     units = cog.bot.repos.for_guild(G).margin.short_position(U)[0]
-    assert "空売りしました" in it.sent[-1]["embed"].title and units == int(1_000 * 1_000 // price)
+    assert "空売りしました" in it.sent[-1]["embed"].title and units == int(1_000 * 2 * 1_000 // price)
+    assert 0 < before - cog._economy_svc.balance_of(G, U) <= 1_000
+
+
+def test_margin_quote_never_takes_more_than_the_collateral():
+    rng = random.Random(78)
+    for _ in range(20_000):
+        collateral = rng.randint(10, 100_000)
+        leverage = rng.choice(market.SHORT_LEVERAGES)
+        price = round(rng.uniform(market.MIN_PRICE, market.MAX_PRICE), 2)
+        units, notional, margin = orders.margin_quote(collateral, leverage, price)
+        assert margin <= collateral and notional <= collateral * leverage
+
+
+def _refusal(cog, collateral, leverage, price):
+    cog.bot.repos.market.market_set(time_now() + 1, price, 0)
     it = It()
-    run(orders.margin_order(cog, as_interaction(it), "short", "cs", 1.0, 1_000))
-    assert "どちらか1つ" in it.sent[-1]["embed"].title
-    it = It()
-    run(orders.margin_order(cog, as_interaction(it), "short", "cs", None, None))
-    assert "どちらか1つ" in it.sent[-1]["embed"].title
+    run(orders.margin_order(cog, as_interaction(it), "short", "cs", collateral, leverage))
+    assert cog.bot.repos.for_guild(G).margin.short_position(U)[0] == 0
+    return it.sent[-1]
+
+
+def test_margin_order_refuses_in_collateral_words_at_the_edges(cog):
+    sent = _refusal(cog, 10, 1, 1111.13)  # 切り捨てで8口・担保9 < 10
+    assert sent["ephemeral"] and "証拠金を増やしてください" in sent["embed"].description
+    sent = _refusal(cog, 10, 1, 20_000.0)  # 10 × 1 では 0.001枚にもならない
+    assert "0.001枚も建てられません" in sent["embed"].description and "レバレッジを上げて" in sent["embed"].description
+    sent = _refusal(cog, 5_000_000, 5, 100.0)  # 総額 25,000,000 は1回の上限を超える
+    assert "1回に" in sent["embed"].description and "10,000,000" in sent["embed"].description
+
+
+def test_margin_order_confirms_by_the_total_and_shows_collateral_times_leverage(cog, monkeypatch):
+    asked = []
+
+    async def agree(interaction, needed, title, text, label):
+        asked.append((needed, text))
+        return interaction.response.send_message
+
+    monkeypatch.setattr(orders, "default_confirmed_reply", agree)
+    cog.bot.repos.for_guild(G).wallet.credit(U, 20_000, "テスト")
+    run(orders.margin_order(cog, as_interaction(It()), "long", "cs", 1_000, 5))  # 総額5,000: 確認あり
+    run(orders.margin_order(cog, as_interaction(It()), "long", "cs", 1_000, 1))  # 総額1,000: 確認なし
+    assert [n for n, _ in asked] == [True, False]
+    assert "証拠金 1,000ペリカ × レバレッジ **5倍**" in asked[0][1] and "建玉総額" in asked[0][1]
 
 
 # ----------------------------- 値動きの大きさと値幅制限 ----------------------------- #

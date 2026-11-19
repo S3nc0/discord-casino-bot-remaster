@@ -7,13 +7,14 @@ import time
 from types import SimpleNamespace
 
 import pytest
+from discord import app_commands
 
 from cogs.market import orders
 from cogs.market.cog import MarketCog
 from domain import market
 from domain.types import INITIAL_BALANCE
 from infra.db.repositories import open_repositories
-from tests.fakes import as_interaction, invoke, must
+from tests.fakes import as_interaction, buttons, invoke, must, selects
 from tests.support import make_market_cog, make_test_bot
 
 pytestmark = pytest.mark.real_scope
@@ -193,10 +194,22 @@ def test_old_single_symbol_tables_become_cs_without_losing_rows(tmp_path):
 
 
 # ----------------------------- コマンド ----------------------------- #
-def test_securities_group_has_four_commands_and_order_offers_every_symbol_and_bond():
+def test_securities_group_has_four_commands_and_order_is_split_by_kind():
     assert {c.name for c in MarketCog.group.commands} == {"注文", "保有", "市況", "決済"}
-    values = [c.value for c in MarketCog.order._params["symbol"].choices]
-    assert values == prices_keys() + ["bond_normal", "bond_junk"]
+    assert {c.name for c in MarketCog.order_group.commands} == {
+        "現物",
+        "信用",
+        "コール",
+        "プット",
+        "ペア",
+        "裸売り",
+        "債券",
+    }
+    for command in MarketCog.order_group.commands:  # 債券は銘柄の選択肢に混ざらない(#79)
+        assert isinstance(command, app_commands.Command)
+        symbol = next((p for p in command.parameters if p.display_name == "銘柄"), None)
+        assert symbol is None or [c.value for c in symbol.choices] == prices_keys(), command.name
+    assert [c.value for c in MarketCog.order_bond._params["kind"].choices] == ["normal", "junk"]
     assert [c.value for c in MarketCog.board._params["symbol"].choices] == prices_keys()
 
 
@@ -237,36 +250,29 @@ def choice(value):
     return SimpleNamespace(value=value)
 
 
-def test_order_command_dispatches_spot_short_and_bond(eco):
+def test_order_subcommands_buy_spot_margin_and_bond(eco):
     from tests.domain.test_market import It
 
     cog = make_cog(eco)
     eco.for_guild(G).wallet.credit(U, 20_000, "テスト")
     it = It()
-    asyncio.run(invoke(MarketCog.order, cog, it, choice("teio"), 2_000, None, None))  # 現物買い
+    asyncio.run(invoke(MarketCog.order_spot, cog, it, choice("teio"), 2_000))
     assert eco.for_guild(G).crypto.crypto_holding(U, "teio")[0] > 0
     it = It()
-    asyncio.run(invoke(MarketCog.order, cog, it, choice("gold"), 1_000, choice("short"), choice(2)))
+    asyncio.run(invoke(MarketCog.order_margin, cog, it, choice("gold"), choice("short"), 1_000, choice(2)))
     assert eco.for_guild(G).margin.short_position(U, "gold")[0] > 0 and "空売り" in it.sent[-1]["embed"].title
     it = It()
-    asyncio.run(invoke(MarketCog.order, cog, it, choice("bond_normal"), 1_000, None, None))
+    asyncio.run(invoke(MarketCog.order_bond, cog, it, choice("normal"), 1_000))
     assert len(eco.for_guild(G).bonds.bond_list(U)["active"]) == 1 and "通常債" in it.sent[-1]["embed"].title
 
 
-def test_order_command_refuses_nonsense_combinations(eco):
-    from tests.domain.test_market import It
-
+def test_spot_amount_suggestions_stop_at_the_spot_limit(eco):
     cog = make_cog(eco)
-    for args in (
-        (choice("bond_junk"), 1_000, choice("short"), None),  # 債券は空売りできない
-        (choice("bond_junk"), 1_000, None, choice(3)),  # 債券にレバレッジなし
-        (choice("cs"), 1_000, None, choice(2)),  # 現物買いにレバレッジなし
-    ):
-        it = It()
-        asyncio.run(invoke(MarketCog.order, cog, it, *args))
-        assert it.sent[-1]["ephemeral"] and "❌" in it.sent[-1]["embed"].title
-    assert eco.for_guild(G).crypto.holdings(U) == [] and eco.for_guild(G).bonds.bond_list(U)["active"] == []
-    assert eco.for_guild(G).wallet.balance(U) == INITIAL_BALANCE  # 何も買われていない
+    eco.for_guild(G).wallet.set_balance(U, 3_000_000, "テスト")
+    it = SimpleNamespace(guild_id=G, user=SimpleNamespace(id=U))
+    spot = asyncio.run(cog._spot_amount_autocomplete(as_interaction(it), ""))
+    other = asyncio.run(cog._buy_amount_autocomplete(as_interaction(it), ""))
+    assert max(c.value for c in spot) == 1_000_000 and max(c.value for c in other) == 3_000_000
 
 
 def test_bond_below_minimum_is_refused(eco):
@@ -274,7 +280,7 @@ def test_bond_below_minimum_is_refused(eco):
 
     cog = make_cog(eco)
     it = It()
-    asyncio.run(invoke(MarketCog.order, cog, it, choice("bond_normal"), 500, None, None))
+    asyncio.run(invoke(MarketCog.order_bond, cog, it, choice("normal"), 500))
     assert "買えません" in it.sent[-1]["embed"].title and eco.for_guild(G).wallet.balance(U) == INITIAL_BALANCE
 
 
@@ -312,29 +318,125 @@ def test_settle_half_of_a_spot_position(eco):
     a = eco.for_guild(G)
     a.crypto.crypto_buy(U, 2_000, cog._market_svc.latest_price("cs"), "cs")
     have = a.crypto.crypto_holding(U, "cs")[0]
-    asyncio.run(invoke(MarketCog.settle, cog, It(), "spot:cs", choice("half")))
+    asyncio.run(invoke(MarketCog.settle, cog, It(), "spot:cs", 50))
     assert a.crypto.crypto_holding(U, "cs")[0] == have - have // 2
 
 
-def test_holdings_screen_lists_everything_with_a_button_per_position(eco):
-    from tests.domain.test_market import It
+class PanelIt:
+    """保有パネルの部品を押す、疑似インタラクション（決済の応答と、パネルの描き直しを記録する）。"""
+
+    def __init__(self, values=None):
+        self.user = SimpleNamespace(id=U, display_name="テスト")
+        self.guild = SimpleNamespace(id=G)
+        self.guild_id = G
+        self.data = {"values": values or []}
+        self.sent, self.edits, self.modals, self.origin_edits = [], [], [], []
+        self.response = SimpleNamespace(
+            send_message=self._send, edit_message=self._edit, send_modal=self._modal, defer=self._defer
+        )
+        self.followup = SimpleNamespace(send=self._send)
+
+    async def _send(self, *a, **kw):
+        self.sent.append(kw)
+
+    async def _edit(self, **kw):
+        self.edits.append(kw)
+
+    async def _modal(self, modal):
+        self.modals.append(modal)
+
+    async def _defer(self, **kw):
+        return None
+
+    async def edit_original_response(self, **kw):
+        self.origin_edits.append(kw)
+
+
+def open_panel(cog):
+    origin = PanelIt()
+    asyncio.run(invoke(MarketCog.holdings, cog, origin))
+    return origin, origin.sent[-1]["view"]
+
+
+def press(view, label, it=None):
+    it = it or PanelIt()
+    asyncio.run(next(b for b in buttons(view) if b.label == label).callback(as_interaction(it)))
+    return it
+
+
+def pick(view, code):
+    it = PanelIt([code])
+    asyncio.run(selects(view)[0].callback(as_interaction(it)))
+    return it
+
+
+def test_holdings_panel_lists_every_position_in_a_select_and_settles_by_share(eco):
+    cog = make_cog(eco)
+    a = eco.for_guild(G)
+    a.crypto.crypto_buy(U, 2_000, cog._market_svc.latest_price("gold"), "gold")
+    a.bonds.bond_buy(U, "normal", 1_000, time.time())
+    origin, view = open_panel(cog)
+    text = origin.sent[-1]["embed"].description
+    assert "GOLD地金" in text and "債券" in text and "通常債" in text
+    bond = f"bond:{a.bonds.bond_list(U)['active'][0]['id']}"
+    assert [o.value for o in selects(view)[0].options] == ["spot:gold", bond]
+    assert all(b.disabled for b in buttons(view) if b.label in ("全部決済", "50%", "25%", "カスタム%"))
+    pick(view, "spot:gold")
+    assert not any(b.disabled for b in buttons(view) if b.label in ("全部決済", "50%", "25%", "カスタム%"))
+    have = a.crypto.crypto_holding(U, "gold")[0]
+    it = press(view, "50%")
+    assert "売りました" in it.sent[-1]["embed"].title
+    assert a.crypto.crypto_holding(U, "gold")[0] == have - have // 2
+    assert origin.origin_edits, "決済のあと、元のパネルを描き直す"
+    pick(view, bond)  # 債券は、全部だけ
+    assert [b.label for b in buttons(view) if not b.disabled][:1] == ["全部決済"]
+    assert all(b.disabled for b in buttons(view) if b.label in ("50%", "25%", "カスタム%"))
+    press(view, "全部決済")
+    assert a.bonds.bond_list(U)["active"] == []
+    assert [o.value for o in selects(view)[0].options] == ["spot:gold"]  # 決済した債券は消える
+
+
+def test_holdings_panel_custom_percent_and_refresh(eco):
+    from cogs.market.views import PercentModal
 
     cog = make_cog(eco)
     a = eco.for_guild(G)
-    a.crypto.crypto_buy(U, 1_000, cog._market_svc.latest_price("gold"), "gold")
-    a.bonds.bond_buy(U, "normal", 1_000, time.time())
-    it = It()
-    asyncio.run(invoke(MarketCog.holdings, cog, it))
-    text = it.sent[-1]["embed"].description
-    assert "GOLD地金" in text and "債券" in text and "通常債" in text
-    view = it.sent[-1]["view"]
-    assert [b.label for b in view.children] == [
-        "🥇 GOLD地金 全売却",
-        f"🏦 通常債 #{a.bonds.bond_list(U)['active'][0]['id']} 売却",
-    ]
-    it = It()
-    asyncio.run(view.children[0].callback(it))  # ボタンで、全部売る
-    assert a.crypto.holdings(U) == [] and "売りました" in it.sent[-1]["embed"].title
+    a.crypto.crypto_buy(U, 2_000, cog._market_svc.latest_price("cs"), "cs")
+    have = a.crypto.crypto_holding(U, "cs")[0]
+    _origin, view = open_panel(cog)
+    pick(view, "spot:cs")
+    modal = press(view, "カスタム%").modals[-1]
+    assert isinstance(modal, PercentModal)
+    modal.percent._value = "abc"
+    it = PanelIt()
+    asyncio.run(modal.on_submit(as_interaction(it)))
+    assert "割合が正しくありません" in it.sent[-1]["embed"].title and a.crypto.crypto_holding(U, "cs")[0] == have
+    modal.percent._value = "20"
+    asyncio.run(modal.on_submit(as_interaction(PanelIt())))
+    assert a.crypto.crypto_holding(U, "cs")[0] == have - have * 20 // 100
+    it = press(view, "🔄 更新")
+    assert "CSトークン" in it.edits[-1]["embed"].description and it.edits[-1]["view"] is view
+
+
+def test_holdings_panel_pages_beyond_25_positions(eco, monkeypatch):
+    cog = make_cog(eco)
+    fake = [(f"bond:{i}", f"🏦 通常債 #{i} 売却") for i in range(1, 31)]
+    monkeypatch.setattr(cog, "positions", lambda uid, gid: fake)
+    _origin, view = open_panel(cog)
+    assert len(selects(view)[0].options) == 25
+    press(view, "次 ▶")
+    assert [o.value for o in selects(view)[0].options] == [f"bond:{i}" for i in range(26, 31)]
+    assert next(b for b in buttons(view) if b.label == "次 ▶").disabled
+
+
+def test_market_and_holdings_panels_link_to_each_other(eco):
+    cog = make_cog(eco)
+    _origin, view = open_panel(cog)
+    it = press(view, "📈 市況を見る")
+    assert "全銘柄" in it.sent[-1]["embed"].title and it.sent[-1]["ephemeral"]
+    market_view = it.sent[-1]["view"]
+    it = press(market_view, "💼 保有を見る")
+    assert "証券" in it.sent[-1]["embed"].title and it.sent[-1]["ephemeral"] and it.sent[-1]["view"]
 
 
 def test_holdings_view_only_works_for_the_owner(eco):
@@ -365,9 +467,9 @@ def test_empty_holdings_has_no_buttons(eco):
     cog = make_cog(eco)
     it = It()
     asyncio.run(invoke(MarketCog.holdings, cog, it))
-    assert (
-        "まだ持っていません" in it.sent[-1]["embed"].description and "view" not in it.sent[-1]
-    )  # view=None は渡さない
+    assert "まだ持っていません" in it.sent[-1]["embed"].description
+    labels = [b.label for b in buttons(it.sent[-1]["view"])]  # 持ち物がなくても、更新と市況への導線は出す
+    assert labels == ["🔄 更新", "📈 市況を見る"]
 
 
 def test_board_without_symbol_shows_summary_with_switcher_and_with_symbol_posts_a_live_chart(eco):
@@ -378,7 +480,7 @@ def test_board_without_symbol_shows_summary_with_switcher_and_with_symbol_posts_
     asyncio.run(invoke(MarketCog.board, cog, it, None, None))
     assert "全銘柄" in it.sent[-1]["embed"].title and it.sent[-1]["ephemeral"] and it.sent[-1]["view"]
     view = it.sent[-1]["view"]
-    assert [len(s.options) for s in view.children] == [5, len(market.PERIODS)]
+    assert [len(s.options) for s in selects(view)] == [5, len(market.PERIODS)]
     swap = []
 
     class Resp:
@@ -405,25 +507,33 @@ def test_settle_by_percent_sells_that_share_of_a_spot_position(eco):
     assert a.crypto.crypto_buy(U, 2_000, cog._market_svc.latest_price("cs"), "cs").ok
     have = a.crypto.crypto_holding(U, "cs")[0]
     assert have > 0
-    asyncio.run(invoke(MarketCog.settle, cog, It(), "spot:cs", None, 25))
+    asyncio.run(invoke(MarketCog.settle, cog, It(), "spot:cs", 25))
     assert a.crypto.crypto_holding(U, "cs")[0] == have - have * 25 // 100
     left = a.crypto.crypto_holding(U, "cs")[0]
-    asyncio.run(invoke(MarketCog.settle, cog, It(), "spot:cs", None, 100))  # 100%は、全部
+    asyncio.run(invoke(MarketCog.settle, cog, It(), "spot:cs", 100))  # 100%は、全部
     assert a.crypto.crypto_holding(U, "cs")[0] == 0 and left > 0
 
 
-def test_percent_units_are_at_least_one_unit_and_both_options_are_refused(eco):
-    assert orders.units_from(1_000, None, choice(1)) == 10
-    assert orders.units_from(50, None, choice(1)) == 1  # 端数でも、最低1口
-    assert orders.units_from(1_000, None, choice("half")) == 500
-    assert orders.units_from(1_000, None, choice(100)) is None
-    assert orders.units_from(1_000, None, None) is None
+def test_percent_units_are_at_least_one_unit(eco):
+    assert orders.units_from(1_000, 1) == 10
+    assert orders.units_from(50, 1) == 1  # 端数でも、最低1口
+    assert orders.units_from(1_000, 50) == 500
+    assert orders.units_from(1_000, 100) is None
+    assert orders.units_from(1_000, None) is None
+
+
+def test_settle_refuses_a_share_of_a_bond_instead_of_selling_all(eco):
     from tests.domain.test_market import It
 
     cog = make_cog(eco)
+    a = eco.for_guild(G)
+    a.bonds.bond_buy(U, "normal", 1_000, time.time())
+    code = f"bond:{a.bonds.bond_list(U)['active'][0]['id']}"
     it = It()
-    asyncio.run(invoke(MarketCog.settle, cog, it, "spot:cs", choice("half"), 20))
-    assert "どちらか1つ" in it.sent[-1]["embed"].title
+    asyncio.run(invoke(MarketCog.settle, cog, it, code, 30))
+    assert "全部だけ" in it.sent[-1]["embed"].title and len(a.bonds.bond_list(U)["active"]) == 1
+    asyncio.run(invoke(MarketCog.settle, cog, It(), code, 100))
+    assert a.bonds.bond_list(U)["active"] == []
 
 
 def test_percent_closes_that_share_of_a_margin_position(eco):
@@ -434,5 +544,5 @@ def test_percent_closes_that_share_of_a_margin_position(eco):
     a.wallet.credit(U, 20_000, "テスト")
     assert a.margin.short_open(U, 10_000, cog._market_svc.latest_price("cs"), 1, "cs").ok
     have = a.margin.short_position(U, "cs")[0]
-    asyncio.run(invoke(MarketCog.settle, cog, It(), "short:cs", None, 30))
+    asyncio.run(invoke(MarketCog.settle, cog, It(), "short:cs", 30))
     assert a.margin.short_position(U, "cs")[0] == have - have * 30 // 100

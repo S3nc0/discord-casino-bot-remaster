@@ -32,6 +32,14 @@ if TYPE_CHECKING:
 
 RNG = random.SystemRandom()
 CONFIRM_FROM = get_catalogs().market().market.confirm_from  # この額以上の売買は確認ボタンを挟む
+MAX_MARGIN_NOTIONAL = 10_000_000  # 信用取引の、1回に建てられる総額の上限(#78)
+
+
+def margin_quote(collateral: int, leverage: int, price: float) -> tuple[int, float, int]:
+    """証拠金 × レバレッジ の総額で建てられる (口数, 実際の総額, 担保)。担保の式は repo（infra/db/margin.py）と同じ。"""
+    units = int(collateral * leverage * market.UNIT // price)
+    notional = units * price / market.UNIT
+    return units, notional, math.ceil(round(notional / leverage, 6))
 
 
 async def default_confirmed_reply(interaction: discord.Interaction, needed: bool, title: str, text: str, label: str):
@@ -39,27 +47,10 @@ async def default_confirmed_reply(interaction: discord.Interaction, needed: bool
     return await confirmed_reply(interaction, needed, title, text, label, confirm_fn=confirm_action)
 
 
-async def reject_lots_and_ratio(interaction: discord.Interaction, lots, ratio) -> bool:
-    """「枚数」と「割合」を両方指定していたら、エラーを返して True を返す。"""
-    if lots is None or ratio is None:
-        return False
-    await interaction.response.send_message(
-        embed=ui.error_embed("どちらか1つにしてください", "「枚数」と「割合」は、どちらか一方だけ指定できます。"),
-        ephemeral=True,
-    )
-    return True
-
-
-def units_from(have: int, lots, ratio) -> Optional[int]:
-    """売る・買い戻す口数。枚数の指定ならその口数、割合（1〜100の数値。「半分」は50）ならその割合、どちらも省略（または100%）なら None（全部）。"""
-    if lots is not None:
-        return int(round(lots * market.UNIT))
-    if ratio is not None:
-        value = ratio.value
-        if value == "half":
-            value = 50
-        if isinstance(value, int) and 0 < value < 100:
-            return max(1, have * value // 100)
+def units_from(have: int, percent: Optional[int]) -> Optional[int]:
+    """売る・買い戻す口数。percent（1〜100）ならその割合（端数でも最低1口）、省略か100以上なら None（全部）。"""
+    if percent is not None and 0 < percent < 100:
+        return max(1, have * percent // 100)
     return None
 
 
@@ -130,15 +121,11 @@ async def margin_close(
     interaction: discord.Interaction,
     side: str,
     symbol: str,
-    lots,
-    ratio,
+    percent: Optional[int] = None,
     *,
     confirm_fn: Optional[Callable] = None,
 ) -> None:
-    """信用取引の決済（空売りは買い戻し、信用買いは売り戻し）。枚数か割合で指定する。どちらも省略すると全部。"""
-    if await reject_lots_and_ratio(interaction, lots, ratio):
-        return
-
+    """信用取引の決済（空売りは買い戻し、信用買いは売り戻し）。percent（1〜100）で割合を決める。省略すると全部。"""
     sym, label = market.BY_KEY[symbol], market.SIDE_NAME[side]
     verb = "買い戻し" if side == "short" else "売り戻し"
     cannot = "買い戻せません" if side == "short" else "売り戻せません"
@@ -149,11 +136,13 @@ async def margin_close(
         have, entry_value, margin = cog._market_svc.margin_position(gid, uid, sym.key, side)
         if have <= 0:
             await interaction.response.send_message(
-                embed=ui.error_embed(cannot, f"{sym.name}の{label}を建てていません。`/証券 注文` で建てられます。"),
+                embed=ui.error_embed(
+                    cannot, f"{sym.name}の{label}を建てていません。`/証券 注文 信用` で建てられます。"
+                ),
                 ephemeral=True,
             )
             return
-        units = units_from(have, lots, ratio)
+        units = units_from(have, percent)
         price = cog._market_svc.latest_price(sym.key)
         shown = market.lots(have if units is None else units)
         reply = await fn(
@@ -196,14 +185,11 @@ async def sell_spot(
     cog: "MarketCog",
     interaction: discord.Interaction,
     symbol: str,
-    lots,
-    ratio,
+    percent: Optional[int] = None,
     *,
     confirm_fn: Optional[Callable] = None,
 ) -> None:
-    """現物の売却。枚数か割合（半分・全部）で指定する。どちらも省略すると全部。"""
-    if await reject_lots_and_ratio(interaction, lots, ratio):
-        return
+    """現物の売却。percent（1〜100）で割合を決める。省略すると全部。"""
     sym = market.BY_KEY[symbol]
     fn = default_confirmed_reply if confirm_fn is None else confirm_fn
 
@@ -212,11 +198,11 @@ async def sell_spot(
         have, cost = cog._market_svc.crypto_holding(gid, uid, sym.key)
         if have <= 0:
             await interaction.response.send_message(
-                embed=ui.error_embed("売れません", f"{sym.name}を持っていません。`/証券 注文` で買えます。"),
+                embed=ui.error_embed("売れません", f"{sym.name}を持っていません。`/証券 注文 現物` で買えます。"),
                 ephemeral=True,
             )
             return
-        units = units_from(have, lots, ratio)
+        units = units_from(have, percent)
         price = cog._market_svc.latest_price(sym.key)
         shown = market.lots(have if units is None else units)
         reply = await fn(
@@ -255,60 +241,61 @@ async def margin_order(
     interaction: discord.Interaction,
     side: str,
     symbol: str,
-    lots=None,
-    amount: Optional[int] = None,
+    collateral: int,
     leverage: int = 1,
     *,
     confirm_fn: Optional[Callable] = None,
 ) -> None:
-    """信用取引（空売り＝売り建て、信用買い＝買い建て）。担保 = 総額 ÷ レバレッジ を預ける。枚数か金額（建てる総額）で指定する。"""
+    """信用取引（空売り＝売り建て、信用買い＝買い建て）。collateral（預ける証拠金）× レバレッジ の総額まで建てる(#78)。
+
+    口数は価格で割り切れない分を切り捨てるので、実際の担保は collateral 以下になる（入れた額より多くは引かれない）。
+    """
     label = market.SIDE_NAME[side]
-    if (lots is None) == (amount is None):
-        await interaction.response.send_message(
-            embed=ui.error_embed(
-                "どちらか1つを指定してください", f"{label}する量は、「枚数」か「金額」のどちらか一方で指定します。"
-            ),
-            ephemeral=True,
-        )
-        return
     sym = market.BY_KEY[symbol]
     fn = default_confirmed_reply if confirm_fn is None else confirm_fn
+    target_notional = collateral * leverage
 
-    def units_at(price: float) -> int:
-        if lots is not None:
-            return int(round(lots * market.UNIT))
-        assert amount is not None
-        return int(amount * market.UNIT // price)  # 金額のときは、その額を超えない口数
+    async def refuse(text: str) -> None:
+        await interaction.response.send_message(embed=ui.error_embed(f"{label}できません", text), ephemeral=True)
 
     async def run(uid: int) -> None:
         gid = ui.guild_id_of(interaction)
-        price = cog._market_svc.latest_price(sym.key)
-        units = units_at(price)
-        if units < 1:
-            await interaction.response.send_message(
-                embed=ui.error_embed(
-                    f"{label}できません", "その金額では 0.001枚にもなりません。金額を増やしてください。"
-                ),
-                ephemeral=True,
+        if target_notional > MAX_MARGIN_NOTIONAL:
+            await refuse(
+                f"建てる総額（証拠金 × レバレッジ）は、1回に {ui.pelica(MAX_MARGIN_NOTIONAL)} までです。"
+                f"いまは {ui.pelica(target_notional)} です。証拠金を減らすか、レバレッジを下げてください。"
             )
             return
-        notional = units * price / market.UNIT
-        margin = math.ceil(round(notional / leverage, 6))
+        price = cog._market_svc.latest_price(sym.key)
+        units, notional, margin = margin_quote(collateral, leverage, price)
+        if units < 1:
+            await refuse(
+                "その証拠金とレバレッジでは 0.001枚も建てられません。証拠金を増やすか、レバレッジを上げてください。"
+            )
+            return
+        if margin < market.SHORT_MIN_MARGIN:
+            # 高い銘柄では切り捨てで担保が最低額を割ることがある。確認の前に、証拠金の言葉で断る
+            await refuse(
+                f"価格で割り切れない分を切り捨てると、担保が {market.SHORT_MIN_MARGIN}ペリカ 未満になります。証拠金を増やしてください。"
+            )
+            return
         direction = "売り建て" if side == "short" else "買い建て"
         gain = "下がると利益、上がると損失" if side == "short" else "上がると利益、下がると損失"
         reply = await fn(
             interaction,
-            notional >= CONFIRM_FROM,
+            notional >= CONFIRM_FROM,  # 確認を挟むかは、建てる総額で決める（証拠金ではない）
             f"{label}しますか？",
-            f"**{sym.name}** を、いまの価格 **{market.pel(price)}** で、**{market.lots(units)}**（約 {ui.pelica(int(notional))}）を{direction}ます。\n"
-            f"レバレッジ **{leverage}倍**・担保 **{ui.pelica(margin)}**\n"
+            f"**{sym.name}** を、いまの価格 **{market.pel(price)}** で{direction}ます。\n"
+            f"証拠金 {ui.pelica(collateral)} × レバレッジ **{leverage}倍** → 建玉総額 約 {ui.pelica(target_notional)}"
+            f"（実際は **{market.lots(units)}**・{ui.pelica(int(notional))}）\n"
+            f"預ける担保 **{ui.pelica(margin)}**（価格で割り切れない分は切り捨てるので、証拠金以下）\n"
             f"価格が{gain}です。口座ぜんたいの維持率が {market.LOSSCUT_RATIO:.0%} を下回ると、損の大きい建玉から強制決済されます。",
             f"{label}する",
         )
         if reply is None:
             return
         price = cog._market_svc.latest_price(sym.key)
-        units = units_at(price)  # 確認を待つ間に動いた価格で、確定する
+        units = margin_quote(collateral, leverage, price)[0]  # 確認を待つ間に動いた価格で、確定する
         res = cog._market_svc.margin_open(gid, uid, side, units, price, leverage, sym.key)
         if not res.ok:
             await reply(embed=ui.error_embed(f"{label}できませんでした", format_failure(res.reason)), ephemeral=True)
@@ -320,7 +307,7 @@ async def margin_order(
                 f"**{market.lots(res.units)}**（価格 {market.pel(price)}・{leverage}倍）\n"
                 f"預けた担保: {ui.pelica(res.money)}\n残高: **{ui.pelica(res.balance)}**\n\n{margin_position_text(side, have, entry_value, margin_all, price)}\n\n"
                 f"{margin_ratio_text(cog._market_svc.margin_status(gid, uid, cog._market_svc.latest_prices()))}\n"
-                "閉じるには `/証券 保有` のボタンか、`/証券 決済` を使います。",
+                "閉じるには `/証券 保有` のパネルか、`/証券 決済` を使います。",
             )
         )
 
@@ -404,7 +391,7 @@ async def option_buy(
                 f"掛け金: **{ui.pelica(res['cost'])}**（★途中ロスカットなし・最大損失はこの掛け金のみ）\n"
                 + target_text(res["strike"] if not pair else res["spot"], res["strike"], res["units"], res["cost"])
                 + f"\n満期: {due_text(res['expiry'])}（満期の価格で自動で決済されます）\n"
-                "満期の前でも、`/証券 保有` のボタンか `/証券 決済` で、いまの値段で売れます。",
+                "満期の前でも、`/証券 保有` のパネルか `/証券 決済` で、いまの値段で売れます。",
             )
         )
 
@@ -474,7 +461,7 @@ async def option_write(
                 f"プレミアム **{ui.pelica(res['premium'])}** を受け取りました。証拠金 **{ui.pelica(res['margin'])}** を預けています。\n"
                 f"満期の価格が **{market.fmt(res['strike'])}** を{'超えない' if kind == opt.CALL else '下回らない'}かぎり、損失はありません。\n"
                 f"満期: {due_text(res['expiry'])}（自動で決済。損失は証拠金から払い、超えた分は借金）\n"
-                "満期の前でも、`/証券 保有` のボタンか `/証券 決済` で、買い戻して閉じられます。",
+                "満期の前でも、`/証券 保有` のパネルか `/証券 決済` で、買い戻して閉じられます。",
             )
         )
 

@@ -5,6 +5,7 @@ import time
 from types import SimpleNamespace
 
 import pytest
+from discord import app_commands
 
 from cogs.market.cog import MarketCog
 from domain import market, market_events, teiai
@@ -267,10 +268,10 @@ def test_order_pair_needs_a_counterpart_and_shows_the_condition(cog):
     from tests.domain.test_market import It
 
     it = It()
-    asyncio.run(invoke(MarketCog.order, cog, it, choice("cs"), 2_000, choice("pair"), None, None))
+    asyncio.run(invoke(MarketCog.order_pair, cog, it, choice("cs"), choice("cs"), 2_000))
     assert it.sent[-1]["ephemeral"] and "2つの銘柄" in it.sent[-1]["embed"].title
     it = It()
-    asyncio.run(invoke(MarketCog.order, cog, it, choice("cs"), 2_000, choice("pair"), None, choice("teio")))
+    asyncio.run(invoke(MarketCog.order_pair, cog, it, choice("cs"), choice("teio"), 2_000))
     embed = it.sent[-1]["embed"]
     assert "ペア・ワラント" in embed.title and "CSトークン vs TEIO重工" in embed.title
     assert "上昇率" in embed.description and "想定リターン" in embed.description
@@ -289,7 +290,7 @@ def test_order_naked_sell_asks_for_confirmation_and_creates_the_position(cog, mo
 
     monkeypatch.setattr(orders, "default_confirmed_reply", agree)  # 確認ダイアログは、内容だけを記録して通す
     it = It()
-    asyncio.run(invoke(MarketCog.order, cog, it, choice("cs"), 2_000, choice("scall"), None, None))
+    asyncio.run(invoke(MarketCog.order_write, cog, it, choice("cs"), choice("call"), 2_000, None))
     assert (
         asked and asked[0][0] is True and "借金になります" in asked[0][2]
     )  # 裸売りは、必ず確認を挟み、借金になりうることを伝える
@@ -306,8 +307,8 @@ def test_holdings_and_settle_for_a_naked_sell_and_a_pair(cog, monkeypatch):
         return interaction.response.send_message
 
     monkeypatch.setattr(orders, "default_confirmed_reply", agree)
-    asyncio.run(invoke(MarketCog.order, cog, It(), choice("cs"), 2_000, choice("sput"), None, None))
-    asyncio.run(invoke(MarketCog.order, cog, It(), choice("cs"), 1_000, choice("pair"), None, choice("numa")))
+    asyncio.run(invoke(MarketCog.order_write, cog, It(), choice("cs"), choice("put"), 2_000, None))
+    asyncio.run(invoke(MarketCog.order_pair, cog, It(), choice("cs"), choice("numa"), 1_000))
     it = It()
     asyncio.run(invoke(MarketCog.holdings, cog, it))
     text = it.sent[-1]["embed"].description
@@ -323,12 +324,20 @@ def test_holdings_and_settle_for_a_naked_sell_and_a_pair(cog, monkeypatch):
     assert "売りました" in it.sent[-1]["embed"].title
 
 
-def test_leverage_is_refused_for_pair_and_naked_sell(cog):
-    from tests.domain.test_market import It
-
-    for kind in ("pair", "scall", "sput"):
-        it = It()
-        asyncio.run(invoke(MarketCog.order, cog, it, choice("cs"), 1_000, choice(kind), choice(3), choice("teio")))
-        assert it.sent[-1]["ephemeral"] and "❌" in it.sent[-1]["embed"].title
-    assert cog.bot.repos.for_guild(G).options.option_list(U)["active"] == []
+def test_order_subcommands_have_only_the_fields_they_need():
+    """種別ごとのサブコマンドには、その種別に要る欄しかない（無関係な欄による事後エラーが起きない）(#79)。"""
+    params = {
+        c.name: {p.display_name for p in c.parameters}
+        for c in MarketCog.order_group.commands
+        if isinstance(c, app_commands.Command)
+    }
+    assert params == {
+        "現物": {"銘柄", "金額"},
+        "信用": {"銘柄", "売買", "証拠金", "レバレッジ"},
+        "コール": {"銘柄", "掛け金", "目標割合"},
+        "プット": {"銘柄", "掛け金", "目標割合"},
+        "ペア": {"銘柄", "相手", "掛け金"},
+        "裸売り": {"銘柄", "種別", "証拠金", "目標割合"},
+        "債券": {"種類", "金額"},
+    }
     assert market_events and INITIAL_BALANCE  # 読み込みの確認

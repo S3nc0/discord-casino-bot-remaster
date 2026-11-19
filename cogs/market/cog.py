@@ -2,7 +2,6 @@
 
 import logging
 import random
-from types import SimpleNamespace
 from typing import TYPE_CHECKING, Any, Optional
 
 import discord
@@ -44,10 +43,10 @@ KEEP_DAYS = get_catalogs().market().market.keep_days  # 価格の履歴を残す
 CONFIRM_FROM = orders.CONFIRM_FROM
 PERIOD_CHOICES = [app_commands.Choice(name=label, value=key) for key, (label, _) in market.PERIODS.items()]
 SYMBOL_CHOICES = [app_commands.Choice(name=f"{s.emoji} {s.name}", value=s.key) for s in market.SYMBOLS]
-BOND_PREFIX = "bond_"
-ORDER_CHOICES = SYMBOL_CHOICES + [
-    app_commands.Choice(name=f"債券: {c.name}", value=BOND_PREFIX + c.value) for c in KIND_CHOICES
-]
+LEVERAGE_CHOICES = [app_commands.Choice(name=f"{n}倍", value=n) for n in market.SHORT_LEVERAGES]
+SPOT_MAX = 1_000_000  # 現物は、1回にこの額まで買える
+AMOUNT_MAX = 10_000_000  # 現物以外の金額の欄の上限
+PERCENT_STEPS = (25, 50, 75, 100)  # 金額・割合の候補に出す %
 
 
 class MarketCog(commands.Cog):
@@ -72,6 +71,10 @@ class MarketCog(commands.Cog):
 
     group = app_commands.Group(
         name="証券", description="📈 注文・保有・市況・決済（4銘柄と債券。ゲーム内の通貨・現実のお金とは無関係）"
+    )
+    # 種別ごとにサブコマンドを分け、その種別に要る欄だけを出す(#79)
+    order_group = app_commands.Group(
+        name="注文", description="現物・信用・コール・プット・ペア・裸売り・債券を注文する", parent=group
     )
 
     # ------------------------------ 価格の更新（MarketService へ委譲） ------------------------------ #
@@ -207,128 +210,185 @@ class MarketCog(commands.Cog):
         except discord.HTTPException as exc:
             logthrottle.warn(("chart-swap", gid), f"前のチャートを消せません: guild={gid}: {exc!r}")
 
-    # ------------------------------ 売買 ------------------------------ #
-    async def _buy_amount_autocomplete(self, interaction: discord.Interaction, current: str):
-        choices = balance_choices(self._economy_svc, interaction, current, 10, 1_000_000)
+    # ------------------------------ 金額・割合の候補 ------------------------------ #
+    def _amount_choices(self, interaction: discord.Interaction, current: str, cap: int) -> list:
+        """残高の1行に、何も打っていないときだけ、残高の25/50/75/100%（cap まで）を足す。"""
+        choices = balance_choices(self._economy_svc, interaction, current, 10, cap)
         balance = own_balance(self._economy_svc, interaction.guild_id, interaction.user.id)
         if balance is not None and typed_amount(current) is None:
-            for pct in (25, 50, 75, 100):
-                value = min(10_000_000, balance * pct // 100)
+            for pct in PERCENT_STEPS:
+                value = min(cap, balance * pct // 100)
                 if value >= 10:
                     choices.append(app_commands.Choice(name=f"残高の{pct}%（{value:,}ペリカ）", value=value))
         return choices[:25]
 
+    async def _buy_amount_autocomplete(self, interaction: discord.Interaction, current: str):
+        return self._amount_choices(interaction, current, AMOUNT_MAX)
+
+    async def _spot_amount_autocomplete(self, interaction: discord.Interaction, current: str):
+        return self._amount_choices(interaction, current, SPOT_MAX)
+
     # ------------------------------ 注文 ------------------------------ #
-    @group.command(name="注文", description="買う・信用買い・空売り・債券を買う（銘柄と金額を選ぶだけ）")
-    @app_commands.rename(
-        symbol="銘柄",
-        amount="金額",
-        order_type="注文種別",
-        leverage="レバレッジ",
-        counterpart="相手",
-        target="目標割合",
-    )
-    @app_commands.describe(
-        symbol="買う銘柄か債券",
-        amount="使うペリカ（信用買い・空売りは建てる総額、コール・プット・ペアは掛け金、裸売りは証拠金）",
-        order_type="省略すると現物買い（債券は現物買いのみ）",
-        leverage="信用買い・空売りの倍率（省略で1倍。大きいほど損益が大きく、強制決済されやすい）",
-        counterpart="ペア・ワラントで、比べる相手の銘柄（銘柄が相手より上がると当たり）",
-        target="コール・プットの、当たりの基準（現在値から何%動くか。1〜50。省略すると、銘柄ごとの既定値。大きいほど当たりにくく、当たると大きい）",
-    )
-    @app_commands.choices(
-        symbol=ORDER_CHOICES,
-        order_type=[
-            app_commands.Choice(name="現物買い", value="spot"),
-            app_commands.Choice(name="信用買い", value="long"),
-            app_commands.Choice(name="空売り", value="short"),
-            app_commands.Choice(name="爆騰コール（6時間・上がると当たり）", value="call"),
-            app_commands.Choice(name="暴落プット（6時間・下がると当たり）", value="put"),
-            app_commands.Choice(name="ペア・ワラント（銘柄が「相手」より上がると当たり）", value="pair"),
-            app_commands.Choice(name="コール裸売り（プレミアムを先にもらう・上がると損）", value="scall"),
-            app_commands.Choice(name="プット裸売り（プレミアムを先にもらう・下がると損）", value="sput"),
-        ],
-        counterpart=SYMBOL_CHOICES,
-    )
-    @app_commands.choices(leverage=[app_commands.Choice(name=f"{n}倍", value=n) for n in market.SHORT_LEVERAGES])
-    @app_commands.autocomplete(amount=_buy_amount_autocomplete)
-    async def order(
+    @order_group.command(name="現物", description="銘柄を、金額ぶん買う（手数料なし・小数で買える）")
+    @app_commands.rename(symbol="銘柄", amount="金額")
+    @app_commands.describe(symbol="買う銘柄", amount=f"使うペリカ（1回に{SPOT_MAX:,}まで）")
+    @app_commands.choices(symbol=SYMBOL_CHOICES)
+    @app_commands.autocomplete(amount=_spot_amount_autocomplete)
+    async def order_spot(
         self,
         interaction: discord.Interaction,
         symbol: app_commands.Choice[str],
-        amount: app_commands.Range[int, 10, 10_000_000],
-        order_type: Optional[app_commands.Choice[str]] = None,
+        amount: app_commands.Range[int, 10, SPOT_MAX],
+    ):
+        await orders.buy_spot(self, interaction, symbol.value, amount)
+
+    @order_group.command(name="信用", description="信用買い（上がると儲かる）か空売り（下がると儲かる）を建てる")
+    @app_commands.rename(symbol="銘柄", side="売買", amount="証拠金", leverage="レバレッジ")
+    @app_commands.describe(
+        symbol="建てる銘柄",
+        side="信用買い（上がると利益）か空売り（下がると利益）",
+        amount="預ける証拠金。建てる総額は 証拠金 × レバレッジ（価格で割り切れない分は切り捨て）",
+        leverage="倍率（省略で1倍。大きいほど損益が大きく、強制決済されやすい）",
+    )
+    @app_commands.choices(
+        symbol=SYMBOL_CHOICES,
+        side=[
+            app_commands.Choice(name="信用買い（上がると利益）", value="long"),
+            app_commands.Choice(name="空売り（下がると利益）", value="short"),
+        ],
+    )
+    @app_commands.choices(leverage=LEVERAGE_CHOICES)
+    @app_commands.autocomplete(amount=_buy_amount_autocomplete)
+    async def order_margin(
+        self,
+        interaction: discord.Interaction,
+        symbol: app_commands.Choice[str],
+        side: app_commands.Choice[str],
+        amount: app_commands.Range[int, 10, AMOUNT_MAX],
         leverage: Optional[app_commands.Choice[int]] = None,
-        counterpart: Optional[app_commands.Choice[str]] = None,
+    ):
+        lev = leverage.value if leverage else 1
+        await orders.margin_order(self, interaction, side.value, symbol.value, amount, lev)
+
+    @order_group.command(
+        name="コール", description="爆騰コール（6時間後に、基準より上がっていれば当たり。損失は掛け金だけ）"
+    )
+    @app_commands.rename(symbol="銘柄", amount="掛け金", target="目標割合")
+    @app_commands.describe(
+        symbol="上がると思う銘柄",
+        amount="払う掛け金（最大の損失はこの額だけ）",
+        target="当たりの基準（現在値から何%上か。1〜50。省略すると銘柄ごとの既定値。大きいほど当たりにくく、当たると大きい）",
+    )
+    @app_commands.choices(symbol=SYMBOL_CHOICES)
+    @app_commands.autocomplete(amount=_buy_amount_autocomplete)
+    async def order_call(
+        self,
+        interaction: discord.Interaction,
+        symbol: app_commands.Choice[str],
+        amount: app_commands.Range[int, 10, AMOUNT_MAX],
         target: Optional[app_commands.Range[int, 1, opt.MAX_TARGET_PCT]] = None,
     ):
-        kind = order_type.value if order_type else "spot"
-        lev = leverage.value if leverage else 1
-        if symbol.value.startswith(BOND_PREFIX):
-            if kind != "spot" or lev != 1:
-                return await interaction.response.send_message(
-                    embed=ui.error_embed(
-                        "債券は現物買いだけです",
-                        "債券には、信用買いも空売りも、コール・プットも、レバレッジもありません。",
-                    ),
-                    ephemeral=True,
-                )
-            return await orders.bond_buy(self, interaction, symbol.value[len(BOND_PREFIX) :], amount)
-        if kind in (opt.CALL, opt.PUT, opt.PAIR, "scall", "sput"):
-            if lev != 1:
-                return await interaction.response.send_message(
-                    embed=ui.error_embed(
-                        "コール・プット・ペア・裸売りにレバレッジはありません",
-                        "買いの損失は払った掛け金だけ、裸売りは証拠金（行使価格の20%）で決まります。",
-                    ),
-                    ephemeral=True,
-                )
-            if target is not None and kind in (opt.PAIR,):
-                return await interaction.response.send_message(
-                    embed=ui.error_embed(
-                        "目標割合は、コール・プットだけです", "ペア・ワラントには、行使価格の基準がありません。"
-                    ),
-                    ephemeral=True,
-                )
-            if kind in ("scall", "sput"):
-                return await orders.option_write(self, interaction, kind[1:], symbol.value, amount, target=target)
-            return await orders.option_buy(
-                self,
-                interaction,
-                kind,
-                symbol.value,
-                amount,
-                symbol2=counterpart.value if counterpart else None,
-                target=target,
-            )
-        if kind in ("short", "long"):
-            return await orders.margin_order(self, interaction, kind, symbol.value, amount=amount, leverage=lev)
-        if lev != 1:
-            return await interaction.response.send_message(
-                embed=ui.error_embed(
-                    "現物買いにレバレッジはありません", "レバレッジは、信用買いと空売りのときだけ選べます。"
-                ),
-                ephemeral=True,
-            )
-        if amount > 1_000_000:
-            return await interaction.response.send_message(
-                embed=ui.error_embed("金額が大きすぎます", "現物は、1回に1,000,000ペリカまで買えます。"), ephemeral=True
-            )
-        await orders.buy_spot(self, interaction, symbol.value, amount)
+        await orders.option_buy(self, interaction, opt.CALL, symbol.value, amount, target=target)
+
+    @order_group.command(
+        name="プット", description="暴落プット（6時間後に、基準より下がっていれば当たり。損失は掛け金だけ）"
+    )
+    @app_commands.rename(symbol="銘柄", amount="掛け金", target="目標割合")
+    @app_commands.describe(
+        symbol="下がると思う銘柄",
+        amount="払う掛け金（最大の損失はこの額だけ）",
+        target="当たりの基準（現在値から何%下か。1〜50。省略すると銘柄ごとの既定値。大きいほど当たりにくく、当たると大きい）",
+    )
+    @app_commands.choices(symbol=SYMBOL_CHOICES)
+    @app_commands.autocomplete(amount=_buy_amount_autocomplete)
+    async def order_put(
+        self,
+        interaction: discord.Interaction,
+        symbol: app_commands.Choice[str],
+        amount: app_commands.Range[int, 10, AMOUNT_MAX],
+        target: Optional[app_commands.Range[int, 1, opt.MAX_TARGET_PCT]] = None,
+    ):
+        await orders.option_buy(self, interaction, opt.PUT, symbol.value, amount, target=target)
+
+    @order_group.command(name="ペア", description="ペア・ワラント（6時間後に、銘柄の上昇率が相手を上回れば当たり）")
+    @app_commands.rename(symbol="銘柄", counterpart="相手", amount="掛け金")
+    @app_commands.describe(
+        symbol="相手より上がると思う銘柄",
+        counterpart="比べる相手の銘柄（銘柄とちがうもの）",
+        amount="払う掛け金（最大の損失はこの額だけ）",
+    )
+    @app_commands.choices(symbol=SYMBOL_CHOICES, counterpart=SYMBOL_CHOICES)
+    @app_commands.autocomplete(amount=_buy_amount_autocomplete)
+    async def order_pair(
+        self,
+        interaction: discord.Interaction,
+        symbol: app_commands.Choice[str],
+        counterpart: app_commands.Choice[str],
+        amount: app_commands.Range[int, 10, AMOUNT_MAX],
+    ):
+        await orders.option_buy(self, interaction, opt.PAIR, symbol.value, amount, symbol2=counterpart.value)
+
+    @order_group.command(
+        name="裸売り", description="コール・プットを帝愛に売り、プレミアムを先にもらう（大きく動くと借金）"
+    )
+    @app_commands.rename(symbol="銘柄", kind="種別", amount="証拠金", target="目標割合")
+    @app_commands.describe(
+        symbol="売る銘柄",
+        kind="コール裸売り（上がると損）かプット裸売り（下がると損）",
+        amount="預ける証拠金（行使価格 × 口数の20%）",
+        target="行使価格（現在値から何%離すか。1〜50。省略すると銘柄ごとの既定値）",
+    )
+    @app_commands.choices(
+        symbol=SYMBOL_CHOICES,
+        kind=[
+            app_commands.Choice(name="コール裸売り（上がると損）", value=opt.CALL),
+            app_commands.Choice(name="プット裸売り（下がると損）", value=opt.PUT),
+        ],
+    )
+    @app_commands.autocomplete(amount=_buy_amount_autocomplete)
+    async def order_write(
+        self,
+        interaction: discord.Interaction,
+        symbol: app_commands.Choice[str],
+        kind: app_commands.Choice[str],
+        amount: app_commands.Range[int, 10, AMOUNT_MAX],
+        target: Optional[app_commands.Range[int, 1, opt.MAX_TARGET_PCT]] = None,
+    ):
+        await orders.option_write(self, interaction, kind.value, symbol.value, amount, target=target)
+
+    @order_group.command(name="債券", description="通常債（元本保証）かジャンク債（高利回り・倒産あり）を買う")
+    @app_commands.rename(kind="種類", amount="金額")
+    @app_commands.describe(kind="債券の種類", amount="預ける元本（1,000ペリカ以上）")
+    @app_commands.choices(kind=KIND_CHOICES)
+    @app_commands.autocomplete(amount=_buy_amount_autocomplete)
+    async def order_bond(
+        self,
+        interaction: discord.Interaction,
+        kind: app_commands.Choice[str],
+        amount: app_commands.Range[int, 10, AMOUNT_MAX],
+    ):
+        await orders.bond_buy(self, interaction, kind.value, amount)
 
     # ------------------------------ 保有・決済 ------------------------------ #
     def positions(self, uid: int, guild_id: int) -> list:
         return self._market_svc.positions(guild_id, uid)
 
-    async def settle_position(self, interaction: discord.Interaction, code: str, ratio=None) -> None:
+    async def settle_position(self, interaction: discord.Interaction, code: str, percent: Optional[int] = None) -> None:
+        """持ち物（code）を、percent（1〜100。省略で全部）だけ決済する。債券・オプションは全部だけ。"""
         kind, _, target = code.partition(":")
         if kind == "spot" and target in market.BY_KEY:
-            return await orders.sell_spot(self, interaction, target, None, ratio)
+            return await orders.sell_spot(self, interaction, target, percent)
         if kind in ("short", "long") and target in market.BY_KEY:
-            return await orders.margin_close(self, interaction, kind, target, None, ratio)
-        if kind == "opt" and target.isdigit():
-            return await orders.option_sell(self, interaction, int(target))
-        if kind == "bond" and target.isdigit():
+            return await orders.margin_close(self, interaction, kind, target, percent)
+        if kind in ("opt", "bond") and target.isdigit():
+            if percent is not None and percent < 100:  # 黙って全部を決済しない(#80)
+                await interaction.response.send_message(
+                    embed=ui.error_embed("債券・オプションは全部だけです", "割合を省略するか、100%にしてください。"),
+                    ephemeral=True,
+                )
+                return
+            if kind == "opt":
+                return await orders.option_sell(self, interaction, int(target))
             return await orders.bond_cancel(self, interaction, int(target))
         await interaction.response.send_message(
             embed=ui.error_embed("決済できません", "決済する持ち物を、候補から選んでください。"), ephemeral=True
@@ -347,15 +407,23 @@ class MarketCog(commands.Cog):
             snap["margin_status"],
         )
 
-    @group.command(name="保有", description="現物・信用取引・債券をまとめて見る（ボタンで、すぐ決済できる）")
-    async def holdings(self, interaction: discord.Interaction):
+    async def open_holdings(self, interaction: discord.Interaction) -> None:
+        """本人にだけ、保有パネルを出す（/証券 保有 と、市況の「保有を見る」ボタンから）。"""
         uid, gid = interaction.user.id, ui.guild_id_of(interaction)
-        embed = self.holdings_embed(uid, gid)
-        view = HoldingsView(self, uid, gid)
-        if view.children:
-            await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
-        else:
-            await interaction.response.send_message(embed=embed, ephemeral=True)
+        view = HoldingsView(self, uid, gid, origin=interaction)
+        await interaction.response.send_message(embed=view.embed(), view=view, ephemeral=True)
+
+    async def open_market(self, interaction: discord.Interaction) -> None:
+        """本人にだけ、全銘柄の市況（チャートの切り替えつき）を出す。"""
+        gid = ui.guild_id_of(interaction)
+        view = MarketView(self, interaction.user.id, gid)
+        await interaction.response.send_message(embed=self.summary_embed(gid), view=view, ephemeral=True)
+
+    @group.command(
+        name="保有", description="現物・信用取引・オプション・債券をまとめて見る（パネルから、すぐ決済できる）"
+    )
+    async def holdings(self, interaction: discord.Interaction):
+        await self.open_holdings(interaction)
 
     async def _position_autocomplete(self, interaction: discord.Interaction, current: str):
         found = [
@@ -365,32 +433,23 @@ class MarketCog(commands.Cog):
         ]
         return found[:25]
 
-    @group.command(name="決済", description="持っている現物・空売り・債券を、割合（%）を決めて手放す")
-    @app_commands.rename(position="ポジション", ratio="数量", percent="割合")
+    async def _percent_autocomplete(self, interaction: discord.Interaction, current: str):
+        return [app_commands.Choice(name="全部（100%）" if p == 100 else f"{p}%", value=p) for p in PERCENT_STEPS]
+
+    @group.command(name="決済", description="持っている現物・信用取引・オプション・債券を、割合（%）を決めて手放す")
+    @app_commands.rename(position="ポジション", percent="割合")
     @app_commands.describe(
         position="決済する持ち物（候補から選ぶ）",
-        ratio="半分か全部（省略で全部。債券は全部だけ）",
-        percent="手放す割合（1〜100%の数字。省略で全部。債券は全部だけ）",
+        percent="手放す割合（1〜100%。省略で全部。債券・オプションは全部だけ）",
     )
-    @app_commands.choices(
-        ratio=[app_commands.Choice(name="半分", value="half"), app_commands.Choice(name="全部", value="all")]
-    )
-    @app_commands.autocomplete(position=_position_autocomplete)
+    @app_commands.autocomplete(position=_position_autocomplete, percent=_percent_autocomplete)
     async def settle(
         self,
         interaction: discord.Interaction,
         position: str,
-        ratio: Optional[app_commands.Choice[str]] = None,
         percent: Optional[app_commands.Range[int, 1, 100]] = None,
     ):
-        if ratio is not None and percent is not None:
-            return await interaction.response.send_message(
-                embed=ui.error_embed(
-                    "どちらか1つにしてください", "「数量」と「割合」は、どちらか一方だけ指定できます。"
-                ),
-                ephemeral=True,
-            )
-        await self.settle_position(interaction, position, ratio if percent is None else SimpleNamespace(value=percent))
+        await self.settle_position(interaction, position, percent)
 
     @commands.Cog.listener()
     async def on_guild_remove(self, guild: discord.Guild):
