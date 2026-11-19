@@ -8,7 +8,7 @@ from cogs.shared import ui
 from cogs.shared.confirm import confirm_action, confirmed_reply, user_session
 from cogs.shared.messages import format_failure, format_memo
 from cogs.shop.discord_ops import ShopError, apply_title_nick, nick_blocker, set_color_role
-from cogs.shop.embeds import SLOT_OF_KIND, UNEQUIP_NAMES, stock_text
+from cogs.shop.embeds import SLOT_OF_KIND, UNEQUIP_NAMES, market_label, stock_text
 from domain import relics, shop
 
 if TYPE_CHECKING:
@@ -106,6 +106,64 @@ async def buy_auction(
             return
         res = cog.service.auction_buy(gid, uid, item_id, qty)
         await _complete_purchase(reply, "競売で買いました", name_qty, res, _item_hint(it.unique))
+
+
+async def buy_teiai_market(
+    cog: "ShopCog",
+    interaction: discord.Interaction,
+    listing_id: int,
+    qty: int = 1,
+    *,
+    confirm_fn: Optional[Callable] = None,
+) -> None:
+    """帝愛の期間限定の出品を買う(#72)。闇市品は、買ったあとに本当の中身を知らせる。"""
+    fn = confirm_action if confirm_fn is None else confirm_fn
+    async with user_session(cog._sessions, interaction, "いまは買えません") as ok:
+        if not ok:
+            return
+        gid = ui.guild_id_of(interaction)
+        uid = interaction.user.id
+        entry = next((x for x in cog.service.market_list(gid) if x["id"] == listing_id), None)
+        if entry is None:
+            await interaction.response.send_message(
+                embed=ui.error_embed("買えませんでした", "その出品は、もう売り切れたか、期間が終わりました。"),
+                ephemeral=True,
+            )
+            return
+        it = shop.BY_ID[entry["item_id"]]
+        qty = 1 if it.unique else min(qty, entry["qty"])
+        name_qty = f"**{market_label(entry)}**" + (f" ×{qty}" if qty > 1 else "")
+        warn = "\n闇市品です。中身は買うまで分からず、返品はできません。" if entry["black"] else ""
+        reply = await confirmed_reply(
+            interaction,
+            entry["black"] or entry["price"] * qty >= cog.CONFIRM_FROM,
+            "帝愛の出品を買いますか？",
+            f"{name_qty}\n約 {ui.pelica(entry['price'] * qty)} かかります。{warn}",
+            "買う",
+            confirm_fn=fn,
+        )
+        if reply is None:
+            return
+        res = cog.service.market_buy(gid, uid, listing_id, qty)
+        if not res.ok:
+            await reply(embed=ui.error_embed("買えませんでした", format_failure(res.reason)), ephemeral=True)
+            return
+        got = shop.BY_ID[res.got]
+        if res.outcome == "worse":
+            reveal = f"\n😱 鑑定の結果……中身は **{shop.label(got)}** でした。闇市なので、返品はできません。"
+        elif res.outcome == "better":
+            reveal = f"\n✨ 鑑定の結果……中身はなんと **{shop.label(got)}** でした！"
+        elif entry["black"]:
+            reveal = "\n🔍 鑑定の結果、表示どおりの品でした。"
+        else:
+            reveal = ""
+        await reply(
+            embed=ui.ok_embed(
+                "帝愛の出品を買いました",
+                f"{name_qty}{reveal}\n残高: **{ui.pelica(res.balance)}**\n{_item_hint(got.unique)}",
+            ),
+            ephemeral=True,
+        )
 
 
 async def buy_insider_memo(

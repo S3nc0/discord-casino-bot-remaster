@@ -56,6 +56,20 @@ class PurchaseResult:
 
 
 @dataclass(frozen=True)
+class MarketPurchase:
+    """帝愛の出品を買った結果。闇市品は、shown（表示の品）と got（本当の中身）が違うことがある。"""
+
+    ok: bool
+    reason: str | Failure = ""
+    balance: int = 0
+    shown: str = ""
+    got: str = ""
+    outcome: str = ""  # same / worse / better（闇市品でないときは same）
+    qty: int = 0
+    total: int = 0
+
+
+@dataclass(frozen=True)
 class CryptoResult:
     ok: bool
     reason: str | Failure = ""

@@ -14,7 +14,7 @@ from domain.ports.repos import (
     IShopRepo,
     IWalletRepo,
 )
-from domain.types import CONSUMABLE_EFFECTS
+from domain.types import CONSUMABLE_EFFECTS, MarketPurchase
 
 
 @dataclass(frozen=True)
@@ -109,6 +109,7 @@ class ShopService:
     ) -> dict[str, Any]:
         """競売画面描画・選択肢構築用のスナップショット（二重クエリ防止）。"""
         listed = self._auction.for_guild(guild_id).auction_list()
+        market = self._auction.for_guild(guild_id).market_list()
         horses = self._horses.for_guild(guild_id).auction_horses()
         p2p_repo = self._p2p.for_guild(guild_id)
         p2p_total = p2p_repo.p2p_count() if p2p_enabled else 0
@@ -122,6 +123,7 @@ class ShopService:
         return {
             "balance": self.peek_balance(guild_id, user_id),
             "listed": listed,
+            "market": market,
             "horses": horses,
             "p2p_total": p2p_total,
             "tab": resolved_tab,
@@ -165,6 +167,13 @@ class ShopService:
 
     def auction_buy(self, guild_id: int, user_id: int, item_id: str, qty: int) -> Any:
         return self._auction.for_guild(guild_id).auction_buy(user_id, item_id, qty)
+
+    # ---- 帝愛の出品（#72） ----
+    def market_list(self, guild_id: int) -> list[dict[str, Any]]:
+        return self._auction.for_guild(guild_id).market_list()
+
+    def market_buy(self, guild_id: int, user_id: int, listing_id: int, qty: int) -> MarketPurchase:
+        return self._auction.for_guild(guild_id).market_buy(user_id, listing_id, qty)
 
     def auction_horses(self, guild_id: int) -> list[Any]:
         return self._horses.for_guild(guild_id).auction_horses()

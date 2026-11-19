@@ -261,6 +261,25 @@ def create_tables(conn: sqlite3.Connection) -> None:
             listed_at REAL NOT NULL
         );
         CREATE INDEX IF NOT EXISTS seized_items_item ON seized_items (guild_id, item_id, listed_at);
+        CREATE TABLE IF NOT EXISTS teiai_market (
+            id          INTEGER PRIMARY KEY AUTOINCREMENT,
+            guild_id    INTEGER NOT NULL,
+            day         REAL NOT NULL,
+            item_id     TEXT NOT NULL,
+            mode        TEXT NOT NULL,
+            qty         INTEGER NOT NULL,
+            start_price INTEGER NOT NULL,
+            end_price   INTEGER NOT NULL,
+            black       INTEGER NOT NULL,
+            listed_at   REAL NOT NULL,
+            expires_at  REAL NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS teiai_market_day ON teiai_market (guild_id, day);
+        CREATE TABLE IF NOT EXISTS teiai_market_days (
+            guild_id INTEGER NOT NULL,
+            day      REAL NOT NULL,
+            PRIMARY KEY (guild_id, day)
+        );
         CREATE TABLE IF NOT EXISTS guild_users (
             guild_id INTEGER NOT NULL,
             user_id  INTEGER NOT NULL,

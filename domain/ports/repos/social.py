@@ -5,7 +5,7 @@ from typing import TYPE_CHECKING, Any, Optional
 from domain.ports.repos.base import IGuildScopedRepo
 
 if TYPE_CHECKING:
-    from domain.types import PurchaseResult
+    from domain.types import MarketPurchase, PurchaseResult
 
 
 class IRaffleRepo(IGuildScopedRepo):
@@ -64,6 +64,14 @@ class IAuctionRepo(IGuildScopedRepo):
         raise NotImplementedError
 
     def auction_buy(self, user_id: int, item_id: str, qty: int = 1, now: Optional[float] = None) -> "PurchaseResult":
+        raise NotImplementedError
+
+    def market_list(self, now: Optional[float] = None, rng: Any = None) -> list[dict[str, Any]]:
+        raise NotImplementedError
+
+    def market_buy(
+        self, user_id: int, listing_id: int, qty: int = 1, now: Optional[float] = None, rng: Any = None
+    ) -> "MarketPurchase":
         raise NotImplementedError
 
 

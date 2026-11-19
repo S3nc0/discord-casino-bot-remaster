@@ -5,15 +5,17 @@
 売上は帝愛銀行の収入になる。表は infra/db/schema/tables.py の seized_items。
 """
 
+import random
 import time
 from typing import Any, Optional
 
 from domain import shop as shop_mod
 from domain import teiai
+from domain import teiai_market as tm
 from domain.errors import fail
 from domain.ports.bridges import IBankCashFlow, IStatusReader
 from domain.ports.repos import IAuctionRepo
-from domain.types import PurchaseResult
+from domain.types import MarketPurchase, PurchaseResult
 from infra.db.account import AccountCore
 from infra.db.base import EcoDb, ScopedRepo
 
@@ -141,3 +143,119 @@ class AuctionRepo(ScopedRepo, IAuctionRepo):
             )
             self._bank.bank_income_for(gid, total, teiai.AUCTION_YIELD_SHARE, now)
             return PurchaseResult(True, balance=self._account.raw_balance(gid, user_id))
+
+    # ------------------------------------------------------------------ #
+    # 帝愛の出品（#72）。期間限定で、帝愛がショップの品を出す（domain/teiai_market.py）
+    # ------------------------------------------------------------------ #
+    def _market_plan_locked(self, gid: int, now: float, rng: Any) -> None:
+        """その日の出品の計画を、まだ無ければ作る。計画は SystemRandom で決めるので、前もって分からない。"""
+        day = tm.day_start(now)
+        done = self._conn.execute("SELECT 1 FROM teiai_market_days WHERE guild_id=? AND day=?", (gid, day)).fetchone()
+        if done:
+            return
+        self._conn.execute("INSERT INTO teiai_market_days (guild_id, day) VALUES (?, ?)", (gid, day))
+        for x in tm.plan_day(day, rng, tm.pool(listable)):
+            self._conn.execute(
+                "INSERT INTO teiai_market (guild_id, day, item_id, mode, qty, start_price, end_price, black, "
+                "listed_at, expires_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                (
+                    gid,
+                    day,
+                    x.item_id,
+                    x.mode,
+                    x.qty,
+                    x.start_price,
+                    x.end_price,
+                    int(x.black),
+                    x.listed_at,
+                    x.expires_at,
+                ),
+            )
+
+    def _market_row(self, r: Any, now: float) -> dict[str, Any]:
+        return {
+            "id": r["id"],
+            "item_id": r["item_id"],
+            "mode": r["mode"],
+            "qty": r["qty"],
+            "black": bool(r["black"]),
+            "price": tm.price_at(r["start_price"], r["end_price"], r["listed_at"], r["expires_at"], now),
+            "rate": tm.price_at(r["start_price"], r["end_price"], r["listed_at"], r["expires_at"], now)
+            / shop_mod.BY_ID[r["item_id"]].price,
+            "expires_at": r["expires_at"],
+        }
+
+    def market_list(self, now: Optional[float] = None, rng: Any = None) -> list[dict[str, Any]]:
+        """いま出ている帝愛の出品（売り切れ・期限切れ・まだ出ていないものは除く）。期限の近い順。"""
+        now = time.time() if now is None else now
+        rng = rng or random.SystemRandom()
+        with self._db.tx():
+            gid = self._g()
+            self._market_plan_locked(gid, now, rng)
+            rows = self._conn.execute(
+                "SELECT * FROM teiai_market WHERE guild_id=? AND qty>0 AND listed_at<=? AND expires_at>? "
+                "ORDER BY expires_at, id",
+                (gid, now, now),
+            ).fetchall()
+        return [self._market_row(r, now) for r in rows if r["item_id"] in shop_mod.BY_ID]
+
+    def market_buy(
+        self, user_id: int, listing_id: int, qty: int = 1, now: Optional[float] = None, rng: Any = None
+    ) -> MarketPurchase:
+        """帝愛の出品を買う。カタギだけ（差し押さえ品の競売と同じ）。闇市品は、買ったときに中身が決まる。"""
+        now = time.time() if now is None else now
+        rng = rng or random.SystemRandom()
+        with self._db.tx():
+            gid = self._g()
+            self._account.ensure(gid, user_id)
+            bal = self._account.raw_balance(gid, user_id)
+            r = self._conn.execute(
+                "SELECT * FROM teiai_market WHERE id=? AND guild_id=? AND qty>0 AND listed_at<=? AND expires_at>?",
+                (listing_id, gid, now, now),
+            ).fetchone()
+            if r is None or r["item_id"] not in shop_mod.BY_ID or qty < 1:
+                return MarketPurchase(False, fail("auction_item_unavailable"), bal)
+            if self._status_reader.status_for(gid, user_id, now) != teiai.KATAGI:
+                return MarketPurchase(False, fail("auction_katagi_only"), bal)
+            item = shop_mod.BY_ID[r["item_id"]]
+            if item.unique:
+                qty = 1
+            if r["qty"] < qty:
+                return MarketPurchase(False, fail("auction_insufficient_qty"), bal)
+            owned = {
+                x["item_id"]
+                for x in self._conn.execute(
+                    "SELECT item_id FROM inventory WHERE guild_id=? AND user_id=? AND qty>0", (gid, user_id)
+                )
+            }
+            if item.unique and item.id in owned:
+                return MarketPurchase(False, fail("already_owned"), bal)
+            price = tm.price_at(r["start_price"], r["end_price"], r["listed_at"], r["expires_at"], now)
+            total = price * qty
+            if bal < total:
+                return MarketPurchase(False, fail("insufficient_balance_need", need=total, balance=bal), bal)
+            got, outcome = (item.id, tm.SAME)
+            if r["black"]:
+                got, outcome = tm.reveal(item.id, rng, tm.pool(listable))
+                # 見た目の品のように1つしか持てない品で、もう持っているものになったら、表示どおりの品にする
+                if shop_mod.BY_ID[got].unique and got in owned:
+                    got, outcome = item.id, tm.SAME
+            self._account.apply(
+                gid, user_id, -total, f"帝愛の出品:{shop_mod.label(item)}" + (f"×{qty}" if qty > 1 else "")
+            )
+            self._conn.execute("UPDATE teiai_market SET qty = qty - ? WHERE id=?", (qty, listing_id))
+            self._conn.execute(
+                "INSERT INTO inventory (guild_id, user_id, item_id, qty) VALUES (?, ?, ?, ?) "
+                "ON CONFLICT(guild_id, user_id, item_id) DO UPDATE SET qty = qty + excluded.qty",
+                (gid, user_id, got, qty),
+            )
+            self._bank.bank_income_for(gid, total, teiai.AUCTION_YIELD_SHARE, now)
+            return MarketPurchase(
+                True,
+                balance=self._account.raw_balance(gid, user_id),
+                shown=item.id,
+                got=got,
+                outcome=outcome,
+                qty=qty,
+                total=total,
+            )

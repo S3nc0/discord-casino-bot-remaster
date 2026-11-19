@@ -33,6 +33,18 @@ AUCTION_START = _CFG.auction_start  # 差し押さえた品を競売に出すと
 AUCTION_STEP = _CFG.auction_step  # 1日ごとの値下がり（定価に対して）
 AUCTION_FLOOR = _CFG.auction_floor  # 値下がりの下限
 AUCTION_YIELD_SHARE = _CFG.auction_yield_share  # 競売の売上のうち、預金者の利回りへ回す割合
+# ---- 帝愛の出品（#72。くわしくは domain/teiai_market.py）----
+MARKET_SLOTS_PER_DAY = _CFG.market_slots_per_day
+MARKET_AUCTION_PROB = _CFG.market_auction_prob
+MARKET_AUCTION_RATE = _CFG.market_auction_rate
+MARKET_AUCTION_HOURS = _CFG.market_auction_hours
+MARKET_AUCTION_END = _CFG.market_auction_end
+MARKET_FIXED_RATE = _CFG.market_fixed_rate
+MARKET_FIXED_HOURS = _CFG.market_fixed_hours
+MARKET_FIXED_QTY = _CFG.market_fixed_qty
+MARKET_BLACK_PROB = _CFG.market_black_prob
+MARKET_BLACK_WORSE = _CFG.market_black_worse
+MARKET_BLACK_BETTER = _CFG.market_black_better
 SEIZE_RATE = _CFG.seize_rate  # ショップの品と、解約できない債券を差し押さえるときの換金率
 
 # ---- 帝愛の利息（トイチ）----

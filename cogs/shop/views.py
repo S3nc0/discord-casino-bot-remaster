@@ -14,6 +14,7 @@ from cogs.shop.embeds import (
     SHOWN,
     TABS,
     UNEQUIP_NAMES,
+    market_label,
     tab_items,
 )
 from domain import shop
@@ -65,6 +66,7 @@ class ShopView(ui.OwnerView):
                 p2p_rows=self._screen_data["p2p_rows"],
                 listed=self._screen_data["listed"],
                 horses=self._screen_data["horses"],
+                market=self._screen_data.get("market", []),
             )
         return catalog_embed(
             self._screen_data["inv"],
@@ -208,13 +210,14 @@ class ShopView(ui.OwnerView):
         self._screen_data = snap
         self.auction_tab = snap["tab"]
         listed = snap["listed"]
+        market = snap.get("market", [])
         horses = snap["horses"]
         # 上の段: タブ（いまのタブは青）と、出品・自分の取引・ショップへもどる
         if p2p_bridge is not None:
             p2p_total = snap["p2p_total"]
             for tab, label in (
                 ("players", f"🤝 プレイヤーの出品（{p2p_total}）"),
-                ("teiai", f"🕴️ 帝愛の棚（{len(listed) + len(horses)}）"),
+                ("teiai", f"🕴️ 帝愛の棚（{len(listed) + len(market) + len(horses)}）"),
             ):
                 btn = discord.ui.Button(
                     label=label,
@@ -235,7 +238,7 @@ class ShopView(ui.OwnerView):
         if self.auction_tab == "players":
             self._build_auction_players(snap["p2p_rows"])
         else:
-            self._build_auction_teiai(listed, horses)
+            self._build_auction_teiai(listed, horses, market)
 
     def _make_auction_tab(self, tab: str):
         async def callback(interaction: discord.Interaction):
@@ -295,25 +298,42 @@ class ShopView(ui.OwnerView):
         self.p2p_order = ui.selected_values(interaction)[0]
         await self._redraw(interaction)
 
-    def _build_auction_teiai(self, listed: list[Any], horses: list[Any]) -> None:
-        """帝愛の棚のタブ（破産で差し押さえた品・馬。値段は日ごとに下がる）。"""
-        if listed:
+    def _build_auction_teiai(self, listed: list[Any], horses: list[Any], market: Optional[list[Any]] = None) -> None:
+        """帝愛の棚のタブ（帝愛の期間限定の出品と、破産で差し押さえた品・馬。差し押さえ品の値段は日ごとに下がる）。
+
+        Discord の行は5つまでなので、帝愛の出品は差し押さえ品と同じ選択肢に並べる（値は "tm:出品ID"）。
+        """
+        market = market or []
+        if listed or market:
+            market_opts = [
+                discord.SelectOption(
+                    label=market_label(m)[:100],
+                    value=f"tm:{m['id']}",
+                    default=self.picked == ("auction", f"tm:{m['id']}"),
+                    description=(
+                        f"{m['price']:,}ペリカ（{'競売・値下がり中' if m['mode'] == 'auction' else '定価販売'}）"
+                        + (f"　残り{m['qty']}" if not shop.BY_ID[m["item_id"]].unique else "")
+                    )[:100],
+                )
+                for m in market
+            ]
             buy = discord.ui.Select(
                 placeholder="買う品を選ぶ",
                 row=1,
-                options=[
+                options=market_opts
+                + [
                     discord.SelectOption(
                         label=shop.label(shop.BY_ID[e["item_id"]])[:100],
                         value=e["item_id"],
                         default=self.picked == ("auction", e["item_id"]),
                         description=f"{e['price']:,}ペリカ（定価の{e['rate']:.0%}）　残り{e['qty']}",
                     )
-                    for e in listed[:25]
+                    for e in listed[: 25 - len(market_opts)]
                 ],
             )
             buy.callback = self._on_buy_auction
             self.add_item(buy)
-            if any(not shop.BY_ID[e["item_id"]].unique for e in listed):
+            if any(not shop.BY_ID[e["item_id"]].unique for e in [*listed, *market]):
                 qty = discord.ui.Select(
                     placeholder=f"消耗品の個数（いま {self.qty} 個）",
                     row=2,
@@ -419,6 +439,8 @@ class ShopView(ui.OwnerView):
         kind, value = self.picked
         if kind == "horse":
             await actions.buy_auction_horse(self.cog, interaction, int(value))
+        elif kind == "auction" and value.startswith("tm:"):
+            await actions.buy_teiai_market(self.cog, interaction, int(value[3:]), self.qty)
         elif kind == "auction":
             await actions.buy_auction(self.cog, interaction, value, self.qty)
         else:

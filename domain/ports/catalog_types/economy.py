@@ -60,6 +60,17 @@ class TeiaiCatalogContract:
     auction_step: float
     auction_floor: float
     auction_yield_share: float
+    market_slots_per_day: int
+    market_auction_prob: float
+    market_auction_rate: tuple[float, float]
+    market_auction_hours: tuple[float, float]
+    market_auction_end: float
+    market_fixed_rate: tuple[float, float]
+    market_fixed_hours: float
+    market_fixed_qty: tuple[int, int]
+    market_black_prob: float
+    market_black_worse: float
+    market_black_better: float
     seize_rate: float
     debt_rate_per_day: float
     debt_interest_max_days: int
