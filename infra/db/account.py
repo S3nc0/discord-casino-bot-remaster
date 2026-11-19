@@ -1,6 +1,5 @@
 """台帳・口座残高プリミティブ（全リポジトリがコンポジションで共有する口座台帳）。"""
 
-import time
 from typing import Any, Optional
 
 from domain.ports.bridges import IDebtLifecycleHook, NoOpDebtLifecycleHook
@@ -21,7 +20,7 @@ class AccountCore:
         """未登録なら初期残高つきで作る（呼び出し側のトランザクション内で使う）。"""
         cur = self._conn.execute(
             "INSERT OR IGNORE INTO users (guild_id, user_id, balance, created_at) VALUES (?, ?, ?, ?)",
-            (guild_id, user_id, INITIAL_BALANCE, time.time()),
+            (guild_id, user_id, INITIAL_BALANCE, self._db.now_ts()),
         )
         if cur.rowcount:
             self.ledger(guild_id, user_id, INITIAL_BALANCE, INITIAL_BALANCE, "初期支給")
@@ -29,7 +28,7 @@ class AccountCore:
     def ledger(self, guild_id: int, user_id: int, delta: int, balance_after: int, reason: str) -> None:
         self._conn.execute(
             "INSERT INTO ledger (guild_id, user_id, delta, balance_after, reason, ts) VALUES (?, ?, ?, ?, ?, ?)",
-            (guild_id, user_id, delta, balance_after, reason, time.time()),
+            (guild_id, user_id, delta, balance_after, reason, self._db.now_ts()),
         )
 
     def raw_balance(self, guild_id: int, user_id: int) -> int:

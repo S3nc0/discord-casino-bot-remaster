@@ -65,7 +65,7 @@ def play(eco, win):
         hooked.append(True)
 
     real = eco.debt.escape_attempt
-    eco.debt.escape_attempt = lambda uid: real(uid, rng=SimpleNamespace(random=lambda: 0.0 if win else 0.99))
+    eco.debt.escape_attempt = lambda uid, now: real(uid, now, rng=SimpleNamespace(random=lambda: 0.0 if win else 0.99))
     asyncio.run(esc.run_escape(as_interaction(it), make_test_bot(repos=eco).services.teiai, after))
     return it, hooked
 

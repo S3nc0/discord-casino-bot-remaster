@@ -3,7 +3,6 @@
 表の定義は infra/db/schema/tables.py（teiai_bank・teiai_deposits・cds、users.grace_until）。数字と考え方は domain/teiai.py。
 """
 
-import time
 from typing import Any, Optional
 
 from domain import market as market_mod
@@ -156,9 +155,8 @@ class BankRepo(ScopedRepo, IBankRepo):
                 locks += min(claims, teiai.CDS_PAYOUT_CAP_RATE * r["debt"])
         return locks
 
-    def bank_status(self, now: Optional[float] = None) -> BankStatus:
+    def bank_status(self, now: float) -> BankStatus:
         """銀行の状態（表示用）。available は利用可能現金、ratio は available ÷ 預金総額（預金がなければ None）。"""
-        now = time.time() if now is None else now
         with self._db.tx():
             gid = self._g()
             state = self.bank_sync_for(gid, now)
@@ -258,12 +256,11 @@ class BankRepo(ScopedRepo, IBankRepo):
         return {"balance": row["balance"], "skimmed": row["skimmed"]} if row else {"balance": 0, "skimmed": 0}
 
     def bank_income_for(
-        self, guild_id: int, amount: int, share: float, now: Optional[float] = None, needs_depositors: bool = False
+        self, guild_id: int, amount: int, share: float, now: float, needs_depositors: bool = False
     ) -> None:
         """銀行に amount が入る。そのうち share の割合を、預金額に応じて預金者へ分配する（残りは手元の現金）。"""
         if amount <= 0:
             return
-        now = time.time() if now is None else now
         deposits = self._deposits_for(guild_id)
         total = sum(a for _, a in deposits)
         if needs_depositors and total <= 0:
@@ -281,11 +278,10 @@ class BankRepo(ScopedRepo, IBankRepo):
                     "UPDATE teiai_deposits SET amount=amount+? WHERE guild_id=? AND user_id=?", (gain, guild_id, uid)
                 )
 
-    def bank_pay_for(self, guild_id: int, amount: int, now: Optional[float] = None) -> int:
+    def bank_pay_for(self, guild_id: int, amount: int, now: float) -> int:
         """銀行が amount を払う。手元の現金から払い、足りない分は、預金者の預金を一律に減らして充てる（AIG ショック）。払えた額を返す。"""
         if amount <= 0:
             return 0
-        now = time.time() if now is None else now
         state = self.bank_sync_for(guild_id, now)
         state["cash"] += self._thermo_shock_for(guild_id, amount, now)  # 熱浴の肩代わり分は、先に手元へ入れる
         deposits = self._deposits_for(guild_id)
@@ -315,15 +311,14 @@ class BankRepo(ScopedRepo, IBankRepo):
                 self._account.raw_balance(guild_id, user_id),
                 f"帝愛のキャピタルゲイン税（{what} 利益{profit:,} → 税{tax:,}）",
             )
-            self.bank_income_for(guild_id, tax, teiai.TAX_YIELD_SHARE)
+            self.bank_income_for(guild_id, tax, teiai.TAX_YIELD_SHARE, self._now())
         return tax
 
     # ------------------------------------------------------------------ #
     # 預金
     # ------------------------------------------------------------------ #
-    def bank_deposit(self, user_id: int, amount: int, now: Optional[float] = None) -> tuple[Any, ...]:
+    def bank_deposit(self, user_id: int, amount: int, now: float) -> tuple[Any, ...]:
         """帝愛に預ける（カタギだけ）。(成功か, 理由か預金残高) を返す。"""
-        now = time.time() if now is None else now
         with self._db.tx():
             gid = self._g()
             self._account.ensure(gid, user_id)
@@ -347,7 +342,7 @@ class BankRepo(ScopedRepo, IBankRepo):
 
     def bank_withdraw(self, user_id: int, amount: Optional[int] = None, now: Optional[float] = None) -> tuple[Any, ...]:
         """預金を引き出す（amount が None なら全額）。利用可能現金の範囲まで。(成功か, 理由か引き出した額) を返す。"""
-        now = time.time() if now is None else now
+        now = self._now() if now is None else now
         with self._db.tx():
             gid = self._g()
             self._account.ensure(gid, user_id)
@@ -370,13 +365,12 @@ class BankRepo(ScopedRepo, IBankRepo):
             self._account.apply(gid, user_id, want, "帝愛からの引き出し")
             return True, want
 
-    def deposit_take_for(self, guild_id: int, user_id: int, need: int, now: Optional[float] = None) -> int:
+    def deposit_take_for(self, guild_id: int, user_id: int, need: int, now: float) -> int:
         """強制執行・破産のとき、預金から need まで差し押さえる（引き出しの制限は受けない）。取れた額を返す（手元には入れない）。"""
         have = self.deposit_of_for(guild_id, user_id)
         take = min(have, need)
         if take <= 0:
             return 0
-        now = time.time() if now is None else now
         state = self.bank_sync_for(guild_id, now)
         self._conn.execute(
             "UPDATE teiai_deposits SET amount=amount-? WHERE guild_id=? AND user_id=?", (take, guild_id, user_id)
@@ -387,9 +381,8 @@ class BankRepo(ScopedRepo, IBankRepo):
     # ------------------------------------------------------------------ #
     # 破産猶予（IGraceReader）
     # ------------------------------------------------------------------ #
-    def grace_update_for(self, guild_id: int, user_id: int, now: Optional[float] = None) -> None:
+    def grace_update_for(self, guild_id: int, user_id: int, now: float) -> None:
         """借金の額に合わせて、破産猶予に入れる／外す。入るときに一言を残す。"""
-        now = time.time() if now is None else now
         row = self._conn.execute(
             "SELECT debt, grace_until FROM users WHERE guild_id=? AND user_id=?", (guild_id, user_id)
         ).fetchone()
@@ -451,9 +444,8 @@ class BankRepo(ScopedRepo, IBankRepo):
     # ------------------------------------------------------------------ #
     # CDS（破綻保証）
     # ------------------------------------------------------------------ #
-    def cds_quote(self, target_id: int, now: Optional[float] = None) -> CdsQuote:
+    def cds_quote(self, target_id: int, now: float) -> CdsQuote:
         """対象の、いまの CDS のオッズと状況。読み取り専用。"""
-        now = time.time() if now is None else now
         gid = self._g()
         status = self._status_reader.status_for(gid, target_id, now)
         debt = self._account.debt_readonly(gid, target_id)
@@ -465,9 +457,8 @@ class BankRepo(ScopedRepo, IBankRepo):
             "grace": self.grace_until_for(gid, target_id) is not None,
         }
 
-    def cds_buy(self, buyer_id: int, target_id: int, stake: int, now: Optional[float] = None) -> tuple[Any, ...]:
+    def cds_buy(self, buyer_id: int, target_id: int, stake: int, now: float) -> tuple[Any, ...]:
         """CDS を買う（自分にも、他人にも）。(成功か, 理由かオッズ) を返す。"""
-        now = time.time() if now is None else now
         with self._db.tx():
             gid = self._g()
             self._account.ensure(gid, buyer_id)
@@ -534,9 +525,8 @@ class BankRepo(ScopedRepo, IBankRepo):
                 ).fetchone()[0]
             )
 
-    def cds_cover_self_for(self, guild_id: int, user_id: int, shortfall: int, now: Optional[float] = None) -> int:
+    def cds_cover_self_for(self, guild_id: int, user_id: int, shortfall: int, now: float) -> int:
         """払えなかった shortfall を、自分への CDS が肩代わりする（古い順に、1件ずつ使い切り）。肩代わりした額を返す。現金は渡らない。"""
-        now = time.time() if now is None else now
         covered = 0
         for r in self._conn.execute(
             "SELECT id, stake, odds FROM cds WHERE guild_id=? AND buyer_id=? AND target_id=? AND status='active' "
@@ -551,11 +541,8 @@ class BankRepo(ScopedRepo, IBankRepo):
             self._notices.note_for(guild_id, user_id, "cds_self_covered", pay=pay)
         return covered
 
-    def cds_settle_default_for(
-        self, guild_id: int, target_id: int, debt_before: int, now: Optional[float] = None
-    ) -> int:
+    def cds_settle_default_for(self, guild_id: int, target_id: int, debt_before: int, now: float) -> int:
         """対象が強制破産したとき、他人からの CDS に配当を払う。合計は、対象の借金の CDS_PAYOUT_CAP_RATE まで（超える分は、一律に減らす）。払った合計を返す。"""
-        now = time.time() if now is None else now
         rows = self._conn.execute(
             "SELECT id, buyer_id, stake, odds FROM cds WHERE guild_id=? AND target_id=? AND buyer_id!=target_id "
             "AND status='active' AND expires>? ORDER BY id",

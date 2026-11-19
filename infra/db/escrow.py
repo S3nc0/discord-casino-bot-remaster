@@ -1,6 +1,5 @@
 """ゲームの賭け金預かり（escrow）と精算・返金。"""
 
-import time
 from typing import Any, Optional
 
 from domain import teiai
@@ -40,7 +39,7 @@ class EscrowRepo(ScopedRepo, IEscrowRepo):
             self._account.apply(gid, user_id, -amount, f"賭け:{game}")
             cur = self._conn.execute(
                 "INSERT INTO escrow (guild_id, user_id, amount, game, created_at) VALUES (?, ?, ?, ?, ?)",
-                (gid, user_id, amount, game, time.time()),
+                (gid, user_id, amount, game, self._now()),
             )
             self._conn.execute(
                 "UPDATE users SET total_wagered = total_wagered + ? WHERE guild_id=? AND user_id=?",
@@ -129,7 +128,7 @@ class EscrowRepo(ScopedRepo, IEscrowRepo):
                 )
             self._conn.execute("DELETE FROM escrow WHERE id=? AND guild_id=?", (escrow_id, gid))
             self._bank.bank_income_for(
-                gid, int(max(0, amount - total) * teiai.LOSS_SHARE), 1.0, needs_depositors=True
+                gid, int(max(0, amount - total) * teiai.LOSS_SHARE), 1.0, self._now(), needs_depositors=True
             )  # 負けた額の一部が、預金者の利回りになる
             taken = -self._account.apply(gid, user_id, -penalty, f"追加の支払い:{game}") if penalty > 0 else 0
             if penalty > taken:  # 残高で足りない分は、強制執行したうえで、残りを帝愛の借金にする

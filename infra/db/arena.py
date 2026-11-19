@@ -5,7 +5,6 @@
 
 import datetime
 import random
-import time
 from typing import Any, Optional
 
 from domain import arena as arena_mod
@@ -113,9 +112,8 @@ class ArenaRepo(ScopedRepo, IArenaRepo):
         if spent:
             self._bank.bank_set_for(guild_id, state["cash"] - spent, state["loaned"])
 
-    def arena_bet(self, user_id: int, fighter_id: int, amount: int, now: Optional[float] = None) -> tuple[Any, ...]:
+    def arena_bet(self, user_id: int, fighter_id: int, amount: int, now: float) -> tuple[Any, ...]:
         """戦士に賭ける。(成功か, Failure か空文字)。"""
-        now = time.time() if now is None else now
         if amount < arena_mod.MIN_STAKE or amount > arena_mod.MAX_STAKE:
             return False, fail("arena_stake_range", lo=arena_mod.MIN_STAKE, hi=arena_mod.MAX_STAKE)
         with self._db.tx():

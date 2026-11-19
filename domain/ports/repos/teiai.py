@@ -20,7 +20,7 @@ from domain.ports.repos.base import IGuildScopedRepo
 
 
 class ILoanRepo(IGuildScopedRepo, IOverdueLoanCollector):
-    def loan_credit(self, user_id: int, now: Optional[float] = None) -> LoanCredit:
+    def loan_credit(self, user_id: int, now: float) -> LoanCredit:
         raise NotImplementedError
 
     def loan_request(
@@ -81,13 +81,13 @@ class IBankRepo(IGuildScopedRepo, IBankCashFlow, IHouseAccount, IGainsTaxCollect
     def bank_values(self) -> dict[int, int]:
         raise NotImplementedError
 
-    def bank_status(self, now: Optional[float] = None) -> BankStatus:
+    def bank_status(self, now: float) -> BankStatus:
         raise NotImplementedError
 
     def house_account(self) -> HouseAccount:
         raise NotImplementedError
 
-    def bank_deposit(self, user_id: int, amount: int, now: Optional[float] = None) -> tuple[Any, ...]:
+    def bank_deposit(self, user_id: int, amount: int, now: float) -> tuple[Any, ...]:
         raise NotImplementedError
 
     def bank_withdraw(self, user_id: int, amount: Optional[int] = None, now: Optional[float] = None) -> tuple[Any, ...]:
@@ -102,10 +102,10 @@ class IBankRepo(IGuildScopedRepo, IBankCashFlow, IHouseAccount, IGainsTaxCollect
     def grace_expire(self, now: float) -> list[Any]:
         raise NotImplementedError
 
-    def cds_quote(self, target_id: int, now: Optional[float] = None) -> CdsQuote:
+    def cds_quote(self, target_id: int, now: float) -> CdsQuote:
         raise NotImplementedError
 
-    def cds_buy(self, buyer_id: int, target_id: int, stake: int, now: Optional[float] = None) -> tuple[Any, ...]:
+    def cds_buy(self, buyer_id: int, target_id: int, stake: int, now: float) -> tuple[Any, ...]:
         raise NotImplementedError
 
     def cds_list(self, user_id: int) -> CdsHoldings:
@@ -144,7 +144,7 @@ class IDebtRepo(
     def escape_left(self, user_id: int) -> int:
         raise NotImplementedError
 
-    def escape_attempt(self, user_id: int, now: Optional[float] = None, rng: Any = None) -> tuple[Any, ...]:
+    def escape_attempt(self, user_id: int, now: float, rng: Any = None) -> tuple[Any, ...]:
         raise NotImplementedError
 
     def bankrupt(self, user_id: int, forced: bool = False, escape: bool = False) -> tuple[Any, ...]:

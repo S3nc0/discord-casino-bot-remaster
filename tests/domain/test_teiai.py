@@ -11,7 +11,7 @@ from cogs.shop import cog as shop_cog
 from domain import shop, teiai
 from domain.types import DAILY_BASE, INITIAL_BALANCE
 from infra.db.repositories import open_repositories
-from tests.fakes import as_guild, as_interaction, as_member, must
+from tests.fakes import as_guild, as_interaction, as_member, freeze_time, must
 from tests.support import make_casino_deps, make_ranking_repos, make_shop_cog, make_test_bot
 
 U, A, B = 1, 2, 3
@@ -559,7 +559,7 @@ def test_bond_maturity_without_debt_pays_out_whole(eco):
 
 
 def test_bond_principal_pays_the_overdue_loan_when_there_is_no_senior_debt(eco, monkeypatch):
-    monkeypatch.setattr("infra.db.loans.time.time", lambda: 1000 + 86400)  # 期限ちょうど（遅延損害金は、まだ付かない）
+    freeze_time(monkeypatch, eco.db.clock, 1000 + 86400)  # 期限ちょうど（遅延損害金は、まだ付かない）
     eco.wallet.balance(U)
     assert eco.bonds.bond_buy(U, "junk", 1_000, 1.0)[0]
     eco.wallet.balance(A)
@@ -694,13 +694,13 @@ NOW_E = 1_000_000.0
 
 
 # ----------------------------- 帝愛の利息（トイチ） ----------------------------- #
-def _interest_clock(monkeypatch, now):
-    monkeypatch.setattr("infra.db.debt.time.time", lambda: now[0])
+def _interest_clock(monkeypatch, eco, now):
+    freeze_time(monkeypatch, eco.db.clock, lambda: now[0])
 
 
 def test_debt_grows_by_daily_interest_only_after_each_full_day(eco, monkeypatch):
     now = [1_800_000_000.0]
-    _interest_clock(monkeypatch, now)
+    _interest_clock(monkeypatch, eco, now)
     indebt(eco, U, debt=5_000)
     assert eco.debt.debt(U) == 5_000  # 借金ができた時点から数える
     now[0] += DAY - 60
@@ -716,7 +716,7 @@ def test_debt_grows_by_daily_interest_only_after_each_full_day(eco, monkeypatch)
 
 def test_interest_per_settlement_is_capped_so_a_long_absence_does_not_explode(eco, monkeypatch):
     now = [1_800_000_000.0]
-    _interest_clock(monkeypatch, now)
+    _interest_clock(monkeypatch, eco, now)
     indebt(eco, U, debt=2_000)
     eco.debt.debt(U)
     now[0] += 90 * DAY  # 3か月来なかった
@@ -727,7 +727,7 @@ def test_interest_per_settlement_is_capped_so_a_long_absence_does_not_explode(ec
 
 def test_interest_stops_just_before_the_bankruptcy_grace_line(eco, monkeypatch):
     now = [1_800_000_000.0]
-    _interest_clock(monkeypatch, now)
+    _interest_clock(monkeypatch, eco, now)
     indebt(eco, U, debt=14_900)
     eco.debt.debt(U)
     now[0] += 10 * DAY
@@ -739,7 +739,7 @@ def test_interest_stops_just_before_the_bankruptcy_grace_line(eco, monkeypatch):
 
 def test_net_worth_ranking_accrues_untouched_debt_interest_so_it_matches_the_balance_display(eco, monkeypatch):
     now = [1_800_000_000.0]
-    _interest_clock(monkeypatch, now)
+    _interest_clock(monkeypatch, eco, now)
     indebt(eco, U, debt=5_000, balance=5_000)
     eco.debt.debt(U)  # 借金ができた時点を記録（まだ利息は付かない）
     now[0] += 3 * DAY  # 本人は、しばらく残高を見ていない
@@ -752,7 +752,7 @@ def test_net_worth_ranking_accrues_untouched_debt_interest_so_it_matches_the_bal
 
 def test_a_paid_off_debt_forgets_the_interest_clock(eco, monkeypatch):
     now = [1_800_000_000.0]
-    _interest_clock(monkeypatch, now)
+    _interest_clock(monkeypatch, eco, now)
     indebt(eco, U, debt=1_000, balance=5_000)
     eco.debt.debt(U)
     now[0] += 2 * DAY

@@ -399,6 +399,7 @@ def test_arena_loan_and_shop_services_work_with_narrow_stubs():
         StubP2P(),
         StubWallet({1: 5000}),
         StubGuild(),
+        clock,
     )
     owned = shop_mod.BY_ID["title_rookie"]
     assert shop_svc.precheck_buy(1, 1, owned, 1).status == "owned"

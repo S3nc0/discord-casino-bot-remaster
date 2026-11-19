@@ -10,7 +10,10 @@ import sqlite3
 import threading
 from collections.abc import Iterator
 from contextlib import contextmanager
-from typing import TYPE_CHECKING, Self
+from typing import TYPE_CHECKING, Optional, Self
+
+from domain.ports.clock import IClock
+from infra.clock import ConfigClock
 
 if TYPE_CHECKING:
     from domain.errors import Notice
@@ -19,11 +22,14 @@ if TYPE_CHECKING:
 class EcoDb:
     """1 つの SQLite データベースに対して共有される接続・ロック・再入可能トランザクション・一時通知ストア。"""
 
-    def __init__(self, db_path: str) -> None:
+    def __init__(self, db_path: str, clock: Optional[IClock] = None) -> None:
         db_dir = os.path.dirname(db_path)
         if db_dir:
             os.makedirs(db_dir, exist_ok=True)
         self.db_path = db_path
+        # 呼び出し側から時刻が届かない内部処理（台帳の記録時刻・身分の判定など）が使う時計。
+        # 公開メソッドの時刻は、Service が clock.now_ts() を引数で渡す。
+        self.clock: IClock = clock if clock is not None else ConfigClock({})
         self.lock = threading.RLock()
         self.conn = sqlite3.connect(db_path, check_same_thread=False)
         self.conn.row_factory = sqlite3.Row
@@ -47,6 +53,9 @@ class EcoDb:
                     yield self.conn
             finally:
                 self._tx_depth -= 1
+
+    def now_ts(self) -> float:
+        return self.clock.now_ts()
 
     def close(self) -> None:
         with self.lock:
@@ -78,6 +87,10 @@ class ScopedRepo:
         view.guild_id = validate_guild_id(guild_id)
         view._strict = False
         return view
+
+    def _now(self) -> float:
+        """注入された IClock の現在時刻（UNIX 秒）。"""
+        return self._db.now_ts()
 
     def _g(self) -> int:
         if self._strict and self.guild_id == 0:

@@ -90,7 +90,7 @@ def test_pair_intrinsic():
 # ----------------------------- ペア・ワラントの売買 ----------------------------- #
 def test_pair_buy_settle_pays_the_outperformance(eco):
     fund_bank(eco)
-    ok, res = eco.options.option_buy(U, opt.PAIR, "cs", 1_000, symbol2="teio")
+    ok, res = eco.options.option_buy(U, opt.PAIR, "cs", 1_000, time.time(), symbol2="teio")
     assert ok and res["spot2"] == START["teio"] and 900 < res["cost"] <= 1_000
     set_price(eco, "cs", START["cs"] * 1.10, res["expiry"] - 10)  # A +10%
     set_price(eco, "teio", START["teio"] * 1.02, res["expiry"] - 10)  # B +2%
@@ -101,7 +101,7 @@ def test_pair_buy_settle_pays_the_outperformance(eco):
 
 def test_pair_pays_nothing_when_the_other_symbol_wins_even_if_both_rise(eco):
     fund_bank(eco)
-    ok, res = eco.options.option_buy(U, opt.PAIR, "cs", 1_000, symbol2="teio")
+    ok, res = eco.options.option_buy(U, opt.PAIR, "cs", 1_000, time.time(), symbol2="teio")
     set_price(eco, "cs", START["cs"] * 1.05, res["expiry"] - 10)
     set_price(eco, "teio", START["teio"] * 1.20, res["expiry"] - 10)
     assert eco.options.option_settle(res["expiry"] + 1)[0]["status"] == "expired"
@@ -109,27 +109,27 @@ def test_pair_pays_nothing_when_the_other_symbol_wins_even_if_both_rise(eco):
 
 def test_pair_pays_even_when_the_whole_market_falls(eco):
     fund_bank(eco)
-    ok, res = eco.options.option_buy(U, opt.PAIR, "cs", 1_000, symbol2="numa")
+    ok, res = eco.options.option_buy(U, opt.PAIR, "cs", 1_000, time.time(), symbol2="numa")
     set_price(eco, "cs", START["cs"] * 0.95, res["expiry"] - 10)  # 市場全体が下がっても…
     set_price(eco, "numa", START["numa"] * 0.80, res["expiry"] - 10)  # A が B よりましなら当たり
     assert eco.options.option_settle(res["expiry"] + 1)[0]["paid"] > 0
 
 
 def test_pair_buy_rules(eco):
-    assert not eco.options.option_buy(U, opt.PAIR, "cs", 1_000)[0]  # 相手がない
-    assert not eco.options.option_buy(U, opt.PAIR, "cs", 1_000, symbol2="cs")[0]  # 同じ銘柄
-    assert not eco.options.option_buy(U, opt.PAIR, "cs", 1_000, symbol2="nope")[0]
+    assert not eco.options.option_buy(U, opt.PAIR, "cs", 1_000, time.time())[0]  # 相手がない
+    assert not eco.options.option_buy(U, opt.PAIR, "cs", 1_000, time.time(), symbol2="cs")[0]  # 同じ銘柄
+    assert not eco.options.option_buy(U, opt.PAIR, "cs", 1_000, time.time(), symbol2="nope")[0]
 
 
 def test_pair_can_be_sold_before_expiry_and_gains_when_a_pulls_ahead(eco):
     fund_bank(eco)
-    ok, res = eco.options.option_buy(U, opt.PAIR, "cs", 1_000, symbol2="teio")
+    ok, res = eco.options.option_buy(U, opt.PAIR, "cs", 1_000, time.time(), symbol2="teio")
     row = eco.options.option_list(U)["active"][0]
     now = time.time()
     base = eco.options.option_value(row, now, {"cs": START["cs"], "teio": START["teio"]})
     ahead = eco.options.option_value(row, now, {"cs": START["cs"] * 1.03, "teio": START["teio"]})
     assert ahead > base
-    ok, got = eco.options.option_sell(U, res["id"])
+    ok, got = eco.options.option_sell(U, res["id"], time.time())
     assert ok and 0 < got < res["cost"]
 
 
@@ -137,7 +137,7 @@ def test_pair_can_be_sold_before_expiry_and_gains_when_a_pulls_ahead(eco):
 def test_write_gives_the_premium_now_and_locks_the_margin(eco):
     fund_bank(eco)
     before = eco.wallet.balance(U)
-    ok, res = eco.options.option_write(U, opt.CALL, "cs", 1_000)
+    ok, res = eco.options.option_write(U, opt.CALL, "cs", 1_000, time.time())
     assert ok and res["strike"] == START["cs"] * (1 + opt.default_strike_pct("cs"))
     assert res["margin"] <= 1_000 and res["premium"] > 0
     assert eco.wallet.balance(U) == before - res["margin"] + res["premium"]
@@ -146,32 +146,32 @@ def test_write_gives_the_premium_now_and_locks_the_margin(eco):
 
 
 def test_write_needs_bank_cash_for_the_premium(eco):
-    ok, why = eco.options.option_write(U, opt.CALL, "numa", 3_000)  # 銀行に現金がない
+    ok, why = eco.options.option_write(U, opt.CALL, "numa", 3_000, time.time())  # 銀行に現金がない
     assert not ok and why.code == "option_bank_no_cash" and eco.wallet.balance(U) == INITIAL_BALANCE
 
 
 def test_write_rules(eco):
     fund_bank(eco)
-    assert not eco.options.option_write(U, "pair", "cs", 1_000)[0]  # 裸売りは、コールとプットだけ
-    assert not eco.options.option_write(U, opt.CALL, "cs", 50)[0]  # 最低額
-    assert not eco.options.option_write(U, opt.CALL, "cs", INITIAL_BALANCE + 1)[0]  # 残高不足
+    assert not eco.options.option_write(U, "pair", "cs", 1_000, time.time())[0]  # 裸売りは、コールとプットだけ
+    assert not eco.options.option_write(U, opt.CALL, "cs", 50, time.time())[0]  # 最低額
+    assert not eco.options.option_write(U, opt.CALL, "cs", INITIAL_BALANCE + 1, time.time())[0]  # 残高不足
     with eco.db.tx():
         eco.db.conn.execute("UPDATE users SET debt=100 WHERE user_id=?", (U,))
-    assert eco.options.option_write(U, opt.CALL, "cs", 1_000)[1].code == "debt_blocks"
+    assert eco.options.option_write(U, opt.CALL, "cs", 1_000, time.time())[1].code == "debt_blocks"
 
 
 def test_write_margin_cap(eco):
     fund_bank(eco, 200_000)
     eco.wallet.credit(U, 100_000, "テスト")
-    assert eco.options.option_write(U, opt.PUT, "cs", 15_000)[0]
-    ok, why = eco.options.option_write(U, opt.PUT, "cs", 10_000)
+    assert eco.options.option_write(U, opt.PUT, "cs", 15_000, time.time())[0]
+    ok, why = eco.options.option_write(U, opt.PUT, "cs", 10_000, time.time())
     assert not ok and why.code == "option_max_short_margin" and why.params["max_margin"] == opt.MAX_SHORT_MARGIN
 
 
 def test_write_expires_worthless_the_premium_is_the_profit(eco):
     fund_bank(eco)
     before = eco.wallet.balance(U)
-    ok, res = eco.options.option_write(U, opt.CALL, "cs", 1_000)
+    ok, res = eco.options.option_write(U, opt.CALL, "cs", 1_000, time.time())
     set_price(eco, "cs", START["cs"], res["expiry"] - 10)  # 動かなかった
     done = eco.options.option_settle(res["expiry"] + 1)
     assert done[0]["status"] == "expired" and done[0]["paid"] == res["margin"]
@@ -180,7 +180,7 @@ def test_write_expires_worthless_the_premium_is_the_profit(eco):
 
 def test_write_loss_within_the_margin_is_paid_from_it(eco):
     fund_bank(eco)
-    ok, res = eco.options.option_write(U, opt.CALL, "cs", 2_000)
+    ok, res = eco.options.option_write(U, opt.CALL, "cs", 2_000, time.time())
     price = res["strike"] * 1.05  # 行使価格を 5% 超えた: 損失 = 差 × 口数
     set_price(eco, "cs", price, res["expiry"] - 10)
     loss = opt.intrinsic("call", res["units"], price, res["strike"])
@@ -192,7 +192,7 @@ def test_write_loss_within_the_margin_is_paid_from_it(eco):
 def test_write_loss_beyond_the_margin_becomes_debt(eco):
     fund_bank(eco)
     eco.wallet.credit(U, 10_000, "テスト")
-    ok, res = eco.options.option_write(U, opt.CALL, "cs", 3_000)
+    ok, res = eco.options.option_write(U, opt.CALL, "cs", 3_000, time.time())
     eco.wallet.debit_up_to(U, eco.wallet.balance(U), "テスト")  # 手元の現金をなくす（差し押さえるものがない）
     set_price(eco, "cs", res["strike"] * 3, res["expiry"] - 10)  # 大暴騰
     loss = opt.intrinsic("call", res["units"], res["strike"] * 3, res["strike"])
@@ -203,7 +203,7 @@ def test_write_loss_beyond_the_margin_becomes_debt(eco):
 
 def test_the_loss_flows_to_the_bank(eco):
     fund_bank(eco)
-    ok, res = eco.options.option_write(U, opt.CALL, "cs", 2_000)
+    ok, res = eco.options.option_write(U, opt.CALL, "cs", 2_000, time.time())
     before = eco.bank.bank_status(res["expiry"])["cash"]
     set_price(eco, "cs", res["strike"] * 1.05, res["expiry"] - 10)
     loss = opt.intrinsic("call", res["units"], res["strike"] * 1.05, res["strike"])
@@ -214,8 +214,8 @@ def test_the_loss_flows_to_the_bank(eco):
 def test_write_can_be_bought_back_at_the_ask(eco):
     fund_bank(eco)
     before = eco.wallet.balance(U)
-    ok, res = eco.options.option_write(U, opt.PUT, "cs", 2_000)
-    ok, back = eco.options.option_sell(U, res["id"])  # すぐ買い戻す
+    ok, res = eco.options.option_write(U, opt.PUT, "cs", 2_000, time.time())
+    ok, back = eco.options.option_sell(U, res["id"], time.time())  # すぐ買い戻す
     assert ok and 0 < back <= res["margin"]
     net = eco.wallet.balance(U) - before
     assert net < 0  # 売値と買値の差（手数料）の分だけ、すぐ戻すと損
@@ -224,7 +224,7 @@ def test_write_can_be_bought_back_at_the_ask(eco):
 
 def test_write_counts_margin_minus_liability_in_the_ranking_and_is_seized(eco):
     fund_bank(eco)
-    ok, res = eco.options.option_write(U, opt.CALL, "cs", 2_000)
+    ok, res = eco.options.option_write(U, opt.CALL, "cs", 2_000, time.time())
     total = dict((u, v) for _, u, v in eco.wallet.top(5))[U]
     assert INITIAL_BALANCE - 600 < total < INITIAL_BALANCE + 600  # 証拠金は資産、買い戻しの費用は負債
     eco.wallet.debit_up_to(U, eco.wallet.balance(U), "テスト")
@@ -236,8 +236,10 @@ def test_write_counts_margin_minus_liability_in_the_ranking_and_is_seized(eco):
 def test_long_premium_cap_does_not_count_written_options(eco):
     fund_bank(eco, 200_000)
     eco.wallet.credit(U, 100_000, "テスト")
-    eco.options.option_write(U, opt.PUT, "cs", 15_000)
-    assert eco.options.option_buy(U, opt.CALL, "cs", 15_000)[0]  # 買いの上限（掛け金 20,000）は、裸売りの証拠金とは別
+    eco.options.option_write(U, opt.PUT, "cs", 15_000, time.time())
+    assert eco.options.option_buy(U, opt.CALL, "cs", 15_000, time.time())[
+        0
+    ]  # 買いの上限（掛け金 20,000）は、裸売りの証拠金とは別
 
 
 # ----------------------------- コマンド ----------------------------- #

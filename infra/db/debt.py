@@ -6,7 +6,6 @@
 """
 
 import random
-import time
 from typing import Any, Optional
 
 from domain import market as market_mod
@@ -282,9 +281,8 @@ class DebtRepo(ScopedRepo, IDebtRepo):
     # ------------------------------------------------------------------ #
     # 身分・読み取り契約（IStatusReader）                                 #
     # ------------------------------------------------------------------ #
-    def status_for(self, guild_id: int, user_id: int, now: Optional[float] = None) -> str:
+    def status_for(self, guild_id: int, user_id: int, now: float) -> str:
         """身分。読み取り専用で、口座は作らない。"""
-        now = time.time() if now is None else now
         with self._lock:
             row = self._conn.execute(
                 "SELECT debt, bankrupt_at, blacklist_until FROM users WHERE guild_id=? AND user_id=?",
@@ -299,11 +297,10 @@ class DebtRepo(ScopedRepo, IDebtRepo):
             return teiai.KATAGI
 
     def status(self, user_id: int, now: Optional[float] = None) -> str:
-        return self.status_for(self._g(), user_id, now)
+        return self.status_for(self._g(), user_id, self._now() if now is None else now)
 
-    def loan_blacklisted_for(self, guild_id: int, user_id: int, now: Optional[float] = None) -> bool:
+    def loan_blacklisted_for(self, guild_id: int, user_id: int, now: float) -> bool:
         """破産のブラックリストの間か（貸付を借りられない）。"""
-        now = time.time() if now is None else now
         with self._lock:
             row = self._conn.execute(
                 "SELECT debt, bankrupt_at, blacklist_until FROM users WHERE guild_id=? AND user_id=?",
@@ -314,7 +311,7 @@ class DebtRepo(ScopedRepo, IDebtRepo):
         return row["debt"] > 0 or row["blacklist_until"] is None or now < row["blacklist_until"]
 
     def loan_blacklisted(self, user_id: int, now: Optional[float] = None) -> bool:
-        return self.loan_blacklisted_for(self._g(), user_id, now)
+        return self.loan_blacklisted_for(self._g(), user_id, self._now() if now is None else now)
 
     def debt_for(self, guild_id: int, user_id: int) -> int:
         return self._account.debt_readonly(guild_id, user_id)
@@ -326,9 +323,8 @@ class DebtRepo(ScopedRepo, IDebtRepo):
     # ------------------------------------------------------------------ #
     # 利息・後始末・天引き（IDebtLifecycleHook / IDebtRepayHook）        #
     # ------------------------------------------------------------------ #
-    def accrue_debt_interest_for(self, guild_id: int, user_id: int, now: Optional[float] = None) -> int:
+    def accrue_debt_interest_for(self, guild_id: int, user_id: int, now: float) -> int:
         """帝愛の利息（トイチ）を、借金に加える。加えた額を返す。呼び出し側のトランザクションの中で使う。"""
-        now = time.time() if now is None else now
         row = self._conn.execute(
             "SELECT debt, debt_interest_at FROM users WHERE guild_id=? AND user_id=?", (guild_id, user_id)
         ).fetchone()
@@ -369,17 +365,17 @@ class DebtRepo(ScopedRepo, IDebtRepo):
         return add
 
     def accrue_interest(self, guild_id: int, user_id: int, now: Optional[float] = None) -> int:
-        return self.accrue_debt_interest_for(guild_id, user_id, now)
+        return self.accrue_debt_interest_for(guild_id, user_id, self._now() if now is None else now)
 
     def after_debt_change(self, guild_id: int, user_id: int) -> None:
         """借金が増減したあとの後始末。破産猶予の出入りを直し、破産者が完済したら、そこから BLACKLIST_DAYS 日が始まる。"""
-        self._bank.grace_update_for(guild_id, user_id)
+        self._bank.grace_update_for(guild_id, user_id, self._now())
         if self._account.debt(guild_id, user_id) > 0:
             return
         self._conn.execute(
             "UPDATE users SET blacklist_until=? WHERE guild_id=? AND user_id=? AND bankrupt_at IS NOT NULL "
             "AND blacklist_until IS NULL",
-            (time.time() + teiai.BLACKLIST_DAYS * 86400, guild_id, user_id),
+            (self._now() + teiai.BLACKLIST_DAYS * 86400, guild_id, user_id),
         )
 
     def withhold_income(self, guild_id: int, user_id: int, income: int) -> int:
@@ -417,7 +413,7 @@ class DebtRepo(ScopedRepo, IDebtRepo):
     # 強制執行と、借金の発生（IDebtOps）                                  #
     # ------------------------------------------------------------------ #
     def _seize_assets_for(self, guild_id: int, user_id: int, need: int, reason: str) -> int:
-        now = time.time()
+        now = self._now()
         covered = _take_cash(self._account, guild_id, user_id, need, reason)
         if covered >= need:
             return covered
@@ -429,14 +425,14 @@ class DebtRepo(ScopedRepo, IDebtRepo):
         self._conn.execute(
             "UPDATE users SET debt = debt + ? WHERE guild_id=? AND user_id=?", (amount, guild_id, user_id)
         )
-        self._bank.grace_update_for(guild_id, user_id)
+        self._bank.grace_update_for(guild_id, user_id, self._now())
         self._notices.note_for(guild_id, user_id, "seed_loan", amount=amount)
 
     def borrow_seed_for(self, guild_id: int, user_id: int) -> tuple[Any, ...]:
         """（いつでも）手元が種銭の枠に満たなければ、枠まで帝愛から借りる。(成功か, 理由か借りた額)。"""
         with self._db.tx():
             self._account.ensure(guild_id, user_id)
-            if self.status_for(guild_id, user_id) == teiai.BANKRUPT:
+            if self.status_for(guild_id, user_id, self._now()) == teiai.BANKRUPT:
                 return False, fail("seed_bankrupt_blocked")
             if self._bank.grace_until_for(guild_id, user_id) is not None:
                 return False, fail("seed_grace_blocked")
@@ -454,7 +450,7 @@ class DebtRepo(ScopedRepo, IDebtRepo):
         with self._lock:
             if need <= 0:
                 return True, ""
-            if self.status_for(guild_id, user_id) == teiai.BANKRUPT:
+            if self.status_for(guild_id, user_id, self._now()) == teiai.BANKRUPT:
                 return False, fail("credit_bankrupt_blocked")
             if self._bank.grace_until_for(guild_id, user_id) is not None:
                 return False, fail("credit_grace_blocked")
@@ -485,7 +481,7 @@ class DebtRepo(ScopedRepo, IDebtRepo):
         need = shortfall - self._seize_assets_for(guild_id, user_id, shortfall, f"強制執行:{reason}")
         if need <= 0:
             return 0
-        need -= self._bank.cds_cover_self_for(guild_id, user_id, need)
+        need -= self._bank.cds_cover_self_for(guild_id, user_id, need, self._now())
         if need <= 0:
             return 0
         self._conn.execute("UPDATE users SET debt = debt + ? WHERE guild_id=? AND user_id=?", (need, guild_id, user_id))
@@ -493,7 +489,7 @@ class DebtRepo(ScopedRepo, IDebtRepo):
             guild_id, user_id, 0, self._account.raw_balance(guild_id, user_id), f"借金:{reason}（{need:,}ペリカ）"
         )
         self._seed_if_empty_for(guild_id, user_id)
-        self._bank.grace_update_for(guild_id, user_id)
+        self._bank.grace_update_for(guild_id, user_id, self._now())
         return need
 
     # ------------------------------------------------------------------ #
@@ -546,9 +542,8 @@ class DebtRepo(ScopedRepo, IDebtRepo):
             ).fetchone()
         return max(0, teiai.ESCAPE_MAX_TRIES - (row["escape_tries"] if row else 0))
 
-    def escape_attempt(self, user_id: int, now: Optional[float] = None, rng: Any = None) -> tuple[Any, ...]:
+    def escape_attempt(self, user_id: int, now: float, rng: Any = None) -> tuple[Any, ...]:
         """海外逃亡。(成功か, 理由か結果の辞書) を返す。"""
-        now = time.time() if now is None else now
         rng = rng or random
         with self._db.tx():
             gid = self._g()
@@ -596,13 +591,13 @@ class DebtRepo(ScopedRepo, IDebtRepo):
         """自己破産。全財産とショップの全品を差し押さえて換金し、帝愛 → 貸付の順に配当する。"""
         with self._db.tx():
             self._account.ensure(guild_id, user_id)
-            if self.status_for(guild_id, user_id) == teiai.BANKRUPT:
+            if self.status_for(guild_id, user_id, self._now()) == teiai.BANKRUPT:
                 return False, fail("bankrupt_already")
             loans = self._loans.active_loans_for(guild_id, user_id)
             if self._account.debt(guild_id, user_id) <= 0 and not loans:
                 return False, fail("bankrupt_no_debt")
             debt_before = self._account.debt(guild_id, user_id)
-            now = time.time()
+            now = self._now()
             self._bankrupt_prep_hook.prepare(guild_id, user_id, now)
             in_grace = self._bank.grace_until_for(guild_id, user_id) is not None
             pool = self._liquidate_everything_for(guild_id, user_id, now)

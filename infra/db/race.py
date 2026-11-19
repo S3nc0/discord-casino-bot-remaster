@@ -2,7 +2,6 @@
 
 import datetime
 import random
-import time
 from collections import Counter
 from typing import Any, Optional
 
@@ -445,7 +444,7 @@ class RaceRepo(ScopedRepo, IRaceRepo):
             if is_major:
                 shortfall = max(0, placed_total - real_entries * horse_mod.ENTRY_FEE)
                 if shortfall:
-                    state = self._bank.bank_sync_for(gid, time.time())
+                    state = self._bank.bank_sync_for(gid, self._now())
                     topup = min(shortfall, int(state["cash"]), horse_mod.MAJOR_HOUSE_TOPUP)
                     if topup:
                         self._bank.bank_set_for(gid, state["cash"] - topup, state["loaned"])
@@ -516,7 +515,7 @@ class RaceRepo(ScopedRepo, IRaceRepo):
                 b["payout"] = pay
                 bets.append(b)
             self._bank.bank_income_for(
-                gid, int(lost * teiai.LOSS_SHARE), 1.0, needs_depositors=True
+                gid, int(lost * teiai.LOSS_SHARE), 1.0, self._now(), needs_depositors=True
             )  # 負けた額の一部が、預金者の利回り
             return {
                 "race": race,

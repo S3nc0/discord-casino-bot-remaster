@@ -101,7 +101,7 @@ def test_standalone_repos_run_with_default_noop_bridges_satisfying_lsp():
         deposit_amt = max(200, teiai.BANK_MIN_DEPOSIT)
         with db.tx():
             account.apply(G, U, deposit_amt, "fund-deposit")
-        assert bank.bank_deposit(U, deposit_amt)[0] is True
+        assert bank.bank_deposit(U, deposit_amt, 1000.0)[0] is True
         bank_totals: dict[int, int] = {}
         bank.collect_values(G, bank_totals)
         assert bank_totals[U] == deposit_amt
@@ -112,7 +112,7 @@ def test_standalone_repos_run_with_default_noop_bridges_satisfying_lsp():
         assert debt.bankrupt(U)[0] is True
 
         assert loans.loan_due_soon(1000.0) == []
-        assert isinstance(loans.loan_credit(U)["status"], str)
+        assert isinstance(loans.loan_credit(U, 1000.0)["status"], str)
         assert bonds.bond_values() == {}
         assert crypto.crypto_values() == {}
         assert crypto.crypto_sell(U, 1, 100.0).ok is False
@@ -189,7 +189,7 @@ def test_persistence_composites_and_valuation_collector_support_open_extension()
     lazy_db = _make_standalone_db()
     try:
         lazy_status = LazyStatusReader(lambda: DebtRepo(lazy_db, AccountCore(lazy_db)))
-        assert isinstance(lazy_status.status_for(G, U), str)
+        assert isinstance(lazy_status.status_for(G, U, 1000.0), str)
     finally:
         lazy_db.close()
 

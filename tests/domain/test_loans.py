@@ -11,7 +11,7 @@ from cogs.loan.cog import LoanButton, handle_button, offer_embed, who
 from domain import loans, teiai
 from domain.types import INITIAL_BALANCE
 from infra.db.repositories import open_repositories
-from tests.fakes import as_interaction, as_item, call, invoke, must
+from tests.fakes import as_interaction, as_item, call, freeze_time, invoke, must
 from tests.support import make_loan_cog, make_test_bot
 
 NOW = 1_000_000.0
@@ -190,9 +190,7 @@ def earn(eco, user_id, amount):
 
 
 def test_shortfall_becomes_overdue_then_is_collected_from_income(eco, monkeypatch):
-    monkeypatch.setattr(
-        "infra.db.loans.time.time", lambda: NOW + 1 + 10 * DAY
-    )  # 期限ちょうど（遅延損害金は、まだ付かない）
+    freeze_time(monkeypatch, eco.db.clock, NOW + 1 + 10 * DAY)  # 期限ちょうど（遅延損害金は、まだ付かない）
     lid = active(eco)  # 借りた1000を使い切った想定
     with eco.db.tx():
         eco.db.conn.execute("UPDATE users SET balance=300 WHERE user_id=?", (B,))
@@ -514,12 +512,12 @@ def test_credit_info_counts_history_and_hides_assets(eco):
     lid = active(eco, lender=A, borrower=B)
     eco.loans.loan_repay(lid, B, None, NOW + 2)
     active(eco, lender=A, borrower=B, principal=500)
-    c = eco.loans.loan_credit(B)
+    c = eco.loans.loan_credit(B, NOW + 3)
     assert c["repaid"] == 1 and c["active"] == 1 and c["owed"] == 500 and c["overdue"] == 0
     assert c["status"] == teiai.KATAGI and "balance" not in c
     with eco.db.tx():
         eco.db.conn.execute("UPDATE loans SET status='discharged' WHERE borrower_id=? AND status='active'", (B,))
-    assert eco.loans.loan_credit(B)["discharged"] == 1
+    assert eco.loans.loan_credit(B, time.time())["discharged"] == 1
 
 
 # ----------------------------- 遅延損害金 ----------------------------- #
@@ -547,6 +545,6 @@ def test_overdue_loan_keeps_growing_so_waiting_is_never_cheaper(eco, monkeypatch
     assert eco.loans.loan_remaining(loan, due + 2 * DAY) == 1200 + 60  # 遅延日利 3.0% × 2日
     assert eco.loans.loan_remaining(loan, due + 5 * DAY) > eco.loans.loan_remaining(loan, due + 2 * DAY)
     eco.wallet.credit(B, 5_000, "テスト")
-    monkeypatch.setattr("infra.db.loans.time.time", lambda: due + 2 * DAY)
+    freeze_time(monkeypatch, eco.db.clock, due + 2 * DAY)
     ok, paid = eco.loans.loan_repay(lid, B, None, due + 2 * DAY)  # 返済は、遅延損害金を含めた額
     assert ok and paid == 1260 and eco.loans.loan_get(lid)["status"] == "repaid"

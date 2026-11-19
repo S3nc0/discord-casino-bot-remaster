@@ -6,7 +6,6 @@
 表の定義は infra/db/schema/tables.py にある。数字と計算は domain/loans.py。
 """
 
-import time
 from typing import Any, Optional
 
 from domain import loans as loans_mod
@@ -86,7 +85,7 @@ class LoanRepo(ScopedRepo, ILoanRepo):
         帝愛への返済のあとの、天引きの残りで呼ばれる（infra/db/debt.py の withhold_income）。
         """
         total = 0
-        now = time.time()
+        now = self._now()
         rows = self._conn.execute(
             "SELECT * FROM loans WHERE guild_id=? AND borrower_id=? AND status='overdue' ORDER BY id",
             (guild_id, user_id),
@@ -101,9 +100,8 @@ class LoanRepo(ScopedRepo, ILoanRepo):
                 self._conn.execute("UPDATE loans SET status='repaid' WHERE id=?", (loan["id"],))
         return total
 
-    def loan_credit(self, user_id: int, now: Optional[float] = None) -> LoanCredit:
+    def loan_credit(self, user_id: int, now: float) -> LoanCredit:
         """借りる人の信用情報。資産の額（残高・証券・預金）は含めない（見極めの駆け引きを残すため）。"""
-        now = time.time() if now is None else now
         with self._lock:
             gid = self._g()
             counts = {
@@ -135,7 +133,7 @@ class LoanRepo(ScopedRepo, ILoanRepo):
 
     def _loan_borrow_block(self, guild_id: int, user_id: int) -> Optional[Failure]:
         """いま、この人が貸付を借りられない理由（借りられるなら None）。承諾・募集・貸すときに、同じ条件で確かめる。"""
-        if self._status_reader.loan_blacklisted_for(guild_id, user_id):
+        if self._status_reader.loan_blacklisted_for(guild_id, user_id, self._now()):
             return fail("loan_blacklisted")
         late = self._conn.execute(
             "SELECT COUNT(*) FROM loans WHERE guild_id=? AND borrower_id=? AND status='overdue'", (guild_id, user_id)

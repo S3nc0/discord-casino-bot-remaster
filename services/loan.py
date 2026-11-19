@@ -29,7 +29,7 @@ class LoanService:
         return self._loans.for_guild(guild_id).loan_get(loan_id)
 
     def credit(self, guild_id: int, user_id: int) -> LoanCredit:
-        return self._loans.for_guild(guild_id).loan_credit(user_id)
+        return self._loans.for_guild(guild_id).loan_credit(user_id, self.clock.now_ts())
 
     def list_for(self, guild_id: int, user_id: int) -> LoanBook:
         return self._loans.for_guild(guild_id).loan_list(user_id)

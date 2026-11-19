@@ -61,14 +61,14 @@ def test_limit_down_locks_selling_spot_closing_long_and_selling_calls_but_not_bu
     assert a.crypto.crypto_buy(U, 20_000, 100.0).ok
     assert a.margin.long_open(U, 10_000, 100.0, 2).ok
     assert a.margin.short_open(U, 10_000, 100.0, 2, "teio").ok
-    ok, opt = a.options.option_buy(U, "call", "cs", 5_000)
+    ok, opt = a.options.option_buy(U, "call", "cs", 5_000, time.time())
     assert ok
     pin(eco, "cs", -1)
     sold = a.crypto.crypto_sell(U, None, 70.0)
     assert not sold.ok and sold.reason.code == "market_pin_limit_down"
     closed = a.margin.long_close(U, None, 70.0)
     assert not closed.ok and closed.reason.code == "market_pin_limit_down"
-    ok, why = a.options.option_sell(U, a.options.option_list(U)["active"][0]["id"])
+    ok, why = a.options.option_sell(U, a.options.option_list(U)["active"][0]["id"], time.time())
     assert not ok and why.code == "market_pin_limit_down"
     assert a.crypto.crypto_buy(U, 1_000, 70.0).ok  # 逆張りの買いは通る
     pin(eco, "teio", -1)

@@ -5,7 +5,6 @@
 表の定義は infra/db/schema/tables.py にある。記録は統計のためだけで、ゲームの結果には影響しない。
 """
 
-import time
 from typing import Any, Optional
 
 from domain.ports.repos import IPachinkoRepo
@@ -20,7 +19,7 @@ class PachinkoRepo(ScopedRepo, IPachinkoRepo):
 
     def pachinko_record_set(self, user_id: int, bet: int, balls: int, result: Any, now: Optional[float] = None) -> None:
         """1セット（SetResult）を記録する。bet はそのセットの賭け金。"""
-        ts = now if now is not None else time.time()
+        ts = now if now is not None else self._now()
         with self._db.tx():
             gid = self._g()
             self._conn.execute(

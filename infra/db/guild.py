@@ -3,7 +3,6 @@
 表の定義は infra/db/schema/tables.py にある。
 """
 
-import time
 from typing import Any, Iterable, Optional
 
 from domain.ports.bridges import IWealthyReader, NoOpWealthyReader
@@ -35,7 +34,7 @@ class GuildRepo(ScopedRepo, IGuildRepo):
                 "INSERT INTO guild_status (guild_id, status, name, decided_by, updated_at) VALUES (?, ?, ?, ?, ?) "
                 "ON CONFLICT(guild_id) DO UPDATE SET status=excluded.status, "
                 "name=COALESCE(excluded.name, guild_status.name), decided_by=excluded.decided_by, updated_at=excluded.updated_at",
-                (guild_id, status, name, by, time.time()),
+                (guild_id, status, name, by, self._now()),
             )
 
     def get_guild_status(self, guild_id: int) -> Optional[dict[str, Any]]:
@@ -49,7 +48,7 @@ class GuildRepo(ScopedRepo, IGuildRepo):
 
     def mark_guild_notified(self, guild_id: int) -> None:
         with self._db.tx():
-            self._conn.execute("UPDATE guild_status SET notified_at=? WHERE guild_id=?", (time.time(), guild_id))
+            self._conn.execute("UPDATE guild_status SET notified_at=? WHERE guild_id=?", (self._now(), guild_id))
 
     # ------------------------------------------------------------------ #
     # ランキング掲示板（自動で更新されるメッセージ。1サーバーに1つ）       #

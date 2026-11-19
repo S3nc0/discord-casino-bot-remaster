@@ -230,7 +230,7 @@ class WalletRepo(ScopedRepo, IWalletRepo, IWealthyReader):
             )
             for uid in targets:
                 # 残高表示と同じく、純資産にも溜まった利息（トイチ）を反映する
-                self._debt.accrue_debt_interest_for(guild_id, uid)
+                self._debt.accrue_debt_interest_for(guild_id, uid, self._now())
             rows = self._conn.execute(
                 "SELECT user_id, balance - debt AS balance FROM users WHERE guild_id=?", (guild_id,)
             ).fetchall()
@@ -248,7 +248,8 @@ class WalletRepo(ScopedRepo, IWalletRepo, IWealthyReader):
         return {
             uid
             for uid, total in self._ranked(guild_id, None)
-            if total >= teiai.WEALTHY_ASSETS and self._status_reader.status_for(guild_id, uid) == teiai.KATAGI
+            if total >= teiai.WEALTHY_ASSETS
+            and self._status_reader.status_for(guild_id, uid, self._now()) == teiai.KATAGI
         }
 
     def wealthy_ids(self) -> set[int]:
@@ -257,7 +258,7 @@ class WalletRepo(ScopedRepo, IWalletRepo, IWealthyReader):
     def display_status(self, user_id: int, wealthy: Optional[set[Any]] = None) -> str:
         """表示用の身分。status() と同じで、カタギで純資産が WEALTHY_ASSETS 以上なら WEALTHY。wealthy を渡すと再計算しない。"""
         gid = self._g()
-        status = self._status_reader.status_for(gid, user_id)
+        status = self._status_reader.status_for(gid, user_id, self._now())
         if status != teiai.KATAGI:
             return status
         ids = self.wealthy_ids_for(gid) if wealthy is None else wealthy
@@ -287,7 +288,9 @@ class WalletRepo(ScopedRepo, IWalletRepo, IWealthyReader):
         with self._db.tx():
             gid = self._g()
             self._account.ensure(gid, user_id)
-            self._debt.accrue_debt_interest_for(gid, user_id)  # 画面に出す借金に、帝愛の利息（トイチ）を含める
+            self._debt.accrue_debt_interest_for(
+                gid, user_id, self._now()
+            )  # 画面に出す借金に、帝愛の利息（トイチ）を含める
             return dict(
                 self._conn.execute("SELECT * FROM users WHERE guild_id=? AND user_id=?", (gid, user_id)).fetchone()
             )

@@ -146,12 +146,12 @@ def test_odds_follow_the_targets_risk_and_stay_in_range():
 def test_cds_buy_rules(eco):
     eco.wallet.credit(A, 5_000, "テスト")
     eco.wallet.balance(T)
-    assert not eco.bank.cds_buy(A, T, 50)[0]  # 最低額
-    assert not eco.bank.cds_buy(A, 12345, 500)[0]  # 遊んだことのない人
-    ok, odds = eco.bank.cds_buy(A, T, 500)
+    assert not eco.bank.cds_buy(A, T, 50, time.time())[0]  # 最低額
+    assert not eco.bank.cds_buy(A, 12345, 500, time.time())[0]  # 遊んだことのない人
+    ok, odds = eco.bank.cds_buy(A, T, 500, time.time())
     assert ok and odds == teiai.CDS_MAX_ODDS
     go_into_debt(eco, T, 20_000)
-    assert eco.bank.cds_buy(A, T, 500)[1].code == "cds_target_in_grace"  # 猶予に入ってからは掛けられない
+    assert eco.bank.cds_buy(A, T, 500, time.time())[1].code == "cds_target_in_grace"  # 猶予に入ってからは掛けられない
 
 
 def test_cds_on_someone_else_pays_only_on_forced_bankruptcy_and_capped_by_their_debt(eco):

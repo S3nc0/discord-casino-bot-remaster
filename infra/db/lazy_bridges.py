@@ -38,13 +38,13 @@ class LazyStatusReader(IStatusReader):
     def __init__(self, target: Callable[[], IStatusReader]) -> None:
         self._target = target
 
-    def status_for(self, guild_id: int, user_id: int, now: Optional[float] = None) -> str:
+    def status_for(self, guild_id: int, user_id: int, now: float) -> str:
         return self._target().status_for(guild_id, user_id, now)
 
     def debt_for(self, guild_id: int, user_id: int) -> int:
         return self._target().debt_for(guild_id, user_id)
 
-    def loan_blacklisted_for(self, guild_id: int, user_id: int, now: Optional[float] = None) -> bool:
+    def loan_blacklisted_for(self, guild_id: int, user_id: int, now: float) -> bool:
         return self._target().loan_blacklisted_for(guild_id, user_id, now)
 
 

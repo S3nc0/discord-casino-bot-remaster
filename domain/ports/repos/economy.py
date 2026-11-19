@@ -204,7 +204,7 @@ class IAssetRepo(IGuildScopedRepo):
     def horse_worth(self, races: int, wins: int, places: int) -> int:
         raise NotImplementedError
 
-    def asset_parts(self, now: Optional[float] = None) -> dict[int, dict[str, int]]:
+    def asset_parts(self, now: float) -> dict[int, dict[str, int]]:
         raise NotImplementedError
 
     def final_assets(self, user_ids: Optional[set[Any]] = None, now: Optional[float] = None) -> list[Any]:

@@ -176,7 +176,7 @@ def open_repositories(
     clock は日付の切り替わりに使う時差（utc_offset_hours）の出どころ。省略時は設定の既定値（ConfigClock({})）。
     """
     clock = clock if clock is not None else ConfigClock({})
-    db = EcoDb(db_path)
+    db = EcoDb(db_path, clock)
     schema.migrate_to_guild_scope(db.conn, db.db_path, legacy_guild_id)
 
     account = AccountCore(db, debt_hook=LazyDebtLifecycleHook(lambda: debt))

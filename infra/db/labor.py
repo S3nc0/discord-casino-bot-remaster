@@ -6,7 +6,6 @@
 
 import json
 import random
-import time
 from typing import Any, Optional
 
 from domain import labor as labor_mod
@@ -242,9 +241,8 @@ class LaborRepo(ScopedRepo, ILaborRepo):
         row["donated"] = row.get("donated", 0) + skimmed
         return net
 
-    def labor_state(self, user_id: int, now: Optional[float] = None, day: str = "") -> dict[str, Any]:
+    def labor_state(self, user_id: int, now: float, day: str = "") -> dict[str, Any]:
         """いまの状態（画面用）。口座や行は、まだ無ければ作らない（読むだけ）。契約の決算は、したことにして見せる（書き込まない）。"""
-        now = time.time() if now is None else now
 
         with self._lock:
             gid = self._g()
@@ -352,9 +350,8 @@ class LaborRepo(ScopedRepo, ILaborRepo):
         )
         return {"rows": rows, "me": me}
 
-    def labor_click(self, user_id: int, now: Optional[float] = None, day: str = "", rng: Any = None) -> dict[str, Any]:
+    def labor_click(self, user_id: int, now: float, day: str = "", rng: Any = None) -> dict[str, Any]:
         """「働く」を1回押す。{ok, reason, pay, crit（鉱脈ヒットか）, ore（手掘りの鉱石。無ければ None）, combo（コンボ達成か）, terrain（今日の地層）}。"""
-        now = time.time() if now is None else now
         rng = rng or random
         with self._db.tx():
             gid = self._g()
@@ -447,13 +444,12 @@ class LaborRepo(ScopedRepo, ILaborRepo):
                 )
             ]
 
-    def labor_collect(self, user_id: int, now: Optional[float] = None, day: str = "", detail: bool = False) -> Any:
+    def labor_collect(self, user_id: int, now: float, day: str = "", detail: bool = False) -> Any:
         """受け取る前の稼ぎから、帝愛のピンハネを引いて、残高に移す。移した額（借金の天引きの前）を返す。
 
         detail=True なら {amount（移した額）, skimmed（帝愛のピンハネ）, donated（これまでの寄付の合計）, ores（掘った鉱石）, relics（見つけた発掘品）}。
         発掘品は、ペリカにならず、持ち物に入る（稼ぎが 0 でも、受け取れる）。
         """
-        now = time.time() if now is None else now
         with self._db.tx():
             gid = self._g()
             row = self._labor_row(gid, user_id, now, day)
@@ -484,9 +480,8 @@ class LaborRepo(ScopedRepo, ILaborRepo):
                 "relics": relics,
             }
 
-    def labor_drink(self, user_id: int, now: Optional[float] = None, day: str = "") -> tuple[Any, ...]:
+    def labor_drink(self, user_id: int, now: float, day: str = "") -> tuple[Any, ...]:
         """栄養ドリンコを1本飲んで、疲労を DRINK_RECOVER 回復する。(ok, 理由) を返す。疲れていなければ、減らさない。"""
-        now = time.time() if now is None else now
         with self._db.tx():
             gid = self._g()
             row = self._labor_row(gid, user_id, now, day)
@@ -500,11 +495,10 @@ class LaborRepo(ScopedRepo, ILaborRepo):
             self._labor_save(gid, user_id, row)
             return True, ""
 
-    def labor_upgrade(self, user_id: int, tool: str, now: Optional[float] = None, day: str = "") -> tuple[Any, ...]:
+    def labor_upgrade(self, user_id: int, tool: str, now: float, day: str = "") -> tuple[Any, ...]:
         """工具を1段強化する（ペリカを払う）。(ok, Failure | "") を返す。"""
         if tool not in labor_mod.TOOLS:
             return False, fail("labor_unknown_tool")
-        now = time.time() if now is None else now
         with self._db.tx():
             gid = self._g()
             self._account.ensure(gid, user_id)
@@ -519,11 +513,10 @@ class LaborRepo(ScopedRepo, ILaborRepo):
             self._labor_save(gid, user_id, row)
             return True, ""
 
-    def labor_hire(self, user_id: int, kind: str, now: Optional[float] = None, day: str = "") -> tuple[Any, ...]:
+    def labor_hire(self, user_id: int, kind: str, now: float, day: str = "") -> tuple[Any, ...]:
         """作業員を1人雇う（契約料を払う。契約は CONTRACT_DAYS 日）。(ok, Failure | "") を返す。"""
         if kind not in labor_mod.WORKERS:
             return False, fail("labor_unknown_worker")
-        now = time.time() if now is None else now
         with self._db.tx():
             gid = self._g()
             self._account.ensure(gid, user_id)
@@ -543,11 +536,10 @@ class LaborRepo(ScopedRepo, ILaborRepo):
             self._labor_save(gid, user_id, row)
             return True, ""
 
-    def labor_dismiss(self, user_id: int, kind: str, now: Optional[float] = None, day: str = "") -> tuple[Any, ...]:
+    def labor_dismiss(self, user_id: int, kind: str, now: float, day: str = "") -> tuple[Any, ...]:
         """作業員を1人解雇する（契約料は戻らない）。契約がいちばん早く切れる人から。(ok, Failure | "") を返す。"""
         if kind not in labor_mod.WORKERS:
             return False, fail("labor_unknown_worker")
-        now = time.time() if now is None else now
         with self._db.tx():
             gid = self._g()
             row = self._labor_row(gid, user_id, now, day)
@@ -558,9 +550,8 @@ class LaborRepo(ScopedRepo, ILaborRepo):
             self._conn.execute("DELETE FROM labor_workers WHERE id=?", (target["id"],))
             return True, ""
 
-    def labor_dorm(self, user_id: int, now: Optional[float] = None, day: str = "") -> tuple[Any, ...]:
+    def labor_dorm(self, user_id: int, now: float, day: str = "") -> tuple[Any, ...]:
         """寮を1段強化する（雇える人数が +1）。(ok, Failure | "") を返す。"""
-        now = time.time() if now is None else now
         with self._db.tx():
             gid = self._g()
             self._account.ensure(gid, user_id)
@@ -577,9 +568,8 @@ class LaborRepo(ScopedRepo, ILaborRepo):
             self._labor_save(gid, user_id, row)
             return True, ""
 
-    def labor_set_renew(self, user_id: int, on: bool, now: Optional[float] = None, day: str = "") -> tuple[Any, ...]:
+    def labor_set_renew(self, user_id: int, on: bool, now: float, day: str = "") -> tuple[Any, ...]:
         """契約の自動更新を、オン・オフにする。(ok, 理由) を返す。"""
-        now = time.time() if now is None else now
         with self._db.tx():
             gid = self._g()
             self._account.ensure(gid, user_id)

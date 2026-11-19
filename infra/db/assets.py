@@ -5,7 +5,6 @@
 """
 
 import json
-import time
 from collections.abc import Callable
 from typing import Any, Optional
 
@@ -176,9 +175,8 @@ class AssetRepo(ScopedRepo, IAssetRepo):
         """馬1頭の評価額: 購入価格に、いま引退したときの引退金（成績が悪ければ引退費用）を足す。0 未満にはしない。"""
         return self._horse_worth_fn(races, wins, places)
 
-    def asset_parts(self, now: Optional[float] = None) -> dict[int, dict[str, int]]:
+    def asset_parts(self, now: float) -> dict[int, dict[str, int]]:
         """このサーバーの {ユーザーID: {内訳のキー: 金額}}。登録のある全員。"""
-        now = time.time() if now is None else now
         with self._lock:
             g = self._g()
             parts: dict[int, dict[str, int]] = {
@@ -196,7 +194,9 @@ class AssetRepo(ScopedRepo, IAssetRepo):
     def final_assets(self, user_ids: Optional[set[Any]] = None, now: Optional[float] = None) -> list[Any]:
         """[(ユーザーID, ファイナル総資産, 内訳)] を多い順に（同額はユーザーID順）。user_ids を渡すと、その人たちだけ。"""
         out = [
-            (uid, sum(p.values()), p) for uid, p in self.asset_parts(now).items() if user_ids is None or uid in user_ids
+            (uid, sum(p.values()), p)
+            for uid, p in self.asset_parts(self._now() if now is None else now).items()
+            if user_ids is None or uid in user_ids
         ]
         return sorted(out, key=lambda t: (-t[1], t[0]))
 

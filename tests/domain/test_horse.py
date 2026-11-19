@@ -2,6 +2,7 @@
 
 import datetime
 import random
+import time
 
 import pytest
 
@@ -514,7 +515,7 @@ def test_bankruptcy_seizes_horses_and_lists_them_at_the_auction(eco):
     horse = eco.horses.horse_get(hid)
     assert horse["owner_id"] == -1 and horse["listed_at"] is not None and eco.horses.horse_list(U) == []
     assert eco.races.race_entries(rid, registered_only=True) == []  # 申し込みは取り下げられる
-    listed = eco.horses.auction_horses()
+    listed = eco.horses.auction_horses(time.time())
     assert [x["name"] for x in listed] == ["差押馬"] and listed[0]["price"] == round(eco.horses.HORSE_PRICE * 0.9)
 
 
@@ -541,17 +542,17 @@ def test_auction_horse_price_falls_and_only_katagi_with_room_can_buy(eco):
         eco.horses.HORSE_PRICE * teiai.AUCTION_FLOOR
     )  # 下限（70%）
     eco.wallet.credit(V, 100_000, "テスト")
-    assert not eco.horses.auction_buy_horse(U, hid).ok  # 破産者は買えない
+    assert not eco.horses.auction_buy_horse(U, hid, time.time()).ok  # 破産者は買えない
     res = eco.horses.auction_buy_horse(V, hid, listed_at)
     assert res.ok and eco.horses.horse_get(hid)["owner_id"] == V and eco.horses.horse_get(hid)["name"] == "競売馬"
-    assert eco.horses.auction_buy_horse(V, hid).reason.code == "auction_horse_sold"  # もう売れた
+    assert eco.horses.auction_buy_horse(V, hid, time.time()).reason.code == "auction_horse_sold"  # もう売れた
     for i in range(2):
         make_horse(eco, V, f"馬{i}")
     other = make_horse(eco, W, "別の馬")
     with eco.db.tx():
         eco.db.conn.execute("UPDATE users SET balance=0, debt=20000 WHERE user_id=?", (W,))
     assert eco.debt.bankrupt(W)[0]
-    assert eco.horses.auction_buy_horse(V, other).reason.code == "horse_max_owned"  # すでに3頭
+    assert eco.horses.auction_buy_horse(V, other, time.time()).reason.code == "horse_max_owned"  # すでに3頭
 
 
 # ----------------------------- 臨時レースは、出走予定の馬も出せる ----------------------------- #

@@ -5,7 +5,6 @@
 """
 
 import math
-import time
 from typing import Any, Optional
 
 from domain import market as market_mod
@@ -78,12 +77,11 @@ class OptionRepo(ScopedRepo, IOptionRepo, IOptionHoldings):
         kind: str,
         symbol: str,
         amount: int,
-        now: Optional[float] = None,
+        now: float,
         symbol2: Optional[str] = None,
         strike_pct: Optional[float] = None,
     ) -> tuple[Any, ...]:
         """amount（掛け金）の範囲で、買えるだけ買う。ペア・ワラントは、symbol が symbol2 より上がると当たり。"""
-        now = time.time() if now is None else now
         if kind not in opt.KINDS or symbol not in market_mod.BY_KEY:
             return False, fail("invalid_spec")
         if kind == opt.PAIR and (symbol2 is None or symbol2 not in market_mod.BY_KEY or symbol2 == symbol):
@@ -151,11 +149,10 @@ class OptionRepo(ScopedRepo, IOptionRepo, IOptionHoldings):
         kind: str,
         symbol: str,
         amount: int,
-        now: Optional[float] = None,
+        now: float,
         strike_pct: Optional[float] = None,
     ) -> tuple[Any, ...]:
         """帝愛に売って、プレミアムを先にもらう（裸売り）。amount は預ける証拠金の上限。(成功か, 理由か {...}) を返す。"""
-        now = time.time() if now is None else now
         if kind not in opt.SHORT_NAMES or symbol not in market_mod.BY_KEY:
             return False, fail("invalid_spec")
         if strike_pct is not None and not 0 < strike_pct <= opt.MAX_TARGET_PCT / 100:
@@ -268,7 +265,7 @@ class OptionRepo(ScopedRepo, IOptionRepo, IOptionHoldings):
 
     def collect_values(self, guild_id: int, totals: dict[int, int]) -> None:
         with self._lock:
-            now, prices = time.time(), self._market.latest_prices()
+            now, prices = self._now(), self._market.latest_prices()
             for r in self._conn.execute("SELECT * FROM options WHERE guild_id=? AND status='active'", (guild_id,)):
                 totals[r["user_id"]] = totals.get(r["user_id"], 0) + self.option_value(r, now, prices)
 
@@ -321,9 +318,8 @@ class OptionRepo(ScopedRepo, IOptionRepo, IOptionHoldings):
         self._conn.execute("UPDATE options SET status='sold', paid=? WHERE id=?", (paid, option_id))
         return True, paid
 
-    def option_sell(self, user_id: int, option_id: int, now: Optional[float] = None) -> tuple[Any, ...]:
+    def option_sell(self, user_id: int, option_id: int, now: float) -> tuple[Any, ...]:
         """満期の前に手放す。買いは売値で売り、裸売りは買値で買い戻す。(成功か, 理由か 受け取った額（裸売りは、証拠金の戻り。マイナスは、借金にした額）) を返す。"""
-        now = time.time() if now is None else now
         with self._db.tx():
             gid = self._g()
             self._account.ensure(gid, user_id)

@@ -259,13 +259,15 @@ class MarketService:
         strike_pct: Optional[float] = None,
     ) -> tuple[Any, ...]:
         return self._options.for_guild(guild_id).option_buy(
-            uid, kind, symbol, amount, symbol2=symbol2, strike_pct=strike_pct
+            uid, kind, symbol, amount, self.clock.now_ts(), symbol2=symbol2, strike_pct=strike_pct
         )
 
     def option_write(
         self, guild_id: int, uid: int, kind: str, symbol: str, amount: int, *, strike_pct: Optional[float] = None
     ) -> tuple[Any, ...]:
-        return self._options.for_guild(guild_id).option_write(uid, kind, symbol, amount, strike_pct=strike_pct)
+        return self._options.for_guild(guild_id).option_write(
+            uid, kind, symbol, amount, self.clock.now_ts(), strike_pct=strike_pct
+        )
 
     def option_settle(self, guild_id: int, now: float) -> None:
         self._options.for_guild(guild_id).option_settle(now)
@@ -280,7 +282,7 @@ class MarketService:
         return self._options.for_guild(guild_id).option_value(row, now, prices)
 
     def option_sell(self, guild_id: int, uid: int, option_id: int) -> tuple[Any, ...]:
-        return self._options.for_guild(guild_id).option_sell(uid, option_id)
+        return self._options.for_guild(guild_id).option_sell(uid, option_id, self.clock.now_ts())
 
     # ------------------------------ 債券 ------------------------------ #
     def bond_settle(self, guild_id: int, now: float, rng: Any) -> None:

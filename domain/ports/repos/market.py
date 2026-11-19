@@ -67,10 +67,10 @@ class IMarketDataRepo(IGuildScopedRepo, IMarketPriceReader):
 
 
 class IMarketEventRepo(IGuildScopedRepo):
-    def market_events(self, now: Optional[float] = None) -> list[Any]:
+    def market_events(self, now: float) -> list[Any]:
         raise NotImplementedError
 
-    def vol_multipliers(self, now: Optional[float] = None) -> dict[str, Any]:
+    def vol_multipliers(self, now: float) -> dict[str, Any]:
         raise NotImplementedError
 
     def event_step(
@@ -86,7 +86,7 @@ class IEarningsRepo(IGuildScopedRepo):
     def earnings_jumps(self, now: float, seconds: float) -> list[Any]:
         raise NotImplementedError
 
-    def earnings_upcoming(self, now: Optional[float] = None) -> Optional[dict[str, Any]]:
+    def earnings_upcoming(self, now: float) -> Optional[dict[str, Any]]:
         raise NotImplementedError
 
     def earnings_to_announce(self, now: float) -> list[Any]:
@@ -95,13 +95,13 @@ class IEarningsRepo(IGuildScopedRepo):
     def earnings_release_due(self, now: float) -> list[Any]:
         raise NotImplementedError
 
-    def earnings_memo(self, user_id: int, now: Optional[float] = None, rng: Any = None) -> Optional["MemoInfo"]:
+    def earnings_memo(self, user_id: int, now: float, rng: Any = None) -> Optional["MemoInfo"]:
         raise NotImplementedError
 
-    def insider_stock(self, now: Optional[float] = None) -> Optional[dict[str, Any]]:
+    def insider_stock(self, now: float) -> Optional[dict[str, Any]]:
         raise NotImplementedError
 
-    def insider_buy(self, user_id: int, now: Optional[float] = None, rng: Any = None) -> tuple[Any, ...]:
+    def insider_buy(self, user_id: int, now: float, rng: Any = None) -> tuple[Any, ...]:
         raise NotImplementedError
 
 
@@ -207,7 +207,7 @@ class IOptionRepo(IGuildScopedRepo, IValuationSource):
         kind: str,
         symbol: str,
         amount: int,
-        now: Optional[float] = None,
+        now: float,
         symbol2: Optional[str] = None,
         strike_pct: Optional[float] = None,
     ) -> tuple[Any, ...]:
@@ -219,7 +219,7 @@ class IOptionRepo(IGuildScopedRepo, IValuationSource):
         kind: str,
         symbol: str,
         amount: int,
-        now: Optional[float] = None,
+        now: float,
         strike_pct: Optional[float] = None,
     ) -> tuple[Any, ...]:
         raise NotImplementedError
@@ -236,7 +236,7 @@ class IOptionRepo(IGuildScopedRepo, IValuationSource):
     def option_list(self, user_id: int, recent: int = 5) -> HoldingBook:
         raise NotImplementedError
 
-    def option_sell(self, user_id: int, option_id: int, now: Optional[float] = None) -> tuple[Any, ...]:
+    def option_sell(self, user_id: int, option_id: int, now: float) -> tuple[Any, ...]:
         raise NotImplementedError
 
     def option_settle(self, now: float) -> list[Any]:
