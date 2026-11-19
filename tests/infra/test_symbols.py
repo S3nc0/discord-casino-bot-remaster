@@ -13,7 +13,7 @@ from cogs.market.cog import MarketCog
 from domain import market
 from domain.types import INITIAL_BALANCE
 from infra.db.repositories import open_repositories
-from tests.fakes import as_interaction, invoke
+from tests.fakes import as_interaction, invoke, must
 from tests.support import make_market_cog, make_test_bot
 
 pytestmark = pytest.mark.real_scope
@@ -178,7 +178,7 @@ def test_old_single_symbol_tables_become_cs_without_losing_rows(tmp_path):
     c.close()
     again = open_repositories(path, strict=True)
     a = again.for_guild(G)
-    assert again.market.market_latest("cs") == (5.0, 1234.0, 1) or tuple(again.market.market_latest("cs")) == (
+    assert again.market.market_latest("cs") == (5.0, 1234.0, 1) or tuple(must(again.market.market_latest("cs"))) == (
         5.0,
         1234.0,
         1,

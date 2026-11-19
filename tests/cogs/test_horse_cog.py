@@ -154,7 +154,7 @@ def test_card_embed_for_each_stage_and_bet_panel(setup):
     eco.races.race_set_odds(rid, h.make_odds(field["runners"]))
     race = eco.races.race_get(rid)
     card = views.card_embed(eco.horses, eco.races, race)
-    assert "発売中" in must(card.title) and card.description.count("単勝") >= h.FIELD_SIZE
+    assert "発売中" in must(card.title) and must(card.description).count("単勝") >= h.FIELD_SIZE
     panel = views.BetPanel(eco.races, V, {**race, "guild_id": 0})
     assert len(panel.children) == 3 and "馬券を買う" in must(panel.embed(eco.races).title)
     eco.races.race_run(rid, random.Random(2))

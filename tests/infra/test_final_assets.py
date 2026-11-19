@@ -86,7 +86,7 @@ def test_final_ranking_and_breakdown_embeds(eco):
     assert eco.assets.final_top(2)[0][1] == B
     assert eco.assets.final_rank_of(A) == (2, 1000, 2)
     repos = make_ranking_repos(eco)
-    text = ranking.build_final_embed(repos, None, "t", A).description
+    text = must(ranking.build_final_embed(repos, None, "t", A).description)
     assert text.index(f"<@{B}>") < text.index(f"<@{A}>")
     d = ranking.build_breakdown_embed(repos, B, "b").description
     assert "発掘品" in must(d) and "総資産" in must(d)

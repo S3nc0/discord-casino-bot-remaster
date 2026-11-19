@@ -56,7 +56,7 @@ from infra.db.margin import MarginRepo
 from infra.db.market import MarketDataRepo
 from infra.db.market_events import MarketEventRepo
 from infra.db.options import OptionRepo
-from tests.fakes import as_bot
+from tests.fakes import as_bot, must
 from tests.support import make_test_bot
 
 G = 1
@@ -210,7 +210,7 @@ def test_bot_bridges_is_open_for_new_contracts_and_enforces_nominal_types():
     bridges.register(ICustomFeatureBridge, impl)
     assert bridges.has(ICustomFeatureBridge)
     resolved = bridges.resolve(ICustomFeatureBridge)
-    assert resolved is impl and resolved.ping() == "pong"
+    assert resolved is impl and must(resolved).ping() == "pong"
 
     with pytest.raises(TypeError):
         bridges.register(ICustomFeatureBridge, SimpleNamespace(ping=lambda: "bad"))  # type: ignore[arg-type]

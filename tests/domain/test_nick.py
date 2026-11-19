@@ -10,7 +10,7 @@ from cogs.shop import actions as shop_actions
 from cogs.shop import cog as shop_cog
 from domain import nick, shop
 from infra.db.repositories import open_repositories
-from tests.fakes import as_guild, as_interaction, as_member
+from tests.fakes import as_guild, as_interaction, as_member, fake_response, must
 from tests.support import make_shop_cog, make_test_bot
 
 TITLES = [i.name for i in shop.of_kind(shop.TITLE)]
@@ -144,7 +144,7 @@ def test_apply_sets_and_restores_nickname(eco):
 def test_long_nickname_round_trip_through_the_bot(eco):
     g, m = guild_for(), Member(nick_="あ" * 30)
     run(shop_cog.apply_title_nick(as_guild(g), as_member(m), "常連", eco.guild))
-    assert m.nick != "あ" * 30 and nick.ulen(m.nick) <= 32
+    assert m.nick != "あ" * 30 and nick.ulen(must(m.nick)) <= 32
     run(shop_cog.apply_title_nick(as_guild(g), as_member(m), None, eco.guild))
     assert m.nick == "あ" * 30  # 切り詰めた名前ではなく、完全な元の名前
 
@@ -179,7 +179,7 @@ def test_apply_reports_any_discord_failure_instead_of_pretending_success(eco, st
 
     async def fail(**kw):
         cls = discord.Forbidden if status == 403 else discord.HTTPException
-        raise cls(SimpleNamespace(status=status, reason="x"), "err")
+        raise cls(fake_response(status), "err")
 
     m.edit = fail
     with pytest.raises(shop_cog.ShopError):
@@ -323,7 +323,7 @@ def test_failed_first_enable_is_rolled_back(setup):
     cog.bot.get_guild = lambda gid: g
 
     async def fail(**kw):
-        raise discord.HTTPException(SimpleNamespace(status=503, reason="x"), "err")
+        raise discord.HTTPException(fake_response(503), "err")
 
     m.edit = fail
     it = FakeInteraction(m, g)
@@ -342,7 +342,7 @@ def test_server_error_is_reported_when_equipping_not_shown_as_success(setup):
     cog.bot.get_guild = lambda gid: g
 
     async def fail(**kw):
-        raise discord.HTTPException(SimpleNamespace(status=400, reason="x"), "bad nick")
+        raise discord.HTTPException(fake_response(400), "bad nick")
 
     m.edit = fail
     it = FakeInteraction(m, g)

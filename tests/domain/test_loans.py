@@ -11,7 +11,7 @@ from cogs.loan.cog import LoanButton, handle_button, offer_embed, who
 from domain import loans, teiai
 from domain.types import INITIAL_BALANCE
 from infra.db.repositories import open_repositories
-from tests.fakes import as_interaction, invoke, must
+from tests.fakes import as_interaction, as_item, call, invoke, must
 from tests.support import make_loan_cog, make_test_bot
 
 NOW = 1_000_000.0
@@ -321,7 +321,7 @@ def test_dynamic_button_id_round_trip():
     item = LoanButton("accept", 42)
     assert item.item.custom_id == "loan:accept:42"
     m = re.fullmatch(LoanButton.__discord_ui_compiled_template__.pattern, "loan:cancel:7")
-    restored = asyncio.run(LoanButton.from_custom_id(as_interaction(None), None, m))
+    restored = asyncio.run(LoanButton.from_custom_id(as_interaction(None), as_item(None), must(m)))
     assert (restored.act, restored.loan_id) == ("cancel", 7)
 
 
@@ -434,9 +434,9 @@ def test_commands_offer_repay_and_list(eco, monkeypatch):
         log[-1]["embed"].title.startswith("✅ #1 を 100ペリカ 返しました") and "ephemeral" not in log[-1]
     )  # 返済の完了もみんなに見える
     assert f"借りた人: <@{B}>　貸した人: <@{A}>" in log[-1]["embed"].description
-    choices = asyncio.run(cog.repay_autocomplete(as_interaction(inter(B)), ""))
+    choices = asyncio.run(call(cog.repay_autocomplete, as_interaction(inter(B)), ""))
     assert [c.value for c in choices] == [1] and choices[0].name.startswith("#1 残り")
-    assert asyncio.run(cog.repay_autocomplete(as_interaction(inter(C)), "")) == []
+    assert asyncio.run(call(cog.repay_autocomplete, as_interaction(inter(C)), "")) == []
     asyncio.run(invoke(cog.repay, cog, inter(C), 1, None))
     assert log[-1]["embed"].title == "❌ 返せません" and log[-1]["ephemeral"] is True  # 失敗は本人だけ
 

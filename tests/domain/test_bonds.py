@@ -215,8 +215,8 @@ def test_ranking_total_and_display_include_the_bond_principal(eco):
         (2, 2, INITIAL_BALANCE),
     ]  # 債券を買っても総資産は変わらない
     e = ranking.build_embed(make_ranking_repos(eco), None, "ランキング")
-    assert (
-        f"**{INITIAL_BALANCE:,}ペリカ**（うち債券 3,000）" in e.description
+    assert f"**{INITIAL_BALANCE:,}ペリカ**（うち債券 3,000）" in must(
+        e.description
     )  # 現金は 0 でも、預けた分が総資産に入り、内訳が出る
     eco.bonds.bond_settle(NOW + 3 * DAY, Always(0.99))  # 満期で残高に戻れば、内訳は消える
     assert "債券" not in must(ranking.build_embed(make_ranking_repos(eco), None, "ランキング").description)

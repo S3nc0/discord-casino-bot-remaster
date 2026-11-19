@@ -17,6 +17,7 @@ OWNER, FRIEND = 1, 2
 class Chan:
     def __init__(self, cid, name, ok=True):
         self.id, self.name, self.sent, self._ok, self.mention = cid, name, [], ok, f"#{name}"
+        self.deleted: list[int] = []
 
     def permissions_for(self, _me):
         return SimpleNamespace(view_channel=self._ok, send_messages=self._ok, embed_links=self._ok)
@@ -27,7 +28,7 @@ class Chan:
 
     def get_partial_message(self, mid):
         async def delete():
-            self.deleted = getattr(self, "deleted", []) + [mid]
+            self.deleted = self.deleted + [mid]
 
         return SimpleNamespace(delete=delete)
 

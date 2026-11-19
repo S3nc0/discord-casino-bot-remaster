@@ -450,7 +450,7 @@ def test_chinchiro_result_shows_what_was_seized_and_the_seed_money(tmp_path):
     it.response = SimpleNamespace(send_message=send)
     ctx = asyncio.run(common.start_game(as_interaction(it), make_casino_deps(bot), 3_000, "チンチロ"))
     view = play_ch.ChinchiroView(
-        ctx, as_interaction(It()), [((1, 1, 1), ch.classify((1, 1, 1)))]
+        must(ctx), as_interaction(It()), [((1, 1, 1), ch.classify((1, 1, 1)))]
     )  # 親がピンゾロ（5倍払い）
     view.player_rolls = [((2, 2, 3), ch.classify((2, 2, 3)))]
     text = view.final_embed().description

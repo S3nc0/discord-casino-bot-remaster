@@ -8,18 +8,18 @@ import pytest
 
 from cogs.admin.purge import PROGRESS_EVERY, can_read_history, delete_own_messages
 from cogs.admin.views import PurgeConfirm
-from tests.fakes import as_guild, as_interaction, invoke
+from tests.fakes import as_guild, as_interaction, fake_response, invoke
 from tests.support import make_approval_cog, make_test_bot
 
 ME, OWNER, FRIEND, OTHER = 99, 1, 2, 7
 
 
 def not_found():
-    return discord.NotFound(SimpleNamespace(status=404, reason="Not Found"), "gone")
+    return discord.NotFound(fake_response(404, "Not Found"), "gone")
 
 
 def http_error():
-    return discord.HTTPException(SimpleNamespace(status=500, reason="Server Error"), "boom")
+    return discord.HTTPException(fake_response(500, "Server Error"), "boom")
 
 
 class Message:
@@ -89,7 +89,7 @@ def test_progress_is_reported_every_few_deletions():
 
 
 def test_missing_history_permission_surfaces_as_forbidden():
-    channel = Channel([], history_error=discord.Forbidden(SimpleNamespace(status=403, reason="Forbidden"), "no"))
+    channel = Channel([], history_error=discord.Forbidden(fake_response(403, "Forbidden"), "no"))
     with pytest.raises(discord.Forbidden):
         run(delete_own_messages(channel, ME))
 
@@ -195,7 +195,7 @@ def test_the_same_channel_cannot_be_purged_twice_at_once(tmp_path):
 
 
 def test_forbidden_history_is_explained_and_the_busy_mark_is_cleared(tmp_path):
-    channel = Channel([], history_error=discord.Forbidden(SimpleNamespace(status=403, reason="Forbidden"), "no"))
+    channel = Channel([], history_error=discord.Forbidden(fake_response(403, "Forbidden"), "no"))
     cog = make_cog(tmp_path, channel)
     it = Interaction(OWNER)
     run(click(PurgeConfirm(cog, OWNER, channel), "すべて消す")(as_interaction(it)))

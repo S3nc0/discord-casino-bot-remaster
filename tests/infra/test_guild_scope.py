@@ -6,6 +6,7 @@ import os
 import random
 import sqlite3
 from types import SimpleNamespace
+from typing import cast
 
 import pytest
 
@@ -298,7 +299,9 @@ def test_migration_accepts_str_id_and_old_db_without_optional_tables(tmp_path):
     c.commit()
     c.close()
     eco = open_repositories(
-        path, legacy_guild_id=str(A), strict=True
+        path,
+        legacy_guild_id=cast(int, str(A)),
+        strict=True,  # config.json の文字列の ID も受け付ける
     )  # inventory / profile / ledger / escrow が無い古い記録でも移行できる
     assert eco.for_guild(A).wallet.balance(1) == 777 and eco.for_guild(B).wallet.balance(1) == INITIAL_BALANCE
 

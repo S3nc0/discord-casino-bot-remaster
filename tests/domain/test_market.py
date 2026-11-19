@@ -15,7 +15,7 @@ from cogs.market.cog import MarketCog
 from domain import market
 from domain.types import INITIAL_BALANCE
 from infra.db.repositories import open_repositories
-from tests.fakes import as_interaction, invoke
+from tests.fakes import as_interaction, fake_response, invoke
 from tests.support import make_market_cog, make_test_bot
 
 pytestmark = pytest.mark.real_scope
@@ -201,7 +201,7 @@ class FakeChannel:
         class P:
             async def delete(self):
                 if channel.fail:
-                    raise discord.NotFound(SimpleNamespace(status=404, reason="x"), "gone")
+                    raise discord.NotFound(fake_response(404), "gone")
                 channel.deleted.append(mid)
 
         return P()
@@ -388,7 +388,8 @@ def test_chart_command_still_works_when_the_old_chart_is_already_gone(cog):
 # ----------------------------- チャートの自動更新（出して RANDOM から60分だけ） ----------------------------- #
 class EditChan:
     def __init__(self, cid=5):
-        self.id, self.edits, self.deleted, self.error = cid, [], [], None
+        self.id, self.edits, self.deleted = cid, [], []
+        self.error: discord.HTTPException | None = None
 
     def get_partial_message(self, mid):
         chan = self
@@ -460,13 +461,11 @@ def test_deleted_chart_stops_being_updated_and_errors_do_not_stop_others(cog):
     live_env(cog, ch)
     cog.bot.repos.market.swap_chart_post(5, 105, G, "24h", time.time())
     post = cog.bot.repos.market.live_chart_posts()[0]
-    ch.error = discord.NotFound(SimpleNamespace(status=404, reason="x"), "gone")  # 誰かがチャートを消した
+    ch.error = discord.NotFound(fake_response(404), "gone")  # 誰かがチャートを消した
     run(feed.refresh_post(cog.bot, cog._market, cog, post, time.time(), {}))
     assert cog.bot.repos.market.live_chart_posts() == []
     cog.bot.repos.market.swap_chart_post(5, 106, G, "24h", time.time())
-    ch.error = discord.Forbidden(
-        SimpleNamespace(status=403, reason="x"), "no"
-    )  # 権限が無い: 例外にせず、次の周期で再試行
+    ch.error = discord.Forbidden(fake_response(403), "no")  # 権限が無い: 例外にせず、次の周期で再試行
     run(feed.refresh_post(cog.bot, cog._market, cog, cog.bot.repos.market.live_chart_posts()[0], time.time(), {}))
     assert cog.bot.repos.market.live_chart_posts()
 
@@ -519,12 +518,11 @@ def test_chart_posts_table_from_the_previous_version_is_upgraded(tmp_path):
 
 
 # ----------------------------- 空売り ----------------------------- #
+_PRICE_TICKS = itertools.count(1)  # 価格を置くたびに、1秒ずつ後ろにずらす
+
+
 def set_price(eco, price):
-    eco.market.market_set(time.time() + set_price.n, price, 0)
-    set_price.n += 1
-
-
-set_price.n = 1
+    eco.market.market_set(time.time() + next(_PRICE_TICKS), price, 0)
 
 
 def test_short_profits_when_price_falls_and_returns_margin(eco):
@@ -636,10 +634,10 @@ def test_short_can_be_sized_by_amount_or_lots_but_not_both(cog):
     units = cog.bot.repos.for_guild(G).margin.short_position(U)[0]
     assert "空売りしました" in it.sent[-1]["embed"].title and units == int(1_000 * 1_000 // price)
     it = It()
-    run(orders.margin_order(cog, as_interaction(it), "short", "cs", 1.0, 1_000, None))
+    run(orders.margin_order(cog, as_interaction(it), "short", "cs", 1.0, 1_000))
     assert "どちらか1つ" in it.sent[-1]["embed"].title
     it = It()
-    run(orders.margin_order(cog, as_interaction(it), "short", "cs", None, None, None))
+    run(orders.margin_order(cog, as_interaction(it), "short", "cs", None, None))
     assert "どちらか1つ" in it.sent[-1]["embed"].title
 
 
@@ -701,8 +699,8 @@ def test_drift_fades_out_as_the_price_rises_toward_the_band_and_stops_there():
 
 
 def test_a_step_without_any_shock_moves_the_price_by_exactly_the_drift(monkeypatch):
-    class Calm:
-        def gauss(self, mu, sigma):
+    class Calm(random.Random):
+        def gauss(self, mu=0.0, sigma=1.0):
             return 0.0
 
         def random(self):

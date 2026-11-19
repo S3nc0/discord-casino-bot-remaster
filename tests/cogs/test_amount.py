@@ -1,8 +1,10 @@
 """金額の入力欄: 自分の現在の残高を見せる（候補は残高の1行だけ）。"""
 
 from types import SimpleNamespace
+from typing import Any, cast
 
 import pytest
+from discord import app_commands
 
 from cogs.casino.cog import Casino
 from cogs.economy.cog import EconomyCog
@@ -21,7 +23,7 @@ def eco(tmp_path):
     return open_repositories(str(tmp_path / "t.db"))
 
 
-def interaction(guild_id=1, **namespace):
+def interaction(guild_id: int | None = 1, **namespace):
     return SimpleNamespace(guild_id=guild_id, user=SimpleNamespace(id=USER), namespace=SimpleNamespace(**namespace))
 
 
@@ -91,12 +93,14 @@ def test_commands_use_the_balance_choices_on_their_amount_fields():
         "貸付": ({"提案"}, "principal", LoanCog.group),
     }
     for group_name, (names, param, group) in wired.items():
-        found = {c.name: c for c in group.commands if c.name in names}
+        found = {c.name: c for c in group.commands if c.name in names and isinstance(c, app_commands.Command)}
         assert set(found) == names, group_name
         for command in found.values():
             assert command._params[param].autocomplete, (group_name, command.name)  # 候補の登録がある
             option = next(
-                o for o in command.to_dict(None)["options"] if o["name"] == command._params[param].display_name
+                o
+                for o in command.to_dict(cast("app_commands.CommandTree[Any]", None))["options"]
+                if o["name"] == command._params[param].display_name
             )
             assert (
                 option["autocomplete"] is True and "choices" not in option

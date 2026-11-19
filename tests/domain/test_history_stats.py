@@ -67,7 +67,7 @@ def test_history_command_shows_merged_lines(tmp_path):
     eco = open_repositories(str(tmp_path / "t.db"), strict=True)
     a = eco.for_guild(G)
     esc = a.escrow.place_bet(U, 100, "コイン")
-    a.escrow.settle(esc, 195, "コイン")
+    a.escrow.settle(must(esc), 195, "コイン")
     bot = make_test_bot(repos=eco)
     cog = make_economy_cog(bot)
     sent = []

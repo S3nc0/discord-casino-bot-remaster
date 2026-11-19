@@ -3,7 +3,6 @@
 import asyncio
 import random
 import time
-from types import SimpleNamespace
 
 import pytest
 
@@ -11,7 +10,7 @@ from cogs.market.cog import MarketView, OptionAmountModal
 from domain import market, market_events
 from domain import options as opt
 from infra.db.repositories import open_repositories
-from tests.fakes import as_interaction
+from tests.fakes import as_interaction, buttons
 from tests.support import make_market_cog, make_test_bot
 
 pytestmark = pytest.mark.real_scope
@@ -236,7 +235,7 @@ def test_view_offers_quick_buy_buttons_only_while_an_event_exists(cog):
     now = time.time()
     cog.bot.repos.market_events.event_step(now, force=event(announce=now))
     view = MarketView(cog, U, G)
-    labels = [c.label for c in view.children if getattr(c, "label", None)]
+    labels = [c.label for c in buttons(view) if c.label]
     assert any("NUMAバイオの爆騰コール" in x for x in labels) and any("NUMAバイオの暴落プット" in x for x in labels)
 
 
@@ -244,13 +243,13 @@ def test_quick_buy_modal_buys_the_option(cog):
     from tests.domain.test_market import It
 
     modal = OptionAmountModal(cog, opt.CALL, "numa")
-    modal.amount = SimpleNamespace(value="2,000")
+    modal.amount._value = "2,000"
     it = It()
     asyncio.run(modal.on_submit(as_interaction(it)))
     assert "爆騰コール" in it.sent[-1]["embed"].title
     assert cog.bot.repos.for_guild(G).options.option_list(U)["active"][0]["symbol"] == "numa"
     bad = OptionAmountModal(cog, opt.PUT, "numa")
-    bad.amount = SimpleNamespace(value="abc")
+    bad.amount._value = "abc"
     it = It()
     asyncio.run(bad.on_submit(as_interaction(it)))
     assert it.sent[-1]["ephemeral"] and "❌" in it.sent[-1]["embed"].title

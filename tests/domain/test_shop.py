@@ -13,7 +13,7 @@ from cogs.shop import cog as shop_cog
 from domain import shop
 from domain.types import DAILY_BASE, DAILY_STREAK_BONUS, DAILY_STREAK_CAP, INITIAL_BALANCE
 from infra.db.repositories import open_repositories
-from tests.fakes import as_guild, as_interaction, as_member, must
+from tests.fakes import as_guild, as_interaction, as_member, fake_response, must
 from tests.support import make_shop_cog, make_test_bot
 
 
@@ -39,8 +39,8 @@ def test_catalog_is_consistent():
     assert shop.find("title_zawa") is shop.find("ざわ…ざわ…")
     assert shop.find("存在しない") is None
     # 同じ名前（「赤」）でも、種類つきなら区別して探せる
-    assert shop.find("カードの色:赤").kind == shop.CARD_COLOR
-    assert shop.find("名前の色（ロール）:赤").kind == shop.COLOR_ROLE
+    assert must(shop.find("カードの色:赤")).kind == shop.CARD_COLOR
+    assert must(shop.find("名前の色（ロール）:赤")).kind == shop.COLOR_ROLE
 
 
 # ----------------------------- 購入 ----------------------------- #
@@ -163,6 +163,7 @@ class FakeRole:
 class FakeMember:
     def __init__(self, roles):
         self.roles = list(roles)
+        self.id, self.display_name = 0, ""
 
     async def add_roles(self, *roles, **kw):
         self.roles.extend(r for r in roles if r not in self.roles)
@@ -174,6 +175,7 @@ class FakeMember:
 class FakeGuild:
     def __init__(self, roles, bot_pos=10, can_manage=True):
         self.roles = list(roles)
+        self.id = 0
         self.me = SimpleNamespace(
             top_role=FakeRole("Bot", bot_pos), guild_permissions=SimpleNamespace(manage_roles=can_manage)
         )
@@ -223,7 +225,7 @@ def test_color_role_above_bot_role_is_rejected(monkeypatch):
     high = FakeRole("ペリカ・赤", 20, 0xE74C3C)  # 位置が Bot より上で、動かせない
 
     async def stuck(**kw):
-        raise discord.Forbidden(SimpleNamespace(status=403, reason="x"), "no")
+        raise discord.Forbidden(fake_response(403), "no")
 
     high.edit = stuck
     guild, member = FakeGuild([high]), FakeMember([])
@@ -235,8 +237,8 @@ def test_color_role_above_bot_role_is_rejected(monkeypatch):
 # --------------------------- コマンドの流れ --------------------------- #
 class FakeInteraction:
     def __init__(self, uid=1):
-        self.user = SimpleNamespace(id=uid, display_name="テスト")
-        self.guild = SimpleNamespace(id=10)
+        self.user: SimpleNamespace | FakeMember = SimpleNamespace(id=uid, display_name="テスト")
+        self.guild: SimpleNamespace | FakeGuild = SimpleNamespace(id=10)
         self.sent = []
         self.response = SimpleNamespace(send_message=self._send, defer=self._defer)
         self.followup = SimpleNamespace(send=self._send)
@@ -652,7 +654,7 @@ def test_shop_screen_shows_the_players_own_stock(eco):
     eco.wallet.credit(1, 100_000, "テスト")
     buy_at(eco, 3, time.time())
     cog = make_shop_cog(make_test_bot(repos=eco))
-    text = "\n".join(f.value for f in shop_cog.ShopView(cog, 1, 0, tab="item").embed().fields)
+    text = "\n".join(must(f.value) for f in shop_cog.ShopView(cog, 1, 0, tab="item").embed().fields)
     assert "📦 在庫 7/10" in text
 
 

@@ -1,6 +1,7 @@
 """信用取引: 信用買い・クロスマージン（維持率・代用有価証券・連鎖ロスカット）。"""
 
 import asyncio
+import itertools
 import time
 from types import SimpleNamespace
 
@@ -26,12 +27,11 @@ def eco(tmp_path):
     return e
 
 
+_PRICE_TICKS = itertools.count(1)  # 価格を置くたびに、1秒ずつ後ろにずらす
+
+
 def set_price(eco, key, price):
-    eco.market.market_set(time.time() + set_price.n, price, 0, key)
-    set_price.n += 1
-
-
-set_price.n = 1
+    eco.market.market_set(time.time() + next(_PRICE_TICKS), price, 0, key)
 
 
 OLD_NUMA_RISK_K = 20.0 * 0.012 / market.NUMA.sigma  # NUMA の σ が 0.012 だった頃と、同じ大きさの必要証拠金になる倍率

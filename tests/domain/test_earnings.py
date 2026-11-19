@@ -193,7 +193,7 @@ def test_post_announces_and_reports_results_to_each_allowed_guild(eco, monkeypat
 
     guild = SimpleNamespace(id=7)
     cog = make_cog(eco)
-    cog.bot.guilds = [guild]
+    setattr(cog.bot, "guilds", [guild])
     monkeypatch.setattr("domain.approval.is_allowed", lambda *a: True)
     monkeypatch.setattr(market_cog, "announce_channel", lambda g, e: Chan())
     now = time.time()
@@ -301,7 +301,7 @@ def test_shop_panel_has_a_market_tab_and_buying_shows_the_memo_privately(eco, mo
     asyncio.run(shop_actions.buy_item(cog, as_interaction(It()), "insider_memo", 1))
     assert sent and sent[-1]["ephemeral"] is True and "極秘メモ" in sent[-1]["embed"].description
     assert "insider_memo" not in eco.for_guild(10).shop.inventory(1)  # 持ち物には増えない
-    assert not cog.bot.sessions.is_active(1)
+    assert not bot.sessions.is_active(1)
 
 
 # ----------------------------- オプションの値付けと、メモの価値 ----------------------------- #

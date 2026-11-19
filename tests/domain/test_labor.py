@@ -10,7 +10,7 @@ from cogs.labor import cog as labor_cog
 from domain import labor as lab
 from domain import teiai
 from infra.db.repositories import open_repositories
-from tests.fakes import as_interaction, invoke, must
+from tests.fakes import as_interaction, button, buttons, invoke, must
 from tests.support import make_labor_cog, make_test_bot
 
 U = 1
@@ -163,11 +163,14 @@ def make_view(eco):
 
 def test_panel_view_buttons_and_owner_check(eco):
     view = make_view(eco)
-    labels = [c.label for c in view.children]
+    labels = [c.label or "" for c in buttons(view)]
+    assert len(labels) == len(view.children)  # 画面は、ボタンだけ
     assert labels[0] == "働く" and "休憩" not in labels and any("受け取る" in x for x in labels)
     assert sum("強化" in x for x in labels) == 2
-    assert view.children[0].disabled is False and view.children[1].disabled is True  # 稼ぎが無いので、受け取れない
-    assert labels[2] == "作業員" and all(c.disabled for c in view.children[3:])  # 元手 0 では、強化できない
+    assert (
+        button(view.children[0]).disabled is False and button(view.children[1]).disabled is True
+    )  # 稼ぎが無いので、受け取れない
+    assert labels[2] == "作業員" and all(c.disabled for c in buttons(view)[3:])  # 元手 0 では、強化できない
     stranger = SimpleNamespace(user=SimpleNamespace(id=U + 1), response=Resp())
     assert asyncio.run(view.interaction_check(as_interaction(stranger))) is False and stranger.response.sent
 
@@ -203,7 +206,8 @@ def test_ranking_total_today_and_my_rank(eco):
 def test_ranking_embed_shows_medals_and_my_rank_below_the_list():
     rows = [(i, 100 + i, 1_000 - i, 50) for i in range(1, 11)]
     e = labor_cog.ranking_embed({"rows": rows, "me": (14, 300, 90, 20)}, False)
-    assert "🥇" in must(e.description) and "🥉" in e.description and "あなた" in e.description and "通算" in e.title
+    text = must(e.description)
+    assert "🥇" in text and "🥉" in text and "あなた" in text and "通算" in must(e.title)
     assert "まだ、だれも" in must(labor_cog.ranking_embed({"rows": [], "me": None}, True).description)
 
 
@@ -293,7 +297,7 @@ def test_hire_tab_buttons_hire_and_dismiss_through_the_panel(eco):
     it = SimpleNamespace(user=SimpleNamespace(id=U), response=Resp(), data={})
     asyncio.run(view._goto("hire")(as_interaction(it)))
     assert view.tab == "hire" and it.response.edits[-1]["embed"].title.startswith("👷")
-    labels = [c.label for c in view.children if hasattr(c, "label") and c.label]
+    labels = [c.label for c in buttons(view) if c.label]
     assert any("見習い" in x for x in labels) and any("寮を強化" in x for x in labels)
     assert not any("賃金" in x for x in labels)  # 賃金（待遇）の設定は、なくなった
     assert "賃金" not in text(labor_cog.hire_embed(view.state))
@@ -306,7 +310,7 @@ def test_hire_tab_buttons_hire_and_dismiss_through_the_panel(eco):
     asyncio.run(view._dismiss(as_interaction(it)))
     assert eco.labor.labor_state(U, 0, view._today())["apprentice"] == 0
     asyncio.run(view._goto("work")(as_interaction(it)))
-    assert view.children[0].label == "働く"
+    assert button(view.children[0]).label == "働く"
 
 
 def test_hire_embed_shows_prices_slots_and_pending(eco):
@@ -368,15 +372,15 @@ def test_drink_is_not_wasted_when_not_tired(eco):
 
 def test_drink_button_in_the_panel(eco):
     view = make_view(eco)
-    drink = next(c for c in view.children if getattr(c, "emoji", None) and str(c.emoji) == "🥤")
-    assert drink.disabled and "ショップ" in drink.label  # 持っていない
+    drink = next(c for c in buttons(view) if c.emoji and str(c.emoji) == "🥤")
+    assert drink.disabled and "ショップ" in must(drink.label)  # 持っていない
     eco.wallet.credit(U, 1_000, "テスト")
     buy_drink(eco, 2)
     now = labor_cog.time.time()
     for i in range(30):  # 画面は、いまの時刻で読むので、いまの時刻で押す
         eco.labor.labor_click(U, now - 60 + i * 1.5, view._today())
     view.refresh()
-    drink = next(c for c in view.children if getattr(c, "emoji", None) and str(c.emoji) == "🥤")
+    drink = next(c for c in buttons(view) if c.emoji and str(c.emoji) == "🥤")
     assert drink.label == "栄養ドリンコ ×2"
     it = SimpleNamespace(user=SimpleNamespace(id=U), response=Resp(), data={})
     asyncio.run(view._drink(as_interaction(it)))
@@ -742,7 +746,9 @@ def test_finds_are_logged_with_time_and_worker_and_shown_without_coal(eco, monke
     assert sorted(f["ore"] for f in finds) == ["copper", "diamond"]  # 石炭は出さない
     assert all(T0 < f["at"] <= T0 + 3 * H and f["kind"] == "miner" for f in finds)  # 時刻は、働いた時間のあいだ
     assert eco.labor.labor_state(U, T0 + 3 * H, DAY)["finds"] == finds  # 読むだけでは増えない
-    field = next(f for f in panel_embed(eco.labor.labor_state(U, T0 + 3 * H, DAY)).fields if f.name.startswith("📜"))
+    field = next(
+        f for f in panel_embed(eco.labor.labor_state(U, T0 + 3 * H, DAY)).fields if must(f.name).startswith("📜")
+    )
     assert "坑夫" in must(field.value) and "ダイヤ" in must(field.value) and "石炭" not in must(field.value)
     eco.labor.labor_collect(U, T0 + 3 * H, DAY)
     assert eco.labor.labor_state(U, T0 + 3 * H, DAY)["finds"] == []  # 受け取ると、画面には出なくなる
@@ -920,7 +926,7 @@ def test_collect_button_works_when_only_relics_are_waiting(eco, monkeypatch):
         )
     view = make_view(eco)
     assert view.state["pot_total"] == 0 and view.state["relics"]  # お金はなく、発掘品だけがある
-    assert view.children[1].label.startswith("受け取る") and view.children[1].disabled is False
+    assert must(button(view.children[1]).label).startswith("受け取る") and button(view.children[1]).disabled is False
 
 
 def test_old_archaeologist_contracts_are_refunded_and_removed_once(eco):

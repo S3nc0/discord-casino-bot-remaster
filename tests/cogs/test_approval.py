@@ -12,7 +12,7 @@ from cogs.shared import approval_guard
 from domain import approval
 from domain.types import INITIAL_BALANCE
 from infra.db.repositories import open_repositories
-from tests.fakes import as_guild, as_interaction, invoke, must
+from tests.fakes import as_guild, as_interaction, as_item, fake_response, invoke, must
 from tests.support import make_approval_cog, make_test_bot
 
 OWNER, FRIEND = 1, 2
@@ -45,7 +45,7 @@ class Owner:
 
     async def send(self, **kw):
         if self.fail:
-            raise discord.Forbidden(SimpleNamespace(status=403, reason="x"), "DM 不可")
+            raise discord.Forbidden(fake_response(403), "DM 不可")
         self.sent.append(kw)
 
 
@@ -246,9 +246,9 @@ def test_button_ids_survive_restart_format():
 
     assert ApprovalButton("allow", 123).item.custom_id == "guild-approve:allow:123"
     assert re.fullmatch(
-        r"guild-approve:(?P<action>allow|deny):(?P<gid>[0-9]+)", ApprovalButton("deny", 9).item.custom_id
+        r"guild-approve:(?P<action>allow|deny):(?P<gid>[0-9]+)", must(ApprovalButton("deny", 9).item.custom_id)
     )
-    restored = run(ApprovalButton.from_custom_id(as_interaction(None), None, {"action": "deny", "gid": "77"}))
+    restored = run(ApprovalButton.from_custom_id(as_interaction(None), as_item(None), {"action": "deny", "gid": "77"}))
     assert (restored.action, restored.guild_id) == ("deny", 77)
 
 
@@ -348,7 +348,7 @@ def test_owner_commands_are_dm_only_and_not_in_other_groups():
     from discord import app_commands
 
     assert ApprovalCog.group.name == "運営"
-    ctx = ApprovalCog.group.allowed_contexts
+    ctx = must(ApprovalCog.group.allowed_contexts)
     assert ctx.dm_channel and ctx.private_channel and not ctx.guild  # サーバーのコマンド候補には出ない
     from cogs.economy.cog import EconomyCog
 
@@ -397,11 +397,13 @@ def test_only_the_owner_may_use_the_dm_group_outside_a_server():
         as_interaction(fake_dm_interaction("運営", OWNER, guild=SimpleNamespace(id=1)))
     )  # サーバー内の扱いは、いつもどおり
     assert not approval_guard.is_owner_dm_command(
-        SimpleNamespace(
-            command=None,
-            guild=None,
-            user=SimpleNamespace(id=OWNER),
-            client=SimpleNamespace(config={"owner_ids": [OWNER]}),
+        as_interaction(
+            SimpleNamespace(
+                command=None,
+                guild=None,
+                user=SimpleNamespace(id=OWNER),
+                client=SimpleNamespace(config={"owner_ids": [OWNER]}),
+            )
         )
     )
 
@@ -495,7 +497,7 @@ def test_grant_in_dm_pays_the_chosen_member_in_the_chosen_guild(tmp_path):
             return SimpleNamespace(id=42, bot=False, mention="<@42>", display_name="友達")
         if uid == 43:
             return SimpleNamespace(id=43, bot=True, mention="<@43>", display_name="bot")
-        raise discord.NotFound(SimpleNamespace(status=404, reason="x"), "unknown member")
+        raise discord.NotFound(fake_response(404), "unknown member")
 
     guild.fetch_member = fetch
     log = []
@@ -621,7 +623,7 @@ def make_announce(tmp_path, monkeypatch, guild_ids=(5, 6), no_channel=(), fail=(
 
         async def send(self, **kw):
             if self.gid in fail:
-                raise discord.HTTPException(SimpleNamespace(status=403, reason="x"), "forbidden")
+                raise discord.HTTPException(fake_response(403), "forbidden")
             posts.append(
                 (
                     self.gid,
@@ -835,7 +837,9 @@ def test_pachinko_stats_embed_compares_actual_to_design():
     assert "1回転の当たり率: 実績 **46.00%**" in must(e.description)
     omen, tier = e.fields[0].value, e.fields[1].value
     assert (
-        "🟡 金: 200回転　実績 **55.0%**" in must(omen) and "なし: 50回転　実績 **10.0%**" in omen and "（参考）" in omen
+        "🟡 金: 200回転　実績 **55.0%**" in must(omen)
+        and "なし: 50回転　実績 **10.0%**" in must(omen)
+        and "（参考）" in must(omen)
     )  # 50回転は参考
     assert "🔵 青: 0回転　実績 **—**" in must(omen)
     assert "スーパー: 100回転　実績 **45.0%** ／ 設計" in must(tier) and "45.0%（参考）" not in must(tier)
@@ -873,7 +877,7 @@ def test_set_balance_command_sets_exact_amount_for_owner_only(tmp_path):
             return SimpleNamespace(id=42, bot=False, mention="<@42>", display_name="友達")
         if uid == 43:
             return SimpleNamespace(id=43, bot=True, mention="<@43>", display_name="bot")
-        raise discord.NotFound(SimpleNamespace(status=404, reason="x"), "unknown member")
+        raise discord.NotFound(fake_response(404), "unknown member")
 
     guild.fetch_member = fetch
     log = []

@@ -263,7 +263,7 @@ def test_order_put_and_refusals(cog):
 def test_default_target_follows_each_symbols_volatility():
     assert set(opt.STRIKE_BY_SYMBOL) == {s.key for s in market.SYMBOLS}
     # 値動きの大きい銘柄ほど、既定の基準が遠い（GOLD < TEIO < CS < NUMA）
-    order = sorted(opt.STRIKE_BY_SYMBOL, key=opt.STRIKE_BY_SYMBOL.get)
+    order = sorted(opt.STRIKE_BY_SYMBOL, key=lambda key: opt.STRIKE_BY_SYMBOL[key])
     assert order == ["gold", "teio", "cs", "numa"]
     assert opt.default_strike_pct("unknown") == opt.STRIKE_OTM
     assert opt.strike_for("call", 1000.0, 0.10) == 1100.0 and opt.strike_for("put", 1000.0, 0.10) == 900.0

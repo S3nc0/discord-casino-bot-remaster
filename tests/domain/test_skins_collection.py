@@ -11,7 +11,7 @@ from cogs.shop import actions as shop_actions
 from cogs.shop.cog import SLOT_OF_KIND, UNEQUIP_NAMES, shop_slots
 from domain import shop, skins
 from infra.db.repositories import open_repositories
-from tests.fakes import as_interaction, invoke
+from tests.fakes import as_interaction, invoke, must
 from tests.support import make_casino_deps, make_economy_cog, make_shop_cog, make_test_bot
 
 U, G = 7, 10
@@ -121,7 +121,7 @@ def active(eco, game, **equipped):
 
 
 def test_a_skin_only_works_in_the_games_it_is_for(eco):
-    assert active(eco, skins.CHINCHIRO, skin_dice="skin_gold_dice").item_id == "skin_gold_dice"
+    assert must(active(eco, skins.CHINCHIRO, skin_dice="skin_gold_dice")).item_id == "skin_gold_dice"
     assert active(eco, skins.PACHINKO, skin_table="skin_vip") and active(eco, skins.BLACKJACK, skin_table="skin_vip")
     assert (
         active(eco, skins.PACHINKO, skin_table="skin_numa")

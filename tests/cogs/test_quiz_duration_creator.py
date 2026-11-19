@@ -9,7 +9,7 @@ from cogs.quiz.cog import AddModal, UserModal, creator_label, public_embed, ques
 from domain import quizimport
 from domain.duration import format_minutes, parse_duration
 from infra.db.repositories import open_repositories
-from tests.fakes import as_interaction, must
+from tests.fakes import as_interaction, call, must
 from tests.support import make_quiz_cog, make_test_bot
 
 NOW = 1_000_000.0
@@ -199,8 +199,8 @@ def test_creator_name_is_saved_and_shown_everywhere(tmp_path):
     e = public_embed(q[uid])
     assert "出題: **出題者さん**（出題者は答えられません。正解の報酬は出題者が払います）" in must(e.description)
     assert "出題: **運営**" in must(public_embed(q[legacy]).description)
-    assert (
-        "出題: **出題者さん**" in question_embed(q[uid], q[uid]["order"], 1).description
+    assert "出題: **出題者さん**" in must(
+        question_embed(q[uid], q[uid]["order"], 1).description
     )  # /クイズ 挑戦 の画面にも出る
 
 
@@ -235,7 +235,8 @@ def test_withdraw_autocomplete_lists_only_my_open_questions_in_this_guild(tmp_pa
     eco = open_repositories(str(tmp_path / "t.db"))
     g1, g2 = eco.for_guild(10), eco.for_guild(20)
     now = time.time()
-    g1.wallet.balance(ME), g1.wallet.balance(OTHER), g2.wallet.balance(ME)
+    for wallet, user_id in ((g1.wallet, ME), (g1.wallet, OTHER), (g2.wallet, ME)):
+        wallet.balance(user_id)  # 口座を作る
     ok, mine1 = g1.quiz.quiz_post(ME, "私の問題その1", ["a", "b", "c", "d"], "", 100, 90, 7, now)
     ok, mine2 = g1.quiz.quiz_post(ME, "私の問題その2", ["a", "b", "c", "d"], "", 100, 600, 7, now)
     ok, theirs = g1.quiz.quiz_post(OTHER, "他の人の問題", ["a", "b", "c", "d"], "", 100, 90, 7, now)
@@ -245,7 +246,7 @@ def test_withdraw_autocomplete_lists_only_my_open_questions_in_this_guild(tmp_pa
 
     def candidates(uid, guild, current=""):
         inter = SimpleNamespace(user=SimpleNamespace(id=uid), guild_id=guild)
-        return asyncio.run(cog.withdraw_autocomplete(as_interaction(inter), current))
+        return asyncio.run(call(cog.withdraw_autocomplete, as_interaction(inter), current))
 
     got = candidates(ME, 10)
     assert [c.value for c in got] == [mine1, mine2]  # 自分の問題だけ（他人・別サーバー・持ち主の問題は出ない）

@@ -43,7 +43,7 @@ def test_exact_games_move_exactly_four_points_per_level(game):
 
         total = sum(slot.WEIGHTS.values())
 
-        def rtp_at(level):
+        def slot_rtp_at(level):
             r = 0.0
             for reels in itertools.product(slot.SYMBOLS, repeat=3):
                 p = 1.0
@@ -52,12 +52,16 @@ def test_exact_games_move_exactly_four_points_per_level(game):
                 m = slot.multiplier(reels)
                 r += p * (1 + rtplevel.factor(game, level) * (m - 1) if m > 1 else m)
             return r
+
+        rtp_at = slot_rtp_at
     else:
 
-        def rtp_at(level):
+        def pachinko_rtp_at(level):
             """セットの払い戻しの分布 [倍数] に、勝ち分の倍率をかけた還元率（セットごとに勝ち分へかける）。"""
             f = rtplevel.factor(game, level)
             return sum(p * (1 + f * (m - 1) if m > 1 else m) for m, p in enumerate(pachinko._set_distribution()))
+
+        rtp_at = pachinko_rtp_at
 
     base = rtp_at(3)
     for level in rtplevel.LEVELS:
@@ -239,11 +243,10 @@ def test_commands_are_owner_only_and_change_the_chosen_game(tmp_path, monkeypatc
 
 def test_table_embed_marks_changed_games_and_names_every_level():
     e = rtp_table_embed({g: 3 for g in rtplevel.GAMES}, "t")
-    assert "標準から変更中" not in must(e.description) and e.description.count("標準") >= 5
+    assert "標準から変更中" not in must(e.description) and must(e.description).count("標準") >= 5
     changed = {**{g: 3 for g in rtplevel.GAMES}, "パチンコ": 1}
-    assert (
-        "パチンコ**　レベル **1**（かなり渋い）　還元率 約89.0%　⚠️ 標準から変更中"
-        in rtp_table_embed(changed, "t").description
+    assert "パチンコ**　レベル **1**（かなり渋い）　還元率 約89.0%　⚠️ 標準から変更中" in must(
+        rtp_table_embed(changed, "t").description
     )
     assert set(LEVEL_NAME) == set(rtplevel.LEVELS)
 
@@ -273,7 +276,7 @@ def test_pachinko_sets_apply_the_level_to_each_set_not_to_the_sum(tmp_path, monk
     class It:
         user = SimpleNamespace(id=1, display_name="テスト")
         guild_id = 0
-        response = None
+        response: SimpleNamespace | None = None
 
         async def edit_original_response(self, **kw):
             edits.append(kw)

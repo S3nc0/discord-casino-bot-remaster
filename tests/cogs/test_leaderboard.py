@@ -11,7 +11,7 @@ from cogs.economy import boards
 from cogs.economy.cog import BOARD_INTERVAL_MINUTES, EconomyCog
 from cogs.shared import ranking
 from infra.db.repositories import open_repositories
-from tests.fakes import as_guild, invoke, must
+from tests.fakes import as_guild, fake_response, invoke, must
 from tests.support import make_economy_cog, make_ranking_repos, make_test_bot
 
 
@@ -26,7 +26,7 @@ def run(coro):
 
 def http_error(status):
     cls = discord.NotFound if status == 404 else (discord.Forbidden if status == 403 else discord.HTTPException)
-    return cls(SimpleNamespace(status=status, reason="x"), "err")
+    return cls(fake_response(status), "err")
 
 
 class FakeMessage:
@@ -47,7 +47,8 @@ class FakeMessage:
 class FakeChannel:
     def __init__(self, cid=500, perms=(True, True, True)):
         self.id, self.mention = cid, f"<#{cid}>"
-        self.messages, self.next_id, self.edit_error = {}, 1000, None
+        self.messages, self.next_id = {}, 1000
+        self.edit_error: discord.HTTPException | None = None
         self._perms = SimpleNamespace(view_channel=perms[0], send_messages=perms[1], embed_links=perms[2])
 
     def permissions_for(self, _member):
@@ -125,8 +126,9 @@ def test_build_embed_ranks_only_the_servers_members(eco):
         header="最終更新: x\n\n",
         footer="1分ごと",
     )
-    assert e.description.index("<@1>") < e.description.index("<@2>") and "<@3>" not in must(e.description)
-    assert e.description.startswith("最終更新: x") and e.footer.text == "1分ごと"
+    text = must(e.description)
+    assert text.index("<@1>") < text.index("<@2>") and "<@3>" not in text
+    assert text.startswith("最終更新: x") and e.footer.text == "1分ごと"
 
 
 def test_build_embed_with_nobody_playing(eco):

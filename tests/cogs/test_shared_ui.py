@@ -3,6 +3,7 @@
 import asyncio
 import datetime
 from types import SimpleNamespace
+from typing import Any, Optional
 
 import discord
 import pytest
@@ -10,6 +11,7 @@ import pytest
 from cogs.shared import ui
 from cogs.shared.announce import announce_channel
 from cogs.shared.confirm import confirmed_reply, user_session
+from domain.ports.repos import ILeaderboardConfigRepo
 from infra.clock import local_now, local_today
 from services.session import Sessions
 from tests.fakes import as_guild, as_interaction
@@ -163,13 +165,20 @@ def test_announce_channel_preference_and_permissions():
     channels = {100: board_ch, 200: sys_ch, 300: blocked_ch}
     guild = SimpleNamespace(id=1, me=object(), system_channel=sys_ch, get_channel=lambda cid: channels.get(cid))
 
-    eco_with_board = SimpleNamespace(get_leaderboard=lambda _gid: {"channel_id": 100})
+    class Boards(ILeaderboardConfigRepo):
+        def __init__(self, channel_id: Optional[int]) -> None:
+            self._channel_id = channel_id
+
+        def get_leaderboard(self, guild_id: int) -> Optional[dict[str, Any]]:
+            return None if self._channel_id is None else {"channel_id": self._channel_id}
+
+    eco_with_board = Boards(100)
     assert announce_channel(as_guild(guild), eco_with_board) is board_ch
 
-    eco_blocked_board = SimpleNamespace(get_leaderboard=lambda _gid: {"channel_id": 300})
+    eco_blocked_board = Boards(300)
     assert announce_channel(as_guild(guild), eco_blocked_board) is sys_ch
 
-    eco_no_board = SimpleNamespace(get_leaderboard=lambda _gid: None)
+    eco_no_board = Boards(None)
     assert announce_channel(as_guild(guild), eco_no_board) is sys_ch
 
     guild_none = SimpleNamespace(id=1, me=object(), system_channel=blocked_ch, get_channel=lambda _cid: None)

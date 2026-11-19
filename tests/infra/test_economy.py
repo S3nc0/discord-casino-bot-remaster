@@ -87,7 +87,7 @@ def test_daily_streak_bonus_is_capped(eco):
     for i in range(30):
         last = eco.wallet.claim_daily(1, day + datetime.timedelta(days=i))
     cap = DAILY_BASE + DAILY_STREAK_BONUS * DAILY_STREAK_CAP
-    assert last.amount == cap
+    assert last is not None and last.amount == cap
 
 
 def test_ranking_global_and_per_guild(eco):

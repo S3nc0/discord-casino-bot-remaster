@@ -2,7 +2,6 @@
 
 import asyncio
 import time
-from types import SimpleNamespace
 
 import pytest
 
@@ -53,17 +52,17 @@ def test_cds_on_someone_else_is_public_and_on_yourself_is_private(bot):
     eco.wallet.balance(T)
     panel = make_panel(bot, U)
     other = StakeModal(panel, T, 15.0)
-    other.stake = SimpleNamespace(value="500")
+    other.stake._value = "500"
     it = It()
     run(other.on_submit(as_interaction(it)))
     assert public(it) and f"<@{T}>" in it.sent[-1]["embed"].title and "破産に賭けた" in it.sent[-1]["embed"].title
     mine = StakeModal(panel, U, 15.0)
-    mine.stake = SimpleNamespace(value="500")
+    mine.stake._value = "500"
     it = It()
     run(mine.on_submit(as_interaction(it)))
     assert not public(it) and "CDS を買いました" in it.sent[-1]["embed"].title
     bad = StakeModal(panel, T, 15.0)
-    bad.stake = SimpleNamespace(value="10")  # 最低額に満たない
+    bad.stake._value = "10"  # 最低額に満たない
     it = It()
     run(bad.on_submit(as_interaction(it)))
     assert not public(it) and "❌" in it.sent[-1]["embed"].title

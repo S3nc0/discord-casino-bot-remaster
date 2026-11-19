@@ -6,6 +6,7 @@ from types import SimpleNamespace
 
 import pytest
 
+from cogs.shared.bridges import IShopTitleBridge
 from cogs.weekly.cog import WeeklyCog  # noqa: F401
 from domain import shop, weekly
 from infra.db.repositories import open_repositories
@@ -244,9 +245,10 @@ def test_previous_holder_is_synced_off_the_nickname(eco, monkeypatch):
     cog, guild, today = make_cog(eco, monkeypatch, [NEXT_MON], channel=chan)
     synced = []
 
-    class FakeShop:
-        async def sync_title_nick(self, uid, g):
-            synced.append(uid)
+    class FakeShop(IShopTitleBridge):
+        async def sync_title_nick(self, user_id, here=None, member=None):
+            synced.append(user_id)
+            return "", 0
 
     cog._shop_bridge = FakeShop()
     a.records.set_weekly_announced("2026-10-19")
