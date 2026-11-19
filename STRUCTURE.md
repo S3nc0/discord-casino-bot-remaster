@@ -46,20 +46,20 @@
 | `loader.py` | 読み込む Cog モジュール一覧（`COG_MODULES`）と `load_all_cogs()`（`main.py` とテストで共有） |
 | `shared/` | 共通 Discord 基盤（`bot.py` / `bridges.py` / `ui.py` / `texts.py` / `tasks.py` / `confirm.py` / `messages/` / `approval_guard.py` / `ranking.py` / `announce.py` / `amount.py` / `horse_display.py` / `logthrottle.py`）。`CasinoBot` と Cog 間ブリッジ（`bridges.py`: `BotBridges`・`resolve_bridge` / `require_bridge`・名目的基底クラス群）により Service Locator なしで疎結合に連携、`tasks.py` で承認済みギルド走査を共通化、`logthrottle.py` で同じ原因の警告ログを間引く。`cogs/` は `infra/` を import しない（ログは標準 `logging`） |
 | `casino/` | `/カジノ`。`cog.py` と進行演出・静的台本（`common.py`・`simple.py`・`blackjack.py`・`chinchiro.py`・`pachinko.py`・`texts.py`） |
-| `economy/` | `/ペリカ`。`cog.py`・`boards.py`（残高・デイリー・ランキング・掲示板自動更新・送金・履歴） |
+| `economy/` | `/ペリカ`。`cog.py`・`embeds.py`（残高・デイリー・返済・破産・ミッション・履歴の画面）・`boards.py`（ランキング・掲示板自動更新） |
 | `teiai/` | `/ペリカ 帝愛` のパネル（`panel.py`）と海外逃亡の演出（`escape.py`）、静的 AA・状態文言（`texts.py`） |
 | `shop/` | `/ショップ`。`cog.py`・`actions.py`・`embeds.py`・`texts.py`・`views.py`・`discord_ops.py`（ロール・ニックネーム反映） |
 | `horse/` | `/競馬`。`cog.py`・`cards.py`・`betting.py`・`stable.py`・`views.py`（ファサード） |
 | `market/` | `/証券` と債券定期処理。`cog.py`・`feed.py`・`bond_cog.py`・`embeds.py`・`bond_embeds.py`・`orders.py`・`views.py` |
 | `loan/` | `/貸付`。ユーザー同士の貸し借り（`cog.py`・`embeds.py`・`views.py`） |
 | `p2p/` | プレイヤー間の市場と競り（`cog.py`・`embeds.py`・`views.py`） |
-| `labor/` | `/地下 作業`・`/地下 ランキング`。クリッカー、作業員の雇用、鉱石の掘り出し |
+| `labor/` | `/地下 作業`・`/地下 ランキング`。クリッカー、作業員の雇用、鉱石の掘り出し（`cog.py`・`embeds.py`・`views.py`） |
 | `company/` | `/会社`。会社の設立・事業所の増築・出荷・維持費（`cog.py`・`embeds.py`・`texts.py`・`views.py`） |
 | `arena/` | `/闘技場`。地下闘技場。`cog.py`（進行・掲示）・`views.py`（賭けパネル）・`embeds.py`。**停止中**: `loader.py` の `COG_MODULES` から外してある（コードは残す）。負け側の賭け金だけを配当の原資にしているため、配当が極端に小さくなる問題（#27）を直してから戻す。停止中は `/運営 闘技場開催` が「闘技場が読み込まれていません」と返す |
 | `quiz/` | `/クイズ`。`cog.py`・`embeds.py`・`texts.py`・`views.py`（4 択クイズと報酬） |
-| `raffle/` | 抽選。参加費を預かり、締切で 1 人に全額を渡す |
+| `raffle/` | 抽選。参加費を預かり、締切で 1 人に全額を渡す（`cog.py`・`embeds.py`・`views.py`） |
 | `event/` | 突発イベントの告知（`cog.py`・`texts.py`、1 日 1 回、30 分だけ勝ち分が増える） |
-| `weekly/` | 週間ランキングの自動発表（毎週月曜 0 時）と限定称号の付与 |
+| `weekly/` | 週間ランキングの自動発表（毎週月曜 0 時）と限定称号の付与（`cog.py`・`embeds.py`） |
 | `admin/` | サーバー承認と `/運営` コマンド（`cog.py`・`approval_ops.py`・`economy_ops.py`・`content_ops.py`・`embeds.py`・`texts.py`・`views.py`・`purge.py`・`targets.py`） |
 | `help/` | `/help`。カテゴリ別の案内（`cog.py`・`texts.py`） |
 
@@ -67,17 +67,27 @@
 
 `cogs/` と `domain/`・`infra/` を仲介し、ユースケース単位のトランザクション・時刻取得・状態遷移を調停します（Constructor DI でリポジトリ・ポートを受け取り、`: Any` 抜け道や Service Locator を持たない）。
 
+**Cog は Repository を持たない。** 状態を変える処理・時刻を伴う処理・表示用の読み取りは、すべて Service のメソッドを通す。例外は `IGuildRepo`（サーバーの許可・告知先・表示の設定。全 Cog が共有する Discord 側の設定）だけで、`tests/infra/test_architecture_ports.py` が守る。Service は Repository を公開属性にしない（`svc.wallet.for_guild(...)` のような素通りを作らない）。
+
 | パス | 内容 |
 |---|---|
 | `container.py` / `__init__.py` | `ServiceRegistry`、`build_services()` |
 | `session.py` | `Sessions(ISessionGuard)`。同じ人が同時に複数のゲームを始めないようにする排他制御 |
 | `casino.py` | `CasinoService`。カジノ開始検証・escrow預かり・RTP/イベント補正・精算・記録 |
 | `market.py` | `MarketService`。市場価格進行・ボラティリティ/決算更新・保有スナップショット |
-| `horse.py` | `HorseService`。定時レース生成・締切オッズ確定・発走精算の調整 |
-| `economy.py` | `EconomyService`。デイリー受取・送金・週間ランキング補完の調整 |
-| `labor.py` | `LaborService`。地下作業の日次キー取得・クリック履歴レポート生成 |
+| `horse.py` | `HorseService`。定時レース生成・締切オッズ確定・発走精算の調整。`desk(guild_id)` でサーバーごとの競馬窓口 `HorseDesk`（出走表・馬券・厩舎）を返す |
+| `economy.py` | `EconomyService`。デイリー受取・送金・残高カード・ミッション・履歴・週間ランキングの発表と補完 |
+| `labor.py` | `LaborService`。地下作業の操作（働く・受け取る・雇用・強化・発掘品の合体）・ランキング・クリック履歴レポート |
 | `arena.py` | `ArenaService`。闘技場トーナメント生成・進行時刻取得・準決勝/決勝処理の調停 |
-| `loan.py` | `LoanService`。個人間貸付（提案・募集・承諾・返済・期日チェック）の調停 |
+| `loan.py` | `LoanService`。個人間貸付（提案・募集・承諾・辞退・取り下げ・返済・期日チェック）の調停 |
+| `company.py` | `CompanyService`。会社の設立・出資・引き出し・出荷・増築・種類の変更・定時精算 |
+| `teiai.py` | `TeiaiService`。帝愛への返済・種銭・自己破産・海外逃亡・帝愛銀行（預金・CDS）・破産猶予の時間切れ |
+| `ranking.py` | `RankingService`。ランキング描画の読み取り専用の問い合わせ（`for_guild` でサーバーを絞る） |
+| `quiz.py` | `QuizService`。クイズの出題・挑戦・回答・取り下げ・期限の精算・運営の追加と削除 |
+| `raffle.py` | `RaffleService`。抽選の募集・参加・中止・締切の精算 |
+| `p2p.py` | `P2PService`。プレイヤー間の出品・購入・入札・取り消し・締切の精算 |
+| `event.py` | `EventService`。突発イベントの告知状態と、持ち主が開く特別イベント |
+| `admin.py` | `AdminService`。運営の付与・残高の設定・還元率・パチンコの集計 |
 | `shop.py` | `ShopService`。ショップ・帝愛の競売・持ち物・称号解決の調停 |
 
 ## `domain/` — 純粋なルール・値型・ポート契約

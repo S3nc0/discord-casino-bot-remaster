@@ -95,3 +95,21 @@ def tournament_embed(t: dict, semi_hour: int, final_hour: int, breakdown: dict) 
             lines.append("（準決勝の結果で決まります）")
     title = "🏛️ 地下闘技場"
     return ui.embed(title, "\n".join(lines), ui.GOLD)
+
+
+def semis_result_embed(result: dict) -> discord.Embed:
+    """準決勝の決着（組ごとの勝者と、決勝の顔ぶれ）。"""
+    lines = [f"第{g}組: **{r['winner']}** が勝利（敗: {'・'.join(r['losers'])}）" for g, r in result["groups"].items()]
+    return ui.embed(
+        "🏛️ 準決勝、決着！",
+        "\n".join(lines) + f"\n\n決勝は **{' vs '.join(result['finalists'])}**",
+        ui.GOLD,
+    )
+
+
+def final_result_embed(result: dict) -> discord.Embed:
+    return ui.embed(
+        "👑 決勝、決着！",
+        f"優勝: **{result['champion']}**（他: {'・'.join(result['runner_up'])}）",
+        ui.GOLD,
+    )

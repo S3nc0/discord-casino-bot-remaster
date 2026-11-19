@@ -15,7 +15,7 @@ import discord
 from discord import app_commands
 from discord.ext import commands, tasks
 
-from cogs.arena.embeds import FORMAT_NAME, STAGE_LABEL, battle_embed
+from cogs.arena.embeds import FORMAT_NAME, STAGE_LABEL, battle_embed, final_result_embed, semis_result_embed
 from cogs.arena.views import BetPanel
 from cogs.shared import logthrottle, ui
 from cogs.shared.announce import announce_channel
@@ -131,18 +131,7 @@ class ArenaCog(commands.Cog, IArenaAdminBridge):
                     group_fighters = [f for f in pre_fighters if f["group_no"] == group_no]
                     winner_idx = next(i for i, f in enumerate(group_fighters) if f["name"] == info["winner"])
                     await self._animate_match(channel, group_fighters, winner_idx, f"⏳ 準決勝 第{group_no}組、開戦！")
-                lines = [
-                    f"第{g}組: **{r['winner']}** が勝利（敗: {'・'.join(r['losers'])}）"
-                    for g, r in result["groups"].items()
-                ]
-                await self._post(
-                    channel,
-                    embed=ui.embed(
-                        "🏛️ 準決勝、決着！",
-                        "\n".join(lines) + f"\n\n決勝は **{' vs '.join(result['finalists'])}**",
-                        ui.GOLD,
-                    ),
-                )
+                await self._post(channel, embed=semis_result_embed(result))
             if day_key in self._panels:
                 await self._panels[day_key].refresh()
         return result
@@ -159,14 +148,7 @@ class ArenaCog(commands.Cog, IArenaAdminBridge):
                 winner_idx = 0 if result["champion"] == pre_finalists[0]["name"] else 1
                 await self._animate_match(channel, pre_finalists, winner_idx, "👑 決勝、開戦！")
             if channel is not None:
-                await self._post(
-                    channel,
-                    embed=ui.embed(
-                        "👑 決勝、決着！",
-                        f"優勝: **{result['champion']}**（他: {'・'.join(result['runner_up'])}）",
-                        ui.GOLD,
-                    ),
-                )
+                await self._post(channel, embed=final_result_embed(result))
             if day_key in self._panels:
                 await self._panels[day_key].refresh()
                 del self._panels[day_key]  # 大会は終わったので、以後は書き換えない

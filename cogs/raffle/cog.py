@@ -13,6 +13,8 @@ from typing import TYPE_CHECKING, Any, Optional
 import discord
 from discord.ext import commands, tasks
 
+from cogs.raffle.embeds import cancelled_embed, raffle_embed, result_embed  # noqa: F401  （result_embed はテストも参照）
+from cogs.raffle.views import JoinView
 from cogs.shared import approval_guard, logthrottle, ui
 from cogs.shared.announce import announce_channel
 from cogs.shared.bridges import BotBridges, IRaffleAdminBridge
@@ -32,52 +34,6 @@ MIN_FEE = _RAFFLE_CFG.min_fee  # 参加費の最小。上限はない
 RANDOM_FEE_RANGE = _RAFFLE_CFG.random_fee_range  # 参加費を省略したときの、ランダムの範囲
 DEFAULT_MINUTES = _RAFFLE_CFG.default_minutes
 MAX_MINUTES = _RAFFLE_CFG.max_minutes
-JOIN_ID = "raffle:join"
-SHOWN_ENTRANTS = _RAFFLE_CFG.shown_entrants  # 掲示に並べる参加者の数（それ以上は人数だけ）
-
-
-def raffle_embed(raffle: dict, now: Optional[float] = None) -> discord.Embed:
-    entries = raffle["entries"]
-    prize = raffle["fee"] * len(entries)
-    shown = " ".join(f"<@{u}>" for u in entries[:SHOWN_ENTRANTS]) + (
-        f" ほか{len(entries) - SHOWN_ENTRANTS}人" if len(entries) > SHOWN_ENTRANTS else ""
-    )
-    lines = [
-        f"参加費: **{ui.pelica(raffle['fee'])}**（全員同じ額。押した時点で先に引かれます）",
-        f"締切: <t:{int(raffle['closes'])}:R>（<t:{int(raffle['closes'])}:t>）",
-        f"参加者: **{len(entries)}人**" + (f"\n{shown}" if entries else ""),
-        f"いまの賞金: **{ui.pelica(prize)}**（集めた参加費の全額。当選者は1人）",
-        "",
-        "参加者が2人に満たないときは、全員に全額を返します。",
-    ]
-    return ui.embed("🎟️ 抽選 参加者募集中！", "\n".join(lines), ui.GOLD)
-
-
-def result_embed(raffle: dict) -> discord.Embed:
-    n = len(raffle["entries"])
-    if raffle["winner"] is not None:
-        lines = [
-            f"🎉 当選: <@{raffle['winner']}>",
-            f"賞金: **{ui.pelica(raffle['prize'])}**（参加 {n}人 × {ui.pelica(raffle['fee'])}）",
-        ]
-        return ui.embed("🎟️ 抽選 結果発表！", "\n".join(lines), ui.GOLD)
-    if n == 0:
-        return ui.embed("🎟️ 抽選 終了", "参加者がいなかったので、抽選は行いませんでした。", ui.INFO)
-    return ui.embed(
-        "🎟️ 抽選 終了", f"参加者が{n}人だったので、抽選は行わず、全員に{ui.pelica(raffle['fee'])}を返しました。", ui.INFO
-    )
-
-
-class JoinView(discord.ui.View):
-    """参加ボタン。再起動しても動くように、タイムアウトなし・固定の custom_id にしている。"""
-
-    def __init__(self, cog: "RaffleCog"):
-        super().__init__(timeout=None)
-        self.cog = cog
-
-    @discord.ui.button(label="参加する", emoji="🎟️", style=discord.ButtonStyle.success, custom_id=JOIN_ID)
-    async def join(self, interaction: discord.Interaction, button: discord.ui.Button):
-        await self.cog.on_join(interaction)
 
 
 class RaffleCog(commands.Cog, IRaffleAdminBridge):
@@ -182,11 +138,7 @@ class RaffleCog(commands.Cog, IRaffleAdminBridge):
         await self._finish_message(
             guild,
             raffle,
-            ui.embed(
-                "🎟️ 抽選 中止",
-                f"抽選は中止されました。参加した{len(raffle['entries'])}人に参加費を返しました。",
-                ui.WARN,
-            ),
+            cancelled_embed(raffle),
         )
         return True, f"{guild.name} の抽選を中止し、{len(raffle['entries'])}人に返金しました。"
 
