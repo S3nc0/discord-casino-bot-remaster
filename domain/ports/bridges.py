@@ -180,10 +180,16 @@ class IBankCashFlow:
         share: float,
         now: float,
         needs_depositors: bool = False,
+        *,
+        thermo: bool = True,
     ) -> None:
         raise NotImplementedError
 
-    def bank_pay_for(self, guild_id: int, amount: int, now: float) -> int:
+    def bank_pay_for(self, guild_id: int, amount: int, now: float, *, thermo: bool = True) -> int:
+        raise NotImplementedError
+
+    def bank_thermo_batch_for(self, guild_id: int, net: float, now: float) -> None:
+        """入金と支払いが混ざるバッチの純額を、サーモスタットに1回だけ通す（個々は thermo=False で動かす）。"""
         raise NotImplementedError
 
 

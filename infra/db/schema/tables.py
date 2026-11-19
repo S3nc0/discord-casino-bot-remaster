@@ -370,7 +370,7 @@ def create_tables(conn: sqlite3.Connection) -> None:
             thermo_load     REAL NOT NULL DEFAULT 0,   -- サーモスタットの短期熱量 L
             thermo_capacity REAL NOT NULL DEFAULT 0,   -- サーモスタットの長期キャパシティ E（0 は未初期化。下限から始める）
             thermo_ts       REAL NOT NULL DEFAULT 0,   -- L・E を、ここまで冷ました時刻
-            bailout_debt    REAL NOT NULL DEFAULT 0,   -- 熱浴が肩代わりした額のうち、未返済の分 D
+            bailout_debt    REAL NOT NULL DEFAULT 0,   -- 未使用（#32 の見直しで廃止。列だけ残す）
             thermo_burned   REAL NOT NULL DEFAULT 0,   -- 熱浴へ消えた（観測中は、消えるはずだった）額の累計
             thermo_bailed   REAL NOT NULL DEFAULT 0    -- 熱浴が肩代わりした（観測中は、するはずだった）額の累計
         );

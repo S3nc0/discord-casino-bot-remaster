@@ -63,8 +63,6 @@ class ThermostatSection(ThermostatSectionContract):
     memory_ratio: float = Field(ge=1)
     capacity_min: int = Field(gt=0)
     coupling: float = Field(gt=0)
-    bailout_scale: int = Field(gt=0)
-    payout_max: float = Field(ge=0, le=1)
 
 
 @pydantic_dataclass(frozen=True, config=STRICT_CONFIG, kw_only=True)

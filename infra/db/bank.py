@@ -79,23 +79,20 @@ class BankRepo(ScopedRepo, IBankRepo):
     def _thermo_state_for(self, guild_id: int, now: float) -> thermostat.State:
         """いまの時刻まで冷ました状態（銀行の行がある前提。bank_sync_for のあとで呼ぶ）。"""
         row = self._conn.execute(
-            "SELECT thermo_load, thermo_capacity, thermo_ts, bailout_debt FROM teiai_bank WHERE guild_id=?",
+            "SELECT thermo_load, thermo_capacity, thermo_ts FROM teiai_bank WHERE guild_id=?",
             (guild_id,),
         ).fetchone()
-        state = thermostat.State(
-            load=row["thermo_load"],
-            capacity=max(row["thermo_capacity"], thermostat.E_MIN),
-            bailout_debt=row["bailout_debt"],
-        )
+        state = thermostat.State(load=row["thermo_load"], capacity=max(row["thermo_capacity"], thermostat.E_MIN))
         return thermostat.decay(state, (now - row["thermo_ts"]) / 86400)
 
     def _thermo_save_for(
         self, guild_id: int, state: thermostat.State, now: float, burned: float = 0.0, bailed: float = 0.0
     ) -> None:
+        # bailout_debt 列は #32 の見直しで使わなくなった（列だけ残している）
         self._conn.execute(
-            "UPDATE teiai_bank SET thermo_load=?, thermo_capacity=?, thermo_ts=?, bailout_debt=?, "
+            "UPDATE teiai_bank SET thermo_load=?, thermo_capacity=?, thermo_ts=?, "
             "thermo_burned=thermo_burned+?, thermo_bailed=thermo_bailed+? WHERE guild_id=?",
-            (state.load, state.capacity, now, state.bailout_debt, burned, bailed, guild_id),
+            (state.load, state.capacity, now, burned, bailed, guild_id),
         )
 
     def _thermo_inflow_for(self, guild_id: int, amount: int, now: float) -> float:
@@ -105,10 +102,25 @@ class BankRepo(ScopedRepo, IBankRepo):
         return net if thermostat.ENFORCE else float(amount)
 
     def _thermo_shock_for(self, guild_id: int, amount: int, now: float) -> float:
-        """損失を通し、熱浴から銀行へ注入する額を返す（観測だけの間は、0）。"""
+        """流出（損失・通常の支払い）を通し、熱浴から銀行へ注入する額を返す（観測だけの間は、0）。"""
         state, _effective, bailout = thermostat.absorb_shock(self._thermo_state_for(guild_id, now), amount)
         self._thermo_save_for(guild_id, state, now, bailed=bailout)
         return bailout if thermostat.ENFORCE else 0.0
+
+    def bank_thermo_batch_for(self, guild_id: int, net: float, now: float) -> None:
+        """流入と流出が混ざるバッチの純額 net（流入がプラス）を、サーモスタットに1回だけ通す。
+
+        流入と流出は通す順番で結果が変わるため、バッチの中の個々の入出金は thermo=False で動かし、
+        ここで純額だけを通す。銀行の現金は、burn の分だけ減り、bailout の分だけ増える（観測だけの間は動かさない）。
+        純額が流出なら支払いの前に、流入なら入金のあとに呼ぶ（現金が一時的にマイナスにならないように）。
+        """
+        if net == 0:
+            return
+        state = self.bank_sync_for(guild_id, now)
+        thermo, burn, bailout = thermostat.absorb_net(self._thermo_state_for(guild_id, now), net)
+        self._thermo_save_for(guild_id, thermo, now, burned=burn, bailed=bailout)
+        if thermostat.ENFORCE:
+            self.bank_set_for(guild_id, max(state["cash"] - burn, 0.0) + bailout, state["loaned"])
 
     def _deposits_for(self, guild_id: int) -> list[tuple[int, int]]:
         return [
@@ -189,8 +201,6 @@ class BankRepo(ScopedRepo, IBankRepo):
                     "load": thermo.load,
                     "capacity": thermo.capacity,
                     "room": max(thermo.capacity - thermostat.COUPLING * thermo.load, 0.0) / thermostat.COUPLING,
-                    "bailout_debt": thermo.bailout_debt,
-                    "payout_ratio": thermostat.payout_ratio(thermo.bailout_debt),
                     "burned": totals["thermo_burned"],
                     "bailed": totals["thermo_bailed"],
                 },
@@ -256,9 +266,19 @@ class BankRepo(ScopedRepo, IBankRepo):
         return {"balance": row["balance"], "skimmed": row["skimmed"]} if row else {"balance": 0, "skimmed": 0}
 
     def bank_income_for(
-        self, guild_id: int, amount: int, share: float, now: float, needs_depositors: bool = False
+        self,
+        guild_id: int,
+        amount: int,
+        share: float,
+        now: float,
+        needs_depositors: bool = False,
+        *,
+        thermo: bool = True,
     ) -> None:
-        """銀行に amount が入る。そのうち share の割合を、預金額に応じて預金者へ分配する（残りは手元の現金）。"""
+        """銀行に amount が入る。そのうち share の割合を、預金額に応じて預金者へ分配する（残りは手元の現金）。
+
+        thermo=False は、バッチの純額を bank_thermo_batch_for で別に通すときだけ使う。
+        """
         if amount <= 0:
             return
         deposits = self._deposits_for(guild_id)
@@ -266,7 +286,7 @@ class BankRepo(ScopedRepo, IBankRepo):
         if needs_depositors and total <= 0:
             return
         state = self.bank_sync_for(guild_id, now)
-        received = self._thermo_inflow_for(guild_id, amount, now)
+        received = self._thermo_inflow_for(guild_id, amount, now) if thermo else float(amount)
         self.bank_set_for(guild_id, state["cash"] + received, state["loaned"])
         distribute = int(received * share)
         if total <= 0 or distribute <= 0:
@@ -278,12 +298,17 @@ class BankRepo(ScopedRepo, IBankRepo):
                     "UPDATE teiai_deposits SET amount=amount+? WHERE guild_id=? AND user_id=?", (gain, guild_id, uid)
                 )
 
-    def bank_pay_for(self, guild_id: int, amount: int, now: float) -> int:
-        """銀行が amount を払う。手元の現金から払い、足りない分は、預金者の預金を一律に減らして充てる（AIG ショック）。払えた額を返す。"""
+    def bank_pay_for(self, guild_id: int, amount: int, now: float, *, thermo: bool = True) -> int:
+        """銀行が amount を払う。手元の現金から払い、足りない分は、預金者の預金を一律に減らして充てる（AIG ショック）。払えた額を返す。
+
+        損失の支払いも、プレミアムなどの通常の支払いも、同じ流出としてサーモスタットを通す。
+        thermo=False は、バッチの純額を bank_thermo_batch_for で別に通すときだけ使う。
+        """
         if amount <= 0:
             return 0
         state = self.bank_sync_for(guild_id, now)
-        state["cash"] += self._thermo_shock_for(guild_id, amount, now)  # 熱浴の肩代わり分は、先に手元へ入れる
+        if thermo:  # 熱浴の肩代わり分は、先に手元へ入れる
+            state["cash"] += self._thermo_shock_for(guild_id, amount, now)
         deposits = self._deposits_for(guild_id)
         total = sum(a for _, a in deposits)
         paid = int(min(amount, state["cash"] + total))

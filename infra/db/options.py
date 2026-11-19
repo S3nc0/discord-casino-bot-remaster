@@ -339,6 +339,7 @@ class OptionRepo(ScopedRepo, IOptionRepo, IOptionHoldings):
         out = []
         with self._db.tx():
             gid = self._g()
+            due = []
             for r in self._conn.execute(
                 "SELECT * FROM options WHERE guild_id=? AND status='active' AND expiry<=? ORDER BY id", (gid, now)
             ).fetchall():
@@ -351,10 +352,19 @@ class OptionRepo(ScopedRepo, IOptionRepo, IOptionHoldings):
                     gross = opt.pair_intrinsic(r["units"], r["spot"], r["spot2"], final, final2)
                 else:
                     gross = opt.intrinsic(r["kind"], r["units"], final, r["strike"])
+                if r["side"] != "short":
+                    gross = min(gross, r["premium"] * opt.PAYOUT_CAP_MULT)
+                due.append((r, final, gross))
+            # 同時刻の満期は、売り手からの入金と買い手への支払いを純額にして、サーモスタットに1回だけ通す
+            # （1件ずつ通すと、建玉の id 順で burn・bailout が変わるため）
+            net = sum(g if r["side"] == "short" else -g for r, _, g in due)
+            if net < 0:
+                self._bank.bank_thermo_batch_for(gid, net, now)
+            for r, final, gross in due:
                 self._account.ensure(gid, r["user_id"])
                 if r["side"] == "short":
                     paid = max(0, r["margin"] - gross)  # 証拠金の戻り
-                    self._bank.bank_income_for(gid, gross, 0.0, now)
+                    self._bank.bank_income_for(gid, gross, 0.0, now, thermo=False)
                     self._conn.execute(  # 先に決済済みにする（損失の支払いで差し押さえが走っても、同じ建玉を、もう一度決済しない）
                         "UPDATE options SET status=?, paid=?, final=? WHERE id=?",
                         ("exercised" if gross > 0 else "expired", paid, final, r["id"]),
@@ -365,8 +375,7 @@ class OptionRepo(ScopedRepo, IOptionRepo, IOptionHoldings):
                         self._debt.owe_for(gid, r["user_id"], gross - r["margin"], f"{name_of(r)}の損失")
                     status = "exercised" if gross > 0 else "expired"
                 else:
-                    gross = min(gross, r["premium"] * opt.PAYOUT_CAP_MULT)
-                    paid = self._bank.bank_pay_for(gid, gross, now) if gross > 0 else 0
+                    paid = self._bank.bank_pay_for(gid, gross, now, thermo=False) if gross > 0 else 0
                     if paid:
                         self._account.apply(
                             gid,
@@ -380,4 +389,6 @@ class OptionRepo(ScopedRepo, IOptionRepo, IOptionHoldings):
                     "UPDATE options SET status=?, paid=?, final=? WHERE id=?", (status, paid, final, r["id"])
                 )
                 out.append({**dict(r), "status": status, "paid": paid, "final": final, "gross": gross})
+            if net > 0:
+                self._bank.bank_thermo_batch_for(gid, net, now)
         return out
