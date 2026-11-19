@@ -55,8 +55,6 @@ class BankThermostat(TypedDict):
     load: float
     capacity: float
     room: float
-    bailout_debt: float
-    payout_ratio: float
     burned: float
     bailed: float
 

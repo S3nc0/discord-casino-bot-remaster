@@ -34,10 +34,6 @@ def thermostat_lines(thermo: BankThermostat) -> str:
         f"熱量 {ui.pelica(int(thermo['load']))}　器 {ui.pelica(int(thermo['capacity']))}　（空き {ui.pelica(int(thermo['room']))}）",
         f"熱浴へ消えた額 {ui.pelica(int(thermo['burned']))}　熱浴の肩代わり {ui.pelica(int(thermo['bailed']))}",
     ]
-    if thermo["bailout_debt"] >= 1:
-        lines.append(
-            f"熱浴への借り {ui.pelica(int(thermo['bailout_debt']))}（余剰の還元 {thermo['payout_ratio']:.0%}）"
-        )
     if not thermo["enforce"]:
         lines.append(THERMOSTAT_OBSERVING)
     return "\n".join(lines)

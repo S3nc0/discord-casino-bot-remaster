@@ -341,3 +341,25 @@ def test_order_subcommands_have_only_the_fields_they_need():
         "債券": {"種類", "金額"},
     }
     assert market_events and INITIAL_BALANCE  # 読み込みの確認
+
+
+def test_settle_passes_the_net_of_the_batch_through_the_thermostat_once(eco, monkeypatch):
+    """同時刻の満期は、売り手の損失（入金）と買い手の配当（支払い）を差し引きして、1回だけサーモスタットに通す（#32）。"""
+    fund_bank(eco, 500_000)
+    eco.wallet.credit(U, 100_000, "テスト")
+    eco.wallet.credit(A, 100_000, "テスト")
+    ok, short = eco.options.option_write(U, opt.CALL, "cs", 2_000, time.time())
+    ok2, long = eco.options.option_buy(A, opt.CALL, "cs", 1_000, time.time())
+    assert ok and ok2
+    price = short["strike"] * 1.05
+    set_price(eco, "cs", price, max(short["expiry"], long["expiry"]) - 10)
+    calls = []
+    bank = eco.options._bank  # 満期の精算が使う銀行
+    real = bank.bank_thermo_batch_for
+    monkeypatch.setattr(bank, "bank_thermo_batch_for", lambda g, net, now: (calls.append(net), real(g, net, now)))
+    bailed = eco.bank.bank_status(time.time())["thermostat"]["bailed"]
+    done = eco.options.option_settle(max(short["expiry"], long["expiry"]) + 1)
+    gross = {d["side"]: d["gross"] for d in done}
+    assert len(done) == 2 and calls == [gross["short"] - gross["long"]]
+    after = eco.bank.bank_status(time.time())["thermostat"]
+    assert (after["bailed"] > bailed) == (calls[0] < 0)  # 個々の入出金は、サーモスタットを通っていない

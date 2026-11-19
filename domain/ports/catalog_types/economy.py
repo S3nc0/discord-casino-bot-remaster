@@ -37,8 +37,6 @@ class ThermostatSectionContract:
     memory_ratio: float
     capacity_min: int
     coupling: float
-    bailout_scale: int
-    payout_max: float
 
 
 @dataclass(frozen=True)

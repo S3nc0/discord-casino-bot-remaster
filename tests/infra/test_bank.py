@@ -346,7 +346,7 @@ def test_thermostat_only_observes_by_default_and_leaves_bank_cash_alone(eco):
         assert eco.bank.bank_pay_for(G, 1_000_000, NOW) == 1_000_000
     s = eco.bank.bank_status(NOW)
     assert s["cash"] == pytest.approx(4_000_000)  # 肩代わりは、現金に注入されない
-    assert s["thermostat"]["bailed"] > 0 and s["thermostat"]["bailout_debt"] == pytest.approx(s["thermostat"]["bailed"])
+    assert 0 < s["thermostat"]["bailed"] < 1_000_000 and s["thermostat"]["load"] < 0  # 黒字帯を使い切ってから肩代わり
 
 
 def test_thermostat_enforced_burns_the_excess_inflow_and_shares_only_what_arrived(eco, monkeypatch):
@@ -376,10 +376,48 @@ def test_thermostat_enforced_bails_out_a_shock_so_deposits_are_not_wiped(eco, mo
     assert paid == 5_000_000
     t = _thermo(eco)
     assert t["bailed"] == pytest.approx(5_000_000 - thermostat.E_MIN, rel=0.001)  # 銀行が負うのは、器の分まで
-    assert t["bailout_debt"] == pytest.approx(t["bailed"]) and t["payout_ratio"] == 0.0
+    assert t["load"] == pytest.approx(-thermostat.E_MIN, rel=0.001)  # 熱量はマイナス（赤字帯）へ
     # 肩代わりが無ければ預金は全滅する額。負うのは器の分だけで、手元 20万で足りない分だけが預金から減る
     shortfall = max(0.0, thermostat.E_MIN - 200_000)
     assert eco.bank.deposit_of(A) == pytest.approx(1_000_000 - shortfall, rel=0.001)
+
+
+def test_thermostat_bank_bears_the_whole_loss_while_the_load_is_positive(eco, monkeypatch):
+    monkeypatch.setattr("domain.thermostat.ENFORCE", True)
+    eco.wallet.credit(A, 200_000, "テスト")
+    eco.bank.bank_deposit(A, 100_000, NOW)
+    with eco.db.tx():
+        eco.bank.bank_income_for(G, 15_000, 0.0, NOW)  # 熱量をプラスにしておく
+    load = _thermo(eco)["load"]
+    with eco.db.tx():
+        eco.bank.bank_pay_for(G, int(load) - 1, NOW)  # 黒字帯の中の支払い
+    t = _thermo(eco)
+    assert t["bailed"] == 0.0 and t["load"] == pytest.approx(1.0, abs=1.0)
+
+
+def test_thermostat_batch_burns_only_the_net_inflow_after_the_cash_arrived(eco, monkeypatch):
+    from domain import thermostat
+
+    monkeypatch.setattr("domain.thermostat.ENFORCE", True)
+    with eco.db.tx():
+        eco.bank.bank_income_for(G, 3_000_000, 0.0, NOW, thermo=False)
+        eco.bank.bank_pay_for(G, 1_000_000, NOW, thermo=False)
+        eco.bank.bank_thermo_batch_for(G, 2_000_000, NOW)
+    s = eco.bank.bank_status(NOW)
+    _, net, burn = thermostat.absorb_inflow(thermostat.State(), 2_000_000)
+    assert s["thermostat"]["burned"] == pytest.approx(burn) and s["thermostat"]["bailed"] == 0.0
+    assert s["cash"] == pytest.approx(2_000_000 - burn)  # 純額のうち、器に収まった分だけが残る
+
+
+def test_thermostat_batch_injects_the_bailout_for_a_net_outflow(eco, monkeypatch):
+    from domain import thermostat
+
+    monkeypatch.setattr("domain.thermostat.ENFORCE", True)
+    with eco.db.tx():
+        eco.bank.bank_thermo_batch_for(G, -500_000, NOW)  # 支払いの前に、肩代わりを手元へ入れる
+    s = eco.bank.bank_status(NOW)
+    _, _, bailout = thermostat.absorb_shock(thermostat.State(), 500_000)
+    assert s["thermostat"]["bailed"] == pytest.approx(bailout) and s["cash"] == pytest.approx(bailout)
 
 
 def test_thermostat_state_cools_down_over_time(eco):
