@@ -90,7 +90,9 @@ class IEscrowRepo(IGuildScopedRepo):
         raise NotImplementedError
 
 
-class IQuizRepo(IGuildScopedRepo):
+class IQuizAdminRepo(IGuildScopedRepo):
+    """クイズ問題の登録・一覧・削除（管理用）。"""
+
     def quiz_add(
         self,
         question: str,
@@ -119,6 +121,10 @@ class IQuizRepo(IGuildScopedRepo):
 
     def quiz_delete(self, quiz_id: int) -> bool:
         raise NotImplementedError
+
+
+class IQuizPlayRepo(IGuildScopedRepo):
+    """クイズの出題・回答・投稿・締め切り（プレイ用）。"""
 
     def quiz_next(self, user_id: int, now: float) -> tuple[Any, ...]:
         raise NotImplementedError
@@ -153,6 +159,10 @@ class IQuizRepo(IGuildScopedRepo):
 
     def quiz_withdraw(self, user_id: int, quiz_id: int, now: float) -> Optional[dict[str, Any]]:
         raise NotImplementedError
+
+
+class IQuizRepo(IQuizAdminRepo, IQuizPlayRepo):
+    """クイズの全契約。利用側は必要な部分契約だけに依存する。"""
 
 
 class ILaborRepo(IGuildScopedRepo):

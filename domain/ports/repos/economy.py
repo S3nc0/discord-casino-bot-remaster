@@ -53,7 +53,9 @@ class IRecordRepo(IGuildScopedRepo):
         raise NotImplementedError
 
 
-class IGuildRepo(IGuildScopedRepo):
+class IGuildApprovalRepo(IGuildScopedRepo):
+    """サーバーの承認状態の読み書き。"""
+
     def set_guild_status(
         self, guild_id: int, status: str, name: Optional[str] = None, by: Optional[int] = None
     ) -> None:
@@ -68,6 +70,10 @@ class IGuildRepo(IGuildScopedRepo):
     def mark_guild_notified(self, guild_id: int) -> None:
         raise NotImplementedError
 
+
+class ILeaderboardConfigRepo(IGuildScopedRepo):
+    """ランキング掲示板（チャンネル・メッセージ）の設定。"""
+
     def set_leaderboard(self, guild_id: int, channel_id: int, message_id: int) -> None:
         raise NotImplementedError
 
@@ -79,6 +85,10 @@ class IGuildRepo(IGuildScopedRepo):
 
     def delete_leaderboard(self, guild_id: int) -> None:
         raise NotImplementedError
+
+
+class INickPrefRepo(IGuildScopedRepo):
+    """身分ニックネームの管理（希望・元の名前・付けた名前）。"""
 
     def set_nick_pref(self, guild_id: int, user_id: int, enabled: bool) -> None:
         raise NotImplementedError
@@ -107,11 +117,21 @@ class IGuildRepo(IGuildScopedRepo):
     def nick_pref(self, guild_id: int, user_id: int) -> bool:
         raise NotImplementedError
 
+
+class IProfileDisplayReader(IGuildScopedRepo):
+    """ランキングの称号表示に使う、プロフィールのまとめ読み。"""
+
     def profiles_of(self, user_ids: Iterable[int]) -> dict[int, dict[str, Any]]:
         raise NotImplementedError
 
 
-class IWalletRepo(IGuildScopedRepo):
+class IGuildRepo(IGuildApprovalRepo, ILeaderboardConfigRepo, INickPrefRepo, IProfileDisplayReader):
+    """サーバー単位の設定（承認・掲示板・ニックネーム・表示）をまとめた契約。利用側は必要な部分契約だけに依存する。"""
+
+
+class IWalletBalanceRepo(IGuildScopedRepo):
+    """手元残高の照会と入出金・デイリー・送金（取引系）。"""
+
     def balance(self, user_id: int) -> int:
         raise NotImplementedError
 
@@ -126,6 +146,22 @@ class IWalletRepo(IGuildScopedRepo):
 
     def claim_daily(self, user_id: int, today: datetime.date, slot: Optional[int] = None) -> "DailyResult":
         raise NotImplementedError
+
+    def transfer(
+        self,
+        sender: int,
+        receiver: int,
+        amount: int,
+        fee_rate: float,
+        daily_limit: int,
+        day_start_ts: float,
+        min_games: int = 0,
+    ) -> "TransferResult":
+        raise NotImplementedError
+
+
+class IWalletRankingReader(IGuildScopedRepo):
+    """サーバーの参加者・身分表示・純資産ランキング（読み取り）。"""
 
     def touch_guild_user(self, guild_id: int, user_id: int) -> None:
         raise NotImplementedError
@@ -145,6 +181,10 @@ class IWalletRepo(IGuildScopedRepo):
     def rank_of(self, user_id: int, user_ids: Optional[set[Any]] = None) -> Optional[tuple[Any, ...]]:
         raise NotImplementedError
 
+
+class IWalletStatsReader(IGuildScopedRepo):
+    """成績と取引履歴（読み取り）。"""
+
     def peek_stats(self, user_id: int) -> Optional[dict[str, Any]]:
         raise NotImplementedError
 
@@ -154,17 +194,9 @@ class IWalletRepo(IGuildScopedRepo):
     def history(self, user_id: int, limit: int = 10) -> list[Any]:
         raise NotImplementedError
 
-    def transfer(
-        self,
-        sender: int,
-        receiver: int,
-        amount: int,
-        fee_rate: float,
-        daily_limit: int,
-        day_start_ts: float,
-        min_games: int = 0,
-    ) -> "TransferResult":
-        raise NotImplementedError
+
+class IWalletRepo(IWalletBalanceRepo, IWalletRankingReader, IWalletStatsReader):
+    """ウォレットの全契約。利用側は必要な部分契約だけに依存する。"""
 
 
 class IAssetRepo(IGuildScopedRepo):

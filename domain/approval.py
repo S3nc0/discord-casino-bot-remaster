@@ -7,7 +7,7 @@
 持ち主（owner_ids）は、どのサーバーでもコマンドを使える（承認の操作を、承認待ちのサーバーの中からもできるように）。
 """
 
-from domain.ports.repos import IGuildRepo
+from domain.ports.repos import IGuildApprovalRepo
 
 PENDING, APPROVED, DENIED = "pending", "approved", "denied"
 DM_GROUP = "運営"  # Bot とのDMでだけ使える、持ち主向けのコマンドの名前
@@ -25,7 +25,7 @@ def preapproved(config: dict) -> set:
     return set(config.get("allowed_guild_ids") or [])
 
 
-def is_allowed(guild_repo: IGuildRepo, config: dict, guild_id: int, user_id: int) -> bool:
+def is_allowed(guild_repo: IGuildApprovalRepo, config: dict, guild_id: int, user_id: int) -> bool:
     """このサーバーで、このユーザーのコマンドを受け付けてよいか。"""
     if user_id in owner_ids(config) or guild_id in preapproved(config):
         return True

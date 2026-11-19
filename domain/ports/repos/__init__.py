@@ -2,7 +2,20 @@
 
 from domain.ports.repos.base import IGuildScopedRepo
 from domain.ports.repos.bundle import IRepositoryBundle
-from domain.ports.repos.economy import IAssetRepo, IGuildRepo, INoticeRepo, IRecordRepo, IWalletRepo
+from domain.ports.repos.economy import (
+    IAssetRepo,
+    IGuildApprovalRepo,
+    IGuildRepo,
+    ILeaderboardConfigRepo,
+    INickPrefRepo,
+    INoticeRepo,
+    IProfileDisplayReader,
+    IRecordRepo,
+    IWalletBalanceRepo,
+    IWalletRankingReader,
+    IWalletRepo,
+    IWalletStatsReader,
+)
 from domain.ports.repos.games import (
     IArenaRepo,
     IEventRepo,
@@ -27,6 +40,8 @@ from domain.ports.repos.social import (
     IEscrowRepo,
     ILaborRepo,
     IP2PRepo,
+    IQuizAdminRepo,
+    IQuizPlayRepo,
     IQuizRepo,
     IRaffleRepo,
     IShopRepo,
@@ -34,6 +49,15 @@ from domain.ports.repos.social import (
 from domain.ports.repos.teiai import IBankRepo, IDebtRepo, ILoanRepo
 
 __all__ = [
+    "IQuizPlayRepo",
+    "IQuizAdminRepo",
+    "IWalletStatsReader",
+    "IWalletRankingReader",
+    "IWalletBalanceRepo",
+    "IProfileDisplayReader",
+    "INickPrefRepo",
+    "ILeaderboardConfigRepo",
+    "IGuildApprovalRepo",
     "IArenaRepo",
     "IAssetRepo",
     "IAuctionRepo",
