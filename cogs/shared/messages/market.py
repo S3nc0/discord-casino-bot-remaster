@@ -51,7 +51,16 @@ MARKET_FAILURES: dict[str, FailureFormatter] = {
     "crypto_proceeds_too_small": "その数量では受け取れる額が 1ペリカ未満です。もう少し多く売ってください。",
     "margin_debt_blocks": lambda p: f"借金が {p['debt']:,}ペリカ 残っているので、{p['label']}はできません。",
     "margin_opposite_open": lambda p: f"{p['name']}の{p['other_label']}を建てています。先に決済してください。",
-    "margin_min_collateral": lambda p: f"担保が {p['min_margin']}ペリカ 未満になる量です。枚数を増やしてください。",
+    # 担保は総額のレバレッジ分の1。下限は担保で決まっているが、注文するのは総額なので、総額で案内する(#69)
+    "margin_min_collateral": lambda p: (
+        f"レバレッジ{p['leverage']}倍では、最低 {p['min_total']:,}ペリカ（総額）から建てられます"
+        f"（担保は総額の{p['leverage']}分の1で、最低 {p['min_margin']}ペリカ）。"
+        + (
+            f"残高 {p['balance']:,}ペリカ では、全額でも建てられません。レバレッジを上げるか、残高を増やしてください。"
+            if p["balance"] < p["min_total"]
+            else "金額か枚数を増やしてください。"
+        )
+    ),
     "margin_insufficient_collateral": lambda p: (
         f"担保が足りません（{p['need']:,}ペリカ必要・残高 {p['balance']:,}ペリカ）。"
     ),

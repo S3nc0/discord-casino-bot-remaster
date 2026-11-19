@@ -240,7 +240,14 @@ class MarginRepo(ScopedRepo, IMarginRepo):
             if margin < market_mod.SHORT_MIN_MARGIN:
                 return CryptoResult(
                     False,
-                    fail("margin_min_collateral", min_margin=market_mod.SHORT_MIN_MARGIN),
+                    fail(
+                        "margin_min_collateral",
+                        min_margin=market_mod.SHORT_MIN_MARGIN,
+                        leverage=leverage,
+                        # 担保は総額÷レバレッジの切り上げなので、最低担保に届く最小の総額はこれ
+                        min_total=(market_mod.SHORT_MIN_MARGIN - 1) * leverage + 1,
+                        balance=bal,
+                    ),
                     balance=bal,
                 )
             if bal < margin:

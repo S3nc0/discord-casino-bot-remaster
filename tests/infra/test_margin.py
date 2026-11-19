@@ -273,3 +273,28 @@ def test_old_positions_without_the_interest_columns_get_them_on_startup(tmp_path
     again = open_repositories(path, strict=True)
     cols = {r["name"] for r in again.db.conn.execute("PRAGMA table_info(crypto_long)")}
     assert {"interest_at", "accrued"} <= cols
+
+
+# ----------------------------- 最低担保の案内(#69・#75) ----------------------------- #
+def test_min_collateral_message_shows_the_minimum_total_for_the_leverage(eco):
+    from cogs.shared.messages import format_failure
+
+    a = eco.for_guild(G)
+    set_price(eco, "cs", 1.0)
+    res = a.margin.long_open(U, 18 * market.UNIT, 1.0, 2)  # 総額18ペリカ・2倍 → 担保9
+    assert not res.ok
+    text = format_failure(res.reason)
+    assert "最低 19ペリカ（総額）" in text and "金額か枚数を増やして" in text
+    assert a.margin.long_open(U, 19 * market.UNIT, 1.0, 2).ok  # 案内どおりの総額なら建てられる(担保 ceil(9.5)=10)
+    assert "全額でも" not in text  # 残高は足りているので、全額の案内は出さない
+
+
+def test_min_collateral_message_says_even_the_whole_balance_is_not_enough(eco):
+    from cogs.shared.messages import format_failure
+
+    a = eco.for_guild(G)
+    a.wallet.set_balance(U, 15, "テスト")  # 残高15ペリカ
+    set_price(eco, "cs", 1.0)
+    res = a.margin.long_open(U, 15 * market.UNIT, 1.0, 2)  # 全額15ペリカ・2倍
+    text = format_failure(res.reason)
+    assert not res.ok and "残高 15ペリカ では、全額でも建てられません" in text and "最低 19ペリカ" in text
