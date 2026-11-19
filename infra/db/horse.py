@@ -7,7 +7,7 @@ from domain import horse as horse_mod
 from domain import shop as shop_mod
 from domain import teiai
 from domain.errors import fail
-from domain.ports.bridges import IBankIncomeSink, IStatusReader
+from domain.ports.bridges import IBankCashFlow, IStatusReader
 from domain.ports.repos import IHorseRepo
 from domain.shop import CARROT, GOLD_CARROT, HORSE_VOUCHER
 from domain.types import PurchaseResult
@@ -25,7 +25,7 @@ class HorseRepo(ScopedRepo, IHorseRepo):
         db: EcoDb,
         account: AccountCore,
         status_reader: IStatusReader,
-        bank: IBankIncomeSink,
+        bank: IBankCashFlow,
         guild_id: int = 0,
         strict: bool = False,
     ) -> None:

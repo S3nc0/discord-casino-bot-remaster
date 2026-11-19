@@ -12,7 +12,7 @@ from domain import market as market_mod
 from domain import shop as shop_mod
 from domain import teiai
 from domain.errors import fail
-from domain.ports.bridges import IBankIncomeSink
+from domain.ports.bridges import IBankCashFlow
 from domain.ports.repos import IEarningsRepo
 from infra.db.account import AccountCore
 from infra.db.base import EcoDb, ScopedRepo
@@ -25,7 +25,7 @@ class EarningsRepo(ScopedRepo, IEarningsRepo):
         self,
         db: EcoDb,
         account: AccountCore,
-        bank: IBankIncomeSink,
+        bank: IBankCashFlow,
         guild_id: int = 0,
         strict: bool = False,
     ) -> None:

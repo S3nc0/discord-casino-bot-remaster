@@ -93,7 +93,7 @@ def test_standalone_repos_run_with_default_noop_bridges_satisfying_lsp():
         loans = LoanRepo(db, account).for_guild(G)
         bonds = BondRepo(db, account, raw_bank).for_guild(G)
         crypto = CryptoRepo(db, account, market, raw_bank).for_guild(G)
-        margin = MarginRepo(db, account, market, raw_bank).for_guild(G)
+        margin = MarginRepo(db, account, market, raw_bank, raw_bank).for_guild(G)
         options = OptionRepo(db, account, market, market_events, earnings, raw_bank).for_guild(G)
         guild_repo = GuildRepo(db).for_guild(G)
 

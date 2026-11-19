@@ -8,7 +8,7 @@ from domain import p2p, teiai
 from domain import shop as shop_mod
 from domain.errors import Failure, fail
 from domain.ports.bridges import (
-    IBankIncomeSink,
+    IBankCashFlow,
     IBankruptPrepHook,
     IGraceEnterHook,
     IGraceReader,
@@ -37,7 +37,7 @@ class P2PRepo(ScopedRepo, IP2PRepo, IBankruptPrepHook, IGraceEnterHook):
         account: AccountCore,
         horses: HorseRepo,
         status_reader: IStatusReader,
-        bank: IBankIncomeSink,
+        bank: IBankCashFlow,
         grace_reader: IGraceReader,
         notices: NoticeRepo,
         guild_id: int = 0,

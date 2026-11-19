@@ -50,7 +50,7 @@ class BankRepo(ScopedRepo, IBankRepo):
         self._bankrupt_executor: IBankruptExecutor = bankrupt_executor or NoOpBankruptExecutor()
 
     # ------------------------------------------------------------------ #
-    # 銀行の手元・預金・課税（IBankIncomeSink / IValuationSource）
+    # 銀行の手元・預金・課税（IBankCashFlow / IHouseAccount / IGainsTaxCollector / IValuationSource）
     # ------------------------------------------------------------------ #
     def bank_sync_for(self, guild_id: int, now: float) -> dict[str, float]:
         """銀行の手元を取り出す（なければ作る）。地下融資の回収を、いまの時刻まで反映する。"""

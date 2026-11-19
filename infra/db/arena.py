@@ -10,7 +10,7 @@ from typing import Any, Optional
 
 from domain import arena as arena_mod
 from domain.errors import fail
-from domain.ports.bridges import IBankIncomeSink
+from domain.ports.bridges import IBankCashFlow
 from domain.ports.repos import IArenaRepo
 from infra.db.account import AccountCore
 from infra.db.base import EcoDb, ScopedRepo
@@ -23,7 +23,7 @@ class ArenaRepo(ScopedRepo, IArenaRepo):
         self,
         db: EcoDb,
         account: AccountCore,
-        bank: IBankIncomeSink,
+        bank: IBankCashFlow,
         guild_id: int = 0,
         strict: bool = False,
     ) -> None:

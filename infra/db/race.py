@@ -9,7 +9,7 @@ from typing import Any, Optional
 from domain import horse as horse_mod
 from domain import teiai
 from domain.errors import fail
-from domain.ports.bridges import IBankIncomeSink
+from domain.ports.bridges import IBankCashFlow
 from domain.ports.repos import IRaceRepo
 from infra.db.account import AccountCore
 from infra.db.base import EcoDb, ScopedRepo
@@ -41,7 +41,7 @@ class RaceRepo(ScopedRepo, IRaceRepo):
         account: AccountCore,
         horses: HorseRepo,
         relics: RelicRepo,
-        bank: IBankIncomeSink,
+        bank: IBankCashFlow,
         guild_id: int = 0,
         strict: bool = False,
     ) -> None:

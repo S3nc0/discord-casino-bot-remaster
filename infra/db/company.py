@@ -12,7 +12,8 @@ from domain import teiai
 from domain.errors import fail
 from domain.ports.bridges import (
     IAssetSeizureStep,
-    IBankIncomeSink,
+    IBankCashFlow,
+    IHouseAccount,
     ILiquidationStep,
     INoticeSink,
     IStatusReader,
@@ -31,7 +32,8 @@ class CompanyRepo(ScopedRepo, ICompanyRepo, IValuationSource):
         db: EcoDb,
         account: AccountCore,
         status_reader: IStatusReader,
-        bank: IBankIncomeSink,
+        bank: IBankCashFlow,
+        house: IHouseAccount,
         notices: INoticeSink,
         guild_id: int = 0,
         strict: bool = False,
@@ -40,6 +42,7 @@ class CompanyRepo(ScopedRepo, ICompanyRepo, IValuationSource):
         self._account = account
         self._status_reader = status_reader
         self._bank = bank
+        self._house = house
         self._notice_sink = notices
 
     # ------------------------------------------------------------------ #
@@ -81,11 +84,11 @@ class CompanyRepo(ScopedRepo, ICompanyRepo, IValuationSource):
             if c["funds"] >= fee:
                 c["funds"] -= fee
                 c["unpaid_days"] = 0
-                self._bank.house_receive_for(gid, fee)
+                self._house.house_receive_for(gid, fee)
                 continue
             c["unpaid_days"] += 1
             if c["unpaid_days"] >= company_mod.BANKRUPT_DAYS:
-                self._bank.house_receive_for(gid, c["funds"])  # 残った会社資金は、帝愛が引き取る
+                self._house.house_receive_for(gid, c["funds"])  # 残った会社資金は、帝愛が引き取る
                 self._conn.execute("DELETE FROM companies WHERE guild_id=? AND user_id=?", (gid, c["user_id"]))
                 self._notice_sink.note_for(gid, c["user_id"], "company_bankrupt", name=c["name"])
                 return False
@@ -101,8 +104,8 @@ class CompanyRepo(ScopedRepo, ICompanyRepo, IValuationSource):
 
     def _budget_for(self, guild_id: int, day: str) -> int:
         """帝愛の買取予算（胴元の口座の残高と、今日の買取枠の残り）。"""
-        grant = self._bank.house_grant_left_for(guild_id, day, company_mod.DAILY_GRANT)
-        return self._bank.house_balance_for(guild_id) + grant
+        grant = self._house.house_grant_left_for(guild_id, day, company_mod.DAILY_GRANT)
+        return self._house.house_balance_for(guild_id) + grant
 
     def _view(self, c: dict[str, Any], now: float) -> dict[str, Any]:
         """画面に出す形（会社の行に、その日の状態と、計算で出る数字を足す）。"""
@@ -152,7 +155,7 @@ class CompanyRepo(ScopedRepo, ICompanyRepo, IValuationSource):
                 return False, fail("company_found_short", cost=cost, balance=bal)
             self._account.apply(gid, user_id, -cost, f"会社設立:{name}（設立費・建設費）")
             self._bank.bank_income_for(gid, company_mod.FOUND_FEE, 0.0, now)
-            self._bank.house_receive_for(gid, company_mod.BUILD_COSTS[0])
+            self._house.house_receive_for(gid, company_mod.BUILD_COSTS[0])
             self._conn.execute(
                 "INSERT INTO companies (guild_id, user_id, name, kind, stock_ts, upkeep_day, created) "
                 "VALUES (?, ?, ?, ?, ?, ?, ?)",
@@ -217,8 +220,8 @@ class CompanyRepo(ScopedRepo, ICompanyRepo, IValuationSource):
             paid, pinhane, left = company_mod.sale(c["stock"], price, self._budget_for(gid, day))
             if paid <= 0:
                 return False, fail("company_no_budget" if int(c["stock"] * price) > 0 else "company_nothing_to_ship")
-            from_house = self._bank.house_pay_for(gid, paid)
-            self._bank.house_grant_use_for(gid, day, paid - from_house)  # 口座で足りない分は、今日の買取枠から
+            from_house = self._house.house_pay_for(gid, paid)
+            self._house.house_grant_use_for(gid, day, paid - from_house)  # 口座で足りない分は、今日の買取枠から
             c["funds"] += paid
             c["stock"] = left
             c["sold_total"] += paid
@@ -240,7 +243,7 @@ class CompanyRepo(ScopedRepo, ICompanyRepo, IValuationSource):
                 return False, fail("company_funds_short", need=cost, funds=c["funds"])
             c["funds"] -= cost
             c["level"] += 1
-            self._bank.house_receive_for(gid, cost)
+            self._house.house_receive_for(gid, cost)
             self._save(c)
             return True, c["level"]
 
@@ -261,7 +264,7 @@ class CompanyRepo(ScopedRepo, ICompanyRepo, IValuationSource):
                 return False, fail("company_funds_short", need=cost, funds=c["funds"])
             c["funds"] -= cost
             c["kind"], c["level"], c["stock"], c["stock_ts"] = kind, 1, 0.0, now
-            self._bank.house_receive_for(gid, cost)
+            self._house.house_receive_for(gid, cost)
             self._save(c)
             return True, ""
 

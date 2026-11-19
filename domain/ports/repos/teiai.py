@@ -3,12 +3,14 @@
 from typing import Any, Optional
 
 from domain.ports.bridges import (
+    IBankCashFlow,
     IBankCdsBridge,
-    IBankIncomeSink,
     IBankruptExecutor,
     IDebtLifecycleHook,
     IDebtOps,
     IDebtRepayHook,
+    IGainsTaxCollector,
+    IHouseAccount,
     IOverdueLoanCollector,
     IStatusReader,
     IValuationSource,
@@ -71,7 +73,7 @@ class ILoanRepo(IGuildScopedRepo, IOverdueLoanCollector):
         raise NotImplementedError
 
 
-class IBankRepo(IGuildScopedRepo, IBankIncomeSink, IBankCdsBridge, IValuationSource):
+class IBankRepo(IGuildScopedRepo, IBankCashFlow, IHouseAccount, IGainsTaxCollector, IBankCdsBridge, IValuationSource):
     def deposit_of(self, user_id: int) -> int:
         raise NotImplementedError
 

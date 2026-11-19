@@ -210,6 +210,18 @@ def make_bankrupt_case(eco, debt=40_000):
 SHOP_VALUE = int((20_000 + 100_000 + 13_500) * teiai.SEIZE_RATE)  # ショップの全品の換金（購入額の50%）
 
 
+def test_bankruptcy_writes_off_unsellable_bonds_at_the_seize_rate(eco):
+    """売れない債券（ジャンク債）は、元本の SEIZE_RATE で換金して、解約済みにする。"""
+    eco.wallet.credit(U, 50_000, "テスト")
+    assert eco.bonds.bond_buy(U, "junk", 1_000, time.time())[0]
+    indebt(eco, debt=40_000, balance=0)
+    ok, result = eco.debt.bankrupt(U)
+    assert ok and result["seized"] == int(1_000 * teiai.SEIZE_RATE)
+    assert eco.db.conn.execute("SELECT status FROM bonds WHERE user_id=?", (U,)).fetchone()[0] == "cancelled"
+    reasons = [r[0] for r in eco.db.conn.execute("SELECT reason FROM ledger WHERE user_id=?", (U,))]
+    assert "破産:債券の差し押さえ" in reasons
+
+
 def test_bankruptcy_seizes_everything_and_pays_the_senior_then_the_junior_creditors(eco):
     make_bankrupt_case(eco, debt=40_000)
     ok, result = eco.debt.bankrupt(U)

@@ -7,8 +7,8 @@ from typing import Any, Optional
 from domain import teiai
 from domain.errors import fail
 from domain.ports.bridges import (
-    IBankIncomeSink,
     IDebtOps,
+    IHouseAccount,
     IStatusReader,
     IValuationSource,
     IWealthyReader,
@@ -32,7 +32,7 @@ class WalletRepo(ScopedRepo, IWalletRepo, IWealthyReader):
         self,
         db: EcoDb,
         account: AccountCore,
-        bank: IBankIncomeSink,
+        house: IHouseAccount,
         debt: IDebtOps,
         status_reader: IStatusReader,
         relics: RelicRepo,
@@ -42,7 +42,7 @@ class WalletRepo(ScopedRepo, IWalletRepo, IWealthyReader):
     ) -> None:
         super().__init__(db, guild_id, strict)
         self._account = account
-        self._bank = bank
+        self._house = house
         self._debt = debt
         self._status_reader = status_reader
         self._relics = relics
@@ -170,7 +170,7 @@ class WalletRepo(ScopedRepo, IWalletRepo, IWealthyReader):
                     self._account.raw_balance(gid, user_id),
                     f"帝愛のピンハネ（デイリー {skimmed:,}ペリカ）",
                 )
-                self._bank.house_income_for(gid, skimmed)  # 帝愛の胴元の口座に入る
+                self._house.house_income_for(gid, skimmed)  # 帝愛の胴元の口座に入る
             credit = amount - skimmed
             self._account.apply(
                 gid,

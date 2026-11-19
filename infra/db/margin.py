@@ -9,8 +9,9 @@ from domain import teiai
 from domain.errors import Failure, fail
 from domain.market import DEFAULT
 from domain.ports.bridges import (
-    IBankIncomeSink,
+    IBankCashFlow,
     IDebtOps,
+    IGainsTaxCollector,
     INoticeSink,
     ISpotCollateralReader,
     NoOpDebtOps,
@@ -39,7 +40,8 @@ class MarginRepo(ScopedRepo, IMarginRepo):
         db: EcoDb,
         account: AccountCore,
         market: MarketDataRepo,
-        bank: IBankIncomeSink,
+        bank: IBankCashFlow,
+        tax: IGainsTaxCollector,
         notices: Optional[INoticeSink] = None,
         crypto: Optional[ISpotCollateralReader] = None,
         debt: Optional[IDebtOps] = None,
@@ -50,6 +52,7 @@ class MarginRepo(ScopedRepo, IMarginRepo):
         self._account = account
         self._market = market
         self._bank = bank
+        self._tax = tax
         self._notices: INoticeSink = notices or NoOpNoticeSink()
         self._crypto: ISpotCollateralReader = crypto or NoOpSpotCollateralReader()
         self._debt: IDebtOps = debt or NoOpDebtOps()
@@ -311,7 +314,7 @@ class MarginRepo(ScopedRepo, IMarginRepo):
         part_entry = entry_value if whole else entry_value * units / have
         pnl = market_mod.margin_pnl(side, units, part_entry, price)
         payout = max(0, part_margin + pnl)
-        tax = self._bank.charge_gains_tax_for(guild_id, user_id, pnl, taxable, self.SIDE_NAME[side] + "決済")
+        tax = self._tax.charge_gains_tax_for(guild_id, user_id, pnl, taxable, self.SIDE_NAME[side] + "決済")
         payout -= tax
         table = self._MARGIN_TABLE[side]
         if payout:

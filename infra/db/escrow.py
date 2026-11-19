@@ -4,7 +4,7 @@ import time
 from typing import Any, Optional
 
 from domain import teiai
-from domain.ports.bridges import IBankIncomeSink, IDebtOps
+from domain.ports.bridges import IBankCashFlow, IDebtOps
 from domain.ports.repos import IEscrowRepo
 from domain.types import INSURANCE_CAP
 from infra.db.account import AccountCore
@@ -18,7 +18,7 @@ class EscrowRepo(ScopedRepo, IEscrowRepo):
         self,
         db: EcoDb,
         account: AccountCore,
-        bank: IBankIncomeSink,
+        bank: IBankCashFlow,
         debt: IDebtOps,
         guild_id: int = 0,
         strict: bool = False,
