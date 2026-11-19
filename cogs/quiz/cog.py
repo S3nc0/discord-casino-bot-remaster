@@ -1,7 +1,6 @@
 """/クイズ — 持ち主・プレイヤーが出題する 4 択クイズの Cog と定期精算タスク。"""
 
 import logging
-import time
 from typing import TYPE_CHECKING, Any, Optional
 
 import discord
@@ -80,7 +79,8 @@ from cogs.shared.announce import announce_channel
 from cogs.shared.bridges import BotBridges, IQuizAdminBridge, IQuizButtonBridge
 from cogs.shared.tasks import allowed_guilds, run_for_allowed_guilds
 from domain.duration import format_minutes
-from domain.ports.repos import IGuildRepo, IQuizRepo
+from domain.ports.repos import IGuildRepo
+from services.quiz import QuizService
 
 _log = logging.getLogger(__name__)
 
@@ -93,12 +93,12 @@ class QuizCog(commands.Cog, IQuizAdminBridge, IQuizButtonBridge):
         self,
         bot: commands.Bot,
         config: dict[str, Any],
-        quiz_repo: IQuizRepo,
+        quiz_svc: QuizService,
         guild_repo: IGuildRepo,
     ) -> None:
         self.bot = bot
         self._config = config
-        self._quiz = quiz_repo
+        self._quiz = quiz_svc
         self._guild_repo = guild_repo
 
     async def cog_load(self) -> None:
@@ -128,10 +128,8 @@ class QuizCog(commands.Cog, IQuizAdminBridge, IQuizButtonBridge):
         await self.bot.wait_until_ready()
 
     async def run_once(self) -> None:
-        now = time.time()
-
         async def _handle(guild: discord.Guild) -> None:
-            for q in self._quiz.for_guild(guild.id).quiz_settle(now):
+            for q in self._quiz.settle(guild.id):
                 await self.announce_settle(guild, q)
 
         await run_for_allowed_guilds(
@@ -173,7 +171,7 @@ class QuizCog(commands.Cog, IQuizAdminBridge, IQuizButtonBridge):
         channel: Optional[discord.abc.Messageable] = None,
     ) -> int:
         """問題を、許可されている全サーバーの告知チャンネルに出す。出せた投稿の数を返す。"""
-        quiz = self._quiz.quiz_get(quiz_id)
+        quiz = self._quiz.get(quiz_id)
         if quiz is None:
             return 0
         count = 0
@@ -198,8 +196,7 @@ class QuizCog(commands.Cog, IQuizAdminBridge, IQuizButtonBridge):
 
     @group.command(name="挑戦", description="クイズに挑戦する（正解でペリカがもらえる）")
     async def play(self, interaction: discord.Interaction):
-        eco = self._quiz.for_guild(ui.guild_id_of(interaction))
-        quiz, remaining = eco.quiz_next(interaction.user.id, time.time())
+        quiz, remaining = self._quiz.next_for(ui.guild_id_of(interaction), interaction.user.id)
         if quiz is None:
             return await interaction.response.send_message(
                 embed=ui.embed("📰 クイズ", "いま挑戦できる問題はありません。新しい問題を待ってください。", ui.INFO),
@@ -219,9 +216,7 @@ class QuizCog(commands.Cog, IQuizAdminBridge, IQuizButtonBridge):
     @app_commands.rename(quiz_id="番号")
     @app_commands.describe(quiz_id="取り下げる問題（自分の問題だけ候補に出ます）")
     async def withdraw(self, interaction: discord.Interaction, quiz_id: int):
-        done = self._quiz.for_guild(ui.guild_id_of(interaction)).quiz_withdraw(
-            interaction.user.id, quiz_id, time.time()
-        )
+        done = self._quiz.withdraw(ui.guild_id_of(interaction), interaction.user.id, quiz_id)
         if done is None:
             return await interaction.response.send_message(
                 embed=ui.error_embed(
@@ -240,10 +235,10 @@ class QuizCog(commands.Cog, IQuizAdminBridge, IQuizButtonBridge):
         """候補は、自分がこのサーバーで出した、終了前の問題だけ。"""
         if interaction.guild_id is None:
             return []
-        now = time.time()
+        now = self._quiz.now_ts()
         cur = current.strip().lower()
         out = []
-        for q in self._quiz.for_guild(interaction.guild_id).quiz_own_open(interaction.user.id, now):
+        for q in self._quiz.own_open(interaction.guild_id, interaction.user.id):
             text = q["question"].replace("\n", " ")
             label = f"#{q['id']} {text[:50]}（あと{format_minutes(max(1, int((q['expires'] - now) // 60)))}）"
             if not cur or cur in label.lower():
@@ -260,8 +255,8 @@ class QuizCog(commands.Cog, IQuizAdminBridge, IQuizButtonBridge):
         return AddModal(self._quiz, self, announce, guild, channel)
 
     def listing_embed(self) -> discord.Embed:
-        now, lines = time.time(), []
-        for q in self._quiz.quiz_list()[:15]:
+        now, lines = self._quiz.now_ts(), []
+        for q in self._quiz.list_all()[:15]:
             state = "⌛" if q["expires"] is not None and now >= q["expires"] else "🟢"
             until = "" if q["expires"] is None else f" 〜<t:{int(q['expires'])}:d>"
             lines.append(
@@ -274,11 +269,11 @@ class QuizCog(commands.Cog, IQuizAdminBridge, IQuizButtonBridge):
         )
 
     def remove(self, quiz_id: int) -> bool:
-        return self._quiz.quiz_delete(quiz_id)
+        return self._quiz.delete(quiz_id)
 
 
 async def setup(bot: "CasinoBot") -> None:
-    cog = QuizCog(bot, bot.config, bot.repos.quiz, bot.repos.guild)
+    cog = QuizCog(bot, bot.config, bot.services.quiz, bot.repos.guild)
     bot.bridges.register(IQuizAdminBridge, cog)
     bot.bridges.register(IQuizButtonBridge, cog)
     await bot.add_cog(cog)

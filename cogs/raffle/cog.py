@@ -8,7 +8,6 @@
 
 import logging
 import random
-import time
 from typing import TYPE_CHECKING, Any, Optional
 
 import discord
@@ -20,7 +19,8 @@ from cogs.shared.bridges import BotBridges, IRaffleAdminBridge
 from cogs.shared.messages import format_failure
 from cogs.shared.tasks import run_for_allowed_guilds
 from domain.ports import get_catalogs
-from domain.ports.repos import IGuildRepo, IRaffleRepo
+from domain.ports.repos import IGuildRepo
+from services.raffle import RaffleService
 
 _log = logging.getLogger(__name__)
 
@@ -85,12 +85,12 @@ class RaffleCog(commands.Cog, IRaffleAdminBridge):
         self,
         bot: commands.Bot,
         config: dict[str, Any],
-        raffle_repo: IRaffleRepo,
+        raffle_svc: RaffleService,
         guild_repo: IGuildRepo,
     ) -> None:
         self.bot = bot
         self._config = config
-        self._raffle = raffle_repo
+        self._raffle = raffle_svc
         self._guild_repo = guild_repo
 
     async def cog_load(self) -> None:
@@ -103,9 +103,6 @@ class RaffleCog(commands.Cog, IRaffleAdminBridge):
         if isinstance(bridges, BotBridges):
             bridges.unregister(IRaffleAdminBridge, self)
 
-    def g(self, interaction: discord.Interaction) -> IRaffleRepo:
-        return self._raffle.for_guild(ui.guild_id_of(interaction))
-
     # ------------------------------ 運営の操作（`/運営 抽選 …` から呼ぶ。サーバーは持ち主が指定する） ------------------------------ #
     async def host(
         self,
@@ -116,7 +113,6 @@ class RaffleCog(commands.Cog, IRaffleAdminBridge):
         channel: Optional[discord.abc.Messageable] = None,
     ) -> tuple[bool, str]:
         """そのサーバーの告知チャンネル（channel を渡せば、そのチャンネル）に、抽選の募集を出す。(成功か, 説明) を返す。"""
-        eco = self._raffle.for_guild(guild.id)
         target = channel or announce_channel(guild, self._guild_repo)
         if target is None:
             return (
@@ -125,10 +121,10 @@ class RaffleCog(commands.Cog, IRaffleAdminBridge):
             )
         fee = fee or random.randint(RANDOM_FEE_RANGE[0] // 100, RANDOM_FEE_RANGE[1] // 100) * 100
         target_id = getattr(target, "id", 0) or 0
-        ok, reason = eco.raffle_open(host_id, fee, time.time() + minutes * 60, target_id)
+        ok, reason = self._raffle.open(guild.id, host_id, fee, minutes, target_id)
         if not ok:
             return False, format_failure(reason)
-        raffle = eco.raffle_get()
+        raffle = self._raffle.current(guild.id)
         assert raffle is not None
         try:
             message = await ui.send_channel(
@@ -138,17 +134,16 @@ class RaffleCog(commands.Cog, IRaffleAdminBridge):
                 allowed_mentions=discord.AllowedMentions.none(),
             )
         except discord.HTTPException as exc:
-            eco.raffle_close(cancel=True)  # 投稿できなかったので、募集はなかったことにする
+            self._raffle.cancel(guild.id)  # 投稿できなかったので、募集はなかったことにする
             return False, f"投稿できませんでした: {exc}"
         if message is not None:
-            eco.raffle_set_message(raffle["id"], message.id)
+            self._raffle.set_message(guild.id, raffle["id"], message.id)
         mention = getattr(target, "mention", str(target))
         return True, f"{guild.name} の {mention} に投稿しました（参加費 {ui.pelica(fee)}・{minutes}分）。"
 
     async def repost(self, guild: discord.Guild, channel: Optional[discord.abc.Messageable] = None) -> tuple[bool, str]:
         """募集中の抽選の投稿を、告知チャンネル（channel を渡せば、そのチャンネル）に出し直す（古い投稿は消す）。"""
-        eco = self._raffle.for_guild(guild.id)
-        raffle = eco.raffle_get()
+        raffle = self._raffle.current(guild.id)
         if raffle is None:
             return False, "募集中の抽選がありません。"
         target = channel or announce_channel(guild, self._guild_repo)
@@ -166,7 +161,9 @@ class RaffleCog(commands.Cog, IRaffleAdminBridge):
             return False, f"投稿できませんでした: {exc}"
         target_id = getattr(target, "id", 0) or 0
         if message is not None:
-            eco.raffle_set_message(raffle["id"], message.id, target_id)  # 古い投稿のボタンは、これで無効になる
+            self._raffle.set_message(
+                guild.id, raffle["id"], message.id, target_id
+            )  # 古い投稿のボタンは、これで無効になる
         if old_channel is not None and old_id:
             try:
                 old_msg = ui.partial_message(old_channel, old_id)
@@ -179,7 +176,7 @@ class RaffleCog(commands.Cog, IRaffleAdminBridge):
 
     async def cancel(self, guild: discord.Guild) -> tuple[bool, str]:
         """募集中の抽選をやめて、参加費を全員に返す。"""
-        raffle = self._raffle.for_guild(guild.id).raffle_close(cancel=True)
+        raffle = self._raffle.cancel(guild.id)
         if raffle is None:
             return False, "募集中の抽選がありません。"
         await self._finish_message(
@@ -197,18 +194,18 @@ class RaffleCog(commands.Cog, IRaffleAdminBridge):
     async def on_join(self, interaction: discord.Interaction) -> None:
         if not await approval_guard.allow_component(interaction, self._guild_repo, self._config):
             return
-        eco = self.g(interaction)
-        raffle = eco.raffle_get()
+        gid = ui.guild_id_of(interaction)
+        raffle = self._raffle.current(gid)
         if raffle is None or interaction.message is None or raffle["message_id"] != interaction.message.id:
             await interaction.response.send_message(embed=ui.error_embed("募集は終わりました"), ephemeral=True)
             return
-        ok, reason = eco.raffle_join(interaction.user.id, time.time())
+        ok, reason = self._raffle.join(gid, interaction.user.id)
         if not ok:
             await interaction.response.send_message(
                 embed=ui.error_embed("参加できません", format_failure(reason)), ephemeral=True
             )
             return
-        raffle = eco.raffle_get()
+        raffle = self._raffle.current(gid)
         assert raffle is not None
         await interaction.response.edit_message(embed=raffle_embed(raffle))
         await interaction.followup.send(
@@ -232,14 +229,8 @@ class RaffleCog(commands.Cog, IRaffleAdminBridge):
         await self.bot.wait_until_ready()
 
     async def run_once(self) -> None:
-        now = time.time()
-
         async def _handle(guild: discord.Guild) -> None:
-            eco = self._raffle.for_guild(guild.id)
-            raffle = eco.raffle_get()
-            if raffle is None or now < raffle["closes"]:
-                return
-            done = eco.raffle_close()
+            done = self._raffle.close_if_due(guild.id)
             if done is not None:
                 await self._finish_message(guild, done, result_embed(done))
 
@@ -278,6 +269,6 @@ class RaffleCog(commands.Cog, IRaffleAdminBridge):
 
 
 async def setup(bot: "CasinoBot") -> None:
-    cog = RaffleCog(bot, bot.config, bot.repos.raffle, bot.repos.guild)
+    cog = RaffleCog(bot, bot.config, bot.services.raffle, bot.repos.guild)
     bot.bridges.register(IRaffleAdminBridge, cog)
     await bot.add_cog(cog)

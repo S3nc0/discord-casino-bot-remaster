@@ -78,7 +78,7 @@ class DetailView(ui.OwnerView):
         self.add_item(go)
 
     async def _on_go(self, interaction: discord.Interaction):
-        row = self.cog.p2p.for_guild(ui.guild_id_of(interaction)).p2p_get(self.listing_id)
+        row = self.cog.p2p.get(ui.guild_id_of(interaction), self.listing_id)
         if row is None or row["status"] != "active":
             return await interaction.response.send_message(
                 embed=ui.error_embed("もうありません", "その出品は、終わりました。"), ephemeral=True
@@ -138,21 +138,21 @@ class SellModal(discord.ui.Modal):
         assert self.view.target is not None
         kind, _, ref = self.view.target.partition(":")
         gid = ui.guild_id_of(interaction)
-        p2p_repo = self.view.cog.p2p.for_guild(gid)
-        ok, result = p2p_repo.p2p_list(interaction.user.id, kind, ref, qty or 1, self.mode, price, hours)
+        p2p_svc = self.view.cog.p2p
+        ok, result = p2p_svc.list_item(gid, interaction.user.id, kind, ref, qty or 1, self.mode, price, hours)
         if not ok:
             await interaction.response.send_message(
                 embed=ui.error_embed("出品できません", format_failure(result)), ephemeral=True
             )
             return
-        row = p2p_repo.p2p_get(result)
+        row = p2p_svc.get(gid, result)
         assert row is not None
         self.view.stop()
         posted = await self.view.cog.announce(getattr(interaction, "guild", None), result)  # 告知チャンネルに投稿する
         await interaction.response.send_message(
             embed=ui.ok_embed(
                 "出品しました",
-                f"{line_of(row, p2p_repo.p2p_label(row))}\n売れる（落札される）と、{p2p.FEE_RATE:.0%} の手数料を引いた額が入ります。"
+                f"{line_of(row, p2p_svc.label(gid, row))}\n売れる（落札される）と、{p2p.FEE_RATE:.0%} の手数料を引いた額が入ります。"
                 "取り消しは、競売の画面の「📋 自分の取引」から。"
                 + ("\n📣 告知チャンネルに、出品を投稿しました。" if posted else ""),
             ),
@@ -168,11 +168,11 @@ class SellView(ui.OwnerView):
         self.cog, self.user_id = cog, user_id
         self.target: Optional[str] = None
         self.options = []
-        for item_id, qty in cog.shop.for_guild(guild_id).inventory(user_id).items():
+        for item_id, qty in cog.p2p.sellable_items(guild_id, user_id).items():
             if p2p.tradable(item_id):
                 label = f"{shop_mod.label(shop_mod.BY_ID[item_id])}（持っている {qty}）"
                 self.options.append(discord.SelectOption(label=label[:100], value=f"item:{item_id}"))
-        for horse in cog.horses.for_guild(guild_id).horse_list(user_id):
+        for horse in cog.p2p.sellable_horses(guild_id, user_id):
             self.options.append(
                 discord.SelectOption(
                     label=f"{horse['name']}（馬）"[:100], value=f"horse:{horse['id']}", emoji=horse["silks"]
@@ -220,14 +220,13 @@ class MineView(ui.OwnerView):
     def __init__(self, cog: "P2PCog", user_id: int, guild_id: int):
         super().__init__(user_id, timeout=300)
         self.cog, self.user_id, self.guild_id = cog, user_id, guild_id
-        p2p_repo = cog.p2p.for_guild(guild_id)
-        self.data = p2p_repo.p2p_mine(user_id)
+        self.data = cog.p2p.mine(guild_id, user_id)
         cancellable = [r for r in self.data["selling"] if not r["bidder_id"]]  # 入札が入った競りは、取り消せない
         if cancellable:
             select = discord.ui.Select(
                 placeholder="取り消す出品を選ぶ",
                 options=[
-                    discord.SelectOption(label=f"#{r['id']} {p2p_repo.p2p_label(r)}"[:100], value=str(r["id"]))
+                    discord.SelectOption(label=f"#{r['id']} {cog.p2p.label(guild_id, r)}"[:100], value=str(r["id"]))
                     for r in cancellable[:25]
                 ],
             )
@@ -235,10 +234,13 @@ class MineView(ui.OwnerView):
             self.add_item(select)
 
     def embed(self) -> discord.Embed:
-        p2p_repo = self.cog.p2p.for_guild(self.guild_id)
-        sell = "\n".join(line_of(r, p2p_repo.p2p_label(r)) for r in self.data["selling"]) or "出していません。"
+        p2p_svc = self.cog.p2p
+        sell = (
+            "\n".join(line_of(r, p2p_svc.label(self.guild_id, r)) for r in self.data["selling"]) or "出していません。"
+        )
         bid = (
-            "\n".join(line_of(r, p2p_repo.p2p_label(r)) for r in self.data["bidding"]) or "入札中のものは、ありません。"
+            "\n".join(line_of(r, p2p_svc.label(self.guild_id, r)) for r in self.data["bidding"])
+            or "入札中のものは、ありません。"
         )
         e = ui.embed("📋 自分の取引", "", ui.INFO)
         e.add_field(name="出している（入札が入った競りは、取り消せません）", value=sell[:1024], inline=False)
@@ -247,7 +249,7 @@ class MineView(ui.OwnerView):
 
     async def _on_cancel(self, interaction: discord.Interaction):
         listing_id = int(ui.selected_values(interaction)[0])
-        ok, why = self.cog.p2p.for_guild(self.guild_id).p2p_cancel(self.user_id, listing_id)
+        ok, why = self.cog.p2p.cancel(self.guild_id, self.user_id, listing_id)
         if not ok:
             await interaction.response.send_message(
                 embed=ui.error_embed("取り消せません", format_failure(why)), ephemeral=True

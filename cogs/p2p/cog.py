@@ -37,8 +37,9 @@ from cogs.shared.confirm import confirm_action, confirmed_reply, user_session
 from cogs.shared.messages import format_failure
 from cogs.shared.tasks import run_for_allowed_guilds
 from domain.ports import get_catalogs
-from domain.ports.repos import IGuildRepo, IHorseRepo, IP2PRepo, IShopRepo, IWalletRepo
+from domain.ports.repos import IGuildRepo
 from domain.ports.session import ISessionGuard
+from services.p2p import P2PService
 
 if TYPE_CHECKING:
     from cogs.shared.bot import CasinoBot
@@ -53,19 +54,13 @@ class P2PCog(commands.Cog, IP2PNavigationBridge):
         self,
         bot: commands.Bot,
         config: dict[str, Any],
-        p2p_repo: IP2PRepo,
-        horses: IHorseRepo,
-        shop_repo: IShopRepo,
-        wallet: IWalletRepo,
+        p2p_svc: P2PService,
         guild_repo: IGuildRepo,
         sessions: ISessionGuard,
     ) -> None:
         self.bot = bot
         self._config = config
-        self.p2p = p2p_repo
-        self.horses = horses
-        self.shop = shop_repo
-        self.wallet = wallet
+        self.p2p = p2p_svc
         self._guild_repo = guild_repo
         self._sessions = sessions
 
@@ -81,17 +76,14 @@ class P2PCog(commands.Cog, IP2PNavigationBridge):
             bridges.unregister(IP2PNavigationBridge, self)
 
     def _post_args(self, guild_id: int, row: dict[str, Any]) -> tuple[str, Optional[dict[str, Any]]]:
-        label = self.p2p.for_guild(guild_id).p2p_label(row)
-        horse = self.horses.for_guild(guild_id).horse_get(int(row["ref"])) if row["kind"] == "horse" else None
-        return label, horse
+        return self.p2p.label(guild_id, row), self.p2p.horse_of(guild_id, row)
 
     # ------------------------------ 出品の告知（チャンネルへの投稿） ------------------------------ #
     async def announce(self, guild: Optional[discord.Guild], listing_id: int) -> bool:
         """出品を、告知チャンネルに投稿する（投稿を覚えて、入札・売れたときに書き換える）。投稿できたら True。失敗しても、出品には影響しない。"""
         if guild is None:
             return False
-        p2p_repo = self.p2p.for_guild(guild.id)
-        row = p2p_repo.p2p_get(listing_id)
+        row = self.p2p.get(guild.id, listing_id)
         channel = announce_channel(guild, self._guild_repo) if row else None
         if row is None or channel is None:
             return False
@@ -103,15 +95,14 @@ class P2PCog(commands.Cog, IP2PNavigationBridge):
         except discord.HTTPException as exc:
             logthrottle.warn(("p2p-announce", guild.id), f"出品の告知に失敗: guild={guild.id}: {exc!r}")
             return False
-        p2p_repo.p2p_set_post(listing_id, channel.id, msg.id)
+        self.p2p.set_post(guild.id, listing_id, channel.id, msg.id)
         return True
 
     async def refresh_post(self, guild: Optional[discord.Guild], listing_id: int) -> None:
         """告知の投稿を、いまの状態（最高入札・売れた・取り消し・終了）に書き換える。終わったら、ボタンを外す。"""
         if guild is None:
             return
-        p2p_repo = self.p2p.for_guild(guild.id)
-        row = p2p_repo.p2p_get(listing_id)
+        row = self.p2p.get(guild.id, listing_id)
         if row is None or not row["message_id"]:
             return
         ended = row["status"] != "active"
@@ -130,8 +121,8 @@ class P2PCog(commands.Cog, IP2PNavigationBridge):
                     ("p2p-refresh", guild.id), f"出品の告知を書き換えられません: guild={guild.id}: {exc!r}"
                 )
         if ended:
-            p2p_repo.p2p_mark_post_done(
-                listing_id
+            self.p2p.mark_post_done(
+                guild.id, listing_id
             )  # 終わった出品は、書き換えを1回で済ませる（チャンネルや投稿がなくても、くり返さない）
 
     # ------------------------------ 買う・入札 ------------------------------ #
@@ -152,8 +143,7 @@ class P2PCog(commands.Cog, IP2PNavigationBridge):
         ok_body,
     ) -> None:
         gid = ui.guild_id_of(interaction)
-        p2p_repo = self.p2p.for_guild(gid)
-        row = p2p_repo.p2p_get(listing_id)
+        row = self.p2p.get(gid, listing_id)
         if row is None or row["status"] != "active":
             await interaction.response.send_message(
                 embed=ui.error_embed(fail_title, "その出品は、もうありません。"), ephemeral=True
@@ -163,7 +153,7 @@ class P2PCog(commands.Cog, IP2PNavigationBridge):
             if not ok:
                 return
             uid = interaction.user.id
-            label = p2p_repo.p2p_label(row)
+            label = self.p2p.label(gid, row)
             reply = await confirmed_reply(
                 interaction,
                 confirm_needed,
@@ -174,11 +164,11 @@ class P2PCog(commands.Cog, IP2PNavigationBridge):
             )
             if reply is None:
                 return
-            done, result = execute(p2p_repo, uid)
+            done, result = execute(gid, uid)
             if not done:
                 await reply(embed=ui.error_embed(error_title, format_failure(result)), ephemeral=True)
                 return
-            balance = self.wallet.for_guild(gid).balance(uid)
+            balance = self.p2p.balance_of(gid, uid)
             await reply(
                 embed=ui.ok_embed(
                     ok_title,
@@ -189,8 +179,7 @@ class P2PCog(commands.Cog, IP2PNavigationBridge):
             await self.refresh_post(getattr(interaction, "guild", None), listing_id)
 
     async def do_buy(self, interaction: discord.Interaction, listing_id: int) -> None:
-        p2p_repo = self.p2p.for_guild(ui.guild_id_of(interaction))
-        row = p2p_repo.p2p_get(listing_id)
+        row = self.p2p.get(ui.guild_id_of(interaction), listing_id)
         price = row["price"] if row else 0
         await self._trade_listing(
             interaction,
@@ -203,7 +192,7 @@ class P2PCog(commands.Cog, IP2PNavigationBridge):
             confirm_label="買う",
             error_title="買えませんでした",
             ok_title="購入しました",
-            execute=lambda repo, uid: repo.p2p_buy(uid, listing_id),
+            execute=lambda gid, uid: self.p2p.buy(gid, uid, listing_id),
             ok_body=lambda label, result: f"**{label}** を {ui.pelica(result)} で買いました。",
         )
 
@@ -219,7 +208,7 @@ class P2PCog(commands.Cog, IP2PNavigationBridge):
             confirm_label="入札する",
             error_title="入札できませんでした",
             ok_title="入札しました",
-            execute=lambda repo, uid: repo.p2p_bid(uid, listing_id, amount),
+            execute=lambda gid, uid: self.p2p.bid(gid, uid, listing_id, amount),
             ok_body=lambda label, result: f"**{label}** に **{ui.pelica(amount)}** で入札しました。締切 {when(result)}",
         )
 
@@ -227,7 +216,7 @@ class P2PCog(commands.Cog, IP2PNavigationBridge):
     async def open_detail(self, interaction: discord.Interaction, listing_id: int) -> None:
         """出品の詳細（「買う」「入札する」）を、本人にだけ見せる。"""
         gid = ui.guild_id_of(interaction)
-        row = self.p2p.for_guild(gid).p2p_get(listing_id)
+        row = self.p2p.get(gid, listing_id)
         if row is None or row["status"] != "active":
             await interaction.response.send_message(
                 embed=ui.error_embed("もうありません", "その出品は、終わりました。"), ephemeral=True
@@ -276,13 +265,12 @@ class P2PCog(commands.Cog, IP2PNavigationBridge):
         await self.bot.wait_until_ready()
 
     async def _settle_guild(self, guild: discord.Guild) -> None:
-        p2p_repo = self.p2p.for_guild(guild.id)
-        results = p2p_repo.p2p_settle()
+        results = self.p2p.settle(guild.id)
         for row, _res in results:
             await self.refresh_post(guild, row["id"])  # 告知を、売れた・終了に書き換える
-        for (
-            row
-        ) in p2p_repo.p2p_unsynced_posts():  # 取引停止（破産猶予・破産）などで、取り下げられた出品の告知も、書き換える
+        for row in self.p2p.unsynced_posts(
+            guild.id
+        ):  # 取引停止（破産猶予・破産）などで、取り下げられた出品の告知も、書き換える
             await self.refresh_post(guild, row["id"])
         channel = (
             announce_channel(guild, self._guild_repo)
@@ -292,7 +280,7 @@ class P2PCog(commands.Cog, IP2PNavigationBridge):
         for row, res in results:
             if res != "sold" or row["mode"] != "auction" or channel is None:
                 continue  # 落札だけ、告知チャンネルに知らせる
-            done = p2p_repo.p2p_get(row["id"])
+            done = self.p2p.get(guild.id, row["id"])
             if done is None:
                 continue
             try:
@@ -300,7 +288,7 @@ class P2PCog(commands.Cog, IP2PNavigationBridge):
                     channel,
                     embed=ui.embed(
                         "🔨 競りの落札",
-                        f"**{p2p_repo.p2p_label(row)}** を、<@{done['buyer_id']}> が **{ui.pelica(done['sold_price'])}** で落札しました（出品者 <@{row['seller_id']}>）。",
+                        f"**{self.p2p.label(guild.id, row)}** を、<@{done['buyer_id']}> が **{ui.pelica(done['sold_price'])}** で落札しました（出品者 <@{row['seller_id']}>）。",
                         ui.GOLD,
                     ),
                     allowed_mentions=NONE,
@@ -313,10 +301,7 @@ async def setup(bot: "CasinoBot") -> None:
     cog = P2PCog(
         bot,
         bot.config,
-        bot.repos.p2p,
-        bot.repos.horses,
-        bot.repos.shop,
-        bot.repos.wallet,
+        bot.services.p2p,
         bot.repos.guild,
         bot.sessions,
     )

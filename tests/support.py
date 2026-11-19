@@ -98,10 +98,7 @@ def make_p2p_cog(bot: Any):
     cog = P2PCog(
         bot,
         bot.config,
-        bot.repos.p2p,
-        bot.repos.horses,
-        bot.repos.shop,
-        bot.repos.wallet,
+        bot.services.p2p,
         bot.repos.guild,
         bot.sessions,
     )
@@ -138,7 +135,7 @@ def make_horse_cog(bot: Any):
 def make_quiz_cog(bot: Any):
     from cogs.quiz.cog import QuizCog
 
-    cog = QuizCog(bot, bot.config, bot.repos.quiz, bot.repos.guild)
+    cog = QuizCog(bot, bot.config, bot.services.quiz, bot.repos.guild)
     bot.bridges.register(IQuizAdminBridge, cog)
     bot.bridges.register(IQuizButtonBridge, cog)
     return cog
@@ -147,7 +144,7 @@ def make_quiz_cog(bot: Any):
 def make_raffle_cog(bot: Any):
     from cogs.raffle.cog import RaffleCog
 
-    cog = RaffleCog(bot, bot.config, bot.repos.raffle, bot.repos.guild)
+    cog = RaffleCog(bot, bot.config, bot.services.raffle, bot.repos.guild)
     bot.bridges.register(IRaffleAdminBridge, cog)
     return cog
 

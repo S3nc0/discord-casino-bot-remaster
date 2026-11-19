@@ -15,6 +15,9 @@ from services.horse import HorseService
 from services.labor import LaborService
 from services.loan import LoanService
 from services.market import MarketService
+from services.p2p import P2PService
+from services.quiz import QuizService
+from services.raffle import RaffleService
 from services.ranking import RankingService
 from services.shop import ShopService
 from services.teiai import TeiaiService
@@ -37,6 +40,9 @@ class ServiceRegistry:
     shop: ShopService
     teiai: TeiaiService
     ranking: RankingService
+    quiz: QuizService
+    p2p: P2PService
+    raffle: RaffleService
 
 
 def build_services(config: dict[str, Any], repos: IRepositoryBundle, sessions: ISessionGuard) -> ServiceRegistry:
@@ -99,5 +105,8 @@ def build_services(config: dict[str, Any], repos: IRepositoryBundle, sessions: I
             loans=repos.loans,
             clock=clock,
         ),
+        quiz=QuizService(quiz=repos.quiz, clock=clock),
+        p2p=P2PService(p2p=repos.p2p, horses=repos.horses, shop=repos.shop, wallet=repos.wallet),
+        raffle=RaffleService(raffle=repos.raffle, clock=clock),
         ranking=RankingService(wallet=repos.wallet, crypto=repos.crypto, bonds=repos.bonds, assets=repos.assets),
     )

@@ -9,6 +9,9 @@ from services.horse import HorseService
 from services.labor import LaborService
 from services.loan import LoanService, LoanTickOutcome
 from services.market import MarketService
+from services.p2p import P2PService
+from services.quiz import QuizService
+from services.raffle import RaffleService
 from services.ranking import RankingService
 from services.session import Sessions
 from services.shop import BuyItemPrecheck, ShopService
@@ -29,6 +32,9 @@ __all__ = [
     "LoanTickOutcome",
     "MarketService",
     "MissionBoard",
+    "P2PService",
+    "QuizService",
+    "RaffleService",
     "RankingService",
     "ServiceRegistry",
     "Sessions",

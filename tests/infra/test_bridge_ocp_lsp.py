@@ -267,10 +267,7 @@ def test_deferred_and_dynamic_cog_bridges_are_load_order_independent(tmp_path):
     p2p_cog = P2PCog(
         bot,
         bot.config,
-        bot.repos.p2p,
-        bot.repos.horses,
-        bot.repos.shop,
-        bot.repos.wallet,
+        bot.services.p2p,
         bot.repos.guild,
         bot.sessions,
     )
