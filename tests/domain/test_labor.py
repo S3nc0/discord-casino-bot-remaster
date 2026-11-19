@@ -10,7 +10,7 @@ from cogs.labor import cog as labor_cog
 from domain import labor as lab
 from domain import teiai
 from infra.db.repositories import open_repositories
-from tests.fakes import as_interaction, invoke
+from tests.fakes import as_interaction, invoke, must
 from tests.support import make_labor_cog, make_test_bot
 
 U = 1
@@ -74,7 +74,7 @@ def test_click_outcome_has_no_accident():
 
 def test_works_from_zero_balance_and_pot_flushes_into_balance(eco):
     r = click(eco, 1)
-    assert r["ok"] and r["pay"] == 10 and eco.wallet.balance(U) == 0  # まだ受け取る前の稼ぎ
+    assert must(r)["ok"] and must(r)["pay"] == 10 and eco.wallet.balance(U) == 0  # まだ受け取る前の稼ぎ
     assert eco.labor.labor_state(U, T0 + 2, DAY)["pot"] == 10
     assert eco.labor.labor_collect(U, T0 + 3, DAY) == 10 and eco.wallet.balance(U) == 10
     assert eco.labor.labor_state(U, T0 + 4, DAY)["pot"] == 0
@@ -93,7 +93,7 @@ def test_earnings_stay_in_the_pot_until_collected_all_at_once(eco):
 
 
 def test_click_interval(eco):
-    assert click(eco, 1)["ok"]
+    assert must(click(eco, 1))["ok"]
     fast = eco.labor.labor_click(U, T0 + 0.2, DAY)
     assert not fast["ok"] and fast["quiet"]
     assert eco.labor.labor_click(U, T0 + 5, DAY)["pay"] > 0  # 事故はなく、毎回稼ぐ
@@ -101,7 +101,7 @@ def test_click_interval(eco):
 
 
 def test_fatigue_reduces_pay_and_recovers_over_time(eco):
-    first = click(eco, 1)["pay"]
+    first = must(click(eco, 1))["pay"]
     click(eco, 20, start=T0 + 10)
     s = eco.labor.labor_state(U, T0 + 10 + 20 * 1.5, DAY)
     assert s["fatigue"] > 30
@@ -203,8 +203,8 @@ def test_ranking_total_today_and_my_rank(eco):
 def test_ranking_embed_shows_medals_and_my_rank_below_the_list():
     rows = [(i, 100 + i, 1_000 - i, 50) for i in range(1, 11)]
     e = labor_cog.ranking_embed({"rows": rows, "me": (14, 300, 90, 20)}, False)
-    assert "🥇" in e.description and "🥉" in e.description and "あなた" in e.description and "通算" in e.title
-    assert "まだ、だれも" in labor_cog.ranking_embed({"rows": [], "me": None}, True).description
+    assert "🥇" in must(e.description) and "🥉" in e.description and "あなた" in e.description and "通算" in e.title
+    assert "まだ、だれも" in must(labor_cog.ranking_embed({"rows": [], "me": None}, True).description)
 
 
 # ------------------------------ 雇用（作業員） ------------------------------ #
@@ -667,7 +667,7 @@ def test_the_default_skim_is_one_percent_and_the_screens_call_it_a_charity_donat
     eco.wallet.credit(U, 5_000, "テスト")
     eco.labor.labor_hire(U, "miner", T0, DAY)
     view = make_view(eco)
-    assert "総寄付金額" in labor_cog.panel_embed(eco.labor.labor_state(U, T0, DAY)).footer.text
+    assert "総寄付金額" in must(labor_cog.panel_embed(eco.labor.labor_state(U, T0, DAY)).footer.text)
     sent = []
 
     async def send(content, **kw):
@@ -715,7 +715,7 @@ def test_uncollected_shows_how_much_of_it_the_workers_earned(eco, monkeypatch):
     worker_part = state["pot_workers_total"]
     for embed in (panel_embed(state), hire_embed(state)):
         field = next(f for f in embed.fields if f.name == "🎒 未受け取り")
-        assert f"うち作業員 {worker_part:,}ペリカ" in field.value
+        assert f"うち作業員 {worker_part:,}ペリカ" in must(field.value)
     eco.labor.labor_collect(U, T0 + 2 * H, DAY)
     after = eco.labor.labor_state(U, T0 + 2 * H, DAY)
     assert after["pot_workers_total"] == 0  # 受け取ると、0 に戻る
@@ -726,7 +726,7 @@ def test_uncollected_hides_the_worker_part_when_there_are_no_workers(eco):
 
     state = eco.labor.labor_state(U, T0, DAY)
     field = next(f for f in panel_embed(state).fields if f.name == "🎒 未受け取り")
-    assert "作業員" not in field.value
+    assert "作業員" not in must(field.value)
 
 
 def test_finds_are_logged_with_time_and_worker_and_shown_without_coal(eco, monkeypatch):
@@ -743,7 +743,7 @@ def test_finds_are_logged_with_time_and_worker_and_shown_without_coal(eco, monke
     assert all(T0 < f["at"] <= T0 + 3 * H and f["kind"] == "miner" for f in finds)  # 時刻は、働いた時間のあいだ
     assert eco.labor.labor_state(U, T0 + 3 * H, DAY)["finds"] == finds  # 読むだけでは増えない
     field = next(f for f in panel_embed(eco.labor.labor_state(U, T0 + 3 * H, DAY)).fields if f.name.startswith("📜"))
-    assert "坑夫" in field.value and "ダイヤ" in field.value and "石炭" not in field.value
+    assert "坑夫" in must(field.value) and "ダイヤ" in must(field.value) and "石炭" not in must(field.value)
     eco.labor.labor_collect(U, T0 + 3 * H, DAY)
     assert eco.labor.labor_state(U, T0 + 3 * H, DAY)["finds"] == []  # 受け取ると、画面には出なくなる
 

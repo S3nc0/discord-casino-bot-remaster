@@ -9,7 +9,7 @@ import pytest
 from cogs.arena import cog as arena_cog
 from cogs.arena import views
 from domain import arena as a
-from tests.fakes import as_interaction
+from tests.fakes import as_interaction, must
 from tests.support import make_arena_cog, make_test_bot
 
 U, V = 1, 2
@@ -222,8 +222,8 @@ def test_tournament_embed_shows_who_bet_how_much_on_each_fighter(setup):
     repos.arena.arena_bet(V, fighter["id"], 700, DAY_START)
     panel = views.BetPanel(bot.services.arena, repos.arena.arena_tournament_get_by_day(t["day"], "duel"))
     desc = panel.embed().description
-    assert f"<@{U}>" in desc and "1,500" in desc
-    assert f"<@{V}>" in desc and "700" in desc
+    assert f"<@{U}>" in must(desc) and "1,500" in must(desc)
+    assert f"<@{V}>" in must(desc) and "700" in must(desc)
 
 
 def test_run_once_refreshes_the_auto_posted_panel_after_semis(setup, monkeypatch):

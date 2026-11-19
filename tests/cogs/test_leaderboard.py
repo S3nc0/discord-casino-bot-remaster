@@ -11,7 +11,7 @@ from cogs.economy import boards
 from cogs.economy.cog import BOARD_INTERVAL_MINUTES, EconomyCog
 from cogs.shared import ranking
 from infra.db.repositories import open_repositories
-from tests.fakes import as_guild, invoke
+from tests.fakes import as_guild, invoke, must
 from tests.support import make_economy_cog, make_ranking_repos, make_test_bot
 
 
@@ -125,13 +125,13 @@ def test_build_embed_ranks_only_the_servers_members(eco):
         header="最終更新: x\n\n",
         footer="1分ごと",
     )
-    assert e.description.index("<@1>") < e.description.index("<@2>") and "<@3>" not in e.description
+    assert e.description.index("<@1>") < e.description.index("<@2>") and "<@3>" not in must(e.description)
     assert e.description.startswith("最終更新: x") and e.footer.text == "1分ごと"
 
 
 def test_build_embed_with_nobody_playing(eco):
     e = ranking.build_embed(make_ranking_repos(eco), set(), "🏆 ペリカランキング")
-    assert "まだ誰も遊んでいません" in e.description
+    assert "まだ誰も遊んでいません" in must(e.description)
 
 
 # ----------------------------- 設定 ----------------------------- #
@@ -281,7 +281,7 @@ def test_ranking_does_not_show_titles_to_keep_each_row_on_one_line(eco):
     assert eco.shop.purchase(1, it.id, shop.label(it), it.price, True).ok
     eco.shop.equip(1, "title", it.id)
     e = ranking.build_embed(make_ranking_repos(eco), eco.wallet.guild_user_ids(10), "🏆 テスト")
-    assert "ざわ…ざわ…" not in e.description and "<@1>　" in e.description
+    assert "ざわ…ざわ…" not in must(e.description) and "<@1>　" in must(e.description)
 
 
 # ----------------------------- 掲示の権限 ----------------------------- #

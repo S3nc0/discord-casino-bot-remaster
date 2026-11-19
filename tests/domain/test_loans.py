@@ -11,7 +11,7 @@ from cogs.loan.cog import LoanButton, handle_button, offer_embed, who
 from domain import loans, teiai
 from domain.types import INITIAL_BALANCE
 from infra.db.repositories import open_repositories
-from tests.fakes import as_interaction, invoke
+from tests.fakes import as_interaction, invoke, must
 from tests.support import make_loan_cog, make_test_bot
 
 NOW = 1_000_000.0
@@ -329,9 +329,9 @@ def test_offer_embed_and_names(eco):
     lid = offer(eco)
     e = offer_embed(eco.loans.loan_get(lid))
     assert (
-        f"<@{A}>" in e.description
-        and "1,200ペリカ" in e.description
-        and "日利: **2%**" in e.description
+        f"<@{A}>" in must(e.description)
+        and "1,200ペリカ" in must(e.description)
+        and "日利: **2%**" in must(e.description)
         and who(5) == "<@5>"
     )
 

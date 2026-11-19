@@ -13,7 +13,7 @@ from domain.games import chinchiro as ch
 from domain.games import pachinko, roulette, rtplevel, slot
 from domain.types import INITIAL_BALANCE
 from infra.db.repositories import open_repositories
-from tests.fakes import as_interaction, invoke
+from tests.fakes import as_interaction, invoke, must
 from tests.support import make_approval_cog, make_casino_deps, make_test_bot
 
 OWNER, FRIEND = 1, 2
@@ -239,7 +239,7 @@ def test_commands_are_owner_only_and_change_the_chosen_game(tmp_path, monkeypatc
 
 def test_table_embed_marks_changed_games_and_names_every_level():
     e = rtp_table_embed({g: 3 for g in rtplevel.GAMES}, "t")
-    assert "標準から変更中" not in e.description and e.description.count("標準") >= 5
+    assert "標準から変更中" not in must(e.description) and e.description.count("標準") >= 5
     changed = {**{g: 3 for g in rtplevel.GAMES}, "パチンコ": 1}
     assert (
         "パチンコ**　レベル **1**（かなり渋い）　還元率 約89.0%　⚠️ 標準から変更中"

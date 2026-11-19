@@ -18,7 +18,7 @@ Coro = Coroutine[Any, Any, Any]
 def invoke(command: "app_commands.Command[Any, ..., Any] | discord.ui.Item[Any]", *args: object) -> Coro:
     """スラッシュコマンド・ボタンの callback を、フェイクの引数で呼ぶ。"""
     callback: Callable[..., Coro] = command.callback
-    return callback(*as_interaction(args))
+    return callback(*args)
 
 
 def as_interaction(fake: object) -> "discord.Interaction[Any]":
@@ -51,3 +51,9 @@ def as_choice(fake: object) -> "app_commands.Choice[Any]":
 
 def as_bot(fake: object) -> commands.Bot:
     return cast(commands.Bot, fake)
+
+
+def must[T](value: T | None) -> T:
+    """discord の Optional な値（埋め込みの本文など）が、テストの場面では必ずあることを確かめて返す。"""
+    assert value is not None
+    return value

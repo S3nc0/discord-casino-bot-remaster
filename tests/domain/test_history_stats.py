@@ -11,7 +11,7 @@ from cogs.market import orders
 from cogs.shared.messages import format_history
 from domain.types import DAILY_BASE, DAILY_STREAK_BONUS
 from infra.db.repositories import open_repositories
-from tests.fakes import as_interaction, invoke
+from tests.fakes import as_interaction, invoke, must
 from tests.support import make_economy_cog, make_market_cog, make_ranking_repos, make_test_bot
 
 pytestmark = pytest.mark.real_scope
@@ -191,7 +191,9 @@ def test_ranking_counts_crypto_value_so_buying_does_not_drop_the_rank(tmp_path):
     assert [u for _, u, _ in a.wallet.top(10)] == [1, 2]
     a.crypto.crypto_buy(1, 9_000, 1000.0)  # 1番の人が、ほぼ全額をトークンに替える
     assert [(r, u) for r, u, _ in a.wallet.top(10)] == [(1, 1), (2, 2)]  # 順位は変わらない
-    assert a.wallet.top(10)[0][2] == 10_000 and a.wallet.rank_of(1)[1] == 10_000  # 総資産は売買前と同じ（手数料なし）
+    assert (
+        a.wallet.top(10)[0][2] == 10_000 and must(a.wallet.rank_of(1))[1] == 10_000
+    )  # 総資産は売買前と同じ（手数料なし）
     eco.market.market_set(2.0, 1500.0, 0)  # 価格が上がれば、総資産も増える
     assert a.wallet.top(10)[0][2] > 10_000
     eco.market.market_set(3.0, 100.0, 0)  # 暴落すれば、順位も下がる
@@ -206,7 +208,7 @@ def test_ranking_embed_shows_total_and_crypto_part(tmp_path):
     eco.market.market_set(1.0, 1000.0, 0)
     a.crypto.crypto_buy(1, 2_000, 1000.0)
     text = ranking.build_embed(make_ranking_repos(a), None, "t").description
-    assert "うちCS" in text and "3,000ペリカ" in text
+    assert "うちCS" in must(text) and "3,000ペリカ" in must(text)
 
 
 def test_daily_is_1000_every_6_hours_and_next_time_is_stated(tmp_path, monkeypatch):

@@ -10,6 +10,7 @@ from domain import shop, teiai
 from domain.types import INITIAL_BALANCE
 from infra.db.race import race_slots
 from infra.db.repositories import open_repositories
+from tests.fakes import must
 
 U, V, W = 1, 2, 3
 NOW = 1_000_000.0
@@ -616,7 +617,7 @@ def test_npc_silks_avoid_the_colors_players_already_use(tmp_path):
     rid = eco.races.race_create_special(1_700_000_000.0, 1, 1)
     for hid in [x["id"] for u in (11, 12, 13) for x in eco.horses.horse_list(u)]:
         assert eco.races.race_register(
-            next(x["owner_id"] for x in [eco.horses.horse_get(hid)]), hid, rid, 1_700_000_001.0
+            next(must(x)["owner_id"] for x in [eco.horses.horse_get(hid)]), hid, rid, 1_700_000_001.0
         )[0]
     eco.races.race_close_entries(rid, random.Random(3))
     rows = eco.races.race_entries(rid)

@@ -11,7 +11,7 @@ from cogs.horse import views as views
 from cogs.horse.cog import HorseCog, anim_frames, comment, lane_text, laps_for, pick_frames
 from domain import horse as h
 from domain import shop
-from tests.fakes import as_interaction, invoke
+from tests.fakes import as_interaction, invoke, must
 from tests.support import make_horse_cog, make_shop_cog, make_test_bot
 
 U, V = 1, 2
@@ -149,16 +149,16 @@ def test_card_embed_for_each_stage_and_bet_panel(setup):
     eco.wallet.credit(V, 10_000, "テスト")
     rid = eco.races.race_create_special(1_700_000_000.0, 1, 1)
     race = eco.races.race_get(rid)
-    assert "出走受付中" in views.card_embed(eco.horses, eco.races, race).title
+    assert "出走受付中" in must(views.card_embed(eco.horses, eco.races, race).title)
     field = eco.races.race_close_entries(rid, random.Random(1))
     eco.races.race_set_odds(rid, h.make_odds(field["runners"]))
     race = eco.races.race_get(rid)
     card = views.card_embed(eco.horses, eco.races, race)
-    assert "発売中" in card.title and card.description.count("単勝") >= h.FIELD_SIZE
+    assert "発売中" in must(card.title) and card.description.count("単勝") >= h.FIELD_SIZE
     panel = views.BetPanel(eco.races, V, {**race, "guild_id": 0})
-    assert len(panel.children) == 3 and "馬券を買う" in panel.embed(eco.races).title
+    assert len(panel.children) == 3 and "馬券を買う" in must(panel.embed(eco.races).title)
     eco.races.race_run(rid, random.Random(2))
-    assert "結果" in views.card_embed(eco.horses, eco.races, eco.races.race_get(rid)).title
+    assert "結果" in must(views.card_embed(eco.horses, eco.races, eco.races.race_get(rid)).title)
 
 
 def test_stable_view_shows_horses_and_stats(setup):
@@ -172,9 +172,9 @@ def test_stable_view_shows_horses_and_stats(setup):
     eco.horses.horse_create(U, "ホースA", "鹿毛", "🟦")
     stable = views.Stable(eco.horses, eco.races, eco.shop, bot.services.horse, U, 0)
     emb = stable.embed()
-    assert "ホースA" in emb.fields[0].name and "スピード" in emb.fields[0].value
+    assert "ホースA" in must(emb.fields[0].name) and "スピード" in must(emb.fields[0].value)
     assert any(isinstance(c, views.discord.ui.Select) for c in stable.children)
-    assert "購入券 **1枚**" in emb.description
+    assert "購入券 **1枚**" in must(emb.description)
 
 
 def test_display_frames_end_when_the_winner_crosses_and_never_move_backward():
@@ -205,7 +205,7 @@ def test_bet_panel_builds_for_every_kind_and_shows_the_odds(setup):
         panel._build(eco.races)
         selects[kind] = [c for c in panel.children if isinstance(c, views.discord.ui.Select)]
         embed = panel.embed(eco.races)
-        assert h.BET_KINDS[kind] in embed.description and "オッズ" in embed.description
+        assert h.BET_KINDS[kind] in must(embed.description) and "オッズ" in must(embed.description)
     assert [len(v) for v in selects.values()] == [2, 2, 2, 2, 3, 2]  # 馬単だけ、1着と2着の2つ
     assert (selects["trio"][1].min_values, selects["trio"][1].max_values) == (3, 3)
     assert (selects["quinella"][1].min_values, selects["quinella"][1].max_values) == (2, 2)
@@ -230,7 +230,7 @@ def test_auction_screen_lists_seized_horses_with_a_horse_select(setup):
     cog_shop = make_shop_cog(bot)
     view = shop_cog.ShopView(cog_shop, V, 0, screen="auction")
     embed = view.embed()
-    assert any("競売の馬" in f.value for f in embed.fields)
+    assert any("競売の馬" in must(f.value) for f in embed.fields)
     assert any(getattr(c, "placeholder", "") == "競走馬を買う" for c in view.children)
 
 
@@ -266,7 +266,7 @@ def test_win_and_place_select_several_horses_at_once(setup):
     panel.multi = [5, 2, 7]
     assert panel.picked() == [2, 5, 7]
     text = panel.embed(eco.races).description
-    assert "3頭" in text and "2枠" in text and "5枠" in text and "7枠" in text
+    assert "3頭" in must(text) and "2枠" in must(text) and "5枠" in must(text) and "7枠" in must(text)
 
 
 def test_race_bet_many_buys_one_ticket_per_horse_with_the_same_stake_each(setup):
@@ -309,7 +309,7 @@ def test_stake_modal_buys_every_selected_horse_and_announces_once(setup):
     panel = views.BetPanel(eco.races, V, {**race, "guild_id": 0}, cog.post_bet_announcement)
     panel.kind, panel.multi = "place", [3, 6]
     modal = views.StakeModal(panel)
-    assert "1頭あたり" in modal.stake.label
+    assert "1頭あたり" in must(modal.stake.label)
     modal.stake._value = "400"
     sent = []
 
@@ -381,7 +381,9 @@ def test_result_embed_lists_every_winner_even_when_the_net_is_a_loss(setup):
     ]
     embed = horse_cog.result_embed(eco.horses, eco.races, {"race": race, "bets": bets, "prizes": {}})
     text = next(f.value for f in embed.fields if f.name == "払い戻し")
-    assert f"<@{U}>" in text and "1,500" in text and "収支" not in text and f"<@{V}>" not in text
+    assert (
+        f"<@{U}>" in must(text) and "1,500" in must(text) and "収支" not in must(text) and f"<@{V}>" not in must(text)
+    )
 
 
 def test_when_drops_the_relative_time_once_it_has_passed(monkeypatch):
@@ -503,7 +505,7 @@ def test_retire_view_charges_or_pays_and_updates_the_stable(setup):
     horse = eco.horses.horse_get(hid)
     value = h.retire_value(10, 3, 5)
     view = views.RetireView(stable, U, horse, value)
-    assert "引退金" in view.embed().description
+    assert "引退金" in must(view.embed().description)
     before = eco.wallet.balance(U)
     it = _It(U)
     asyncio.run(view._on_ok(as_interaction(it)))

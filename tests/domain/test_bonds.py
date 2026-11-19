@@ -11,7 +11,7 @@ from cogs.market.bond_cog import describe_done
 from domain import bonds
 from domain.types import INITIAL_BALANCE
 from infra.db.repositories import open_repositories
-from tests.fakes import as_interaction
+from tests.fakes import as_interaction, must
 from tests.support import make_bond_cog, make_market_cog, make_ranking_repos, make_test_bot
 
 NOW = 1_000_000.0
@@ -219,7 +219,7 @@ def test_ranking_total_and_display_include_the_bond_principal(eco):
         f"**{INITIAL_BALANCE:,}ペリカ**（うち債券 3,000）" in e.description
     )  # 現金は 0 でも、預けた分が総資産に入り、内訳が出る
     eco.bonds.bond_settle(NOW + 3 * DAY, Always(0.99))  # 満期で残高に戻れば、内訳は消える
-    assert "債券" not in ranking.build_embed(make_ranking_repos(eco), None, "ランキング").description
+    assert "債券" not in must(ranking.build_embed(make_ranking_repos(eco), None, "ランキング").description)
     assert eco.bonds.bond_values() == {}
 
 

@@ -11,7 +11,7 @@ from cogs.shop import cog as shop_cog
 from domain import shop, teiai
 from domain.types import DAILY_BASE, INITIAL_BALANCE
 from infra.db.repositories import open_repositories
-from tests.fakes import as_guild, as_interaction, as_member
+from tests.fakes import as_guild, as_interaction, as_member, must
 from tests.support import make_casino_deps, make_ranking_repos, make_shop_cog, make_test_bot
 
 U, A, B = 1, 2, 3
@@ -454,7 +454,7 @@ def test_chinchiro_result_shows_what_was_seized_and_the_seed_money(tmp_path):
     )  # 親がピンゾロ（5倍払い）
     view.player_rolls = [((2, 2, 3), ch.classify((2, 2, 3)))]
     text = view.final_embed().description
-    assert "CSトークンが差し押さえられました" in text  # 結果の画面に、差し押さえたものが出る
+    assert "CSトークンが差し押さえられました" in must(text)  # 結果の画面に、差し押さえたものが出る
     assert (
         eco.crypto.crypto_holding(U)[0] == 0 and eco.debt.debt(U) == 0
     )  # 12,000の倍払いは、CSトークンの差し押さえで足りた
@@ -468,7 +468,7 @@ def test_ranking_marks_people_who_are_not_katagi(eco):
     eco.wallet.balance(A)
     indebt(eco, user_id=A, debt=100, balance=900)
     text = ranking.build_embed(make_ranking_repos(eco), None, "t").description
-    assert f"<@{A}>🟤" in text and f"<@{U}>🟤" not in text
+    assert f"<@{A}>🟤" in must(text) and f"<@{U}>🟤" not in must(text)
 
 
 def _set_balance(eco, user_id, balance):
@@ -497,7 +497,7 @@ def test_ranking_marks_the_wealthy(eco):
     from cogs.shared import ranking
 
     _set_balance(eco, U, teiai.WEALTHY_ASSETS)
-    assert f"<@{U}>🟡" in ranking.build_embed(make_ranking_repos(eco), None, "t").description
+    assert f"<@{U}>🟡" in must(ranking.build_embed(make_ranking_repos(eco), None, "t").description)
 
 
 @pytest.mark.real_scope

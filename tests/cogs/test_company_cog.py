@@ -8,7 +8,7 @@ import pytest
 from cogs.company import cog as company_cog
 from cogs.company import views
 from domain import company as co
-from tests.fakes import as_bot, as_interaction, invoke
+from tests.fakes import as_bot, as_interaction, invoke, must
 from tests.support import make_test_bot
 
 U = 1
@@ -93,7 +93,7 @@ def test_panel_buttons_ship_invest_upgrade_and_change_kind(setup):
     repos.company.company_found(U, "帝愛商事", "mine", now[0])
     now[0] += DAY / 4
     panel = views.CompanyPanel(repos.company, U, 0)
-    assert "帝愛商事" in panel.embed().title
+    assert "帝愛商事" in must(panel.embed().title)
 
     it = _It(U)
     asyncio.run(button(panel, "出荷").callback(as_interaction(it)))

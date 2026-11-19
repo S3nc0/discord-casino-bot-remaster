@@ -8,7 +8,7 @@ import pytest
 from cogs.admin.cog import bulk_preview_lines
 from domain import quizimport
 from infra.db.repositories import open_repositories
-from tests.fakes import invoke
+from tests.fakes import invoke, must
 from tests.support import make_approval_cog, make_test_bot
 
 OWNER, FRIEND = 1, 2
@@ -105,7 +105,7 @@ def test_add_many_registers_all_with_expiry_and_lists_existing(tmp_path):
     ids = eco.quiz.quiz_add_many(quizzes, 1000.0)
     assert ids == [1, 2]
     a, b = eco.quiz.quiz_get(1), eco.quiz.quiz_get(2)
-    assert a["expires"] == 1000.0 + 3 * 86400 and b["expires"] is None and a["reward"] == 150
+    assert must(a)["expires"] == 1000.0 + 3 * 86400 and must(b)["expires"] is None and must(a)["reward"] == 150
     assert eco.quiz.quiz_existing_questions() == {"首都は？", "2問目"}
 
 

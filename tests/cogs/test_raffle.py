@@ -10,7 +10,7 @@ import pytest
 from cogs.raffle.cog import raffle_embed, result_embed
 from domain.types import INITIAL_BALANCE
 from infra.db.repositories import open_repositories
-from tests.fakes import as_guild, as_interaction
+from tests.fakes import as_guild, as_interaction, must
 from tests.support import make_raffle_cog, make_test_bot
 
 NOW = 1_000_000.0
@@ -75,10 +75,10 @@ def test_open_raffle_survives_a_restart(tmp_path):
     first = open_repositories(path)
     open_raffle(first)
     first.raffle.raffle_join(1, NOW)
-    first.raffle.raffle_set_message(first.raffle.raffle_get()["id"], 4242)
+    first.raffle.raffle_set_message(must(first.raffle.raffle_get())["id"], 4242)
     second = open_repositories(path)
     r = second.raffle.raffle_get()
-    assert (r["fee"], r["entries"], r["message_id"]) == (1000, [1], 4242)
+    assert (must(r)["fee"], must(r)["entries"], must(r)["message_id"]) == (1000, [1], 4242)
     assert second.wallet.balance(1) == INITIAL_BALANCE - 1000
 
 
@@ -96,12 +96,11 @@ def test_embeds_show_entrants_and_prize(eco):
     open_raffle(eco)
     eco.raffle.raffle_join(1, NOW)
     eco.raffle.raffle_join(2, NOW)
-    assert (
-        "2人" in raffle_embed(eco.raffle.raffle_get()).description
-        and "2,000" in raffle_embed(eco.raffle.raffle_get()).description
+    assert "2人" in must(raffle_embed(eco.raffle.raffle_get()).description) and "2,000" in must(
+        raffle_embed(eco.raffle.raffle_get()).description
     )
     done = eco.raffle.raffle_close(random.Random(2))
-    assert f"<@{done['winner']}>" in result_embed(done).description
+    assert f"<@{done['winner']}>" in must(result_embed(done).description)
 
 
 class Msg:

@@ -9,7 +9,7 @@ from cogs.quiz.cog import AddModal, UserModal, creator_label, public_embed, ques
 from domain import quizimport
 from domain.duration import format_minutes, parse_duration
 from infra.db.repositories import open_repositories
-from tests.fakes import as_interaction
+from tests.fakes import as_interaction, must
 from tests.support import make_quiz_cog, make_test_bot
 
 NOW = 1_000_000.0
@@ -193,13 +193,12 @@ def test_creator_name_is_saved_and_shown_everywhere(tmp_path):
         "出題者さん",
         f"<@{OTHER}>",
     ]
-    assert (
-        "出題: **持ち主さん**" in public_embed(q[own]).description
-        and "出題者は答えられません" not in public_embed(q[own]).description
+    assert "出題: **持ち主さん**" in must(public_embed(q[own]).description) and "出題者は答えられません" not in must(
+        public_embed(q[own]).description
     )
     e = public_embed(q[uid])
-    assert "出題: **出題者さん**（出題者は答えられません。正解の報酬は出題者が払います）" in e.description
-    assert "出題: **運営**" in public_embed(q[legacy]).description
+    assert "出題: **出題者さん**（出題者は答えられません。正解の報酬は出題者が払います）" in must(e.description)
+    assert "出題: **運営**" in must(public_embed(q[legacy]).description)
     assert (
         "出題: **出題者さん**" in question_embed(q[uid], q[uid]["order"], 1).description
     )  # /クイズ 挑戦 の画面にも出る
@@ -212,8 +211,8 @@ def test_bulk_and_old_schema_keep_the_creator(tmp_path):
     quizzes, _ = quizimport.parse_bulk(BASE + "期間: 2時間\n")
     ids = eco.quiz.quiz_add_many(quizzes, NOW, "持ち主さん")
     assert (
-        eco.quiz.quiz_get(ids[0])["creator_name"] == "持ち主さん"
-        and abs(eco.quiz.quiz_get(ids[0])["expires"] - NOW - 7200) < 1
+        must(eco.quiz.quiz_get(ids[0]))["creator_name"] == "持ち主さん"
+        and abs(must(eco.quiz.quiz_get(ids[0]))["expires"] - NOW - 7200) < 1
     )
     eco.db.conn.commit()
     eco.db.close()
@@ -224,7 +223,7 @@ def test_bulk_and_old_schema_keep_the_creator(tmp_path):
     c.commit()
     c.close()
     assert (
-        open_repositories(str(tmp_path / "t.db")).quiz.quiz_get(ids[0])["creator_name"] == ""
+        must(open_repositories(str(tmp_path / "t.db")).quiz.quiz_get(ids[0]))["creator_name"] == ""
     )  # 古い表には、空の名前の列が足される
 
 

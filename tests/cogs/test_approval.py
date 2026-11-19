@@ -12,7 +12,7 @@ from cogs.shared import approval_guard
 from domain import approval
 from domain.types import INITIAL_BALANCE
 from infra.db.repositories import open_repositories
-from tests.fakes import as_guild, as_interaction, invoke
+from tests.fakes import as_guild, as_interaction, invoke, must
 from tests.support import make_approval_cog, make_test_bot
 
 OWNER, FRIEND = 1, 2
@@ -816,7 +816,7 @@ def test_pachinko_stats_embed_compares_actual_to_design():
     from domain.games import pachinko
 
     empty = pachinko_stats_embed({"omen": {}, "tier": {}, "spins": (0, 0), "sets": (0, 0, 0, 0, 0, 0, 0)}, "全サーバー")
-    assert "まだ記録がありません" in empty.description
+    assert "まだ記録がありません" in must(empty.description)
     data = {
         "omen": {"gold": (200, 110), "": (50, 5)},
         "tier": {"super": (100, 45)},
@@ -824,17 +824,21 @@ def test_pachinko_stats_embed_compares_actual_to_design():
         "sets": (40, 5, 4000, 3600, 4000, 280, 6),
     }
     e = pachinko_stats_embed(data, "テスト鯖・過去7日")
-    assert "テスト鯖・過去7日" in e.title and "40セット（4,000発）" in e.description
-    assert "実績 **7.00回**" in e.description and "設計 7.00回" in e.description  # 1セットあたりのスタート入賞
-    assert "当たったセット: 実績 **12.5%**" in e.description and f"設計 {pachinko.hit_rate():.1%}" in e.description
-    assert "還元率: 実績 **90.0%**" in e.description and "最大連チャン 6連" in e.description
-    assert "1回転の当たり率: 実績 **46.00%**" in e.description
+    assert "テスト鯖・過去7日" in must(e.title) and "40セット（4,000発）" in must(e.description)
+    assert "実績 **7.00回**" in must(e.description) and "設計 7.00回" in must(
+        e.description
+    )  # 1セットあたりのスタート入賞
+    assert "当たったセット: 実績 **12.5%**" in must(e.description) and f"設計 {pachinko.hit_rate():.1%}" in must(
+        e.description
+    )
+    assert "還元率: 実績 **90.0%**" in must(e.description) and "最大連チャン 6連" in must(e.description)
+    assert "1回転の当たり率: 実績 **46.00%**" in must(e.description)
     omen, tier = e.fields[0].value, e.fields[1].value
     assert (
-        "🟡 金: 200回転　実績 **55.0%**" in omen and "なし: 50回転　実績 **10.0%**" in omen and "（参考）" in omen
+        "🟡 金: 200回転　実績 **55.0%**" in must(omen) and "なし: 50回転　実績 **10.0%**" in omen and "（参考）" in omen
     )  # 50回転は参考
-    assert "🔵 青: 0回転　実績 **—**" in omen
-    assert "スーパー: 100回転　実績 **45.0%** ／ 設計" in tier and "45.0%（参考）" not in tier
+    assert "🔵 青: 0回転　実績 **—**" in must(omen)
+    assert "スーパー: 100回転　実績 **45.0%** ／ 設計" in must(tier) and "45.0%（参考）" not in must(tier)
 
 
 def test_pachinko_stats_command_is_owner_only_and_scopes_to_the_chosen_guild(tmp_path):

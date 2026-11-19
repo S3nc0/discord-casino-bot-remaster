@@ -19,7 +19,7 @@ from domain import teiai
 from domain.types import INITIAL_BALANCE
 from infra.db.quiz import QuizRepo
 from infra.db.repositories import open_repositories
-from tests.fakes import as_interaction, invoke
+from tests.fakes import as_interaction, invoke, must
 from tests.support import make_quiz_cog, make_test_bot
 
 NOW = 1_000_000.0
@@ -121,7 +121,7 @@ def test_question_embed_lists_shuffled_choices(eco):
     qid = add(eco)
     q = eco.quiz.quiz_get(qid)
     e = question_embed(q, ["大阪", "東京", "京都", "名古屋"], 3)
-    assert "**B.** 東京" in e.description and "あと3問" in e.footer.text
+    assert "**B.** 東京" in must(e.description) and "あと3問" in must(e.footer.text)
 
 
 class Resp:
@@ -173,10 +173,10 @@ def test_play_with_empty_bank(eco):
 
 def test_admin_helpers_list_and_remove(eco):
     cog = make_cog(eco)
-    assert "まだありません" in cog.listing_embed().description
+    assert "まだありません" in must(cog.listing_embed().description)
     qid = add(eco)
     eco.quiz.quiz_answer(1, qid, "東京", NOW)
-    assert f"#{qid}" in cog.listing_embed().description and "1/1人正解" in cog.listing_embed().description
+    assert f"#{qid}" in must(cog.listing_embed().description) and "1/1人正解" in must(cog.listing_embed().description)
     assert isinstance(cog.add_modal(False), AddModal) and cog.add_modal(False).announce is False
     assert cog.remove(qid) and not cog.remove(qid)
 
@@ -234,9 +234,9 @@ def test_old_questions_without_a_saved_order_get_one_on_upgrade(tmp_path):
         INSERT INTO quiz_questions (question, choices, reward, created) VALUES ('q', '["a","b","c","d"]', 100, 1);""")
     c.commit()
     c.close()
-    first = open_repositories(path).quiz.quiz_get(1)["order"]
+    first = must(open_repositories(path).quiz.quiz_get(1))["order"]
     assert (
-        sorted(first) == ["a", "b", "c", "d"] and open_repositories(path).quiz.quiz_get(1)["order"] == first
+        sorted(first) == ["a", "b", "c", "d"] and must(open_repositories(path).quiz.quiz_get(1))["order"] == first
     )  # 一度決めたら変わらない
 
 
@@ -244,7 +244,7 @@ def test_public_post_has_four_buttons_that_answer_for_the_clicker(eco):
     cog, log = make_cog(eco), []
     qid = add(eco, expires=9e12)
     q = eco.quiz.quiz_get(qid)
-    assert "新しいクイズ" in public_embed(q).title and "⏳ 期限" in public_embed(q).description
+    assert "新しいクイズ" in must(public_embed(q).title) and "⏳ 期限" in must(public_embed(q).description)
     pos = q["order"].index("東京")
     btn = PublicButton(qid, pos)
     assert btn.item.custom_id == f"quiz:{qid}:{pos}"
@@ -488,7 +488,7 @@ def test_old_schema_gets_author_columns(tmp_path):
     c.commit()
     c.close()
     q = open_repositories(path).quiz.quiz_get(1)
-    assert (q["author_id"], q["guild_id"], q["settled"]) == (0, 0, 0)
+    assert (must(q)["author_id"], must(q)["guild_id"], must(q)["settled"]) == (0, 0, 0)
 
 
 DAY = 86400
@@ -770,9 +770,9 @@ def test_custom_wording_replaces_only_the_headline_everywhere(eco):
     q = eco.quiz.quiz_get(qid)
     assert verdict(q, True) == "お見事！" and verdict(q, False) == "不正解…"  # 片方だけ決めたら、もう片方は既定
     e = result_embed({"correct": True, "reward": 100, "reward_blocked": False, "explanation": "解説"}, 0, q)
-    assert e.title == "⭕ お見事！" and "+100" in e.description  # 報酬の表示は残る
+    assert e.title == "⭕ お見事！" and "+100" in must(e.description)  # 報酬の表示は残る
     e = result_embed({"correct": False, "answer": "東京", "explanation": "解説"}, 0, q)
-    assert e.title == "❌ 不正解…" and "東京" in e.description
+    assert e.title == "❌ 不正解…" and "東京" in must(e.description)
 
 
 def test_user_modal_saves_the_wording_and_public_answer_line_uses_it(eco):
@@ -891,4 +891,4 @@ def test_messages_tell_the_player_about_the_games_needed(eco):
     from cogs.quiz.cog import result_embed
 
     e = result_embed({"correct": True, "reward": 0, "reward_blocked": True, "explanation": ""}, 0)
-    assert "報酬はありません" in e.description and "3回以上" in e.description
+    assert "報酬はありません" in must(e.description) and "3回以上" in must(e.description)

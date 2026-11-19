@@ -13,7 +13,7 @@ from cogs.shop import cog as shop_cog
 from domain import shop
 from domain.types import DAILY_BASE, DAILY_STREAK_BONUS, DAILY_STREAK_CAP, INITIAL_BALANCE
 from infra.db.repositories import open_repositories
-from tests.fakes import as_guild, as_interaction, as_member
+from tests.fakes import as_guild, as_interaction, as_member, must
 from tests.support import make_shop_cog, make_test_bot
 
 
@@ -574,7 +574,7 @@ def test_auction_screen_and_buy_flow(cog, eco):
     eco.wallet.credit(2, 50_000, "テスト")
     view = shop_cog.ShopView(cog, 2, eco.shop.guild_id, screen="auction")
     text = view.embed().fields[0].value
-    assert "連続守り券" in text and "×2" in text
+    assert "連続守り券" in must(text) and "×2" in must(text)
     it = FakeInteraction()
     it.user = SimpleNamespace(id=2)
     run(shop_actions.buy_auction(cog, as_interaction(it), CARD, 1))

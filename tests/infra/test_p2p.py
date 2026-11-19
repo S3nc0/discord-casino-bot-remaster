@@ -9,7 +9,7 @@ from cogs.p2p import cog as p2p_cog
 from domain import horse as horse_mod
 from domain import p2p, shop, teiai
 from infra.db.repositories import open_repositories
-from tests.fakes import as_interaction, invoke
+from tests.fakes import as_interaction, invoke, must
 from tests.support import make_p2p_cog, make_shop_cog, make_test_bot
 
 pytestmark = pytest.mark.real_scope
@@ -399,7 +399,9 @@ def test_auction_screen_shows_player_listings_with_sell_and_mine_buttons(shop_co
     labels = [getattr(c, "label", "") for c in view.children]
     assert "📤 出品する" in labels and "📋 自分の取引" in labels and "🛍️ ショップ" in labels
     assert view.auction_tab == "players"  # 出品があるので、最初に、プレイヤーの出品のタブが開く
-    assert any(isinstance(c, p2p_cog.discord.ui.Select) and "見る出品を選ぶ" in c.placeholder for c in view.children)
+    assert any(
+        isinstance(c, p2p_cog.discord.ui.Select) and "見る出品を選ぶ" in must(c.placeholder) for c in view.children
+    )
     text = "\n".join(f.value for f in view.embed().fields)
     assert "にんじん" in text and f"#{lid}" in text  # 競売の画面に、プレイヤーの出品が並ぶ
     assert all(c.row <= 4 for c in view.children)  # 画面の段に収まっている
@@ -431,12 +433,12 @@ def test_own_listing_has_no_buy_button_and_mine_view_cancels(cog, eco):
     asyncio.run(cog.open_detail(own, lid))
     assert not own.sent[-1]["view"].children  # 自分の出品は、買えない
     mine = p2p_cog.MineView(cog, S, G)
-    assert f"#{lid}" in mine.embed().fields[0].value and mine.children
+    assert f"#{lid}" in must(mine.embed().fields[0].value) and mine.children
     gone = It(S, values=[str(lid)])
     asyncio.run(mine._on_cancel(as_interaction(gone)))
     assert "取り消しました" in gone.sent[-1]["embed"].title and eco.shop.inventory(S)[CARROT] == 1
     empty = p2p_cog.MineView(cog, S, G)
-    assert not empty.children and "出していません" in empty.embed().fields[0].value
+    assert not empty.children and "出していません" in must(empty.embed().fields[0].value)
 
 
 def test_sell_screen_without_anything_to_sell_says_so(cog, eco):
@@ -504,7 +506,7 @@ def test_auction_screen_opens_on_the_shelf_when_no_player_listings_and_tabs_swit
     assert any(label.startswith("🤝 プレイヤーの出品（1）") for label in labels)
     tab_it = _PickIt(B, "")
     asyncio.run(again._make_auction_tab("teiai")(as_interaction(tab_it)))
-    assert again.auction_tab == "teiai" and "帝愛の棚" in again.embed().title
+    assert again.auction_tab == "teiai" and "帝愛の棚" in must(again.embed().title)
     assert all(c.row <= 4 for c in again.children)
 
 
@@ -521,15 +523,19 @@ def test_player_tab_filters_sorts_and_shows_two_line_entries(shop_cog_obj, eco):
     view = _auction_view(shop_cog_obj, B)
     text = view.embed().fields[0].value
     assert (
-        f"#{cheap}" in text and f"#{pricey}" in text and f"#{mount}" in text and "出品 <@1>" in text and "締切" in text
+        f"#{cheap}" in must(text)
+        and f"#{pricey}" in must(text)
+        and f"#{mount}" in must(text)
+        and "出品 <@1>" in must(text)
+        and "締切" in must(text)
     )
     assert text.index(f"#{pricey}") < text.index(f"#{cheap}")  # 締切が近い順（競りの6時間が、定価の7日より先）
     horse_only = _PickIt(B, "")
     asyncio.run(view._make_p2p_filter("horse")(as_interaction(horse_only)))
-    assert f"#{mount}" in view.embed().fields[0].value and f"#{cheap}" not in view.embed().fields[0].value
+    assert f"#{mount}" in must(view.embed().fields[0].value) and f"#{cheap}" not in must(view.embed().fields[0].value)
     asyncio.run(view._make_p2p_filter("auction")(as_interaction(_PickIt(B, ""))))
     only_auction = view.embed().fields[0].value
-    assert f"#{pricey}" in only_auction and f"#{cheap}" not in only_auction
+    assert f"#{pricey}" in must(only_auction) and f"#{cheap}" not in must(only_auction)
     asyncio.run(view._make_p2p_filter("all")(as_interaction(_PickIt(B, ""))))
     asyncio.run(view._on_p2p_order(as_interaction(_PickIt(B, "price_desc"))))
     ordered = view.embed().fields[0].value
@@ -542,8 +548,10 @@ def test_player_tab_filters_sorts_and_shows_two_line_entries(shop_cog_obj, eco):
 def test_empty_player_tab_invites_the_first_seller(shop_cog_obj, eco):
     view = _auction_view(shop_cog_obj, B)
     asyncio.run(view._make_auction_tab("players")(as_interaction(_PickIt(B, ""))))
-    assert "最初の出品者" in view.embed().fields[0].value
-    assert not any(isinstance(c, p2p_cog.discord.ui.Select) and "見る出品" in c.placeholder for c in view.children)
+    assert "最初の出品者" in must(view.embed().fields[0].value)
+    assert not any(
+        isinstance(c, p2p_cog.discord.ui.Select) and "見る出品" in must(c.placeholder) for c in view.children
+    )
 
 
 # ----------------------------- 出品の告知（チャンネルへの投稿） ----------------------------- #

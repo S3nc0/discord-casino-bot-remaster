@@ -9,7 +9,7 @@ import pytest
 from cogs.casino import common
 from domain import events
 from infra.db.repositories import open_repositories
-from tests.fakes import as_guild
+from tests.fakes import as_guild, must
 from tests.support import make_casino_deps, make_event_cog, make_test_bot
 
 pytestmark = [pytest.mark.real_scope, pytest.mark.real_events]
@@ -154,18 +154,18 @@ def test_manual_event_lifecycle(tmp_path):
     eco.events.manual_event_start("ルーレット", 80, 50, 200)
     assert eco.events.manual_event_get(49) is None  # 開始前
     assert (
-        eco.events.manual_event_get(50)["boost"] == 80
+        must(eco.events.manual_event_get(50))["boost"] == 80
         and eco.events.manual_event_get(199) is not None
         and eco.events.manual_event_get(200) is None
     )
     assert eco.events.manual_event_finish_due(199) is None  # まだ
     done = eco.events.manual_event_finish_due(200)
-    assert done["game"] == "ルーレット" and eco.events.manual_event_finish_due(300) is None  # 終了の告知は1回だけ
+    assert must(done)["game"] == "ルーレット" and eco.events.manual_event_finish_due(300) is None  # 終了の告知は1回だけ
     eco.events.manual_event_start("パチンコ", 50, 0, 1000)
     eco.events.manual_event_start("スロット", 60, 0, 1000)  # 新しく開くと置き換わる
-    assert eco.events.manual_event_get(10)["game"] == "スロット"
+    assert must(eco.events.manual_event_get(10))["game"] == "スロット"
     stopped = eco.events.manual_event_stop(500)
-    assert stopped["game"] == "スロット" and eco.events.manual_event_get(501) is None
+    assert must(stopped)["game"] == "スロット" and eco.events.manual_event_get(501) is None
     assert (
         eco.events.manual_event_stop(501) is None and eco.events.manual_event_finish_due(5000) is None
     )  # 手動終了のあとに二重告知しない

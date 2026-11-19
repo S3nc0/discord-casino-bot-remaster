@@ -8,7 +8,7 @@ import pytest
 
 from cogs.admin.cog import AnnounceModal, postable
 from infra.db.repositories import open_repositories
-from tests.fakes import as_channel, as_guild, as_interaction, invoke
+from tests.fakes import as_channel, as_guild, as_interaction, invoke, must
 from tests.support import make_approval_cog, make_event_cog, make_quiz_cog, make_raffle_cog, make_test_bot
 
 OWNER, FRIEND = 1, 2
@@ -227,7 +227,7 @@ def test_old_manual_event_table_gets_channel_id(tmp_path):
         starts REAL NOT NULL, ends REAL NOT NULL, ended INTEGER NOT NULL DEFAULT 0); INSERT INTO manual_event VALUES (0, 'ルーレット', 50, 0, 9e12, 0);""")
     c.commit()
     c.close()
-    assert open_repositories(path).events.manual_event_get(100)["channel_id"] == 0
+    assert must(open_repositories(path).events.manual_event_get(100))["channel_id"] == 0
 
 
 @pytest.mark.real_scope

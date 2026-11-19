@@ -14,7 +14,7 @@ from domain import teiai
 from domain.games import blackjack as bj
 from domain.games import chinchiro as ch
 from domain.types import INITIAL_BALANCE
-from tests.fakes import as_interaction, invoke
+from tests.fakes import as_interaction, invoke, must
 from tests.support import make_casino_deps, make_economy_cog, make_test_bot
 
 
@@ -219,7 +219,9 @@ def test_chinchiro_skins_change_only_the_look_not_the_payout(bot):
     assert results[None][0] == results["skin_gold_dice"][0] == results["skin_kuro"][0] == 5000  # 配当は同じ
     plain, gold, kuro = (results[k][1] for k in (None, "skin_gold_dice", "skin_kuro"))
     assert "🟡⚀ 🟡⚀ 🟡⚀" in gold and "🟡" not in plain  # サイコロの飾り
-    assert skins.SKINS["skin_gold_dice"].role_win["pinzoro"] in gold and "黄金のピンゾロ" not in plain  # 役ごとの地の文
+    assert (
+        must(skins.SKINS["skin_gold_dice"].role_win)["pinzoro"] in gold and "黄金のピンゾロ" not in plain
+    )  # 役ごとの地の文
     assert "黒服「ピンゾロ…。5倍" in kuro and "⚫⚀ ⚫⚀ ⚫⚀" in kuro and "黒服「…ピンゾロ」" in kuro  # 実況と、役の文
 
 
@@ -230,7 +232,7 @@ def test_chinchiro_loss_beyond_balance_becomes_debt(bot):
     assert (
         bot.repos.wallet.balance(1) == teiai.SEED and bot.repos.debt.debt(1) == INITIAL_BALANCE * 4 + teiai.SEED
     )  # 手元が空なので、種銭
-    assert "借金" in embed.description and "種銭" in embed.description
+    assert "借金" in must(embed.description) and "種銭" in must(embed.description)
     assert_clean(bot) and ledger_matches_balance(bot)
 
 
@@ -704,10 +706,9 @@ def test_help_is_short_and_has_a_page_per_category():
         text += page.title + page.description
         assert len(page.description) <= 1000 and len(page) <= 6000  # Discord の上限
     assert "7️⃣" in text and "還元率" not in text and "期待値" not in text and "借金" in text and "空売り" in text
-    assert "サーバー許可" not in text and "ランキング掲示" in page_embed("admin").description
-    assert (
-        "ランキング掲示" not in page_embed(HOME).description
-        and "ランキング掲示" not in page_embed("pelica").description
+    assert "サーバー許可" not in text and "ランキング掲示" in must(page_embed("admin").description)
+    assert "ランキング掲示" not in must(page_embed(HOME).description) and "ランキング掲示" not in must(
+        page_embed("pelica").description
     )  # 管理者のコマンドを初心者向けに混ぜない
 
     edits = []
@@ -810,7 +811,7 @@ def test_blackjack_double_win_shows_flair_counts_for_mission_and_has_no_other_ga
 
 def test_blackjack_natural_flair(bot):
     ctx, view = make_bj(bot, 1000, ("A", "K"), ("10", "7"))
-    assert "ナチュラルブラックジャック" in view.final_embed().description
+    assert "ナチュラルブラックジャック" in must(view.final_embed().description)
 
 
 def _all_titles(it):
