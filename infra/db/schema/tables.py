@@ -375,7 +375,16 @@ def create_tables(conn: sqlite3.Connection) -> None:
             unpaid_days INTEGER NOT NULL DEFAULT 0,    -- 維持費を払えなかった日が、続いている日数
             sold_total  INTEGER NOT NULL DEFAULT 0,    -- これまでの出荷で、会社に入った額の合計
             created     REAL NOT NULL,
+            dividend_rate REAL NOT NULL DEFAULT 0,      -- 出荷の買取代金のうち、出資者へ配る割合（#71）
             PRIMARY KEY (guild_id, user_id)
+        );
+        CREATE TABLE IF NOT EXISTS company_stakes (    -- ほかの人の会社への出資（#71）
+            guild_id    INTEGER NOT NULL,
+            owner_id    INTEGER NOT NULL,              -- 会社の社長
+            investor_id INTEGER NOT NULL,
+            amount      INTEGER NOT NULL,              -- 出資額の合計（払い戻しはできない）
+            dividends   INTEGER NOT NULL DEFAULT 0,    -- これまでに受け取った配当の合計
+            PRIMARY KEY (guild_id, owner_id, investor_id)
         );
         CREATE TABLE IF NOT EXISTS teiai_deposits (    -- 帝愛への預金（人ごと）
             guild_id INTEGER NOT NULL,

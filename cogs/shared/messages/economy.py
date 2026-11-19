@@ -37,6 +37,20 @@ ECONOMY_FAILURES: dict[str, FailureFormatter] = {
     "company_no_budget": "帝愛の買取予算（胴元の口座と、今日の買取枠）が尽きていて、いまは買い取ってもらえません。日付が変わると、買取枠が戻ります。",
     "company_max_level": lambda p: f"事業所は、もう最大（Lv{p['max']}）です。",
     "company_same_kind": "いまと同じ種類です。",
+    "company_funds_locked": lambda p: (
+        f"会社資金は、出資者から預かっている {p['locked']:,}ペリカ を超える分しか引き出せません"
+        "（出資者のお金は、増築や維持費には使えます）。"
+    ),
+    "company_withdraw_over": lambda p: (
+        f"引き出せるのは {p['free']:,}ペリカ までです（出資者から預かっている {p['locked']:,}ペリカ は引き出せません）。"
+    ),
+    "stake_self": "自分の会社には、`/会社 状況` の「出資」で会社資金を入れてください（持分は付きません）。",
+    "stake_min": lambda p: f"出資は、1回 {p['min']:,}ペリカ からです。",
+    "stake_no_company": "その人は、会社を持っていません。",
+    "stake_cap": lambda p: (
+        f"この会社が受けられる出資は、あと {p['room']:,}ペリカ までです（上限 {p['cap']:,}ペリカ・事業所の建設費の累計の2倍）。"
+    ),
+    "dividend_rate_range": lambda p: f"配当率は 0〜{p['max']:.0%} で決めてください。",
     "insufficient_balance_need": lambda p: (
         f"ペリカが足りません（{p['need']:,}ペリカ必要・残高 {p['balance']:,}ペリカ）。"
     ),

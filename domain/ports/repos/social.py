@@ -281,5 +281,16 @@ class ICompanyRepo(IGuildScopedRepo):
     def company_change_kind(self, user_id: int, kind: str, now: Optional[float] = None) -> tuple[Any, ...]:
         raise NotImplementedError
 
+    def stake_invest(
+        self, investor_id: int, owner_id: int, amount: int, now: Optional[float] = None
+    ) -> tuple[Any, ...]:
+        raise NotImplementedError
+
+    def stake_holdings(self, investor_id: int, now: Optional[float] = None) -> list[dict[str, Any]]:
+        raise NotImplementedError
+
+    def company_set_dividend(self, user_id: int, rate: float, now: Optional[float] = None) -> tuple[Any, ...]:
+        raise NotImplementedError
+
     def company_settle_all(self, now: Optional[float] = None) -> list[dict[str, Any]]:
         raise NotImplementedError

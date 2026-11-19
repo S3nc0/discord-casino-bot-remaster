@@ -270,3 +270,107 @@ def test_forced_execution_takes_company_funds_before_the_rest_becomes_debt(eco):
         eco.debt.owe_for(G, U, cash + 100_000, "テスト")
     c = eco.company.company_get(U, NOON)
     assert c is not None and c["funds"] == 200_000 and c["level"] == 1  # 会社資金から 10万。事業所は残る
+
+
+# ----------------------------- ほかの人の会社への出資（#71） ----------------------------- #
+W = 3
+
+
+def test_dividend_split_and_stake_values_are_pure_math():
+    assert co.dividend_split(10_000, 0.2, {V: 3000, W: 1000}) == {V: 1500, W: 500}
+    assert co.dividend_split(10_000, 0.9, {V: 1}) == {V: int(10_000 * co.DIVIDEND_MAX)}  # 上限で止まる
+    assert co.dividend_split(10_000, 0.0, {V: 1}) == {} and co.dividend_split(10_000, 0.3, {}) == {}
+    assert co.stake_values(500_000, {}) == (500_000, {})
+    assert co.stake_values(500_000, {V: 100_000}) == (400_000, {V: 100_000})  # 二重に数えない
+    owner, inv = co.stake_values(50_000, {V: 75_000, W: 25_000})  # 会社の価値が出資を下回ると目減り
+    assert owner == 0 and inv == {V: 37_500, W: 12_500}
+
+
+def test_invest_in_another_company_moves_money_into_its_funds(eco):
+    found(eco)
+    rich(eco, V)
+    before = eco.wallet.balance(V)
+    ok, r = eco.company.stake_invest(V, U, 50_000, NOON)
+    assert ok and r == {"amount": 50_000, "total": 50_000, "name": "テスト商事"}
+    assert eco.wallet.balance(V) == before - 50_000
+    c = eco.company.company_get(U, NOON)
+    assert c["funds"] == 50_000 and c["stakes_total"] == 50_000 and c["investors"] == 1 and c["withdrawable"] == 0
+    ok, r = eco.company.stake_invest(V, U, 10_000, NOON)
+    assert ok and r["total"] == 60_000  # 同じ会社への出資は、積み増し
+    [h] = eco.company.stake_holdings(V, NOON)
+    assert h["owner_id"] == U and h["amount"] == 60_000 and h["share"] == 1.0
+
+
+def test_invest_rules_self_min_cap_katagi_and_no_company(eco):
+    found(eco)
+    rich(eco, V)
+    assert eco.company.stake_invest(U, U, 50_000, NOON)[1].code == "stake_self"
+    assert eco.company.stake_invest(V, U, co.STAKE_MIN - 1, NOON)[1].code == "stake_min"
+    assert eco.company.stake_invest(V, W, 50_000, NOON)[1].code == "stake_no_company"
+    cap = co.stake_cap(1)
+    assert cap == co.BUILD_COSTS[0] * 2
+    assert eco.company.stake_invest(V, U, cap + 1, NOON)[1].code == "stake_cap"
+    assert eco.company.stake_invest(V, U, cap, NOON)[0]
+    assert eco.company.stake_invest(V, U, co.STAKE_MIN, NOON)[1].code == "stake_cap"  # もう枠がない
+    rich(eco, W)
+    with eco.db.tx():
+        eco.db.conn.execute("UPDATE users SET debt=5000 WHERE guild_id=? AND user_id=?", (G, W))
+    assert eco.company.stake_invest(W, U, co.STAKE_MIN, NOON)[1].code == "company_katagi_only"
+
+
+def test_owner_cannot_withdraw_investors_money_but_can_upgrade_with_it(eco):
+    found(eco)
+    rich(eco, V)
+    assert eco.company.stake_invest(V, U, 200_000, NOON)[0]
+    assert eco.company.company_withdraw(U, None, NOON)[1].code == "company_funds_locked"
+    assert eco.company.company_invest(U, 30_000, NOON)[0]  # 社長自身のお金は引き出せる
+    assert eco.company.company_withdraw(U, 30_001, NOON)[1].code == "company_withdraw_over"
+    assert eco.company.company_withdraw(U, None, NOON) == (True, 30_000)
+    ok, level = eco.company.company_upgrade(U, NOON)  # 増築には、出資者のお金も使える
+    assert ok and level == 2
+
+
+def test_shipping_pays_dividends_to_investors_by_their_stake(eco):
+    found(eco)
+    rich(eco, V)
+    rich(eco, W)
+    assert eco.company.stake_invest(V, U, 30_000, NOON)[0]
+    assert eco.company.stake_invest(W, U, 10_000, NOON)[0]
+    assert eco.company.company_set_dividend(U, 0.4, NOON) == (True, 0.4)
+    assert eco.company.company_set_dividend(U, co.DIVIDEND_MAX + 0.01, NOON)[1].code == "dividend_rate_range"
+    v0, w0 = eco.wallet.balance(V), eco.wallet.balance(W)
+    later = NOON + DAY / 2
+    funds0 = eco.company.company_get(U, later)["funds"]
+    ok, r = eco.company.company_ship(U, later)
+    assert ok and r["paid"] > 0
+    want = co.dividend_split(r["paid"], 0.4, {V: 30_000, W: 10_000})
+    assert r["dividends"] == sum(want.values()) > 0
+    assert eco.wallet.balance(V) == v0 + want[V] and eco.wallet.balance(W) == w0 + want[W]
+    assert eco.company.company_get(U, later)["funds"] == funds0 + r["paid"] - r["dividends"]
+    assert {h["owner_id"]: h["dividends"] for h in eco.company.stake_holdings(V, later)} == {U: want[V]}
+
+
+def test_net_worth_splits_the_company_between_owner_and_investors(eco):
+    found(eco)
+    rich(eco, V)
+    values: dict[int, int] = {}
+    with eco.db.tx():
+        eco.company.collect_values(G, values)
+    assert values == {U: co.invested(1)}
+    assert eco.company.stake_invest(V, U, 40_000, NOON)[0]
+    values = {}
+    with eco.db.tx():
+        eco.company.collect_values(G, values)
+    assert values == {U: co.invested(1), V: 40_000}  # 会社の価値は 出資4万+建設費、社長は建設費の分だけ
+
+
+def test_bankruptcy_of_the_company_wipes_the_stakes(eco):
+    found(eco)
+    rich(eco, V)
+    assert eco.company.stake_invest(V, U, 20_000, NOON)[0]
+    # 出資者のお金は引き出せないので、維持費で会社資金を使い切って倒産するまで待つ
+    far = NOON + DAY * 400
+    eco.company.company_settle_all(far)
+    assert eco.company.company_get(U, far) is None
+    assert eco.company.stake_holdings(V, far) == []
+    assert eco.db.conn.execute("SELECT COUNT(*) FROM company_stakes").fetchone()[0] == 0

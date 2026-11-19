@@ -26,6 +26,9 @@ PINHANE_RATE = _CFG.pinhane_rate
 STORAGE_DAYS = _CFG.storage_days
 BANKRUPT_DAYS = _CFG.bankrupt_days
 DAILY_GRANT = _CFG.daily_grant  # 胴元の口座が足りないとき、帝愛が新しく出す買取代金の、1日の上限
+STAKE_MIN = _CFG.stake_min  # 1回の出資の最低額
+STAKE_CAP_RATIO = _CFG.stake_cap_ratio  # 1社への出資の合計の上限（建設費の累計に対して）
+DIVIDEND_MAX = _CFG.dividend_max  # 配当率の上限
 KINDS: dict[str, CompanyKindContract] = {k.key: k for k in _CFG.kinds}
 KIND_NAMES = {k.key: k.name for k in _CFG.kinds}
 
@@ -132,3 +135,35 @@ def sale(stock: float, price: float, budget: int) -> tuple[int, int, float]:
     sold_gross = int(gross * fraction)
     paid = min(budget, sold_gross - int(sold_gross * PINHANE_RATE))
     return paid, sold_gross - paid, stock * (1 - fraction)
+
+
+# ---------------------------------------------------------------------- #
+# ほかの人の会社への出資（#71）
+# ---------------------------------------------------------------------- #
+def stake_cap(level: int) -> int:
+    """1社が受けられる出資の合計の上限。"""
+    return int(invested(level) * STAKE_CAP_RATIO)
+
+
+def dividend_split(paid: int, rate: float, stakes: dict[int, int]) -> dict[int, int]:
+    """出荷の買取代金 paid のうち rate を、出資額の比で出資者に配る。端数は切り捨て（会社に残る）。"""
+    total = sum(stakes.values())
+    pool = int(paid * max(0.0, min(DIVIDEND_MAX, rate)))
+    if pool <= 0 or total <= 0:
+        return {}
+    out = {uid: pool * amt // total for uid, amt in stakes.items()}
+    return {uid: v for uid, v in out.items() if v > 0}
+
+
+def stake_values(company_value: int, stakes: dict[int, int]) -> tuple[int, dict[int, int]]:
+    """会社の価値（会社資金 + 建設費の累計）を、社長と出資者に分ける。
+
+    出資者は出資額で数える。ただし会社の価値が出資の合計を下回ったら、出資額の比で目減りさせる。
+    社長は残り（0 未満にはしない）。同じお金を二重に数えないため。
+    """
+    total = sum(stakes.values())
+    if total <= 0:
+        return max(0, company_value), {}
+    scale = min(1.0, max(0, company_value) / total)
+    investors = {uid: int(amt * scale) for uid, amt in stakes.items()}
+    return max(0, company_value - total), investors

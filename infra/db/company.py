@@ -87,6 +87,7 @@ class CompanyRepo(ScopedRepo, ICompanyRepo, IValuationSource):
             if c["unpaid_days"] >= company_mod.BANKRUPT_DAYS:
                 self._bank.house_receive_for(gid, c["funds"])  # 残った会社資金は、帝愛が引き取る
                 self._conn.execute("DELETE FROM companies WHERE guild_id=? AND user_id=?", (gid, c["user_id"]))
+                self._drop_stakes(gid, c["user_id"])  # 倒産すると、出資は戻らない
                 self._notice_sink.note_for(gid, c["user_id"], "company_bankrupt", name=c["name"])
                 return False
         self._save(c)
@@ -99,6 +100,18 @@ class CompanyRepo(ScopedRepo, ICompanyRepo, IValuationSource):
             return None
         return c
 
+    def _stakes(self, guild_id: int, owner_id: int) -> dict[int, int]:
+        """{出資者: 出資額}。"""
+        return {
+            r["investor_id"]: r["amount"]
+            for r in self._conn.execute(
+                "SELECT investor_id, amount FROM company_stakes WHERE guild_id=? AND owner_id=?", (guild_id, owner_id)
+            )
+        }
+
+    def _drop_stakes(self, guild_id: int, owner_id: int) -> None:
+        self._conn.execute("DELETE FROM company_stakes WHERE guild_id=? AND owner_id=?", (guild_id, owner_id))
+
     def _budget_for(self, guild_id: int, day: str) -> int:
         """帝愛の買取予算（胴元の口座の残高と、今日の買取枠の残り）。"""
         grant = self._bank.house_grant_left_for(guild_id, day, company_mod.DAILY_GRANT)
@@ -107,6 +120,7 @@ class CompanyRepo(ScopedRepo, ICompanyRepo, IValuationSource):
     def _view(self, c: dict[str, Any], now: float) -> dict[str, Any]:
         """画面に出す形（会社の行に、その日の状態と、計算で出る数字を足す）。"""
         state = company_mod.day_state(c["kind"], c["guild_id"], company_mod.day_of(now))
+        stakes = self._stakes(c["guild_id"], c["user_id"])
         return {
             **c,
             "invested": company_mod.invested(c["level"]),
@@ -119,6 +133,10 @@ class CompanyRepo(ScopedRepo, ICompanyRepo, IValuationSource):
             "price": state.price,
             "stock_value": int(c["stock"] * state.price),
             "budget": self._budget_for(c["guild_id"], company_mod.day_of(now)),
+            "stakes_total": sum(stakes.values()),
+            "stake_cap": company_mod.stake_cap(c["level"]),
+            "investors": len(stakes),
+            "withdrawable": max(0, c["funds"] - sum(stakes.values())),
         }
 
     # ------------------------------------------------------------------ #
@@ -194,11 +212,18 @@ class CompanyRepo(ScopedRepo, ICompanyRepo, IValuationSource):
             c = self._current(gid, user_id, now)
             if c is None:
                 return False, fail("company_none")
+            # 出資者のお金は、社長が個人の残高へ引き出せない（増築や維持費には使える）
+            locked = sum(self._stakes(gid, user_id).values())
+            free = c["funds"] - locked
             if c["funds"] <= 0:
                 return False, fail("company_no_funds")
-            take = c["funds"] if amount is None else amount
-            if take > c["funds"]:
-                return False, fail("company_funds_short", need=take, funds=c["funds"])
+            if free <= 0:
+                return False, fail("company_funds_locked", locked=locked)
+            take = free if amount is None else amount
+            if take > free:
+                if locked == 0:
+                    return False, fail("company_funds_short", need=take, funds=c["funds"])
+                return False, fail("company_withdraw_over", need=take, free=free, locked=locked)
             c["funds"] -= take
             self._save(c)
             self._account.apply(gid, user_id, take, f"会社から引き出し:{c['name']}")
@@ -222,8 +247,24 @@ class CompanyRepo(ScopedRepo, ICompanyRepo, IValuationSource):
             c["funds"] += paid
             c["stock"] = left
             c["sold_total"] += paid
+            # 配当: 買取代金のうち配当率の分を、出資額の比で出資者の残高へ（会社資金から出す）
+            shares = company_mod.dividend_split(paid, c.get("dividend_rate") or 0.0, self._stakes(gid, user_id))
+            for investor_id, money in shares.items():
+                c["funds"] -= money
+                self._account.ensure(gid, investor_id)
+                self._account.apply(gid, investor_id, money, f"配当:{c['name']}")
+                self._conn.execute(
+                    "UPDATE company_stakes SET dividends=dividends+? WHERE guild_id=? AND owner_id=? AND investor_id=?",
+                    (money, gid, user_id, investor_id),
+                )
             self._save(c)
-            return True, {"paid": paid, "pinhane": pinhane, "price": price, "left": int(left * price)}
+            return True, {
+                "paid": paid,
+                "pinhane": pinhane,
+                "price": price,
+                "left": int(left * price),
+                "dividends": sum(shares.values()),
+            }
 
     def company_upgrade(self, user_id: int, now: Optional[float] = None) -> tuple[Any, ...]:
         """会社資金で、事業所を1レベル増築する。(成功か, Failure か新しいレベル)。"""
@@ -265,6 +306,86 @@ class CompanyRepo(ScopedRepo, ICompanyRepo, IValuationSource):
             self._save(c)
             return True, ""
 
+    # ------------------------------------------------------------------ #
+    # ほかの人の会社への出資（#71）
+    # ------------------------------------------------------------------ #
+    def stake_invest(
+        self, investor_id: int, owner_id: int, amount: int, now: Optional[float] = None
+    ) -> tuple[Any, ...]:
+        """owner_id の会社へ出資する。お金は会社資金に入り、払い戻しはできない。(成功か, Failure か {amount, total})。"""
+        now = time.time() if now is None else now
+        if investor_id == owner_id:
+            return False, fail("stake_self")
+        if amount < company_mod.STAKE_MIN:
+            return False, fail("stake_min", min=company_mod.STAKE_MIN)
+        with self._db.tx():
+            gid = self._g()
+            self._account.ensure(gid, investor_id)
+            c = self._current(gid, owner_id, now)
+            if c is None:
+                return False, fail("stake_no_company")
+            if self._status_reader.status_for(gid, investor_id, now) != teiai.KATAGI:
+                return False, fail("company_katagi_only")
+            stakes = self._stakes(gid, owner_id)
+            room = company_mod.stake_cap(c["level"]) - sum(stakes.values())
+            if amount > room:
+                return False, fail("stake_cap", room=max(0, room), cap=company_mod.stake_cap(c["level"]))
+            bal = self._account.raw_balance(gid, investor_id)
+            if bal < amount:
+                return False, fail("insufficient_balance", balance=bal)
+            self._account.apply(gid, investor_id, -amount, f"出資:{c['name']}")
+            c["funds"] += amount
+            self._save(c)
+            self._conn.execute(
+                "INSERT INTO company_stakes (guild_id, owner_id, investor_id, amount) VALUES (?, ?, ?, ?) "
+                "ON CONFLICT(guild_id, owner_id, investor_id) DO UPDATE SET amount = amount + excluded.amount",
+                (gid, owner_id, investor_id, amount),
+            )
+            return True, {"amount": amount, "total": stakes.get(investor_id, 0) + amount, "name": c["name"]}
+
+    def stake_holdings(self, investor_id: int, now: Optional[float] = None) -> list[dict[str, Any]]:
+        """自分の出資先。[{owner_id, name, kind, amount, dividends, share, dividend_rate}]（share は持分の割合）。"""
+        now = time.time() if now is None else now
+        with self._db.tx():
+            gid = self._g()
+            rows = self._conn.execute(
+                "SELECT owner_id, amount, dividends FROM company_stakes WHERE guild_id=? AND investor_id=?",
+                (gid, investor_id),
+            ).fetchall()
+            out = []
+            for r in rows:
+                c = self._current(gid, r["owner_id"], now)
+                if c is None:
+                    continue  # 倒産していたら、精算で出資ごと消えている
+                total = sum(self._stakes(gid, r["owner_id"]).values())
+                out.append(
+                    {
+                        "owner_id": r["owner_id"],
+                        "name": c["name"],
+                        "kind": c["kind"],
+                        "amount": r["amount"],
+                        "dividends": r["dividends"],
+                        "share": r["amount"] / total if total else 0.0,
+                        "dividend_rate": c.get("dividend_rate") or 0.0,
+                    }
+                )
+            return out
+
+    def company_set_dividend(self, user_id: int, rate: float, now: Optional[float] = None) -> tuple[Any, ...]:
+        """自分の会社の配当率を決める（0〜DIVIDEND_MAX）。(成功か, Failure か率)。"""
+        now = time.time() if now is None else now
+        if not 0.0 <= rate <= company_mod.DIVIDEND_MAX:
+            return False, fail("dividend_rate_range", max=company_mod.DIVIDEND_MAX)
+        with self._db.tx():
+            gid = self._g()
+            c = self._current(gid, user_id, now)
+            if c is None:
+                return False, fail("company_none")
+            self._conn.execute(
+                "UPDATE companies SET dividend_rate=? WHERE guild_id=? AND user_id=?", (rate, gid, user_id)
+            )
+            return True, rate
+
     def company_settle_all(self, now: Optional[float] = None) -> list[dict[str, Any]]:
         """このサーバーの会社を、すべて精算する。倒産した会社 [{user_id, name}] を返す（告知用）。"""
         now = time.time() if now is None else now
@@ -282,9 +403,14 @@ class CompanyRepo(ScopedRepo, ICompanyRepo, IValuationSource):
     # 純資産・差し押さえ（IValuationSource / 強制執行・破産のステップから使う）
     # ------------------------------------------------------------------ #
     def collect_values(self, guild_id: int, totals: dict[int, int]) -> None:
-        """純資産に数える額: 会社資金と、事業所（建設費の累計）。"""
+        """純資産に数える額: 会社資金と、事業所（建設費の累計）。出資を受けていれば、社長と出資者で分ける。"""
         for r in self._conn.execute("SELECT user_id, funds, level FROM companies WHERE guild_id=?", (guild_id,)):
-            totals[r["user_id"]] = totals.get(r["user_id"], 0) + r["funds"] + company_mod.invested(r["level"])
+            owner_value, investors = company_mod.stake_values(
+                r["funds"] + company_mod.invested(r["level"]), self._stakes(guild_id, r["user_id"])
+            )
+            totals[r["user_id"]] = totals.get(r["user_id"], 0) + owner_value
+            for uid, v in investors.items():
+                totals[uid] = totals.get(uid, 0) + v
 
     def company_take_for(self, guild_id: int, user_id: int, need: int) -> int:
         """強制執行: 会社資金から need まで取り上げる。取り上げた額を返す。"""
@@ -302,6 +428,7 @@ class CompanyRepo(ScopedRepo, ICompanyRepo, IValuationSource):
         if c is None:
             return 0
         self._conn.execute("DELETE FROM companies WHERE guild_id=? AND user_id=?", (guild_id, user_id))
+        self._drop_stakes(guild_id, user_id)  # 社長の自己破産で会社がなくなると、出資も戻らない
         return c["funds"]
 
 

@@ -30,4 +30,7 @@ class CompanyCatalogContract:
     storage_days: int
     bankrupt_days: int
     daily_grant: int
+    stake_min: int
+    stake_cap_ratio: float
+    dividend_max: float
     kinds: tuple[CompanyKindContract, ...]

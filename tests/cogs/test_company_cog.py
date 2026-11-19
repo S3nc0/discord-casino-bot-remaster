@@ -145,3 +145,34 @@ def test_run_once_announces_a_bankruptcy(setup):
     assert repos.company.company_get(U, now[0]) is None
     asyncio.run(cog.run_once())
     assert len(chan.sent) == 1  # 同じ倒産を、二度は告知しない
+
+
+def test_stake_dividend_and_holdings_commands(setup):
+    """#71: /会社 出資・配当率・持分。"""
+    repos, chan, guild, cog, now = setup
+    asyncio.run(cog.found.callback(cog, _It(U), "帝愛商事", SimpleNamespace(value="farm")))
+    investor = 2
+    repos.wallet.credit(investor, 500_000, "テスト")
+    owner = SimpleNamespace(id=U, mention=f"<@{U}>")
+    it = _It(investor)
+    asyncio.run(cog.stake.callback(cog, it, owner, 50_000))
+    assert "出資しました" in it.sent[0]["embed"].title and "50,000" in it.sent[0]["embed"].description
+    bad = _It(investor)
+    asyncio.run(cog.stake.callback(cog, bad, owner, 10))
+    assert "出資できません" in bad.sent[0]["embed"].title and bad.sent[0]["ephemeral"]
+    rate = _It(U)
+    asyncio.run(cog.dividend.callback(cog, rate, 30))
+    assert "30%" in rate.sent[0]["embed"].description
+    too_high = _It(U)
+    asyncio.run(cog.dividend.callback(cog, too_high, 90))
+    assert "配当率を変えられません" in too_high.sent[0]["embed"].title
+    mine = _It(investor)
+    asyncio.run(cog.holdings.callback(cog, mine))
+    text = mine.sent[0]["embed"].description
+    assert "帝愛商事" in text and "持分 100%" in text and "配当率 30%" in text
+    nothing = _It(3)
+    asyncio.run(cog.holdings.callback(cog, nothing))
+    assert "まだどの会社にも出資していません" in nothing.sent[0]["embed"].description
+    panel = views.CompanyPanel(repos.company, U, 0)
+    fields = {f.name: f.value for f in panel.embed().fields}
+    assert "🤝 出資" in fields and "出資者 1人" in fields["🤝 出資"]

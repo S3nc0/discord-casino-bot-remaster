@@ -39,6 +39,9 @@ def add_missing_columns(conn: sqlite3.Connection) -> None:
         "SELECT id FROM quiz_questions WHERE shown_order=''"
     ).fetchall():  # 並びが未設定の古い問題に、1回だけ決めて固定する
         conn.execute("UPDATE quiz_questions SET shown_order=? WHERE id=?", (json.dumps(new_quiz_order()), r["id"]))
+    co = {r["name"] for r in conn.execute("PRAGMA table_info(companies)")}
+    if co and "dividend_rate" not in co:
+        conn.execute("ALTER TABLE companies ADD COLUMN dividend_rate REAL NOT NULL DEFAULT 0")
     tb = {r["name"] for r in conn.execute("PRAGMA table_info(teiai_bank)")}
     for col in ("thermo_load", "thermo_capacity", "thermo_ts", "bailout_debt", "thermo_burned", "thermo_bailed"):
         if col not in tb:
