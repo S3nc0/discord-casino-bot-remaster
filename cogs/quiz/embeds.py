@@ -8,6 +8,7 @@ import discord
 from cogs.quiz.texts import DEFAULT_RIGHT as DEFAULT_RIGHT
 from cogs.quiz.texts import DEFAULT_WRONG as DEFAULT_WRONG
 from cogs.shared import ui
+from cogs.shared.amount import typed_amount
 from domain import quizpay
 from domain.ports import get_catalogs
 
@@ -31,10 +32,10 @@ def parse_choices(text: str) -> list:
 
 
 def parse_int(text: str, label: str) -> int:
-    try:
-        return int(text.strip().replace(",", ""))
-    except ValueError:
-        raise ValueError(f"{label}は数字で入力してください。") from None
+    value = typed_amount(text)
+    if value is None:
+        raise ValueError(f"{label}は数字で入力してください。")
+    return value
 
 
 def creator_label(q: dict) -> str:

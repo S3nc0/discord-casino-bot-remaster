@@ -6,6 +6,7 @@ import discord
 
 from cogs.arena.embeds import tournament_embed
 from cogs.shared import ui
+from cogs.shared.amount import reject_bad_amount, typed_amount
 from cogs.shared.messages import format_failure
 from domain import arena as arena_mod
 from services.arena import ArenaService
@@ -28,14 +29,12 @@ class StakeModal(discord.ui.Modal):
         self.add_item(self.stake)
 
     async def on_submit(self, interaction: discord.Interaction) -> None:
-        raw = self.stake.value.replace(",", "").strip()
-        if not raw.isdigit():
-            await interaction.response.send_message(
-                embed=ui.error_embed("金額が正しくありません", "半角の数字で入れてください。"), ephemeral=True
-            )
+        stake = typed_amount(self.stake.value)
+        if stake is None:
+            await reject_bad_amount(interaction)
             return
         ok, reason = self.panel.arena_svc.place_bet(
-            ui.guild_id_of(interaction), interaction.user.id, self.fighter["id"], int(raw)
+            ui.guild_id_of(interaction), interaction.user.id, self.fighter["id"], stake
         )
         if not ok:
             await interaction.response.send_message(
@@ -44,7 +43,7 @@ class StakeModal(discord.ui.Modal):
             return
         await interaction.response.send_message(
             embed=ui.ok_embed(
-                "賭けました", f"**{self.fighter['name']}** に {ui.pelica(int(raw))}（的中すれば賭け金ぶん増えます）"
+                "賭けました", f"**{self.fighter['name']}** に {ui.pelica(stake)}（的中すれば賭け金ぶん増えます）"
             ),
             ephemeral=True,
         )

@@ -1,12 +1,14 @@
 """サーバー承認・持ち主 DM コマンドの Discord 入口ガード（cogs 共通基盤）。"""
 
-from typing import TYPE_CHECKING, cast
+from typing import TYPE_CHECKING, Any, Optional, cast
 
 import discord
 
 from cogs.shared import ui
 from cogs.shared.bridges import IApprovalBridge, NoOpApprovalBridge
+from domain import approval
 from domain.approval import DENIED, DM_GROUP, is_allowed, owner_ids, requires_approval
+from domain.ports.repos import IGuildRepo
 
 if TYPE_CHECKING:
     from cogs.shared.bot import CasinoBot
@@ -48,4 +50,24 @@ async def guard(interaction: discord.Interaction) -> bool:
     else:
         msg = "このサーバーは、まだ Bot の持ち主に承認されていません。承認を依頼しました。承認されるまで、少しお待ちください。"
     await interaction.response.send_message(embed=ui.warn_embed("承認待ちです", msg), ephemeral=True)
+    return False
+
+
+async def allow_component(
+    interaction: discord.Interaction,
+    guild_repo: IGuildRepo,
+    config: dict[str, Any],
+    *,
+    title: str = "利用できません",
+    text: Optional[str] = None,
+) -> bool:
+    """ボタン・Select の操作の入口の検査（スラッシュコマンドの guard とは別に、押された時点の許可を見る）。
+
+    許可されていないサーバー（や DM）なら、本人だけに断りを返して False を返す。
+    """
+    guild_id = interaction.guild_id
+    if guild_id is not None and approval.is_allowed(guild_repo, config, guild_id, interaction.user.id):
+        return True
+    embed = ui.error_embed(title, text) if text is not None else ui.error_embed(title)
+    await interaction.response.send_message(embed=embed, ephemeral=True)
     return False

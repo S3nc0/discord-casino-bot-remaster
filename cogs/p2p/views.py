@@ -7,6 +7,7 @@ import discord
 
 from cogs.p2p.embeds import line_of
 from cogs.shared import ui
+from cogs.shared.amount import optional_amount, typed_amount
 from cogs.shared.bridges import IP2PListingBridge
 from cogs.shared.messages import format_failure
 from domain import p2p
@@ -56,9 +57,8 @@ class BidModal(discord.ui.Modal):
         self.add_item(self.amount)
 
     async def on_submit(self, interaction: discord.Interaction):
-        try:
-            amount = int(self.amount.value.replace(",", "").strip())
-        except ValueError:
+        amount = typed_amount(self.amount.value)
+        if amount is None:
             await interaction.response.send_message(
                 embed=ui.error_embed("入札できません", "数字で入れてください。"), ephemeral=True
             )
@@ -118,8 +118,10 @@ class SellModal(discord.ui.Modal):
 
     async def on_submit(self, interaction: discord.Interaction):
         def num(field, default=None):
-            text = (field.value or "").replace(",", "").strip() if field is not None else ""
-            return int(text) if text else default
+            ok, value = optional_amount(field.value or "") if field is not None else (True, None)
+            if not ok:
+                raise ValueError("数字ではない")
+            return default if value is None else value
 
         try:
             price, qty, hours = num(self.price), num(self.qty, 1), num(self.hours)

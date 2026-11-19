@@ -7,9 +7,9 @@ from typing import Any
 import discord
 
 from cogs.casino.texts import JACKPOT_ART, big_win_line, streak_line
-from cogs.shared import ui
+from cogs.shared import approval_guard, ui
 from cogs.shared.messages import format_notices
-from domain import approval, missions, teiai
+from domain import missions, teiai
 from domain.games.rtplevel import MIN_BET as MIN_BET  # noqa: F401
 from domain.ports.repos import IDebtRepo, IGuildRepo, IPachinkoRepo
 from services.casino import CasinoService
@@ -247,14 +247,13 @@ class ReplayView(ui.OwnerView):
     async def interaction_check(self, interaction: discord.Interaction) -> bool:
         if not await super().interaction_check(interaction):
             return False
-        if not approval.is_allowed(
-            self.deps.guild_repo, self.deps.config, ui.guild_id_of(interaction), interaction.user.id
-        ):
-            await interaction.response.send_message(
-                embed=ui.error_embed("使えません", "このサーバーでは、いまは遊べません。"), ephemeral=True
-            )
-            return False
-        return True
+        return await approval_guard.allow_component(
+            interaction,
+            self.deps.guild_repo,
+            self.deps.config,
+            title="使えません",
+            text="このサーバーでは、いまは遊べません。",
+        )
 
     @discord.ui.button(style=discord.ButtonStyle.primary)
     async def again(self, interaction: discord.Interaction, button: discord.ui.Button):

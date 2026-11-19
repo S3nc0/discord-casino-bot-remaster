@@ -9,6 +9,7 @@ from typing import Optional
 import discord
 
 from cogs.shared import ui
+from cogs.shared.amount import AmountModal, reject_bad_amount, typed_amount
 from cogs.shared.bridges import IShopTitleBridge, NoOpShopTitleBridge
 from cogs.shared.messages import format_failure
 from cogs.teiai.escape import run_escape
@@ -138,37 +139,6 @@ def panel_embed(bank: IBankRepo, debt: IDebtRepo, wallet: IWalletRepo, uid: int)
     )
 
 
-class AmountModal(discord.ui.Modal):
-    """預ける・引き出す額の入力。"""
-
-    def __init__(self, panel: "TeiaiPanel", mode: str):
-        super().__init__(title="帝愛に預ける" if mode == "deposit" else "帝愛から引き出す")
-        self.panel, self.mode = panel, mode
-        self.amount = discord.ui.TextInput(
-            label="金額（ペリカ）" if mode == "deposit" else "金額（空欄なら全額）",
-            required=mode == "deposit",
-            max_length=12,
-        )
-        self.add_item(self.amount)
-
-    async def on_submit(self, interaction: discord.Interaction):
-        raw = self.amount.value.replace(",", "").strip()
-        if raw and not raw.isdigit():
-            await interaction.response.send_message(
-                embed=ui.error_embed("金額が正しくありません", "半角の数字で入れてください。"), ephemeral=True
-            )
-            return
-        bank, uid = self.panel.bank_for(interaction), interaction.user.id
-        if self.mode == "deposit":
-            ok, result = bank.bank_deposit(uid, int(raw))
-            text = f"帝愛に預けました。いまの預金: **{ui.pelica(result)}**" if ok else format_failure(result)
-        else:
-            ok, result = bank.bank_withdraw(uid, int(raw) if raw else None)
-            text = f"**{ui.pelica(result)}** を引き出しました。" if ok else format_failure(result)
-        embed = ui.ok_embed("完了", text) if ok else ui.error_embed("できませんでした", text)
-        await interaction.response.send_message(embed=embed, ephemeral=True)
-
-
 class StakeModal(discord.ui.Modal):
     """CDS の掛け金の入力。"""
 
@@ -179,14 +149,12 @@ class StakeModal(discord.ui.Modal):
         self.add_item(self.stake)
 
     async def on_submit(self, interaction: discord.Interaction):
-        raw = self.stake.value.replace(",", "").strip()
-        if not raw.isdigit():
-            await interaction.response.send_message(
-                embed=ui.error_embed("金額が正しくありません", "半角の数字で入れてください。"), ephemeral=True
-            )
+        stake = typed_amount(self.stake.value)
+        if stake is None:
+            await reject_bad_amount(interaction)
             return
         bank, uid = self.panel.bank_for(interaction), interaction.user.id
-        ok, result = bank.cds_buy(uid, self.target_id, int(raw))
+        ok, result = bank.cds_buy(uid, self.target_id, stake)
         if not ok:
             await interaction.response.send_message(
                 embed=ui.error_embed("買えませんでした", format_failure(result)), ephemeral=True
@@ -194,7 +162,7 @@ class StakeModal(discord.ui.Modal):
             return
         mine = self.target_id == uid
         text = (
-            f"**{result}倍**で買いました（掛け金 {ui.pelica(int(raw))}・配当の見込み {ui.pelica(int(int(raw) * result))}）。\n"
+            f"**{result}倍**で買いました（掛け金 {ui.pelica(stake)}・配当の見込み {ui.pelica(int(stake * result))}）。\n"
             + (
                 "自分の資産を差し押さえても足りない分を、帝愛が肩代わりする保険（1件、使い切り。先に自分の資産は失います）。"
                 if mine
@@ -207,7 +175,7 @@ class StakeModal(discord.ui.Modal):
         await interaction.response.send_message(  # 他人への CDS は公開（「あいつの破産に賭けた」）
             embed=ui.embed(
                 f"💀 {interaction.user.display_name} が、<@{self.target_id}> の破産に賭けた",
-                f"掛け金 **{ui.pelica(int(raw))}**・**{result}倍**（的中すれば約 {ui.pelica(int(int(raw) * result))}）。\n"
+                f"掛け金 **{ui.pelica(stake)}**・**{result}倍**（的中すれば約 {ui.pelica(int(stake * result))}）。\n"
                 f"<@{self.target_id}> が**破産猶予の時間切れで強制破産**したときだけ配当が出ます。",
                 ui.ERROR,
             )
@@ -274,11 +242,31 @@ class TeiaiPanel(ui.OwnerView):
 
     @discord.ui.button(label="預ける", style=discord.ButtonStyle.success)
     async def deposit(self, interaction: discord.Interaction, button: discord.ui.Button):
-        await interaction.response.send_modal(AmountModal(self, "deposit"))
+        await interaction.response.send_modal(
+            AmountModal(title="帝愛に預ける", label="金額（ペリカ）", required=True, on_amount=self._deposit)
+        )
 
     @discord.ui.button(label="引き出す", style=discord.ButtonStyle.primary)
     async def withdraw(self, interaction: discord.Interaction, button: discord.ui.Button):
-        await interaction.response.send_modal(AmountModal(self, "withdraw"))
+        await interaction.response.send_modal(
+            AmountModal(
+                title="帝愛から引き出す", label="金額（空欄なら全額）", required=False, on_amount=self._withdraw
+            )
+        )
+
+    async def _deposit(self, interaction: discord.Interaction, amount: Optional[int]) -> None:
+        ok, result = self.bank_for(interaction).bank_deposit(interaction.user.id, amount or 0)
+        text = f"帝愛に預けました。いまの預金: **{ui.pelica(result)}**" if ok else format_failure(result)
+        await self._reply_bank(interaction, ok, text)
+
+    async def _withdraw(self, interaction: discord.Interaction, amount: Optional[int]) -> None:
+        ok, result = self.bank_for(interaction).bank_withdraw(interaction.user.id, amount)  # None は全額
+        text = f"**{ui.pelica(result)}** を引き出しました。" if ok else format_failure(result)
+        await self._reply_bank(interaction, ok, text)
+
+    async def _reply_bank(self, interaction: discord.Interaction, ok: bool, text: str) -> None:
+        embed = ui.ok_embed("完了", text) if ok else ui.error_embed("できませんでした", text)
+        await interaction.response.send_message(embed=embed, ephemeral=True)
 
     @discord.ui.button(label="CDS を掛ける", style=discord.ButtonStyle.danger)
     async def cds(self, interaction: discord.Interaction, button: discord.ui.Button):

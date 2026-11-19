@@ -6,11 +6,10 @@ from typing import TYPE_CHECKING, Any, cast
 import discord
 
 from cogs.loan.embeds import borrower_note, state_embed, terms_lines, who
-from cogs.shared import ui
+from cogs.shared import approval_guard, ui
 from cogs.shared.bridges import ILoanButtonBridge, NoOpLoanButtonBridge
 from cogs.shared.confirm import confirm_action
 from cogs.shared.messages import format_failure
-from domain import approval
 from domain.ports.repos import IGuildRepo
 from services.loan import LoanService
 
@@ -122,10 +121,9 @@ async def handle_button(
     act: str,
     loan_id: int,
 ) -> None:
-    guild_id = interaction.guild_id
-    if guild_id is None or not approval.is_allowed(guild_repo, config, guild_id, interaction.user.id):
-        await interaction.response.send_message(embed=ui.error_embed("利用できません"), ephemeral=True)
+    if not await approval_guard.allow_component(interaction, guild_repo, config):
         return
+    guild_id = ui.guild_id_of(interaction)
     if act == "lend":
         return await handle_lend(loan_svc, interaction, loan_id)
     loans_repo = loan_svc.loans.for_guild(guild_id)

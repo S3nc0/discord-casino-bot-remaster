@@ -14,12 +14,11 @@ from typing import TYPE_CHECKING, Any, Optional
 import discord
 from discord.ext import commands, tasks
 
-from cogs.shared import logthrottle, ui
+from cogs.shared import approval_guard, logthrottle, ui
 from cogs.shared.announce import announce_channel
 from cogs.shared.bridges import BotBridges, IRaffleAdminBridge
 from cogs.shared.messages import format_failure
 from cogs.shared.tasks import run_for_allowed_guilds
-from domain import approval
 from domain.ports import get_catalogs
 from domain.ports.repos import IGuildRepo, IRaffleRepo
 
@@ -196,10 +195,7 @@ class RaffleCog(commands.Cog, IRaffleAdminBridge):
 
     # ------------------------------ 参加ボタン ------------------------------ #
     async def on_join(self, interaction: discord.Interaction) -> None:
-        if interaction.guild_id is None or not approval.is_allowed(
-            self._guild_repo, self._config, interaction.guild_id, interaction.user.id
-        ):
-            await interaction.response.send_message(embed=ui.error_embed("利用できません"), ephemeral=True)
+        if not await approval_guard.allow_component(interaction, self._guild_repo, self._config):
             return
         eco = self.g(interaction)
         raffle = eco.raffle_get()

@@ -17,10 +17,10 @@ from cogs.quiz.embeds import (
     result_embed,
     verdict,
 )
-from cogs.shared import logthrottle, ui
+from cogs.shared import approval_guard, logthrottle, ui
 from cogs.shared.bridges import IQuizAdminBridge, IQuizButtonBridge, NoOpQuizButtonBridge
 from cogs.shared.messages import format_failure
-from domain import approval, quizpay
+from domain import quizpay
 from domain.duration import format_minutes, parse_duration
 from domain.ports.repos import IGuildRepo, IQuizRepo
 
@@ -41,10 +41,9 @@ async def record_answer(
     if quiz is None:
         await interaction.response.send_message(embed=ui.error_embed("この問題は終了しました"), ephemeral=True)
         return
-    guild_id = interaction.guild_id
-    if guild_id is None or not approval.is_allowed(guild_repo, config, guild_id, interaction.user.id):
-        await interaction.response.send_message(embed=ui.error_embed("利用できません"), ephemeral=True)
+    if not await approval_guard.allow_component(interaction, guild_repo, config):
         return
+    guild_id = ui.guild_id_of(interaction)
     eco = quiz_repo.for_guild(guild_id)
     ok, result = eco.quiz_answer(interaction.user.id, quiz_id, quiz["order"][pos], time.time())
     if not ok:

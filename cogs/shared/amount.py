@@ -7,11 +7,12 @@
 """
 
 import unicodedata
-from typing import Optional
+from typing import Awaitable, Callable, Optional
 
 import discord
 from discord import app_commands
 
+from cogs.shared import ui
 from domain.ports.repos import IWalletRepo
 from domain.types import INITIAL_BALANCE
 
@@ -28,6 +29,48 @@ def typed_amount(current: str) -> Optional[int]:
     """入力途中の文字列を整数にする（全角・カンマ可）。数字でなければ None。"""
     text = unicodedata.normalize("NFKC", current).replace(",", "").strip()
     return int(text) if text.isascii() and text.isdigit() else None
+
+
+def optional_amount(raw: str) -> tuple[bool, Optional[int]]:
+    """空欄にできる金額の欄を読む。空欄なら (True, None)、数字なら (True, 値)、それ以外は (False, None)。"""
+    if not unicodedata.normalize("NFKC", raw).replace(",", "").strip():
+        return True, None
+    amount = typed_amount(raw)
+    return amount is not None, amount
+
+
+async def reject_bad_amount(interaction: discord.Interaction) -> None:
+    """金額の欄に数字以外が入っていたときの返事（Modal 共通）。"""
+    await interaction.response.send_message(
+        embed=ui.error_embed("金額が正しくありません", "半角の数字で入れてください。"), ephemeral=True
+    )
+
+
+class AmountModal(discord.ui.Modal):
+    """金額を1つ入れる Modal。空欄を許すとき（required=False）は、空欄を None として on_amount に渡す。"""
+
+    def __init__(
+        self,
+        *,
+        title: str,
+        label: str,
+        required: bool,
+        on_amount: Callable[[discord.Interaction, Optional[int]], Awaitable[None]],
+        max_length: int = 12,
+    ) -> None:
+        super().__init__(title=title)
+        self._on_amount = on_amount
+        self.amount: discord.ui.TextInput["AmountModal"] = discord.ui.TextInput(
+            label=label, required=required, max_length=max_length
+        )
+        self.add_item(self.amount)
+
+    async def on_submit(self, interaction: discord.Interaction) -> None:
+        ok, amount = optional_amount(self.amount.value)
+        if not ok:
+            await reject_bad_amount(interaction)
+            return
+        await self._on_amount(interaction, amount)
 
 
 def balance_choices(

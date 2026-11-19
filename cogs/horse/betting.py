@@ -8,6 +8,7 @@ import discord
 
 from cogs.horse.cards import race_title, stat_short, when
 from cogs.shared import ui
+from cogs.shared.amount import reject_bad_amount, typed_amount
 from cogs.shared.messages import format_failure
 from domain import horse as horse_mod
 from domain.ports.repos import IRaceRepo
@@ -51,23 +52,21 @@ class StakeModal(discord.ui.Modal):
         )
 
     async def on_submit(self, interaction: discord.Interaction):
-        raw = self.stake.value.replace(",", "").strip()
-        if not raw.isdigit():
-            await interaction.response.send_message(
-                embed=ui.error_embed("金額が正しくありません", "半角の数字で入れてください。"), ephemeral=True
-            )
+        stake = typed_amount(self.stake.value)
+        if stake is None:
+            await reject_bad_amount(interaction)
             return
         races = self.panel.races_for(ui.guild_id_of(interaction))
         lanes = self.panel.picked()
         if self.panel.kind in horse_mod.MULTI_KINDS:
-            await self._submit_many(interaction, races, lanes, int(raw))
+            await self._submit_many(interaction, races, lanes, stake)
             return
         ok, result = races.race_bet(
             interaction.user.id,
             self.panel.race["id"],
             self.panel.kind,
             lanes if self.panel.kind in horse_mod.COMBO_SIZE else lanes[0],
-            int(raw),
+            stake,
             time.time(),
         )
         if not ok:
