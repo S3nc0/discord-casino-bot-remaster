@@ -95,7 +95,7 @@ def test_commands_use_the_balance_choices_on_their_amount_fields():
     wired = {
         "カジノ": ({"チンチロ", "パチンコ", "スロット", "ブラックジャック", "ルーレット"}, "bet", Casino.casino),
         "ペリカ": ({"送金"}, "amount", EconomyCog.group),
-        "証券": ({"注文"}, "amount", MarketCog.group),
+        "証券 注文": ({"現物", "信用", "コール", "プット", "ペア", "裸売り", "債券"}, "amount", MarketCog.order_group),
         "貸付": ({"提案"}, "principal", LoanCog.group),
     }
     for group_name, (names, param, group) in wired.items():

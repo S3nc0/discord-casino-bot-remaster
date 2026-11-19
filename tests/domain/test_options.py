@@ -228,7 +228,7 @@ def test_order_call_shows_condition_returns_and_holdings_and_settle_sells_it(cog
     from tests.domain.test_market import It
 
     it = It()
-    asyncio.run(invoke(MarketCog.order, cog, it, choice("cs"), 2_000, choice("call"), None))
+    asyncio.run(invoke(MarketCog.order_call, cog, it, choice("cs"), 2_000, None))
     embed = it.sent[-1]["embed"]
     assert "爆騰コール" in embed.title and "最大損失はこの掛け金のみ" in embed.description
     assert "勝利条件" in embed.description and "想定リターン" in embed.description
@@ -248,15 +248,11 @@ def test_order_put_and_refusals(cog):
     from tests.domain.test_market import It
 
     it = It()
-    asyncio.run(invoke(MarketCog.order, cog, it, choice("gold"), 1_000, choice("put"), None))
+    asyncio.run(invoke(MarketCog.order_put, cog, it, choice("gold"), 1_000, None))
     assert "暴落プット" in it.sent[-1]["embed"].title
-    for args in (
-        (choice("cs"), 1_000, choice("call"), choice(3)),  # レバレッジなし
-        (choice("bond_normal"), 1_000, choice("call"), None),  # 債券には買えない
-    ):
-        it = It()
-        asyncio.run(invoke(MarketCog.order, cog, it, *args))
-        assert it.sent[-1]["ephemeral"] and "❌" in it.sent[-1]["embed"].title
+    it = It()
+    asyncio.run(invoke(MarketCog.order_put, cog, it, choice("gold"), 10, None))  # 掛け金が少なすぎる
+    assert it.sent[-1]["ephemeral"] and "❌" in it.sent[-1]["embed"].title
 
 
 # ----------------------------- 目標割合（当たりの基準を選ぶ） ----------------------------- #

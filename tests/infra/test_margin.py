@@ -185,14 +185,14 @@ def test_order_long_then_holdings_show_the_ratio_and_settle_closes_it(eco):
     cog = make_cog(eco)
     eco.for_guild(G).wallet.credit(U, 20_000, "テスト")
     it = It()
-    asyncio.run(invoke(MarketCog.order, cog, it, choice("cs"), 2_000, choice("long"), choice(2)))
+    asyncio.run(invoke(MarketCog.order_margin, cog, it, choice("cs"), choice("long"), 2_000, choice(2)))
     assert "信用買い" in it.sent[-1]["embed"].title and "維持率" in it.sent[-1]["embed"].description
     assert eco.for_guild(G).margin.long_position(U, "cs")[0] > 0
     it = It()
     asyncio.run(invoke(MarketCog.holdings, cog, it))
     desc = it.sent[-1]["embed"].description
     assert "信用買い" in desc and "維持率" in desc
-    assert ("long:cs", "🪙 CSトークン 信用買い全決済") in cog.positions(U, G)
+    assert ("long:cs", "🪙 CSトークン 信用買い") in cog.positions(U, G)
     it = It()
     asyncio.run(invoke(MarketCog.settle, cog, it, "long:cs", None))
     assert "売り戻しました" in it.sent[-1]["embed"].title and eco.for_guild(G).margin.long_positions(U) == []
@@ -205,7 +205,7 @@ def test_order_long_is_refused_when_ratio_is_too_low(eco, monkeypatch):
     cog = make_cog(eco)
     eco.for_guild(G).wallet.credit(U, 20_000, "テスト")
     it = It()
-    asyncio.run(invoke(MarketCog.order, cog, it, choice("numa"), 4_000, choice("long"), choice(5)))
+    asyncio.run(invoke(MarketCog.order_margin, cog, it, choice("numa"), choice("long"), 800, choice(5)))
     assert it.sent[-1]["ephemeral"] and "維持率" in it.sent[-1]["embed"].description
     assert eco.for_guild(G).margin.long_positions(U) == []
 
@@ -276,8 +276,8 @@ def test_old_positions_without_the_interest_columns_get_them_on_startup(tmp_path
     assert {"interest_at", "accrued"} <= cols
 
 
-# ----------------------------- 最低担保の案内(#69・#75) ----------------------------- #
-def test_min_collateral_message_shows_the_minimum_total_for_the_leverage(eco):
+# ----------------------------- 最低担保の案内(#69・#75・#78) ----------------------------- #
+def test_min_collateral_message_asks_for_more_collateral(eco):
     from cogs.shared.messages import format_failure
 
     a = eco.for_guild(G)
@@ -285,17 +285,16 @@ def test_min_collateral_message_shows_the_minimum_total_for_the_leverage(eco):
     res = a.margin.long_open(U, 18 * market.UNIT, 1.0, 2)  # 総額18ペリカ・2倍 → 担保9
     assert not res.ok
     text = format_failure(res.reason)
-    assert "最低 19ペリカ（総額）" in text and "金額か枚数を増やして" in text
-    assert a.margin.long_open(U, 19 * market.UNIT, 1.0, 2).ok  # 案内どおりの総額なら建てられる(担保 ceil(9.5)=10)
-    assert "全額でも" not in text  # 残高は足りているので、全額の案内は出さない
+    assert "担保が 10ペリカ 未満" in text and "証拠金を増やしてください" in text and "枚数" not in text
+    assert a.margin.long_open(U, 19 * market.UNIT, 1.0, 2).ok  # 担保 ceil(9.5)=10 なら建てられる
 
 
-def test_min_collateral_message_says_even_the_whole_balance_is_not_enough(eco):
+def test_min_collateral_message_says_the_balance_is_not_enough(eco):
     from cogs.shared.messages import format_failure
 
     a = eco.for_guild(G)
-    a.wallet.set_balance(U, 15, "テスト")  # 残高15ペリカ
+    a.wallet.set_balance(U, 5, "テスト")  # 残高5ペリカ: 最低担保10に届かない
     set_price(eco, "cs", 1.0)
-    res = a.margin.long_open(U, 15 * market.UNIT, 1.0, 2)  # 全額15ペリカ・2倍
+    res = a.margin.long_open(U, 15 * market.UNIT, 1.0, 2)  # 担保 ceil(7.5)=8
     text = format_failure(res.reason)
-    assert not res.ok and "残高 15ペリカ では、全額でも建てられません" in text and "最低 19ペリカ" in text
+    assert not res.ok and "残高 5ペリカ では足りません" in text

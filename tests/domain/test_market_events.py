@@ -231,7 +231,7 @@ def test_summary_without_events_has_no_extra_fields(cog):
 
 def test_view_offers_quick_buy_buttons_only_while_an_event_exists(cog):
     plain = MarketView(cog, U, G)
-    assert len(plain.children) == 2
+    assert [b.label for b in buttons(plain)] == ["💼 保有を見る"]  # セレクト2つと、保有への導線
     now = time.time()
     cog.bot.repos.market_events.event_step(now, force=event(announce=now))
     view = MarketView(cog, U, G)

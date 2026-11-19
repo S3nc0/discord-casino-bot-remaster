@@ -163,21 +163,12 @@ def cog(tmp_path):
     return c
 
 
-def test_sell_half_then_all_and_both_options_are_refused(cog):
-    from discord import app_commands
-
+def test_sell_half_then_all(cog):
     run(orders.buy_spot(cog, as_interaction(It()), "cs", 2_000))
     have = cog.bot.repos.for_guild(G).crypto.crypto_holding(U)[0]
-    half = app_commands.Choice(name="半分", value="half")
-    allc = app_commands.Choice(name="全部", value="all")
-    it = It()
-    run(orders.sell_spot(cog, as_interaction(it), "cs", 1.0, half))
-    assert (
-        "どちらか1つ" in it.sent[-1]["embed"].title and cog.bot.repos.for_guild(G).crypto.crypto_holding(U)[0] == have
-    )
-    run(orders.sell_spot(cog, as_interaction(It()), "cs", None, half))
+    run(orders.sell_spot(cog, as_interaction(It()), "cs", 50))
     assert cog.bot.repos.for_guild(G).crypto.crypto_holding(U)[0] == have - have // 2
-    run(orders.sell_spot(cog, as_interaction(It()), "cs", None, allc))
+    run(orders.sell_spot(cog, as_interaction(It()), "cs", 100))
     assert cog.bot.repos.for_guild(G).crypto.crypto_holding(U) == (0, 0)
 
 

@@ -51,14 +51,13 @@ MARKET_FAILURES: dict[str, FailureFormatter] = {
     "crypto_proceeds_too_small": "その数量では受け取れる額が 1ペリカ未満です。もう少し多く売ってください。",
     "margin_debt_blocks": lambda p: f"借金が {p['debt']:,}ペリカ 残っているので、{p['label']}はできません。",
     "margin_opposite_open": lambda p: f"{p['name']}の{p['other_label']}を建てています。先に決済してください。",
-    # 担保は総額のレバレッジ分の1。下限は担保で決まっているが、注文するのは総額なので、総額で案内する(#69)
+    # 注文の金額は「預ける証拠金」(#78)。repo は建てる口数で判定するので、ここで証拠金の言葉に直して案内する
     "margin_min_collateral": lambda p: (
-        f"レバレッジ{p['leverage']}倍では、最低 {p['min_total']:,}ペリカ（総額）から建てられます"
-        f"（担保は総額の{p['leverage']}分の1で、最低 {p['min_margin']}ペリカ）。"
+        f"担保が {p['min_margin']}ペリカ 未満になります（担保 = 建てる総額 ÷ レバレッジ{p['leverage']}倍）。"
         + (
-            f"残高 {p['balance']:,}ペリカ では、全額でも建てられません。レバレッジを上げるか、残高を増やしてください。"
-            if p["balance"] < p["min_total"]
-            else "金額か枚数を増やしてください。"
+            f"残高 {p['balance']:,}ペリカ では足りません。残高を増やしてください。"
+            if p["balance"] < p["min_margin"]
+            else "証拠金を増やしてください。"
         )
     ),
     "margin_insufficient_collateral": lambda p: (
@@ -66,7 +65,7 @@ MARKET_FAILURES: dict[str, FailureFormatter] = {
     ),
     "margin_ratio_too_low": lambda p: (
         f"口座の維持率が足りなくなります（建てると {p['ratio']:.0%}・{p['open_ratio']:.0%} 以上が必要）。"
-        "枚数を減らすか、レバレッジを下げるか、現物や債券を担保に持ってください。"
+        "証拠金を減らすか、レバレッジを下げるか、現物や債券を担保に持ってください。"
     ),
     "margin_not_open": lambda p: f"{p['label']}を建てていません。",
     "margin_close_range": lambda p: f"決済できるのは 0.001〜{p['max_lots']} です（建てている分）。",

@@ -95,17 +95,17 @@ class MarketService:
         return {s.key: self._market.market_history(since, s.key) for s in market.SYMBOLS}
 
     def positions(self, guild_id: int, uid: int) -> list[tuple[str, str]]:
-        """決済可能な持ち物 [(コード, 表示ラベル), ...]。"""
+        """決済可能な持ち物 [(コード, 表示ラベル), ...]。現物・信用は割合で、オプション・債券は全部だけ決済できる。"""
         crypto_g = self._crypto.for_guild(guild_id)
         margin_g = self._margin.for_guild(guild_id)
         options_g = self._options.for_guild(guild_id)
         bonds_g = self._bonds.for_guild(guild_id)
         out: list[tuple[str, str]] = []
         for symbol, _units, _cost in crypto_g.holdings(uid):
-            out.append((f"spot:{symbol}", f"{market.BY_KEY[symbol].emoji} {market.BY_KEY[symbol].name} 全売却"))
+            out.append((f"spot:{symbol}", f"{market.BY_KEY[symbol].emoji} {market.BY_KEY[symbol].name} 現物"))
         for side, symbol, *_ in margin_g.margin_positions(uid):
             name = market.BY_KEY[symbol]
-            out.append((f"{side}:{symbol}", f"{name.emoji} {name.name} {market.SIDE_NAME[side]}全決済"))
+            out.append((f"{side}:{symbol}", f"{name.emoji} {name.name} {market.SIDE_NAME[side]}"))
         for r in options_g.option_list(uid)["active"]:
             short = r["side"] == "short"
             icon = "🎰" if short else opt.KINDS[r["kind"]][1]

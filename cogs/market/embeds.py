@@ -252,7 +252,7 @@ def chart_embed(
             )
         e.add_field(name=f"📉 空売り中（このサーバー・上位{HOLDER_ROWS}人）", value="\n".join(lines), inline=False)
     if ended:
-        note = "更新は終了しました。最新は /証券 市況 で"
+        note = "更新は終了しました。最新は /証券 市況 で（自分の持ち物は /証券 保有）"
     elif live_until is not None:
         note = f"{TICK_MINUTES}分ごとに自動で更新（あと{max(1, int((live_until - now) // 60))}分）"
     else:
@@ -312,7 +312,7 @@ def holdings_embed(
         and not options["active"]
         and not options["done"]
     ):
-        return ui.embed("💼 証券", "まだ持っていません。`/証券 注文` で買えます。", ui.INFO)
+        return ui.embed("💼 証券", "まだ持っていません。`/証券 注文 現物` などで買えます。", ui.INFO)
     parts, total = [], 0
     for sym in market.SYMBOLS:
         if sym.key not in spots and (("long", sym.key) not in margins) and (("short", sym.key) not in margins):
@@ -372,7 +372,7 @@ def holdings_embed(
     if bond_data["done"]:
         e.add_field(name="債券の最近の決着", value="\n".join(describe_done(r) for r in bond_data["done"]), inline=False)
     e.set_footer(
-        text="下のボタンで、その持ち物を全部決済します（一部だけなら /証券 決済）。ランキングの総資産には債券の元本も含まれます"
+        text="下のメニューで持ち物を選び、ボタンで決済します（現物・信用は割合も選べる。債券・オプションは全部だけ）。ランキングの総資産には債券の元本も含まれます"
     )
     return e
 
