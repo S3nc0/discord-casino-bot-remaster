@@ -5,7 +5,6 @@
 
 import math
 import random
-import time
 from typing import TYPE_CHECKING, Callable, Optional
 
 import discord
@@ -357,7 +356,7 @@ async def option_buy(
     fn = default_confirmed_reply if confirm_fn is None else confirm_fn
 
     def quote(price: float) -> tuple:
-        now = time.time()
+        now = cog._market_svc.clock.now_ts()
         events = cog._market_svc.market_events(now)
         if pair and symbol2 is not None:
             rate = opt.pair_ask_rate(sym.key, symbol2, seconds, now, events)
@@ -430,7 +429,7 @@ async def option_write(
     fn = default_confirmed_reply if confirm_fn is None else confirm_fn
 
     def quote(price: float) -> tuple:
-        now = time.time()
+        now = cog._market_svc.clock.now_ts()
         strike = opt.strike_for(kind, price, strike_pct)
         units = int(amount / opt.margin_per_unit(strike))
         bid = opt.bid_per_unit(kind, sym.key, price, strike, seconds, now, cog._market_svc.market_events(now))
@@ -491,14 +490,14 @@ async def option_sell(
 ) -> None:
     """オプションを、満期の前に手放す。買いはいまの値段（売値）で売り、裸売りは買値で買い戻す。"""
     gid = ui.guild_id_of(interaction)
-    cog._market_svc.option_settle(gid, time.time())
+    cog._market_svc.option_settle(gid, cog._market_svc.clock.now_ts())
     row = next((r for r in cog._market_svc.active_options(gid, interaction.user.id) if r["id"] == option_id), None)
     if row is None:
         await interaction.response.send_message(
             embed=ui.error_embed("売れません", "その番号のオプションは持っていません。"), ephemeral=True
         )
         return
-    short, prices, now = row["side"] == "short", cog._market_svc.latest_prices(), time.time()
+    short, prices, now = row["side"] == "short", cog._market_svc.latest_prices(), cog._market_svc.clock.now_ts()
     fn = default_confirmed_reply if confirm_fn is None else confirm_fn
     if short:
         cost = cog._market_svc.option_close_cost(gid, row, now, prices)
@@ -546,20 +545,22 @@ async def option_sell(
 
 async def bond_buy(cog: "MarketCog", interaction: discord.Interaction, kind_key: str, amount: int) -> None:
     gid = ui.guild_id_of(interaction)
-    cog._market_svc.bond_settle(gid, time.time(), RNG)  # 満期の分を先に入金して、買える額を正しくする
+    cog._market_svc.bond_settle(
+        gid, cog._market_svc.clock.now_ts(), RNG
+    )  # 満期の分を先に入金して、買える額を正しくする
     if amount < bonds.MIN_AMOUNT:
         await interaction.response.send_message(
             embed=ui.error_embed("買えません", f"債券は {bonds.MIN_AMOUNT:,}ペリカ以上から買えます。"),
             ephemeral=True,
         )
         return
-    ok, reason = cog._market_svc.bond_buy(gid, interaction.user.id, kind_key, amount, time.time())
+    ok, reason = cog._market_svc.bond_buy(gid, interaction.user.id, kind_key, amount, cog._market_svc.clock.now_ts())
     if not ok:
         await interaction.response.send_message(
             embed=ui.error_embed("買えません", format_failure(reason)), ephemeral=True
         )
         return
-    await interaction.response.send_message(embed=bond_buy_embed(kind_key, amount, time.time()))
+    await interaction.response.send_message(embed=bond_buy_embed(kind_key, amount, cog._market_svc.clock.now_ts()))
 
 
 async def bond_cancel(cog: "MarketCog", interaction: discord.Interaction, bond_id: int) -> None:

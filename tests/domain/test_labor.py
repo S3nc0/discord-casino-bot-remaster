@@ -7,11 +7,10 @@ from types import SimpleNamespace
 import pytest
 
 from cogs.labor import cog as labor_cog
-from cogs.labor import views as labor_views
 from domain import labor as lab
 from domain import teiai
 from infra.db.repositories import open_repositories
-from tests.fakes import as_interaction, button, buttons, invoke, must
+from tests.fakes import as_interaction, button, buttons, freeze_time, invoke, must
 from tests.support import make_labor_cog, make_test_bot
 
 U = 1
@@ -157,8 +156,11 @@ class Resp:
         self.sent.append((a, kw))
 
 
-def make_view(eco):
+def make_view(eco, monkeypatch=None, now=None):
+    """作業画面。now を渡すと、画面を作る前に時刻をそこへ固定する（画面は作った時点の時刻で状態を読む）。"""
     bot = make_test_bot(repos=eco)
+    if now is not None:
+        freeze_time(monkeypatch, bot.services.clock, now)
     return labor_cog.LaborView(bot.services.labor, U, 0)
 
 
@@ -377,7 +379,7 @@ def test_drink_button_in_the_panel(eco):
     assert drink.disabled and "ショップ" in must(drink.label)  # 持っていない
     eco.wallet.credit(U, 1_000, "テスト")
     buy_drink(eco, 2)
-    now = labor_views.time.time()
+    now = view._svc.clock.now_ts()
     for i in range(30):  # 画面は、いまの時刻で読むので、いまの時刻で押す
         eco.labor.labor_click(U, now - 60 + i * 1.5, view._svc.today_key())
     view.refresh()
@@ -589,7 +591,7 @@ def test_collect_announces_big_ores_publicly(eco, monkeypatch):
     it = SimpleNamespace(
         user=SimpleNamespace(id=U, mention="<@1>"), response=Resp(), data={}, followup=SimpleNamespace(send=send)
     )
-    monkeypatch.setattr(labor_views.time, "time", lambda: T0 + H)
+    freeze_time(monkeypatch, view._svc.clock, T0 + H)
     asyncio.run(view._collect(as_interaction(it)))
     assert sent and "ダイヤ" in sent[0] and "銅" not in sent[0]
     assert "掘り出し" in it.response.edits[-1]["embed"].description
@@ -681,7 +683,7 @@ def test_the_default_skim_is_one_percent_and_the_screens_call_it_a_charity_donat
     it = SimpleNamespace(
         user=SimpleNamespace(id=U, mention="<@1>"), response=Resp(), data={}, followup=SimpleNamespace(send=send)
     )
-    monkeypatch.setattr(labor_views.time, "time", lambda: T0 + H)
+    freeze_time(monkeypatch, view._svc.clock, T0 + H)
     asyncio.run(view._collect(as_interaction(it)))
     desc = it.response.edits[-1]["embed"].description
     assert "慈善団体に寄付されます" in desc and str(lab.ORE_VALUE["diamond"] // 100) in desc  # ダイヤの1%
@@ -905,7 +907,7 @@ def test_relics_show_on_the_screens_and_a_big_relic_is_announced_publicly(eco, m
     it = SimpleNamespace(
         user=SimpleNamespace(id=U, mention="<@1>"), response=Resp(), data={}, followup=SimpleNamespace(send=send)
     )
-    monkeypatch.setattr(labor_views.time, "time", lambda: T0 + H)
+    freeze_time(monkeypatch, view._svc.clock, T0 + H)
     asyncio.run(view._collect(as_interaction(it)))
     assert sent and "竜の涙" in sent[0] and "三葉虫" not in sent[0]  # 大当たりだけ、公開で知らせる
     assert "発掘品が持ち物に入りました" in it.response.edits[-1]["embed"].description
@@ -919,13 +921,12 @@ def test_collect_button_works_when_only_relics_are_waiting(eco, monkeypatch):
     eco.labor.labor_hire(U, "craftsman", T0, DAY)
     eco.labor.labor_click(U, T0 + H, DAY)
     eco.labor.labor_collect(U, T0 + H, DAY)  # クリックの稼ぎと、最初の発掘品を、先に受け取る
-    monkeypatch.setattr(labor_views.time, "time", lambda: T0 + 3 * H)
     eco.labor.labor_click(U, T0 + 3 * H, DAY)  # 触れると、次の分が決済される（発掘品が入る）
     with eco.db.tx():
         eco.db.conn.execute(
             "UPDATE labor SET pot=0, pot_workers=0 WHERE guild_id=? AND user_id=?", (eco.labor.guild_id, U)
         )
-    view = make_view(eco)
+    view = make_view(eco, monkeypatch, T0 + 3 * H)
     assert view.state["pot_total"] == 0 and view.state["relics"]  # お金はなく、発掘品だけがある
     assert must(button(view.children[1]).label).startswith("受け取る") and button(view.children[1]).disabled is False
 
@@ -976,7 +977,7 @@ def test_collect_message_shows_the_donation_total_instead_of_the_rate(eco, monke
         eco.labor.labor_click(U, T0 + k * 2, DAY)
     view = make_view(eco)
     it = SimpleNamespace(user=SimpleNamespace(id=U, mention="<@1>"), response=Resp(), data={}, followup=None)
-    monkeypatch.setattr(labor_views.time, "time", lambda: T0 + 200)
+    freeze_time(monkeypatch, view._svc.clock, T0 + 200)
     asyncio.run(view._collect(as_interaction(it)))
     desc = it.response.edits[-1]["embed"].description
     assert "慈善団体に寄付されます" in desc and "寄付総額" not in desc and "稼ぎの" not in desc

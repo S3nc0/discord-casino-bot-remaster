@@ -66,6 +66,7 @@ class ApprovalCog(commands.Cog, IApprovalBridge):
         self._admin = admin_svc
         self._quiz = quiz_svc
         self._labor_svc = labor_svc
+        self._clock = labor_svc.clock  # 管理操作の時刻（承認依頼の催促・集計の期間）も、共有の IClock から取る
         self._event_bridge = event_bridge
         self._horse_bridge = horse_bridge
         self._raffle_bridge = raffle_bridge

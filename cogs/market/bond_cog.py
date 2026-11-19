@@ -8,7 +8,6 @@
 
 import logging
 import random
-import time
 from typing import TYPE_CHECKING, Any
 
 from discord.ext import commands, tasks
@@ -61,7 +60,7 @@ class BondCog(commands.Cog):
         await self.bot.wait_until_ready()
 
     def run_once(self) -> None:
-        now = time.time()
+        now = self._market_svc.clock.now_ts()
 
         def handle_guild(guild) -> None:
             self._market_svc.settle_maturities(guild.id, now, RNG)  # 満期の債券と、満期のオプションの決済

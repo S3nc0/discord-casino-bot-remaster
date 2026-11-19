@@ -1,6 +1,5 @@
 """証券市場の定期告知・ライブチャート更新・古い掲示板の片付け（Discord 投稿層）。"""
 
-import time
 from typing import TYPE_CHECKING, Any
 
 import discord
@@ -26,7 +25,7 @@ async def earnings_posts(
     announce_fn=announce_channel,
 ) -> None:
     """決算の予告（月曜9:00）と発表の結果を、各サーバーの告知チャンネルに投稿する。"""
-    now = time.time()
+    now = market_svc.clock.now_ts()
     embeds = [earnings_announce_embed(r) for r in market_svc.earnings_to_announce(now)]
     results, earnings_results[:] = list(earnings_results), []
     for r in results:

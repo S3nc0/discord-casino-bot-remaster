@@ -1,7 +1,6 @@
 """サーバー承認・許可・取消の業務フロー（`/運営 サーバー*` と自動承認依頼）。"""
 
 import logging
-import time
 from typing import TYPE_CHECKING
 
 import discord
@@ -49,7 +48,7 @@ async def ensure_requested(
         cog._guild_repo.set_guild_status(guild.id, approval.PENDING, guild.name)
         await request_approval(cog, guild, renotify_after)
     elif row["status"] == approval.PENDING:
-        if row["notified_at"] is None or time.time() - row["notified_at"] > renotify_after:
+        if row["notified_at"] is None or cog._clock.now_ts() - row["notified_at"] > renotify_after:
             await request_approval(cog, guild, renotify_after)
 
 
