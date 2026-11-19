@@ -142,6 +142,39 @@ def test_services_no_infra_cogs_or_any_economy():
     assert not violations, "\n".join(violations)
 
 
+def _wall_clock_calls(path: Path) -> list[str]:
+    """time.time()・time.localtime() の直呼び（IClock を通さない時刻の取得）の行。"""
+    tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+    found = []
+    for node in ast.walk(tree):
+        if isinstance(node, ast.ImportFrom) and node.module == "time":
+            if any(a.name in ("time", "localtime") for a in node.names):
+                found.append(f"{path.relative_to(ROOT)}:{node.lineno} imports time.{node.names[0].name}")
+        elif (
+            isinstance(node, ast.Call)
+            and isinstance(node.func, ast.Attribute)
+            and isinstance(node.func.value, ast.Name)
+            and node.func.value.id == "time"
+            and node.func.attr in ("time", "localtime")
+        ):
+            found.append(f"{path.relative_to(ROOT)}:{node.lineno} calls time.{node.func.attr}() instead of IClock")
+    return found
+
+
+def test_cogs_and_repositories_take_time_from_iclock():
+    """cogs/ と infra/db/ は time.time() を直接呼ばない（#64）。
+
+    Cog は Service の clock から、リポジトリは引数の now か、注入された IClock（ScopedRepo._now()）から時刻を取る。
+    起動時に1回だけ動くマイグレーション（infra/db/schema/）は対象外。
+    """
+    violations: list[str] = []
+    for path in [*_iter_py("cogs"), *_iter_py("infra/db")]:
+        if "schema" in path.relative_to(ROOT).parts:
+            continue
+        violations += _wall_clock_calls(path)
+    assert not violations, "\n".join(violations)
+
+
 def test_cogs_no_infra_imports_and_no_service_locators():
     """cogs/ は infra を一切 import せず、bot.economy や旧 Service Locator を一切使わない。"""
     forbidden_names = {"port_of", "guild_port", "get_cog_port", "require_cog_port", "services_of"}

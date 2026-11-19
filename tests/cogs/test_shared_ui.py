@@ -12,7 +12,7 @@ from cogs.shared import ui
 from cogs.shared.announce import announce_channel
 from cogs.shared.confirm import confirmed_reply, user_session
 from domain.ports.repos import ILeaderboardConfigRepo
-from infra.clock import local_now, local_today
+from infra.clock import ConfigClock
 from services.session import Sessions
 from tests.fakes import as_guild, as_interaction
 
@@ -35,14 +35,14 @@ def make_interaction(uid: int = 1):
 
 # ---- infra.clock ---- #
 def test_clock_uses_config_offset():
-    bot_default = SimpleNamespace(config={})
-    now_jst = local_now(bot_default)
-    assert now_jst.utcoffset() == datetime.timedelta(hours=9)
-    assert local_today(bot_default) == now_jst.date()
+    default = ConfigClock({})
+    now_jst = default.now()
+    assert now_jst.utcoffset() == datetime.timedelta(hours=9) and default.offset_hours() == 9
+    assert default.today() == now_jst.date()
 
-    bot_utc_minus5 = SimpleNamespace(config={"utc_offset_hours": -5})
-    now_est = local_now(bot_utc_minus5)
-    assert now_est.utcoffset() == datetime.timedelta(hours=-5)
+    utc_minus5 = ConfigClock({"utc_offset_hours": -5})
+    assert utc_minus5.now().utcoffset() == datetime.timedelta(hours=-5)
+    assert abs(utc_minus5.now_ts() - default.now_ts()) < 5  # 時差が違っても、同じ瞬間を指す
 
 
 # ---- cogs.shared.ui.OwnerView ---- #

@@ -25,15 +25,3 @@ class ConfigClock(IClock):
 
     def offset_hours(self) -> float:
         return self._offset
-
-
-def utc_offset_hours(bot: Any) -> float:
-    return offset_hours(getattr(bot, "config", {}) or {})
-
-
-def local_now(bot: Any) -> datetime.datetime:
-    return ConfigClock(getattr(bot, "config", {}) or {}).now()
-
-
-def local_today(bot: Any) -> datetime.date:
-    return ConfigClock(getattr(bot, "config", {}) or {}).today()
