@@ -18,6 +18,20 @@ auction_start: 0.90
 auction_step: 0.10
 auction_floor: 0.70
 auction_yield_share: 0.5
+
+# 帝愛の出品（#72）。差し押さえ品とは別に、帝愛が1日に何回か、期間限定でショップの品を出す。
+# 売上は差し押さえ品の競売と同じく帝愛銀行の収入になる。品物そのものは新しく作られる（ペリカは増えない）
+market_slots_per_day: 3            # 1日（UTC）に出す回数。時刻はランダム
+market_auction_prob: 0.5           # 競売（時間とともに値下がり）にする確率。残りは定価販売
+market_auction_rate: [0.5, 1.2]    # 競売の最初の値段（定価に対して）
+market_auction_hours: [2, 6]       # 競売の期間（時間）
+market_auction_end: 0.6            # 競売の終わりの値段（最初の値段に対して）。期間中に一定の速さで下がる
+market_fixed_rate: [0.7, 1.5]      # 定価販売の値段（定価に対して）
+market_fixed_hours: 6              # 定価販売の期間（時間）
+market_fixed_qty: [2, 4]           # 定価販売の数（消耗品のとき。見た目の品は1つ）
+market_black_prob: 0.2             # 闇市品（中身が未鑑定）になる確率
+market_black_worse: 0.07           # 闇市品の中身が、もっと安い品だった確率
+market_black_better: 0.03          # 闇市品の中身が、もっと高い品だった確率（残りは表示どおり）
 seize_rate: 0.50
 
 debt_rate_per_day: 0.01

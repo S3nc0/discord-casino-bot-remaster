@@ -86,6 +86,17 @@ class TeiaiCatalog(TeiaiCatalogContract):
     auction_step: float = Field(ge=0)
     auction_floor: float = Field(gt=0)
     auction_yield_share: float = Field(ge=0, le=1)
+    market_slots_per_day: int = Field(ge=0)
+    market_auction_prob: float = Field(ge=0, le=1)
+    market_auction_rate: tuple[float, float]
+    market_auction_hours: tuple[float, float]
+    market_auction_end: float = Field(gt=0, le=1)
+    market_fixed_rate: tuple[float, float]
+    market_fixed_hours: float = Field(gt=0)
+    market_fixed_qty: tuple[int, int]
+    market_black_prob: float = Field(ge=0, le=1)
+    market_black_worse: float = Field(ge=0, le=1)
+    market_black_better: float = Field(ge=0, le=1)
     seize_rate: float = Field(gt=0, le=1)
     debt_rate_per_day: float = Field(ge=0)
     debt_interest_max_days: int = Field(gt=0)

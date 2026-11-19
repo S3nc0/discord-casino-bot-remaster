@@ -108,6 +108,7 @@ class ShopService:
     ) -> dict[str, Any]:
         """競売画面描画・選択肢構築用のスナップショット（二重クエリ防止）。"""
         listed = self.auction.for_guild(guild_id).auction_list()
+        market = self.auction.for_guild(guild_id).market_list()
         horses = self.horses.for_guild(guild_id).auction_horses()
         p2p_repo = self.p2p.for_guild(guild_id)
         p2p_total = p2p_repo.p2p_count() if p2p_enabled else 0
@@ -121,6 +122,7 @@ class ShopService:
         return {
             "balance": self.peek_balance(guild_id, user_id),
             "listed": listed,
+            "market": market,
             "horses": horses,
             "p2p_total": p2p_total,
             "tab": resolved_tab,

@@ -140,6 +140,7 @@ def auction_embed(
     p2p_rows: list[tuple[dict, str]] | tuple[tuple[dict, str], ...] = (),
     listed: list[dict] | tuple[dict, ...] = (),
     horses: list[dict] | tuple[dict, ...] = (),
+    market: list[dict] | tuple[dict, ...] = (),
 ) -> discord.Embed:
     """帝愛の競売の画面。tab は、プレイヤーの出品（players）か、帝愛の棚（teiai。破産で差し押さえた品。値段は日ごとに下がる）。"""
     footer = f"あなたの残高: {ui.pelica(balance)}"
@@ -174,8 +175,15 @@ def auction_embed(
         "売上は、帝愛銀行の収入（預金者の利回り）になります。",
         ui.GOLD,
     )
+    if market:
+        e.add_field(
+            name="🕴️ 帝愛の出品（期間限定。1日に何回か、帝愛が出します）",
+            value="\n".join(market_line(x) for x in market)[:1024],
+            inline=False,
+        )
     if not listed and not horses:
-        e.add_field(name="棚", value="いまは、売りに出ている品はありません。", inline=False)
+        if not market:
+            e.add_field(name="棚", value="いまは、売りに出ている品はありません。", inline=False)
     else:
         if listed:
             e.add_field(
@@ -199,6 +207,21 @@ def auction_embed(
             )
     e.set_footer(text=footer)
     return e
+
+
+def market_label(x: dict) -> str:
+    """帝愛の出品の名前。闇市品は、中身が未鑑定であることを示す。"""
+    name = shop.label(shop.BY_ID[x["item_id"]])
+    return f"❓闇市品「{name}」（未鑑定）" if x["black"] else name
+
+
+def market_line(x: dict) -> str:
+    mode = "競売・値下がり中" if x["mode"] == "auction" else "定価販売"
+    qty = f" 残り{x['qty']}" if not shop.BY_ID[x["item_id"]].unique else ""
+    return (
+        f"{market_label(x)} — **{ui.pelica(x['price'])}**（定価の{x['rate']:.0%}・{mode}）{qty}"
+        f"　<t:{int(x['expires_at'])}:R>まで"
+    )
 
 
 def inventory_embed(inv: dict[str, int], prof: dict) -> discord.Embed:

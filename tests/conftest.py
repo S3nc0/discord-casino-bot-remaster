@@ -11,7 +11,7 @@ from infra.catalogs import bind_catalogs
 
 bind_catalogs()
 
-from domain import events, missions  # noqa: E402
+from domain import events, missions, teiai  # noqa: E402
 from infra.db.base import ScopedRepo  # noqa: E402
 from infra.db.repositories import RepositoryBundle  # noqa: E402
 
@@ -28,6 +28,9 @@ def pytest_configure(config):
         "markers", "new_players: クイズの報酬の条件（ゲームを3回以上）を、本物の回数で確かめるテスト"
     )
     config.addinivalue_line("markers", "real_scope: サーバーごとの記録の分離を、本物の for_guild で確かめるテスト")
+    config.addinivalue_line(
+        "markers", "real_market: 帝愛の出品(#72)を本物の設定で出すテスト（既定では1日0回にして、棚に並べない）"
+    )
 
 
 @pytest.fixture(autouse=True)
@@ -52,3 +55,11 @@ def no_events(request, monkeypatch):
     if request.node.get_closest_marker("real_events"):
         return
     monkeypatch.setattr(events, "active", lambda guild_id, now: None)
+
+
+@pytest.fixture(autouse=True)
+def no_teiai_market(request, monkeypatch):
+    """帝愛の出品(#72)がランダムに棚へ並んで、ショップの画面のテストが時刻で変わらないよう、既定では出さない。"""
+    if request.node.get_closest_marker("real_market"):
+        return
+    monkeypatch.setattr(teiai, "MARKET_SLOTS_PER_DAY", 0)

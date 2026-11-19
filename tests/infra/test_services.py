@@ -333,6 +333,9 @@ class StubAuction(IAuctionRepo):
     def auction_list(self, now=None) -> list[Any]:
         return []
 
+    def market_list(self, now=None, rng=None) -> list[dict[str, Any]]:
+        return []
+
 
 class StubDebt(IDebtRepo):
     def for_guild(self, guild_id: int) -> Self:
