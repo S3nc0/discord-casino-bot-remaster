@@ -10,6 +10,7 @@ import pytest
 from cogs.raffle.cog import raffle_embed, result_embed
 from domain.types import INITIAL_BALANCE
 from infra.db.repositories import open_repositories
+from tests.fakes import as_guild, as_interaction
 from tests.support import make_raffle_cog, make_test_bot
 
 NOW = 1_000_000.0
@@ -167,7 +168,7 @@ def make_host_cog(eco, monkeypatch, channel=True):
 
 def test_host_posts_in_the_announce_channel_and_saves_the_message(eco, monkeypatch):
     cog, guild, sent, _ = make_host_cog(eco, monkeypatch)
-    ok, text = asyncio.run(cog.host(guild, 99, 1500, 30))
+    ok, text = asyncio.run(cog.host(as_guild(guild), 99, 1500, 30))
     r = eco.raffle.raffle_get()
     assert (
         ok
@@ -175,29 +176,29 @@ def test_host_posts_in_the_announce_channel_and_saves_the_message(eco, monkeypat
         and sent == [("🎟️ 抽選 参加者募集中！", 1)]
     )
     assert abs(r["closes"] - time.time() - 30 * 60) < 5
-    ok, text = asyncio.run(cog.host(guild, 99, 1500, 30))  # 募集中は1つだけ
+    ok, text = asyncio.run(cog.host(as_guild(guild), 99, 1500, 30))  # 募集中は1つだけ
     assert not ok and "すでに" in text and len(sent) == 1
 
 
 def test_host_random_fee_is_in_range_and_needs_a_channel(eco, monkeypatch):
     cog, guild, sent, _ = make_host_cog(eco, monkeypatch)
-    asyncio.run(cog.host(guild, 99))
+    asyncio.run(cog.host(as_guild(guild), 99))
     assert 500 <= eco.raffle.raffle_get()["fee"] <= 3000 and eco.raffle.raffle_get()["fee"] % 100 == 0
     eco2 = eco
     cog2, guild2, sent2, _ = make_host_cog(eco2, monkeypatch, channel=False)
     eco2.raffle.raffle_close(cancel=True)
-    ok, text = asyncio.run(cog2.host(guild2, 99, 1000))
+    ok, text = asyncio.run(cog2.host(as_guild(guild2), 99, 1000))
     assert not ok and "チャンネル" in text and eco2.raffle.raffle_get() is None
 
 
 def test_cancel_refunds_and_reports(eco, monkeypatch):
     cog, guild, sent, ch = make_host_cog(eco, monkeypatch)
-    asyncio.run(cog.host(guild, 99, 1000, 30))
+    asyncio.run(cog.host(as_guild(guild), 99, 1000, 30))
     eco.raffle.raffle_join(1, time.time())
     eco.raffle.raffle_join(2, time.time())
-    ok, text = asyncio.run(cog.cancel(guild))
+    ok, text = asyncio.run(cog.cancel(as_guild(guild)))
     assert ok and "2人に返金" in text and eco.raffle.raffle_get() is None and eco.wallet.balance(1) == INITIAL_BALANCE
-    assert not asyncio.run(cog.cancel(guild))[0]
+    assert not asyncio.run(cog.cancel(as_guild(guild)))[0]
 
 
 def test_join_button_charges_updates_the_post_and_rejects_repeats(eco, monkeypatch):
@@ -227,15 +228,15 @@ def test_join_button_charges_updates_the_post_and_rejects_repeats(eco, monkeypat
             followup=Follow(),
         )
 
-    asyncio.run(cog.on_join(click(1)))
+    asyncio.run(cog.on_join(as_interaction(click(1))))
     assert (
         [k for k, _ in log] == ["edit", "follow"]
         and "1人" in log[0][1]
         and eco.wallet.balance(1) == INITIAL_BALANCE - 1000
     )
     log.clear()
-    asyncio.run(cog.on_join(click(1)))  # 二重参加
-    asyncio.run(cog.on_join(click(2, mid=1)))  # 別の投稿のボタン
+    asyncio.run(cog.on_join(as_interaction(click(1))))  # 二重参加
+    asyncio.run(cog.on_join(as_interaction(click(2, mid=1))))  # 別の投稿のボタン
     assert (
         log == [("send", "❌ 参加できません"), ("send", "❌ 募集は終わりました")]
         and eco.wallet.balance(2) == INITIAL_BALANCE
@@ -254,9 +255,9 @@ def test_repost_moves_the_post_and_deletes_the_old_one(eco, monkeypatch):
             deleted.append(True)
 
     ch.msg = Old()
-    ok, text = asyncio.run(cog.repost(guild))
+    ok, text = asyncio.run(cog.repost(as_guild(guild)))
     r = eco.raffle.raffle_get()
     assert ok and (r["message_id"], r["channel_id"], r["entries"]) == (7777, 888, [1]) and deleted == [True]
     assert sent == [("🎟️ 抽選 参加者募集中！", 1)]
     eco.raffle.raffle_close(cancel=True)
-    assert not asyncio.run(cog.repost(guild))[0]  # 募集中がなければ出し直せない
+    assert not asyncio.run(cog.repost(as_guild(guild)))[0]  # 募集中がなければ出し直せない

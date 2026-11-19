@@ -9,6 +9,7 @@ from cogs.quiz.cog import AddModal, UserModal, creator_label, public_embed, ques
 from domain import quizimport
 from domain.duration import format_minutes, parse_duration
 from infra.db.repositories import open_repositories
+from tests.fakes import as_interaction
 from tests.support import make_quiz_cog, make_test_bot
 
 NOW = 1_000_000.0
@@ -130,15 +131,21 @@ def test_owner_modal_accepts_minutes_hours_days_or_nothing(tmp_path):
     cog, eco = make_cog(tmp_path)
     log = []
     for text, minutes in (("45分", 45), ("6時間", 360), ("2日", 2880), ("", None)):
-        asyncio.run(fill(AddModal(cog._quiz, cog, announce=False), duration=text).on_submit(owner_inter(log)))
+        asyncio.run(
+            fill(AddModal(cog._quiz, cog, announce=False), duration=text).on_submit(as_interaction(owner_inter(log)))
+        )
         q = eco.quiz.quiz_list()[0]
         assert (q["expires"] is None) == (minutes is None)
         if minutes:
             assert abs(q["expires"] - q["created"] - minutes * 60) < 1
         eco.quiz.quiz_delete(q["id"])
     log.clear()
-    asyncio.run(fill(AddModal(cog._quiz, cog, announce=False), duration="あした").on_submit(owner_inter(log)))
-    asyncio.run(fill(AddModal(cog._quiz, cog, announce=False), duration="1000日").on_submit(owner_inter(log)))
+    asyncio.run(
+        fill(AddModal(cog._quiz, cog, announce=False), duration="あした").on_submit(as_interaction(owner_inter(log)))
+    )
+    asyncio.run(
+        fill(AddModal(cog._quiz, cog, announce=False), duration="1000日").on_submit(as_interaction(owner_inter(log)))
+    )
     assert [x[1] for x in log] == ["❌ 入力エラー", "❌ 入力エラー"] and eco.quiz.quiz_list() == [] and time.time()
 
 
@@ -161,14 +168,14 @@ def test_user_modal_duration_range_and_default(tmp_path):
         original_response=original,
     )
     for text in ("8日", "0分", "ふつう"):
-        asyncio.run(fill(UserModal(cog._quiz), duration=text).on_submit(inter))
+        asyncio.run(fill(UserModal(cog._quiz), duration=text).on_submit(as_interaction(inter)))
     assert [x[1] for x in log] == ["❌ 入力エラー"] * 3 and eco.quiz.quiz_list() == []
-    asyncio.run(fill(UserModal(cog._quiz), duration="90分").on_submit(inter))
+    asyncio.run(fill(UserModal(cog._quiz), duration="90分").on_submit(as_interaction(inter)))
     q = eco.quiz.quiz_list()[0]
     assert abs(q["expires"] - q["created"] - 90 * 60) < 1
     eco.quiz.quiz_delete(q["id"])
     inter.user = SimpleNamespace(id=OTHER, display_name="別の人")
-    asyncio.run(fill(UserModal(cog._quiz), duration="").on_submit(inter))
+    asyncio.run(fill(UserModal(cog._quiz), duration="").on_submit(as_interaction(inter)))
     assert abs(eco.quiz.quiz_list()[0]["expires"] - eco.quiz.quiz_list()[0]["created"] - 3 * 1440 * 60) < 1  # 既定は3日
 
 
@@ -239,7 +246,7 @@ def test_withdraw_autocomplete_lists_only_my_open_questions_in_this_guild(tmp_pa
 
     def candidates(uid, guild, current=""):
         inter = SimpleNamespace(user=SimpleNamespace(id=uid), guild_id=guild)
-        return asyncio.run(cog.withdraw_autocomplete(inter, current))
+        return asyncio.run(cog.withdraw_autocomplete(as_interaction(inter), current))
 
     got = candidates(ME, 10)
     assert [c.value for c in got] == [mine1, mine2]  # 自分の問題だけ（他人・別サーバー・持ち主の問題は出ない）

@@ -13,6 +13,7 @@ from domain.games import chinchiro as ch
 from domain.games import pachinko, roulette, rtplevel, slot
 from domain.types import INITIAL_BALANCE
 from infra.db.repositories import open_repositories
+from tests.fakes import as_interaction, invoke
 from tests.support import make_approval_cog, make_casino_deps, make_test_bot
 
 OWNER, FRIEND = 1, 2
@@ -185,7 +186,7 @@ def test_roulette_passes_its_bet_kind_and_the_result_text_shows_the_adjusted_pay
         sent.append(kw)
 
     it.response = SimpleNamespace(send_message=send_message)
-    asyncio.run(simple.play_roulette(it, make_casino_deps(bot), 1000, "red"))
+    asyncio.run(simple.play_roulette(as_interaction(it), make_casino_deps(bot), 1000, "red"))
     expected = rtplevel.adjust("ルーレット", 6, 1000, 2000, "red")
     assert expected > 2000
     desc = edits[-1]["embed"].description
@@ -216,23 +217,23 @@ def test_commands_are_owner_only_and_change_the_chosen_game(tmp_path, monkeypatc
     cog, eco = make_admin(tmp_path, monkeypatch)
     log = []
     pick = lambda g, n: SimpleNamespace(value=g, name=n)  # noqa: E731
-    asyncio.run(cog.rtp_set.callback(cog, inter(FRIEND, log), "5", pick("スロット", "スロット"), pick(6, "6")))
-    asyncio.run(cog.rtp_list.callback(cog, inter(FRIEND, log), None))
+    asyncio.run(invoke(cog.rtp_set, cog, inter(FRIEND, log), "5", pick("スロット", "スロット"), pick(6, "6")))
+    asyncio.run(invoke(cog.rtp_list, cog, inter(FRIEND, log), None))
     assert [e[0].title for e in log] == ["❌ 権限がありません"] * 2 and eco.rtp.for_guild(5).rtp_level_get(
         "スロット"
     ) == 3
     log.clear()
-    asyncio.run(cog.rtp_set.callback(cog, inter(OWNER, log), "5", pick("スロット", "スロット"), pick(6, "6")))
+    asyncio.run(invoke(cog.rtp_set, cog, inter(OWNER, log), "5", pick("スロット", "スロット"), pick(6, "6")))
     assert eco.rtp.for_guild(5).rtp_level_get("スロット") == 6 and log[-1][0].title == "✅ 還元率のレベルを変えました"
     assert (
         "**スロット**　レベル **6**（大盤振る舞い）" in log[-1][1].description
         and "標準から変更中" in log[-1][1].description
     )
-    asyncio.run(cog.rtp_set.callback(cog, inter(OWNER, log), "5", pick("*", "すべて"), pick(2, "2")))
+    asyncio.run(invoke(cog.rtp_set, cog, inter(OWNER, log), "5", pick("*", "すべて"), pick(2, "2")))
     assert set(eco.rtp.for_guild(5).rtp_levels().values()) == {2}
-    asyncio.run(cog.rtp_list.callback(cog, inter(OWNER, log), "5"))
+    asyncio.run(invoke(cog.rtp_list, cog, inter(OWNER, log), "5"))
     assert log[-1][0].title == "🎚️ 友達鯖 の還元率" and log[-1][0].description.count("レベル **2**") == 5
-    asyncio.run(cog.rtp_set.callback(cog, inter(OWNER, log), "999", pick("*", "すべて"), pick(2, "2")))
+    asyncio.run(invoke(cog.rtp_set, cog, inter(OWNER, log), "999", pick("*", "すべて"), pick(2, "2")))
     assert log[-1][0].title == "❌ サーバーが見つかりません"
 
 
@@ -284,7 +285,7 @@ def test_pachinko_sets_apply_the_level_to_each_set_not_to_the_sum(tmp_path, monk
 
     it.response = SimpleNamespace(send_message=send_message)
     before = bot.repos.wallet.balance(1)
-    asyncio.run(play_pa.play_pachinko(it, make_casino_deps(bot), 1000, 3))
+    asyncio.run(play_pa.play_pachinko(as_interaction(it), make_casino_deps(bot), 1000, 3))
     expected = rtplevel.adjust("パチンコ", 6, 1000, 10_000)  # 勝った1セットだけ増える
     assert expected > 10_000
     assert bot.repos.wallet.balance(1) == before - 3000 + expected

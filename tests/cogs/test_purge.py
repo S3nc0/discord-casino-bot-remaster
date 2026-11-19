@@ -8,6 +8,7 @@ import pytest
 
 from cogs.admin.purge import PROGRESS_EVERY, can_read_history, delete_own_messages
 from cogs.admin.views import PurgeConfirm
+from tests.fakes import as_guild, as_interaction, invoke
 from tests.support import make_approval_cog, make_test_bot
 
 ME, OWNER, FRIEND, OTHER = 99, 1, 2, 7
@@ -95,8 +96,8 @@ def test_missing_history_permission_surfaces_as_forbidden():
 
 def test_can_read_history_needs_view_and_history_permissions():
     guild = SimpleNamespace(me=object())
-    assert can_read_history(Channel([], readable=True), guild) and not can_read_history(
-        Channel([], readable=False), guild
+    assert can_read_history(Channel([], readable=True), as_guild(guild)) and not can_read_history(
+        Channel([], readable=False), as_guild(guild)
     )
 
 
@@ -140,10 +141,10 @@ def test_the_command_is_owner_only_and_asks_for_confirmation_before_deleting(tmp
     channel = Channel([Message(1, ME)])
     cog = make_cog(tmp_path, channel)
     stranger = Interaction(FRIEND)
-    run(cog.purge_own_messages.callback(cog, stranger, "5", "10"))
+    run(invoke(cog.purge_own_messages, cog, stranger, "5", "10"))
     assert "権限" in stranger.log[0][1] or "使えません" in stranger.log[0][1]  # 持ち主以外は、断られる
     owner = Interaction(OWNER)
-    run(cog.purge_own_messages.callback(cog, owner, "5", "10"))
+    run(invoke(cog.purge_own_messages, cog, owner, "5", "10"))
     assert owner.log[0][1] == "🧹 発言の削除（確認）" and isinstance(owner.log[0][2], PurgeConfirm)
     assert channel.messages[0].deleted is False  # 確認のボタンを押すまで、何も消さない
 
@@ -152,7 +153,7 @@ def test_the_command_refuses_a_channel_where_the_history_cannot_be_read(tmp_path
     channel = Channel([Message(1, ME)], readable=False)
     cog = make_cog(tmp_path, channel)
     owner = Interaction(OWNER)
-    run(cog.purge_own_messages.callback(cog, owner, "5", "10"))
+    run(invoke(cog.purge_own_messages, cog, owner, "5", "10"))
     assert owner.log[0][1] == "❌ 履歴を読めません" and channel.messages[0].deleted is False
 
 
@@ -166,9 +167,11 @@ def test_confirm_deletes_only_after_the_owner_presses_the_button(tmp_path):
     channel = Channel(msgs)
     cog = make_cog(tmp_path, channel)
     view = PurgeConfirm(cog, OWNER, channel)
-    assert run(view.interaction_check(Interaction(FRIEND))) is False and run(view.interaction_check(Interaction(OWNER)))
+    assert run(view.interaction_check(as_interaction(Interaction(FRIEND)))) is False and run(
+        view.interaction_check(as_interaction(Interaction(OWNER)))
+    )
     it = Interaction(OWNER)
-    run(click(view, "すべて消す")(it))
+    run(click(view, "すべて消す")(as_interaction(it)))
     assert [m.deleted for m in msgs] == [True, False, True]
     assert it.edits[0] == ("edit", "🧹 消しています…") and it.edits[-1] == ("original", "✅ 🧹 発言を消しました")
     assert cog.purging == set()  # 終わったら、実行中の印を外す
@@ -178,7 +181,7 @@ def test_cancel_deletes_nothing(tmp_path):
     channel = Channel([Message(1, ME)])
     cog = make_cog(tmp_path, channel)
     it = Interaction(OWNER)
-    run(click(PurgeConfirm(cog, OWNER, channel), "やめる")(it))
+    run(click(PurgeConfirm(cog, OWNER, channel), "やめる")(as_interaction(it)))
     assert channel.messages[0].deleted is False and it.edits == [("edit", "🧹 発言の削除")]
 
 
@@ -187,7 +190,7 @@ def test_the_same_channel_cannot_be_purged_twice_at_once(tmp_path):
     cog = make_cog(tmp_path, channel)
     cog.purging.add(channel.id)
     it = Interaction(OWNER)
-    run(click(PurgeConfirm(cog, OWNER, channel), "すべて消す")(it))
+    run(click(PurgeConfirm(cog, OWNER, channel), "すべて消す")(as_interaction(it)))
     assert it.edits == [("edit", "❌ 実行中です")] and channel.messages[0].deleted is False
 
 
@@ -195,7 +198,7 @@ def test_forbidden_history_is_explained_and_the_busy_mark_is_cleared(tmp_path):
     channel = Channel([], history_error=discord.Forbidden(SimpleNamespace(status=403, reason="Forbidden"), "no"))
     cog = make_cog(tmp_path, channel)
     it = Interaction(OWNER)
-    run(click(PurgeConfirm(cog, OWNER, channel), "すべて消す")(it))
+    run(click(PurgeConfirm(cog, OWNER, channel), "すべて消す")(as_interaction(it)))
     assert it.edits[-1] == ("original", "❌ 履歴を読めません") and cog.purging == set()
 
 
@@ -208,5 +211,5 @@ def test_when_the_screen_cannot_be_updated_the_result_goes_to_the_owners_dm(tmp_
         raise http_error()
 
     it.edit_original_response = expired  # 15分を過ぎて、応答を書き換えられない
-    run(click(PurgeConfirm(cog, OWNER, channel), "すべて消す")(it))
+    run(click(PurgeConfirm(cog, OWNER, channel), "すべて消す")(as_interaction(it)))
     assert it.dms == ["✅ 🧹 発言を消しました"] and channel.messages[0].deleted

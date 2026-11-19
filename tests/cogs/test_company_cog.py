@@ -8,6 +8,7 @@ import pytest
 from cogs.company import cog as company_cog
 from cogs.company import views
 from domain import company as co
+from tests.fakes import as_bot, as_interaction, invoke
 from tests.support import make_test_bot
 
 U = 1
@@ -60,7 +61,7 @@ def setup(tmp_path, monkeypatch):
     now = [NOON]
     monkeypatch.setattr(company_cog.time, "time", lambda: now[0])
     monkeypatch.setattr(views.time, "time", lambda: now[0])
-    cog = company_cog.CompanyCog(bot, bot.config, bot.repos.company, bot.repos.guild)
+    cog = company_cog.CompanyCog(as_bot(bot), bot.config, bot.repos.company, bot.repos.guild)
     bot.repos.wallet.credit(U, 5_000_000, "テスト")
     return bot.repos, chan, guild, cog, now
 
@@ -72,18 +73,18 @@ def button(panel, label):
 def test_found_command_creates_the_company_and_announces_it(setup):
     repos, chan, guild, cog, now = setup
     it = _It(U)
-    asyncio.run(cog.found.callback(cog, it, "帝愛商事", SimpleNamespace(value="farm")))
+    asyncio.run(invoke(cog.found, cog, it, "帝愛商事", SimpleNamespace(value="farm")))
     assert "設立しました" in it.sent[0]["embed"].title and "帝愛商事" in it.sent[0]["embed"].description
     assert repos.company.company_get(U, now[0])["kind"] == "farm"
     again = _It(U)
-    asyncio.run(cog.found.callback(cog, again, "二社目", SimpleNamespace(value="mine")))
+    asyncio.run(invoke(cog.found, cog, again, "二社目", SimpleNamespace(value="mine")))
     assert "設立できません" in again.sent[0]["embed"].title and again.sent[0]["ephemeral"]
 
 
 def test_status_shows_a_guide_without_buttons_when_there_is_no_company(setup):
     repos, chan, guild, cog, now = setup
     it = _It(U)
-    asyncio.run(cog.status.callback(cog, it))
+    asyncio.run(invoke(cog.status, cog, it))
     assert "設立" in it.sent[0]["embed"].description and it.sent[0]["view"].children == []
 
 
@@ -95,12 +96,12 @@ def test_panel_buttons_ship_invest_upgrade_and_change_kind(setup):
     assert "帝愛商事" in panel.embed().title
 
     it = _It(U)
-    asyncio.run(button(panel, "出荷").callback(it))
+    asyncio.run(button(panel, "出荷").callback(as_interaction(it)))
     assert "出荷しました" in it.edited[0]["embed"].description
     assert repos.company.company_get(U, now[0])["funds"] > 0
 
     it = _It(U)
-    asyncio.run(button(panel, "出資").callback(it))
+    asyncio.run(button(panel, "出資").callback(as_interaction(it)))
     modal = it.modals[0]
     modal.amount._value = "1,000,000"
     it2 = _It(U)
@@ -112,11 +113,11 @@ def test_panel_buttons_ship_invest_upgrade_and_change_kind(setup):
     assert "金額が正しくありません" in it3.sent[0]["embed"].title
 
     it = _It(U)
-    asyncio.run(button(panel, "増築").callback(it))
+    asyncio.run(button(panel, "増築").callback(as_interaction(it)))
     assert "Lv2" in it.edited[0]["embed"].description and repos.company.company_get(U, now[0])["level"] == 2
 
     it = _It(U)
-    asyncio.run(button(panel, "種類を変える").callback(it))
+    asyncio.run(button(panel, "種類を変える").callback(as_interaction(it)))
     kind_view = it.sent[0]["view"]
     it2 = _It(U, values=["farm"])
     asyncio.run(kind_view.children[0].callback(it2))
@@ -129,10 +130,10 @@ def test_panel_rejects_other_users_and_reports_failures(setup):
     repos.company.company_found(U, "帝愛商事", "mine", now[0])
     panel = views.CompanyPanel(repos.company, U, 0)
     stranger = _It(2)
-    assert asyncio.run(panel.interaction_check(stranger)) is False
+    assert asyncio.run(panel.interaction_check(as_interaction(stranger))) is False
     assert "他の人の会社" in stranger.sent[0]["content"]
     it = _It(U)
-    asyncio.run(button(panel, "増築").callback(it))  # 会社資金が無い
+    asyncio.run(button(panel, "増築").callback(as_interaction(it)))  # 会社資金が無い
     assert "できません" in it.sent[0]["embed"].title and "会社資金が足りません" in it.sent[0]["embed"].description
 
 

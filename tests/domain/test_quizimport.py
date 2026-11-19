@@ -8,6 +8,7 @@ import pytest
 from cogs.admin.cog import bulk_preview_lines
 from domain import quizimport
 from infra.db.repositories import open_repositories
+from tests.fakes import invoke
 from tests.support import make_approval_cog, make_test_bot
 
 OWNER, FRIEND = 1, 2
@@ -160,7 +161,7 @@ def run_cmd(cog, uid, file, announce=None):
         followup=Follow(),
         edit_original_response=edit_original,
     )
-    asyncio.run(cog.quiz_bulk.callback(cog, inter, file, announce))
+    asyncio.run(invoke(cog.quiz_bulk, cog, inter, file, announce))
     return log, inter
 
 
@@ -197,7 +198,7 @@ def test_preview_then_register_then_the_same_file_is_refused(tmp_path):
     )
     assert eco.quiz.quiz_list() == []  # 確認ボタンを押すまで登録しない
     assert asyncio.run(view.interaction_check(SimpleNamespace(user=SimpleNamespace(id=FRIEND)))) is False
-    asyncio.run(view.register.callback(inter))
+    asyncio.run(invoke(view.register, inter))
     assert len(eco.quiz.quiz_list()) == 2 and broadcasts == [] and "クイズを2問登録しました" in log["edits"][0]
     log2, _ = run_cmd(cog, OWNER, FakeFile(ONE))  # 同じファイルをもう一度
     assert (

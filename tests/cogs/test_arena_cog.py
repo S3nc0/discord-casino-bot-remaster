@@ -9,6 +9,7 @@ import pytest
 from cogs.arena import cog as arena_cog
 from cogs.arena import views
 from domain import arena as a
+from tests.fakes import as_interaction
 from tests.support import make_arena_cog, make_test_bot
 
 U, V = 1, 2
@@ -168,7 +169,7 @@ def test_bet_panel_select_and_stake_modal_place_a_real_bet(setup, monkeypatch):
             sent.append(kw)
 
     it = SimpleNamespace(guild=guild, guild_id=0, user=SimpleNamespace(id=V), response=Resp())
-    asyncio.run(modal.on_submit(it))
+    asyncio.run(modal.on_submit(as_interaction(it)))
     assert repos.wallet.balance(V) == before - 500
     assert "賭けました" in sent[0]["embed"].title
 
@@ -206,7 +207,7 @@ def test_stake_modal_bet_refreshes_the_posted_panel_message(setup):
             pass
 
     it = SimpleNamespace(guild=guild, guild_id=0, user=SimpleNamespace(id=V), response=Resp())
-    asyncio.run(modal.on_submit(it))
+    asyncio.run(modal.on_submit(as_interaction(it)))
     assert len(panel.message.edits) == 1  # 賭けた直後に、掲示を書き換えている
     assert f"{fighter['name']}" in panel.message.edits[0]["embed"].description
 

@@ -11,6 +11,7 @@ from domain import market, market_events, teiai
 from domain import options as opt
 from domain.types import INITIAL_BALANCE
 from infra.db.repositories import open_repositories
+from tests.fakes import invoke
 from tests.support import make_market_cog, make_test_bot
 
 pytestmark = pytest.mark.real_scope
@@ -264,10 +265,10 @@ def test_order_pair_needs_a_counterpart_and_shows_the_condition(cog):
     from tests.domain.test_market import It
 
     it = It()
-    asyncio.run(MarketCog.order.callback(cog, it, choice("cs"), 2_000, choice("pair"), None, None))
+    asyncio.run(invoke(MarketCog.order, cog, it, choice("cs"), 2_000, choice("pair"), None, None))
     assert it.sent[-1]["ephemeral"] and "2つの銘柄" in it.sent[-1]["embed"].title
     it = It()
-    asyncio.run(MarketCog.order.callback(cog, it, choice("cs"), 2_000, choice("pair"), None, choice("teio")))
+    asyncio.run(invoke(MarketCog.order, cog, it, choice("cs"), 2_000, choice("pair"), None, choice("teio")))
     embed = it.sent[-1]["embed"]
     assert "ペア・ワラント" in embed.title and "CSトークン vs TEIO重工" in embed.title
     assert "上昇率" in embed.description and "想定リターン" in embed.description
@@ -286,7 +287,7 @@ def test_order_naked_sell_asks_for_confirmation_and_creates_the_position(cog, mo
 
     monkeypatch.setattr(orders, "default_confirmed_reply", agree)  # 確認ダイアログは、内容だけを記録して通す
     it = It()
-    asyncio.run(MarketCog.order.callback(cog, it, choice("cs"), 2_000, choice("scall"), None, None))
+    asyncio.run(invoke(MarketCog.order, cog, it, choice("cs"), 2_000, choice("scall"), None, None))
     assert (
         asked and asked[0][0] is True and "借金になります" in asked[0][2]
     )  # 裸売りは、必ず確認を挟み、借金になりうることを伝える
@@ -303,20 +304,20 @@ def test_holdings_and_settle_for_a_naked_sell_and_a_pair(cog, monkeypatch):
         return interaction.response.send_message
 
     monkeypatch.setattr(orders, "default_confirmed_reply", agree)
-    asyncio.run(MarketCog.order.callback(cog, It(), choice("cs"), 2_000, choice("sput"), None, None))
-    asyncio.run(MarketCog.order.callback(cog, It(), choice("cs"), 1_000, choice("pair"), None, choice("numa")))
+    asyncio.run(invoke(MarketCog.order, cog, It(), choice("cs"), 2_000, choice("sput"), None, None))
+    asyncio.run(invoke(MarketCog.order, cog, It(), choice("cs"), 1_000, choice("pair"), None, choice("numa")))
     it = It()
-    asyncio.run(MarketCog.holdings.callback(cog, it))
+    asyncio.run(invoke(MarketCog.holdings, cog, it))
     text = it.sent[-1]["embed"].description
     assert "プット裸売り" in text and "いま買い戻すと" in text and "ペア・ワラント" in text and "vs" in text
     codes = dict(cog.positions(U, G))
     short_code = next(c for c, label in codes.items() if "買い戻し" in label)
     it = It()
-    asyncio.run(MarketCog.settle.callback(cog, it, short_code, None))
+    asyncio.run(invoke(MarketCog.settle, cog, it, short_code, None))
     assert "買い戻しました" in it.sent[-1]["embed"].title
     pair_code = next(c for c, label in dict(cog.positions(U, G)).items() if "ペア" in label)
     it = It()
-    asyncio.run(MarketCog.settle.callback(cog, it, pair_code, None))
+    asyncio.run(invoke(MarketCog.settle, cog, it, pair_code, None))
     assert "売りました" in it.sent[-1]["embed"].title
 
 
@@ -325,7 +326,7 @@ def test_leverage_is_refused_for_pair_and_naked_sell(cog):
 
     for kind in ("pair", "scall", "sput"):
         it = It()
-        asyncio.run(MarketCog.order.callback(cog, it, choice("cs"), 1_000, choice(kind), choice(3), choice("teio")))
+        asyncio.run(invoke(MarketCog.order, cog, it, choice("cs"), 1_000, choice(kind), choice(3), choice("teio")))
         assert it.sent[-1]["ephemeral"] and "❌" in it.sent[-1]["embed"].title
     assert cog.bot.repos.for_guild(G).options.option_list(U)["active"] == []
     assert market_events and INITIAL_BALANCE  # 読み込みの確認

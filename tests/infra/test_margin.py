@@ -10,6 +10,7 @@ from cogs.market.cog import MarketCog
 from domain import market
 from domain.types import INITIAL_BALANCE
 from infra.db.repositories import open_repositories
+from tests.fakes import invoke
 
 pytestmark = pytest.mark.real_scope
 
@@ -184,16 +185,16 @@ def test_order_long_then_holdings_show_the_ratio_and_settle_closes_it(eco):
     cog = make_cog(eco)
     eco.for_guild(G).wallet.credit(U, 20_000, "テスト")
     it = It()
-    asyncio.run(MarketCog.order.callback(cog, it, choice("cs"), 2_000, choice("long"), choice(2)))
+    asyncio.run(invoke(MarketCog.order, cog, it, choice("cs"), 2_000, choice("long"), choice(2)))
     assert "信用買い" in it.sent[-1]["embed"].title and "維持率" in it.sent[-1]["embed"].description
     assert eco.for_guild(G).margin.long_position(U, "cs")[0] > 0
     it = It()
-    asyncio.run(MarketCog.holdings.callback(cog, it))
+    asyncio.run(invoke(MarketCog.holdings, cog, it))
     desc = it.sent[-1]["embed"].description
     assert "信用買い" in desc and "維持率" in desc
     assert ("long:cs", "🪙 CSトークン 信用買い全決済") in cog.positions(U, G)
     it = It()
-    asyncio.run(MarketCog.settle.callback(cog, it, "long:cs", None))
+    asyncio.run(invoke(MarketCog.settle, cog, it, "long:cs", None))
     assert "売り戻しました" in it.sent[-1]["embed"].title and eco.for_guild(G).margin.long_positions(U) == []
 
 
@@ -204,7 +205,7 @@ def test_order_long_is_refused_when_ratio_is_too_low(eco, monkeypatch):
     cog = make_cog(eco)
     eco.for_guild(G).wallet.credit(U, 20_000, "テスト")
     it = It()
-    asyncio.run(MarketCog.order.callback(cog, it, choice("numa"), 4_000, choice("long"), choice(5)))
+    asyncio.run(invoke(MarketCog.order, cog, it, choice("numa"), 4_000, choice("long"), choice(5)))
     assert it.sent[-1]["ephemeral"] and "維持率" in it.sent[-1]["embed"].description
     assert eco.for_guild(G).margin.long_positions(U) == []
 

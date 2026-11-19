@@ -11,6 +11,7 @@ from cogs.horse import views as views
 from cogs.horse.cog import HorseCog, anim_frames, comment, lane_text, laps_for, pick_frames
 from domain import horse as h
 from domain import shop
+from tests.fakes import as_interaction, invoke
 from tests.support import make_horse_cog, make_shop_cog, make_test_bot
 
 U, V = 1, 2
@@ -240,7 +241,7 @@ def test_bet_is_announced_publicly_in_the_race_channel(setup):
     panel = views.BetPanel(eco.races, V, {**race, "guild_id": 0}, cog.post_bet_announcement)
     interaction = SimpleNamespace(guild=guild, guild_id=0, user=SimpleNamespace(id=V))
     result = {"kind": "win", "lanes": [3], "name": "アルファ", "stake": 500, "odds": 4.2}
-    asyncio.run(panel.announce_bet(interaction, "3", result))
+    asyncio.run(panel.announce_bet(as_interaction(interaction), "3", result))
     text = chan.sent[-1]["content"]
     assert f"<@{V}>" in text and "単勝" in text and "アルファ" in text and "4.2" in text
 
@@ -322,7 +323,7 @@ def test_stake_modal_buys_every_selected_horse_and_announces_once(setup):
     orig = _t.time
     _t.time = lambda: now
     try:
-        asyncio.run(modal.on_submit(it))
+        asyncio.run(modal.on_submit(as_interaction(it)))
     finally:
         _t.time = orig
     assert len(eco.races.race_bets(V, rid)) == 2 and eco.wallet.balance(V) == before - 800
@@ -345,11 +346,11 @@ def test_entry_card_in_the_channel_is_redrawn_when_registrations_change(setup):
     eco.races.race_set_message(rid, chan.id, 777)
     assert eco.races.race_register(U, hid, rid, 1_700_000_001.0)[0]
     interaction = SimpleNamespace(guild=guild, guild_id=0, user=SimpleNamespace(id=U))
-    asyncio.run(views.refresh_entry_card(interaction, eco.horses, eco.races, rid))
+    asyncio.run(views.refresh_entry_card(as_interaction(interaction), eco.horses, eco.races, rid))
     mid, kw = chan.retired[-1]
     assert mid == 777 and "ライブホース" in kw["embed"].description
     assert eco.races.race_withdraw(U, hid, rid, 1_700_000_002.0)[0]
-    asyncio.run(views.refresh_entry_card(interaction, eco.horses, eco.races, rid))
+    asyncio.run(views.refresh_entry_card(as_interaction(interaction), eco.horses, eco.races, rid))
     assert "ライブホース" not in chan.retired[-1][1]["embed"].description
 
 
@@ -415,7 +416,7 @@ def test_card_posts_from_the_command_are_rewritten_when_betting_closes(setup, mo
         response=SimpleNamespace(send_message=send_message),
         original_response=original_response,
     )
-    asyncio.run(HorseCog.card.callback(cog, interaction))
+    asyncio.run(invoke(HorseCog.card, cog, interaction))
     assert cog._posts[rid] == [(chan.id, 900)]
     monkeypatch.setattr("cogs.horse.cog.time.time", lambda: race["bet_close"] + 1)
     asyncio.run(cog.run_once())
@@ -462,11 +463,11 @@ def test_name_modal_then_appearance_view_creates_a_horse_and_consumes_a_voucher(
     name_modal = views.NameModal(stable)
     name_modal.name._value = "新しい馬"
     it = _It(U)
-    asyncio.run(name_modal.on_submit(it))
+    asyncio.run(name_modal.on_submit(as_interaction(it)))
     appearance = next(kw["view"] for kw in it.sent if "view" in kw)
     assert isinstance(appearance, views.AppearanceView)
     it2 = _It(U)
-    asyncio.run(appearance._on_go(it2))
+    asyncio.run(appearance._on_go(as_interaction(it2)))
     assert "迎えました" in it2.edited[0]["embed"].title
     horses = eco.horses.horse_list(U)
     assert len(horses) == 1 and horses[0]["name"] == "新しい馬"
@@ -481,11 +482,11 @@ def test_gold_carrot_view_applies_only_when_use_is_pressed(setup):
             (eco.horses.guild_id, U, shop.GOLD_CARROT),
         )
     view = views.GoldCarrotView(stable, U)
-    asyncio.run(view._make_pick("first")(_It(U, ["power"])))
-    asyncio.run(view._make_pick("second")(_It(U, ["guts"])))
+    asyncio.run(view._make_pick("first")(as_interaction(_It(U, ["power"]))))
+    asyncio.run(view._make_pick("second")(as_interaction(_It(U, ["guts"]))))
     assert eco.horses.horse_get(hid)["power"] == 50  # 選んだだけでは、反映しない
     it = _It(U)
-    asyncio.run(view._on_use(it))
+    asyncio.run(view._on_use(as_interaction(it)))
     horse = eco.horses.horse_get(hid)
     assert (
         horse["power"] == 55
@@ -505,7 +506,7 @@ def test_retire_view_charges_or_pays_and_updates_the_stable(setup):
     assert "引退金" in view.embed().description
     before = eco.wallet.balance(U)
     it = _It(U)
-    asyncio.run(view._on_ok(it))
+    asyncio.run(view._on_ok(as_interaction(it)))
     assert eco.wallet.balance(U) == before + value and "引退しました" in it.edited[0]["embed"].title
     remaining = eco.horses.horse_list(U)
     assert remaining == []  # 持ち馬はもういない

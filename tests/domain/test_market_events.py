@@ -11,6 +11,7 @@ from cogs.market.cog import MarketView, OptionAmountModal
 from domain import market, market_events
 from domain import options as opt
 from infra.db.repositories import open_repositories
+from tests.fakes import as_interaction
 from tests.support import make_market_cog, make_test_bot
 
 pytestmark = pytest.mark.real_scope
@@ -245,13 +246,13 @@ def test_quick_buy_modal_buys_the_option(cog):
     modal = OptionAmountModal(cog, opt.CALL, "numa")
     modal.amount = SimpleNamespace(value="2,000")
     it = It()
-    asyncio.run(modal.on_submit(it))
+    asyncio.run(modal.on_submit(as_interaction(it)))
     assert "爆騰コール" in it.sent[-1]["embed"].title
     assert cog.bot.repos.for_guild(G).options.option_list(U)["active"][0]["symbol"] == "numa"
     bad = OptionAmountModal(cog, opt.PUT, "numa")
     bad.amount = SimpleNamespace(value="abc")
     it = It()
-    asyncio.run(bad.on_submit(it))
+    asyncio.run(bad.on_submit(as_interaction(it)))
     assert it.sent[-1]["ephemeral"] and "❌" in it.sent[-1]["embed"].title
 
 

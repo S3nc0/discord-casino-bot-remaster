@@ -56,6 +56,7 @@ from infra.db.margin import MarginRepo
 from infra.db.market import MarketDataRepo
 from infra.db.market_events import MarketEventRepo
 from infra.db.options import OptionRepo
+from tests.fakes import as_bot
 from tests.support import make_test_bot
 
 G = 1
@@ -226,7 +227,7 @@ def test_deferred_and_dynamic_cog_bridges_are_load_order_independent(tmp_path):
 
     bot = make_test_bot(db_path=str(tmp_path / "order.db"))
     eco = EconomyCog(
-        bot,
+        as_bot(bot),
         config=bot.config,
         economy_svc=bot.services.economy,
         wallet=bot.repos.wallet,
@@ -244,16 +245,16 @@ def test_deferred_and_dynamic_cog_bridges_are_load_order_independent(tmp_path):
         clock=bot.services.clock,
     )
     weekly = WeeklyCog(
-        bot,
+        as_bot(bot),
         bot.config,
         bot.services.economy,
         bot.repos.records,
         bot.repos.guild,
         clock=bot.services.clock,
     )
-    shop_cog = ShopCog(bot, bot.config, bot.services.shop, bot.repos.guild, bot.sessions)
+    shop_cog = ShopCog(as_bot(bot), bot.config, bot.services.shop, bot.repos.guild, bot.sessions)
     approval = ApprovalCog(
-        bot,
+        as_bot(bot),
         config=bot.config,
         guild_repo=bot.repos.guild,
         wallet=bot.repos.wallet,
@@ -283,7 +284,7 @@ def test_deferred_and_dynamic_cog_bridges_are_load_order_independent(tmp_path):
             return None
 
     p2p_cog = P2PCog(
-        bot,
+        as_bot(bot),
         bot.config,
         bot.repos.p2p,
         bot.repos.horses,
@@ -292,7 +293,7 @@ def test_deferred_and_dynamic_cog_bridges_are_load_order_independent(tmp_path):
         bot.repos.guild,
         bot.sessions,
     )
-    event_cog = EventCog(bot, bot.config, bot.repos.events, bot.repos.guild, bot.services.clock)
+    event_cog = EventCog(as_bot(bot), bot.config, bot.repos.events, bot.repos.guild, bot.services.clock)
 
     bot.bridges.register(IShopTitleBridge, StubShop())
     bot.bridges.register(IP2PListingBridge, p2p_cog)

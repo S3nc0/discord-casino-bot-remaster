@@ -12,6 +12,7 @@ from cogs.shared import approval_guard
 from domain import approval
 from domain.types import INITIAL_BALANCE
 from infra.db.repositories import open_repositories
+from tests.fakes import as_guild, as_interaction, invoke
 from tests.support import make_approval_cog, make_test_bot
 
 OWNER, FRIEND = 1, 2
@@ -100,29 +101,29 @@ def test_without_approval_mode_old_behaviour_is_kept(eco):
 def test_guard_lets_allowed_servers_through_silently(eco):
     bot, cog, owner = make(eco)
     it = Interaction(bot, FRIEND, Guild(10))
-    assert run(approval_guard.guard(it)) is True and it.sent == [] and owner.sent == []
+    assert run(approval_guard.guard(as_interaction(it))) is True and it.sent == [] and owner.sent == []
 
 
 def test_unapproved_server_is_blocked_and_owner_is_asked_once(eco):
     g = Guild(20)
     bot, cog, owner = make(eco, guilds=[g])
     it = Interaction(bot, FRIEND, g)
-    assert run(approval_guard.guard(it)) is False
+    assert run(approval_guard.guard(as_interaction(it))) is False
     assert "承認待ち" in it.sent[-1]["embed"].title and it.sent[-1]["ephemeral"]
     assert eco.guild.get_guild_status(20)["status"] == approval.PENDING and len(owner.sent) == 1
-    run(approval_guard.guard(Interaction(bot, FRIEND, g)))  # すぐもう一度使っても、DM は増えない
+    run(approval_guard.guard(as_interaction(Interaction(bot, FRIEND, g))))  # すぐもう一度使っても、DM は増えない
     assert len(owner.sent) == 1
 
 
 def test_waiting_server_gets_a_reminder_after_an_hour(eco):
     g = Guild(20)
     bot, cog, owner = make(eco, guilds=[g])
-    run(approval_guard.guard(Interaction(bot, FRIEND, g)))
+    run(approval_guard.guard(as_interaction(Interaction(bot, FRIEND, g))))
     with eco.db.tx():
         eco.db.conn.execute(
             "UPDATE guild_status SET notified_at=? WHERE guild_id=20", (time.time() - RENOTIFY_AFTER - 5,)
         )
-    run(approval_guard.guard(Interaction(bot, FRIEND, g)))
+    run(approval_guard.guard(as_interaction(Interaction(bot, FRIEND, g))))
     assert len(owner.sent) == 2
 
 
@@ -131,27 +132,27 @@ def test_denied_server_is_not_asked_about_again(eco):
     bot, cog, owner = make(eco, guilds=[g])
     eco.guild.set_guild_status(20, approval.DENIED, "x", OWNER)
     it = Interaction(bot, FRIEND, g)
-    assert run(approval_guard.guard(it)) is False
+    assert run(approval_guard.guard(as_interaction(it))) is False
     assert "許可されていません" in it.sent[-1]["embed"].description and owner.sent == []
 
 
 def test_owner_can_use_commands_in_a_pending_server_to_approve_it(eco):
     g = Guild(20)
     bot, cog, owner = make(eco, guilds=[g])
-    assert run(approval_guard.guard(Interaction(bot, OWNER, g))) is True
+    assert run(approval_guard.guard(as_interaction(Interaction(bot, OWNER, g)))) is True
 
 
 def test_server_error_is_clear_when_not_in_approval_mode(eco):
     bot, cog, owner = make(eco, config={"require_approval": False})
     it = Interaction(bot, FRIEND, Guild(20))
-    assert run(approval_guard.guard(it)) is False and "使えません" in it.sent[-1]["embed"].title
+    assert run(approval_guard.guard(as_interaction(it))) is False and "使えません" in it.sent[-1]["embed"].title
 
 
 # ----------------------------- 追加された時 ----------------------------- #
 def test_joining_a_new_server_asks_the_owner_with_buttons(eco):
     g = Guild(20)
     bot, cog, owner = make(eco, guilds=[g])
-    run(cog.on_guild_join(g))
+    run(cog.on_guild_join(as_guild(g)))
     assert eco.guild.get_guild_status(20)["status"] == approval.PENDING
     msg = owner.sent[0]
     assert "新しいサーバー" in msg["embed"].title and "友達の鯖" in msg["embed"].fields[0].value
@@ -163,8 +164,8 @@ def test_preapproved_and_already_approved_servers_are_not_asked(eco):
     pre, ok = Guild(10), Guild(30)
     bot, cog, owner = make(eco, guilds=[pre, ok])
     eco.guild.set_guild_status(30, approval.APPROVED)
-    run(cog.on_guild_join(pre))
-    run(cog.on_guild_join(ok))  # 承認済みのサーバーへ追加し直されても、聞き直さない
+    run(cog.on_guild_join(as_guild(pre)))
+    run(cog.on_guild_join(as_guild(ok)))  # 承認済みのサーバーへ追加し直されても、聞き直さない
     assert owner.sent == []
 
 
@@ -172,14 +173,14 @@ def test_readding_after_a_refusal_asks_again(eco):
     g = Guild(20)
     bot, cog, owner = make(eco, guilds=[g])
     eco.guild.set_guild_status(20, approval.DENIED, "x", OWNER)
-    run(cog.on_guild_join(g))
+    run(cog.on_guild_join(as_guild(g)))
     assert eco.guild.get_guild_status(20)["status"] == approval.PENDING and len(owner.sent) == 1
 
 
 def test_dm_failure_does_not_break_anything(eco):
     g = Guild(20)
     bot, cog, owner = make(eco, guilds=[g], owner=Owner(fail=True))
-    run(cog.on_guild_join(g))
+    run(cog.on_guild_join(as_guild(g)))
     assert eco.guild.get_guild_status(20)["status"] == approval.PENDING  # DM が届かなくても、承認待ちとして記録される
 
 
@@ -193,7 +194,7 @@ def test_startup_picks_up_servers_added_while_the_bot_was_down(eco):
 def test_nothing_happens_when_approval_mode_is_off(eco):
     g = Guild(20)
     bot, cog, owner = make(eco, config={"require_approval": False}, guilds=[g])
-    run(cog.on_guild_join(g))
+    run(cog.on_guild_join(as_guild(g)))
     run(cog.on_ready())
     assert owner.sent == [] and eco.guild.get_guild_status(20) is None
 
@@ -202,8 +203,10 @@ def test_nothing_happens_when_approval_mode_is_off(eco):
 def test_only_owners_can_press_the_buttons(eco):
     bot, cog, owner = make(eco)
     it = Interaction(bot, FRIEND, Guild(20))
-    assert run(ApprovalButton("allow", 20).interaction_check(it)) is False and it.sent[0]["ephemeral"]
-    assert run(ApprovalButton("allow", 20).interaction_check(Interaction(bot, OWNER, Guild(20)))) is True
+    assert run(ApprovalButton("allow", 20).interaction_check(as_interaction(it))) is False and it.sent[0]["ephemeral"]
+    assert (
+        run(ApprovalButton("allow", 20).interaction_check(as_interaction(Interaction(bot, OWNER, Guild(20))))) is True
+    )
 
 
 def test_allow_button_approves_without_restart(eco):
@@ -212,7 +215,7 @@ def test_allow_button_approves_without_restart(eco):
     eco.guild.set_guild_status(20, approval.PENDING, "友達の鯖")
     it = Interaction(bot, OWNER, g)
     it.client = bot
-    run(ApprovalButton("allow", 20).callback(it))
+    run(ApprovalButton("allow", 20).callback(as_interaction(it)))
     assert (
         eco.guild.get_guild_status(20)["status"] == approval.APPROVED
         and eco.guild.get_guild_status(20)["decided_by"] == OWNER
@@ -226,7 +229,7 @@ def test_deny_button_refuses_and_leaves_the_server(eco):
     bot, cog, owner = make(eco, guilds=[g])
     eco.guild.set_guild_status(20, approval.PENDING, "友達の鯖")
     it = Interaction(bot, OWNER, g)
-    run(ApprovalButton("deny", 20).callback(it))
+    run(ApprovalButton("deny", 20).callback(as_interaction(it)))
     assert g.left and eco.guild.get_guild_status(20)["status"] == approval.DENIED
     assert not approval.is_allowed(eco.guild, bot.config, 20, FRIEND)
 
@@ -234,7 +237,7 @@ def test_deny_button_refuses_and_leaves_the_server(eco):
 def test_deny_works_even_if_the_bot_already_left(eco):
     bot, cog, owner = make(eco, guilds=[])
     eco.guild.set_guild_status(20, approval.PENDING, "友達の鯖")
-    run(ApprovalButton("deny", 20).callback(Interaction(bot, OWNER, Guild(20))))
+    run(ApprovalButton("deny", 20).callback(as_interaction(Interaction(bot, OWNER, Guild(20)))))
     assert eco.guild.get_guild_status(20)["status"] == approval.DENIED
 
 
@@ -245,7 +248,7 @@ def test_button_ids_survive_restart_format():
     assert re.fullmatch(
         r"guild-approve:(?P<action>allow|deny):(?P<gid>[0-9]+)", ApprovalButton("deny", 9).item.custom_id
     )
-    restored = run(ApprovalButton.from_custom_id(None, None, {"action": "deny", "gid": "77"}))
+    restored = run(ApprovalButton.from_custom_id(as_interaction(None), None, {"action": "deny", "gid": "77"}))
     assert (restored.action, restored.guild_id) == ("deny", 77)
 
 
@@ -264,7 +267,7 @@ def test_server_commands_are_owner_only(eco):
         (ApprovalCog.server_revoke, ("20",)),
     ):
         it = Interaction(bot, FRIEND, g)
-        run(cmd.callback(c, it, *args))
+        run(invoke(cmd, c, it, *args))
         assert "権限がありません" in it.sent[-1]["embed"].title
     assert eco.guild.get_guild_status(20) is None
 
@@ -273,13 +276,13 @@ def test_owner_can_allow_list_and_revoke(eco):
     g = Guild(20, "友達の鯖")
     bot, cog, owner = make(eco, guilds=[g])
     c = eco_cog(bot)
-    run(ApprovalCog.server_allow.callback(c, Interaction(bot, OWNER, g), "20"))
+    run(invoke(ApprovalCog.server_allow, c, Interaction(bot, OWNER, g), "20"))
     assert eco.guild.get_guild_status(20)["status"] == approval.APPROVED
     it = Interaction(bot, OWNER, g)
-    run(ApprovalCog.server_list.callback(c, it))
+    run(invoke(ApprovalCog.server_list, c, it))
     text = "\n".join(f.value for f in it.sent[-1]["embed"].fields)
     assert "友達の鯖" in text and "10" in text  # 許可済みの一覧に出る（設定ファイル分も）
-    run(ApprovalCog.server_revoke.callback(c, Interaction(bot, OWNER, g), "20"))
+    run(invoke(ApprovalCog.server_revoke, c, Interaction(bot, OWNER, g), "20"))
     assert eco.guild.get_guild_status(20)["status"] == approval.DENIED and g.left
 
 
@@ -288,18 +291,18 @@ def test_revoke_refuses_preapproved_servers_and_bad_ids(eco):
     bot, cog, owner = make(eco, guilds=[g])
     c = eco_cog(bot)
     it = Interaction(bot, OWNER, g)
-    run(ApprovalCog.server_revoke.callback(c, it, "10"))
+    run(invoke(ApprovalCog.server_revoke, c, it, "10"))
     assert "取り消せません" in it.sent[-1]["embed"].title and not g.left
     for bad in ("abc", "１２３", "12 3", ""):
         it = Interaction(bot, OWNER, g)
-        run(ApprovalCog.server_allow.callback(c, it, bad))
+        run(invoke(ApprovalCog.server_allow, c, it, bad))
         assert "入力エラー" in it.sent[-1]["embed"].title
     assert eco.guild.list_guild_status() == []
 
 
 def test_allow_can_preapprove_a_server_the_bot_has_not_joined_yet(eco):
     bot, cog, owner = make(eco)
-    run(ApprovalCog.server_allow.callback(eco_cog(bot), Interaction(bot, OWNER, Guild(10)), "555"))
+    run(invoke(ApprovalCog.server_allow, eco_cog(bot), Interaction(bot, OWNER, Guild(10)), "555"))
     assert approval.is_allowed(eco.guild, bot.config, 555, FRIEND)
 
 
@@ -334,7 +337,7 @@ def test_concurrent_commands_send_only_one_request_dm():
     guild = SimpleNamespace(id=55, name="g", owner_id=1, member_count=3, icon=None)
 
     async def go():
-        await asyncio.gather(*(cog.ensure_requested(guild) for _ in range(5)))
+        await asyncio.gather(*(cog.ensure_requested(as_guild(guild)) for _ in range(5)))
 
     asyncio.run(go())
     assert len(sent) == 1
@@ -383,11 +386,15 @@ def fake_dm_interaction(root_name, uid, owner_ids=(OWNER,), guild=None):
 
 
 def test_only_the_owner_may_use_the_dm_group_outside_a_server():
-    assert approval_guard.is_owner_dm_command(fake_dm_interaction("運営", OWNER))
-    assert not approval_guard.is_owner_dm_command(fake_dm_interaction("運営", FRIEND))  # 他の人はDMでも使えない
-    assert not approval_guard.is_owner_dm_command(fake_dm_interaction("ペリカ", OWNER))  # 他のコマンドはDMで使えない
+    assert approval_guard.is_owner_dm_command(as_interaction(fake_dm_interaction("運営", OWNER)))
     assert not approval_guard.is_owner_dm_command(
-        fake_dm_interaction("運営", OWNER, guild=SimpleNamespace(id=1))
+        as_interaction(fake_dm_interaction("運営", FRIEND))
+    )  # 他の人はDMでも使えない
+    assert not approval_guard.is_owner_dm_command(
+        as_interaction(fake_dm_interaction("ペリカ", OWNER))
+    )  # 他のコマンドはDMで使えない
+    assert not approval_guard.is_owner_dm_command(
+        as_interaction(fake_dm_interaction("運営", OWNER, guild=SimpleNamespace(id=1)))
     )  # サーバー内の扱いは、いつもどおり
     assert not approval_guard.is_owner_dm_command(
         SimpleNamespace(
@@ -492,14 +499,14 @@ def test_grant_in_dm_pays_the_chosen_member_in_the_chosen_guild(tmp_path):
 
     guild.fetch_member = fetch
     log = []
-    asyncio.run(cog.grant.callback(cog, dm(FRIEND, log), "5", "42", 1000))
+    asyncio.run(invoke(cog.grant, cog, dm(FRIEND, log), "5", "42", 1000))
     assert log == [("send", "❌ 権限がありません")] and eco.wallet.balance(42) == INITIAL_BALANCE
     log.clear()
-    asyncio.run(cog.grant.callback(cog, dm(OWNER, log), "5", "<@42>", 1000, "テスト"))  # メンションの形でも受け付ける
+    asyncio.run(invoke(cog.grant, cog, dm(OWNER, log), "5", "<@42>", 1000, "テスト"))  # メンションの形でも受け付ける
     assert log == [("send", "✅ 付与しました")] and eco.wallet.balance(42) == INITIAL_BALANCE + 1000
     log.clear()
     for args in (("999", "42"), ("5", "abc"), ("5", "43"), ("5", "44")):  # 不明なサーバー・ID・Bot・サーバーにいない人
-        asyncio.run(cog.grant.callback(cog, dm(OWNER, log), *args, 1000))
+        asyncio.run(invoke(cog.grant, cog, dm(OWNER, log), *args, 1000))
     assert [t for _, t in log] == [
         "❌ サーバーが見つかりません",
         "❌ ユーザーを指定してください",
@@ -522,11 +529,15 @@ def test_parse_user_id_and_autocomplete(tmp_path):
         SimpleNamespace(id=2, name="bot", display_name="bot", bot=True),
     ]
     inter = dm(OWNER, [])
-    assert [c.value for c in asyncio.run(cog.guild_autocomplete(inter, "友達"))] == ["5"]
-    assert asyncio.run(cog.guild_autocomplete(dm(FRIEND, []), "友達")) == []  # 持ち主以外には候補も出さない
+    assert [c.value for c in asyncio.run(cog.guild_autocomplete(as_interaction(inter), "友達"))] == ["5"]
+    assert (
+        asyncio.run(cog.guild_autocomplete(as_interaction(dm(FRIEND, [])), "友達")) == []
+    )  # 持ち主以外には候補も出さない
     inter.namespace = SimpleNamespace(**{"サーバー": "5"})
-    assert [c.value for c in asyncio.run(cog.user_autocomplete(inter, "ありす"))] == ["1"]  # Bot は出ない
-    assert asyncio.run(cog.user_autocomplete(inter, "")) == []
+    assert [c.value for c in asyncio.run(cog.user_autocomplete(as_interaction(inter), "ありす"))] == [
+        "1"
+    ]  # Bot は出ない
+    assert asyncio.run(cog.user_autocomplete(as_interaction(inter), "")) == []
 
 
 def test_raffle_and_quiz_admin_commands_delegate_and_are_owner_only(tmp_path):
@@ -565,14 +576,14 @@ def test_raffle_and_quiz_admin_commands_delegate_and_are_owner_only(tmp_path):
 
     cog, eco, guild, bot = make_admin(tmp_path, extra_cogs={"RaffleCog": FakeRaffle(), "QuizCog": FakeQuiz()})
     log = []
-    asyncio.run(cog.raffle_start.callback(cog, dm(FRIEND, log), "5", 1000, 30))
-    asyncio.run(cog.quiz_delete.callback(cog, dm(FRIEND, log), 1))
+    asyncio.run(invoke(cog.raffle_start, cog, dm(FRIEND, log), "5", 1000, 30))
+    asyncio.run(invoke(cog.quiz_delete, cog, dm(FRIEND, log), 1))
     assert [x[1] for x in log] == ["❌ 権限がありません"] * 2 and calls == []
     log.clear()
-    asyncio.run(cog.raffle_start.callback(cog, dm(OWNER, log), "5", 1000, 30))
-    asyncio.run(cog.raffle_repost.callback(cog, dm(OWNER, log), "5"))
-    asyncio.run(cog.raffle_cancel.callback(cog, dm(OWNER, log), "5"))
-    asyncio.run(cog.raffle_start.callback(cog, dm(OWNER, log), "77", None, 60))  # 不明なサーバー
+    asyncio.run(invoke(cog.raffle_start, cog, dm(OWNER, log), "5", 1000, 30))
+    asyncio.run(invoke(cog.raffle_repost, cog, dm(OWNER, log), "5"))
+    asyncio.run(invoke(cog.raffle_cancel, cog, dm(OWNER, log), "5"))
+    asyncio.run(invoke(cog.raffle_start, cog, dm(OWNER, log), "77", None, 60))  # 不明なサーバー
     assert calls == [("host", 5, 1000, 30), ("repost", 5), ("cancel", 5)]
     assert [x[1] for x in log if x[0] == "follow"] == [
         "✅ 抽選を始めました",
@@ -580,10 +591,10 @@ def test_raffle_and_quiz_admin_commands_delegate_and_are_owner_only(tmp_path):
         "✅ 中止しました",
     ] and log[-1] == ("send", "❌ サーバーが見つかりません")
     log.clear()
-    asyncio.run(cog.quiz_add.callback(cog, dm(OWNER, log), SimpleNamespace(value=0)))
-    asyncio.run(cog.quiz_list.callback(cog, dm(OWNER, log)))
-    asyncio.run(cog.quiz_delete.callback(cog, dm(OWNER, log), 1))
-    asyncio.run(cog.quiz_delete.callback(cog, dm(OWNER, log), 2))
+    asyncio.run(invoke(cog.quiz_add, cog, dm(OWNER, log), SimpleNamespace(value=0)))
+    asyncio.run(invoke(cog.quiz_list, cog, dm(OWNER, log)))
+    asyncio.run(invoke(cog.quiz_delete, cog, dm(OWNER, log), 1))
+    asyncio.run(invoke(cog.quiz_delete, cog, dm(OWNER, log), 2))
     assert calls[-1] == ("modal", False) and [x[1] for x in log] == [
         "SimpleNamespace",
         "一覧",
@@ -634,15 +645,15 @@ def test_announce_validates_image_and_opens_the_modal_for_the_owner_only(tmp_pat
 
     cog, guilds, posts = make_announce(tmp_path, monkeypatch)
     log = []
-    asyncio.run(cog.announce.callback(cog, dm(FRIEND, log), None, None, None))
+    asyncio.run(invoke(cog.announce, cog, dm(FRIEND, log), None, None, None))
     assert log == [("send", "❌ 権限がありません")]
     log.clear()
-    asyncio.run(cog.announce.callback(cog, dm(OWNER, log), None, FakeImage(content_type="application/pdf"), None))
-    asyncio.run(cog.announce.callback(cog, dm(OWNER, log), None, FakeImage(size=9 * 1024 * 1024), None))
-    asyncio.run(cog.announce.callback(cog, dm(OWNER, log), "999", None, None))
+    asyncio.run(invoke(cog.announce, cog, dm(OWNER, log), None, FakeImage(content_type="application/pdf"), None))
+    asyncio.run(invoke(cog.announce, cog, dm(OWNER, log), None, FakeImage(size=9 * 1024 * 1024), None))
+    asyncio.run(invoke(cog.announce, cog, dm(OWNER, log), "999", None, None))
     assert [x[1] for x in log] == ["❌ 画像を使えません", "❌ 画像を使えません", "❌ サーバーが見つかりません"]
     log.clear()
-    asyncio.run(cog.announce.callback(cog, dm(OWNER, log), "5", FakeImage(), "見出し"))
+    asyncio.run(invoke(cog.announce, cog, dm(OWNER, log), "5", FakeImage(), "見出し"))
     assert log == [("modal", "AnnounceModal")]
 
 
@@ -676,7 +687,7 @@ def run_announce(cog, guilds_arg, heading, body, image, clicks):
     inter.edit_original_response = edit_original
     modal = AnnounceModal(cog, guilds_arg, heading, image)
     modal.body._value = body
-    asyncio.run(modal.on_submit(inter))
+    asyncio.run(modal.on_submit(as_interaction(inter)))
     view = shown["view"]
     other = SimpleNamespace(user=SimpleNamespace(id=FRIEND))
     assert asyncio.run(view.interaction_check(other)) is False  # 持ち主以外は押せない
@@ -741,16 +752,16 @@ def test_event_admin_commands_target_one_or_all_allowed_guilds_and_are_owner_onl
     monkeypatch.setattr("domain.approval.is_allowed", lambda e, c, gid, uid: gid != 6)  # 6 は許可されていない
     log = []
     game = SimpleNamespace(value="スロット")
-    asyncio.run(cog.event_start.callback(cog, dm(FRIEND, log), game, 30, 50, None))
-    asyncio.run(cog.event_stop.callback(cog, dm(FRIEND, log), None))
+    asyncio.run(invoke(cog.event_start, cog, dm(FRIEND, log), game, 30, 50, None))
+    asyncio.run(invoke(cog.event_stop, cog, dm(FRIEND, log), None))
     assert [x[1] for x in log] == ["❌ 権限がありません"] * 2 and calls == []
     log.clear()
-    asyncio.run(cog.event_start.callback(cog, dm(OWNER, log), game, 45, 80, None))  # 全サーバー（許可されている分だけ）
+    asyncio.run(invoke(cog.event_start, cog, dm(OWNER, log), game, 45, 80, None))  # 全サーバー（許可されている分だけ）
     asyncio.run(
-        cog.event_start.callback(cog, dm(OWNER, log), game, 10, 100, "6")
+        invoke(cog.event_start, cog, dm(OWNER, log), game, 10, 100, "6")
     )  # 指定したサーバーには、許可外でも開ける
-    asyncio.run(cog.event_stop.callback(cog, dm(OWNER, log), "5"))
-    asyncio.run(cog.event_start.callback(cog, dm(OWNER, log), game, 10, 100, "999"))  # 不明なサーバー
+    asyncio.run(invoke(cog.event_stop, cog, dm(OWNER, log), "5"))
+    asyncio.run(invoke(cog.event_start, cog, dm(OWNER, log), game, 10, 100, "999"))  # 不明なサーバー
     assert calls == [("start", 5, "スロット", 80, 45), ("start", 6, "スロット", 100, 10), ("stop", 5)]
     assert [x[1] for x in log if x[0] == "follow"] == [
         "✅ 特別イベントを開きました（1サーバー）",
@@ -838,10 +849,10 @@ def test_pachinko_stats_command_is_owner_only_and_scopes_to_the_chosen_guild(tmp
             sent.append(kw["embed"].title)
 
     inter = lambda uid: SimpleNamespace(user=SimpleNamespace(id=uid), guild_id=None, response=R())  # noqa: E731
-    asyncio.run(cog.pachinko_stats.callback(cog, inter(FRIEND), None, None))
-    asyncio.run(cog.pachinko_stats.callback(cog, inter(OWNER), "5", 7))
-    asyncio.run(cog.pachinko_stats.callback(cog, inter(OWNER), None, None))
-    asyncio.run(cog.pachinko_stats.callback(cog, inter(OWNER), "999", None))
+    asyncio.run(invoke(cog.pachinko_stats, cog, inter(FRIEND), None, None))
+    asyncio.run(invoke(cog.pachinko_stats, cog, inter(OWNER), "5", 7))
+    asyncio.run(invoke(cog.pachinko_stats, cog, inter(OWNER), None, None))
+    asyncio.run(invoke(cog.pachinko_stats, cog, inter(OWNER), "999", None))
     assert sent == [
         "❌ 権限がありません",
         "🎰 パチンコ統計（友達鯖・過去7日）",
@@ -862,19 +873,19 @@ def test_set_balance_command_sets_exact_amount_for_owner_only(tmp_path):
 
     guild.fetch_member = fetch
     log = []
-    asyncio.run(cog.set_balance.callback(cog, dm(FRIEND, log), "5", "42", 100))
+    asyncio.run(invoke(cog.set_balance, cog, dm(FRIEND, log), "5", "42", 100))
     assert log == [("send", "❌ 権限がありません")] and eco.wallet.balance(42) == INITIAL_BALANCE
     log.clear()
-    asyncio.run(cog.set_balance.callback(cog, dm(OWNER, log), "5", "42", 100_000, "テスト"))
+    asyncio.run(invoke(cog.set_balance, cog, dm(OWNER, log), "5", "42", 100_000, "テスト"))
     assert log == [("send", "✅ 残高を設定しました")] and eco.wallet.balance(42) == 100_000
     log.clear()
-    asyncio.run(cog.set_balance.callback(cog, dm(OWNER, log), "5", "42", 0))  # 減らすこともできる
+    asyncio.run(invoke(cog.set_balance, cog, dm(OWNER, log), "5", "42", 0))  # 減らすこともできる
     assert eco.wallet.balance(42) == 0
-    asyncio.run(cog.set_balance.callback(cog, dm(OWNER, log), "5", "42", -5000))  # マイナスは借金
+    asyncio.run(invoke(cog.set_balance, cog, dm(OWNER, log), "5", "42", -5000))  # マイナスは借金
     assert eco.wallet.balance(42) == 0 and eco.debt.debt(42) == 5000
     log.clear()
     for args in (("5", "43"), ("5", "44")):
-        asyncio.run(cog.set_balance.callback(cog, dm(OWNER, log), *args, 1000))
+        asyncio.run(invoke(cog.set_balance, cog, dm(OWNER, log), *args, 1000))
     assert [t for _, t in log] == ["❌ Bot には設定できません", "❌ そのサーバーにいません"]
 
 

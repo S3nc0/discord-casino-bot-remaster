@@ -9,6 +9,7 @@ import pytest
 from cogs.casino import common
 from domain import events
 from infra.db.repositories import open_repositories
+from tests.fakes import as_guild
 from tests.support import make_casino_deps, make_event_cog, make_test_bot
 
 pytestmark = [pytest.mark.real_scope, pytest.mark.real_events]
@@ -219,18 +220,18 @@ def make_cog(tmp_path, monkeypatch):
 
 def test_cog_start_announces_replaces_and_stop_announces_the_end(tmp_path, monkeypatch):
     cog, bot, guild, chan = make_cog(tmp_path, monkeypatch)
-    ok, text = run(cog.start_manual(guild, "スロット", 80, 45))
+    ok, text = run(cog.start_manual(as_guild(guild), "スロット", 80, 45))
     assert ok and "45分" in text and "+80%" in text and "置き換え" not in text
     e = chan.sent[-1]["embed"]
     assert "特別イベント発生" in e.title and "1.8倍" in e.description and "/カジノ スロット" in e.description
-    ok, text = run(cog.start_manual(guild, "ルーレット", 50, 30))
+    ok, text = run(cog.start_manual(as_guild(guild), "ルーレット", 50, 30))
     assert (
         "置き換え" in text
         and bot.repos.for_guild(G).events.manual_event_get(bot.services.clock.now_ts())["game"] == "ルーレット"
     )
-    ok, text = run(cog.stop_manual(guild))
+    ok, text = run(cog.stop_manual(as_guild(guild)))
     assert ok and "終了" in chan.sent[-1]["embed"].title
-    ok, text = run(cog.stop_manual(guild))
+    ok, text = run(cog.stop_manual(as_guild(guild)))
     assert not ok and len(chan.sent) == 3  # 開催中でなければ何も出さない
 
 
@@ -252,7 +253,7 @@ def test_a_removed_game_in_a_running_manual_event_does_not_break_the_announcemen
     run(cog.run_once())
     assert len(chan.sent) == 1 and "終了" in chan.sent[0]["embed"].title
     bot.repos.for_guild(G).events.manual_event_start("コイン", 50, t - 10, t + 600)
-    ok, text = run(cog.stop_manual(guild))
+    ok, text = run(cog.stop_manual(as_guild(guild)))
     assert ok and "コイン" in text
 
 

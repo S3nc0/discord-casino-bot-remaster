@@ -11,6 +11,7 @@ from cogs.economy import boards
 from cogs.economy.cog import BOARD_INTERVAL_MINUTES, EconomyCog
 from cogs.shared import ranking
 from infra.db.repositories import open_repositories
+from tests.fakes import as_guild, invoke
 from tests.support import make_economy_cog, make_ranking_repos, make_test_bot
 
 
@@ -138,7 +139,7 @@ def test_set_posts_one_message_and_remembers_it(eco):
     cog, guild, ch = make(eco)
     play_in_guild(eco, 1)
     it = FakeInteraction(guild)
-    run(EconomyCog.board_set.callback(cog, it, ch))
+    run(invoke(EconomyCog.board_set, cog, it, ch))
     board = eco.guild.get_leaderboard(10)
     assert board["channel_id"] == ch.id and board["message_id"] in ch.messages
     assert "ランキングを掲示しました" in it.sent[-1]["embed"].title and "1分" in it.sent[-1]["embed"].description
@@ -146,9 +147,9 @@ def test_set_posts_one_message_and_remembers_it(eco):
 
 def test_setting_again_replaces_the_old_board_so_there_is_only_one(eco):
     cog, guild, ch = make(eco)
-    run(EconomyCog.board_set.callback(cog, FakeInteraction(guild), ch))
+    run(invoke(EconomyCog.board_set, cog, FakeInteraction(guild), ch))
     first = eco.guild.get_leaderboard(10)["message_id"]
-    run(EconomyCog.board_set.callback(cog, FakeInteraction(guild), ch))
+    run(invoke(EconomyCog.board_set, cog, FakeInteraction(guild), ch))
     second = eco.guild.get_leaderboard(10)["message_id"]
     assert first != second and ch.messages[first].deleted and not ch.messages[second].deleted
     assert len(eco.guild.list_leaderboards()) == 1  # 1サーバーに1つ
@@ -158,18 +159,18 @@ def test_set_is_refused_when_the_bot_cannot_post_there(eco):
     cog, guild, _ = make(eco)
     bad = FakeChannel(cid=777, perms=(True, False, True))
     it = FakeInteraction(guild)
-    run(EconomyCog.board_set.callback(cog, it, bad))
+    run(invoke(EconomyCog.board_set, cog, it, bad))
     assert "掲示できません" in it.sent[-1]["embed"].title and eco.guild.get_leaderboard(10) is None
 
 
 def test_unset_stops_and_removes_the_message(eco):
     cog, guild, ch = make(eco)
-    run(EconomyCog.board_set.callback(cog, FakeInteraction(guild), ch))
+    run(invoke(EconomyCog.board_set, cog, FakeInteraction(guild), ch))
     mid = eco.guild.get_leaderboard(10)["message_id"]
-    run(EconomyCog.board_set.callback(cog, FakeInteraction(guild), None, True))
+    run(invoke(EconomyCog.board_set, cog, FakeInteraction(guild), None, True))
     assert eco.guild.get_leaderboard(10) is None and ch.messages[mid].deleted
     it = FakeInteraction(guild)
-    run(EconomyCog.board_set.callback(cog, it, None, True))  # 掲示がないときは案内する
+    run(invoke(EconomyCog.board_set, cog, it, None, True))  # 掲示がないときは案内する
     assert "掲示していません" in it.sent[-1]["embed"].title
 
 
@@ -177,7 +178,7 @@ def test_unset_stops_and_removes_the_message(eco):
 def test_refresh_edits_the_same_message_with_latest_ranking(eco):
     cog, guild, ch = make(eco)
     play_in_guild(eco, 1)
-    run(EconomyCog.board_set.callback(cog, FakeInteraction(guild), ch))
+    run(invoke(EconomyCog.board_set, cog, FakeInteraction(guild), ch))
     mid = eco.guild.get_leaderboard(10)["message_id"]
     eco.wallet.credit(1, 50_000, "テスト")
     run(
@@ -194,7 +195,7 @@ def test_refresh_edits_the_same_message_with_latest_ranking(eco):
 
 def test_refresh_reposts_when_the_message_was_deleted(eco):
     cog, guild, ch = make(eco)
-    run(EconomyCog.board_set.callback(cog, FakeInteraction(guild), ch))
+    run(invoke(EconomyCog.board_set, cog, FakeInteraction(guild), ch))
     old = eco.guild.get_leaderboard(10)["message_id"]
     del ch.messages[old]  # 誰かが消した
     run(
@@ -208,7 +209,7 @@ def test_refresh_reposts_when_the_message_was_deleted(eco):
 
 def test_refresh_forgets_the_board_when_the_channel_is_gone(eco):
     cog, guild, ch = make(eco)
-    run(EconomyCog.board_set.callback(cog, FakeInteraction(guild), ch))
+    run(invoke(EconomyCog.board_set, cog, FakeInteraction(guild), ch))
     guild.get_channel = lambda cid: None
     run(
         boards.refresh_board(
@@ -220,7 +221,7 @@ def test_refresh_forgets_the_board_when_the_channel_is_gone(eco):
 
 def test_refresh_keeps_the_board_when_permissions_are_temporarily_missing(eco):
     cog, guild, ch = make(eco)
-    run(EconomyCog.board_set.callback(cog, FakeInteraction(guild), ch))
+    run(invoke(EconomyCog.board_set, cog, FakeInteraction(guild), ch))
     board = eco.guild.get_leaderboard(10)
     ch.edit_error = http_error(403)
     run(
@@ -231,7 +232,7 @@ def test_refresh_keeps_the_board_when_permissions_are_temporarily_missing(eco):
 
 def test_refresh_does_nothing_when_the_bot_is_not_in_the_guild_right_now(eco):
     cog, guild, ch = make(eco)
-    run(EconomyCog.board_set.callback(cog, FakeInteraction(guild), ch))
+    run(invoke(EconomyCog.board_set, cog, FakeInteraction(guild), ch))
     cog.bot.get_guild = lambda gid: None
     run(
         boards.refresh_board(
@@ -260,7 +261,7 @@ def test_one_failing_server_does_not_stop_the_others(eco, monkeypatch):
 def test_leaving_a_server_removes_its_board(eco):
     cog, guild, ch = make(eco)
     eco.guild.set_leaderboard(10, ch.id, 5)
-    run(cog.on_guild_remove(SimpleNamespace(id=10)))
+    run(cog.on_guild_remove(as_guild(SimpleNamespace(id=10))))
     assert eco.guild.get_leaderboard(10) is None
 
 

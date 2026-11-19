@@ -8,6 +8,7 @@ import pytest
 
 from cogs.admin.cog import AnnounceModal, postable
 from infra.db.repositories import open_repositories
+from tests.fakes import as_channel, as_guild, as_interaction, invoke
 from tests.support import make_approval_cog, make_event_cog, make_quiz_cog, make_raffle_cog, make_test_bot
 
 OWNER, FRIEND = 1, 2
@@ -86,23 +87,24 @@ def dm(uid, log, namespace=None):
 
 def test_postable_needs_view_send_and_embed_permissions():
     guild, chans = make_guild()
-    assert postable(chans[10], guild) and not postable(chans[12], guild)
+    assert postable(chans[10], as_guild(guild)) and not postable(chans[12], as_guild(guild))
 
 
 def test_channel_autocomplete_lists_only_postable_channels_of_the_chosen_guild_for_the_owner(tmp_path):
     guild, chans = make_guild()
     cog, eco, bot = make_admin(tmp_path, [guild])
     inter = dm(OWNER, [], SimpleNamespace(**{"サーバー": "5"}))
-    names = lambda current: [c.name for c in asyncio.run(cog.channel_autocomplete(inter, current))]  # noqa: E731
+    names = lambda current: [c.name for c in asyncio.run(cog.channel_autocomplete(as_interaction(inter), current))]  # noqa: E731
     assert names("") == ["#general", "#クイズ部屋"]  # 投稿できないチャンネルは出ない
     assert names("クイズ") == ["#クイズ部屋"] and names("zzz") == []
-    assert [c.value for c in asyncio.run(cog.channel_autocomplete(inter, "クイズ"))] == ["11"]
+    assert [c.value for c in asyncio.run(cog.channel_autocomplete(as_interaction(inter), "クイズ"))] == ["11"]
     assert (
-        asyncio.run(cog.channel_autocomplete(dm(FRIEND, [], SimpleNamespace(**{"サーバー": "5"})), "")) == []
+        asyncio.run(cog.channel_autocomplete(as_interaction(dm(FRIEND, [], SimpleNamespace(**{"サーバー": "5"}))), ""))
+        == []
     )  # 持ち主以外には出さない
-    assert asyncio.run(cog.channel_autocomplete(dm(OWNER, []), "")) == []  # サーバー未選択
+    assert asyncio.run(cog.channel_autocomplete(as_interaction(dm(OWNER, [])), "")) == []  # サーバー未選択
     assert (
-        asyncio.run(cog.channel_autocomplete(dm(OWNER, [], SimpleNamespace(guild_id="5")), "")) != []
+        asyncio.run(cog.channel_autocomplete(as_interaction(dm(OWNER, [], SimpleNamespace(guild_id="5"))), "")) != []
     )  # 引数名の形でも読める
 
 
@@ -112,7 +114,7 @@ def test_pick_channel_validates(tmp_path):
     guild, chans = make_guild()
     cog, eco, bot = make_admin(tmp_path, [guild])
     log = []
-    pick = lambda guild_, cid: asyncio.run(pick_channel(dm(OWNER, log), guild_, cid))  # noqa: E731
+    pick = lambda guild_, cid: asyncio.run(pick_channel(as_interaction(dm(OWNER, log)), guild_, cid))  # noqa: E731
     assert pick(guild, None) == (True, None) and pick(None, None) == (True, None)
     assert pick(guild, "11") == (True, chans[11])
     assert pick(None, "11") == (False, None) and "サーバー" in log[-1][2]  # サーバーなしでチャンネルだけは不可
@@ -148,7 +150,7 @@ def run_announce(cog, guilds, channel, image=None):
     )
     modal = AnnounceModal(cog, guilds, "", image, channel)
     modal.body._value = "本文"
-    asyncio.run(modal.on_submit(inter))
+    asyncio.run(modal.on_submit(as_interaction(inter)))
     asyncio.run(shown["view"].send.callback(inter))
     return shown, edits
 
@@ -170,12 +172,12 @@ def test_command_requires_a_guild_with_a_channel_and_passes_it_on(tmp_path, monk
     cog, eco, bot = make_admin(tmp_path, [guild])
     monkeypatch.setattr("domain.approval.is_allowed", lambda *a: True)
     log = []
-    asyncio.run(cog.announce.callback(cog, dm(OWNER, log), None, None, None, "11"))  # サーバーなしでチャンネルだけ
+    asyncio.run(invoke(cog.announce, cog, dm(OWNER, log), None, None, None, "11"))  # サーバーなしでチャンネルだけ
     assert log[-1][0] == "send" and "チャンネルを使えません" in log[-1][1]
-    asyncio.run(cog.announce.callback(cog, dm(OWNER, log), "5", None, None, "11"))
+    asyncio.run(invoke(cog.announce, cog, dm(OWNER, log), "5", None, None, "11"))
     kind, modal = log[-1]
     assert kind == "modal" and modal.channel is chans[11] and modal.guilds == [guild]
-    asyncio.run(cog.announce.callback(cog, dm(OWNER, log), "5", None, None, "12"))  # 投稿できないチャンネル
+    asyncio.run(invoke(cog.announce, cog, dm(OWNER, log), "5", None, None, "12"))  # 投稿できないチャンネル
     assert "権限" in log[-1][2]
 
 
@@ -186,10 +188,10 @@ def test_raffle_host_and_repost_use_the_chosen_channel(tmp_path):
     bot.guilds = [guild]
     eco = bot.repos
     cog = make_raffle_cog(bot)
-    ok, text = asyncio.run(cog.host(guild, OWNER, 1000, 30, chans[11]))
+    ok, text = asyncio.run(cog.host(as_guild(guild), OWNER, 1000, 30, as_channel(chans[11])))
     r = eco.raffle.raffle_get()
     assert ok and r["channel_id"] == 11 and len(chans[11].sent) == 1 and chans[10].sent == [] and "#クイズ部屋" in text
-    ok, text = asyncio.run(cog.repost(guild, chans[10]))  # 別のチャンネルへ出し直す
+    ok, text = asyncio.run(cog.repost(as_guild(guild), as_channel(chans[10])))  # 別のチャンネルへ出し直す
     assert ok and eco.raffle.raffle_get()["channel_id"] == 10 and len(chans[10].sent) == 1
     assert chans[11].deleted == [9001]  # 古い投稿は元のチャンネルから消える
 
@@ -201,17 +203,17 @@ def test_manual_event_announces_start_and_end_in_the_chosen_channel(tmp_path, mo
     eco = bot.repos
     monkeypatch.setattr("domain.approval.is_allowed", lambda *a: True)
     cog = make_event_cog(bot)
-    asyncio.run(cog.start_manual(guild, "スロット", 80, 45, chans[11]))
+    asyncio.run(cog.start_manual(as_guild(guild), "スロット", 80, 45, as_channel(chans[11])))
     assert (
         len(chans[11].sent) == 1
         and chans[10].sent == []
         and eco.events.manual_event_get(time.time())["channel_id"] == 11
     )
-    asyncio.run(cog.stop_manual(guild))
+    asyncio.run(cog.stop_manual(as_guild(guild)))
     assert (
         len(chans[11].sent) == 2 and "終了" in chans[11].sent[1]["embed"].title and chans[10].sent == []
     )  # 終了も同じチャンネル
-    asyncio.run(cog.start_manual(guild, "ルーレット", 50, 30))  # 指定なしは告知チャンネル（system_channel）
+    asyncio.run(cog.start_manual(as_guild(guild), "ルーレット", 50, 30))  # 指定なしは告知チャンネル（system_channel）
     assert len(chans[10].sent) == 1 and eco.events.manual_event_get(time.time())["channel_id"] == 0
 
 
@@ -241,10 +243,14 @@ def test_quiz_broadcast_can_target_one_guild_and_channel(tmp_path, monkeypatch):
     assert (
         asyncio.run(cog.broadcast(qid)) == 1 and len(c1[10].sent) == 1 and c2[10].sent == []
     )  # 既定: 許可されたサーバーの告知チャンネル
-    assert asyncio.run(cog.broadcast(qid, g1, c1[11])) == 1 and len(c1[11].sent) == 1  # サーバー + チャンネル
-    assert asyncio.run(cog.broadcast(qid, g2)) == 1 and len(c2[10].sent) == 1  # 指定したサーバーには、許可外でも出す
-    assert asyncio.run(cog.broadcast(qid, g2, c2[11])) == 1 and len(c2[11].sent) == 1
-    modal = cog.add_modal(True, g1, c1[11])
+    assert (
+        asyncio.run(cog.broadcast(qid, as_guild(g1), as_channel(c1[11]))) == 1 and len(c1[11].sent) == 1
+    )  # サーバー + チャンネル
+    assert (
+        asyncio.run(cog.broadcast(qid, as_guild(g2))) == 1 and len(c2[10].sent) == 1
+    )  # 指定したサーバーには、許可外でも出す
+    assert asyncio.run(cog.broadcast(qid, as_guild(g2), as_channel(c2[11]))) == 1 and len(c2[11].sent) == 1
+    modal = cog.add_modal(True, as_guild(g1), as_channel(c1[11]))
     assert modal.guild is g1 and modal.channel is c1[11] and cog.add_modal().guild is None
 
 
@@ -286,7 +292,7 @@ def test_bulk_register_announces_to_the_chosen_target(tmp_path):
         edit_original_response=edit_original,
         namespace=SimpleNamespace(),
     )
-    asyncio.run(cog.quiz_bulk.callback(cog, inter, FakeFile(ONE), SimpleNamespace(value=1), "5", "11"))
+    asyncio.run(invoke(cog.quiz_bulk, cog, inter, FakeFile(ONE), SimpleNamespace(value=1), "5", "11"))
     assert "鯖5 の #クイズ部屋に出します" in shown["embeds"][0].description
     asyncio.run(shown["view"].register.callback(inter))
     assert calls == [(1, guild, chans[11])] and "鯖5 の #クイズ部屋に、1問" in edits[0]

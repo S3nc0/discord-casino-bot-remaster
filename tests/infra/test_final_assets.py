@@ -8,6 +8,7 @@ from cogs.shared import ranking
 from domain import horse as horse_mod
 from domain import shop
 from infra.db.repositories import open_repositories
+from tests.fakes import invoke
 from tests.support import make_ranking_repos
 
 pytestmark = pytest.mark.real_scope
@@ -110,8 +111,8 @@ def test_ranking_view_can_switch_back_and_forth(eco):
     view = RankingView(make_ranking_repos(eco), A, G)
 
     async def go():
-        await view.final.callback(it)
-        await view.normal.callback(it)
+        await invoke(view.final, it)
+        await invoke(view.normal, it)
 
     asyncio.run(go())
     import discord

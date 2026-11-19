@@ -13,6 +13,7 @@ from cogs.market.cog import MarketCog
 from domain import market
 from domain.types import INITIAL_BALANCE
 from infra.db.repositories import open_repositories
+from tests.fakes import as_interaction, invoke
 from tests.support import make_market_cog, make_test_bot
 
 pytestmark = pytest.mark.real_scope
@@ -211,13 +212,13 @@ def test_buy_other_symbol_via_command_and_holdings_list_it(eco):
 
     cog = make_cog(eco)
     it = It()
-    asyncio.run(orders.buy_spot(cog, it, "gold", 2_000))
+    asyncio.run(orders.buy_spot(cog, as_interaction(it), "gold", 2_000))
     assert "GOLD地金" in it.sent[-1]["embed"].title
     assert eco.for_guild(G).crypto.crypto_holding(U, "gold")[0] > 0 and eco.for_guild(G).crypto.crypto_holding(
         U, "cs"
     ) == (0, 0)
     it = It()
-    asyncio.run(MarketCog.holdings.callback(cog, it))
+    asyncio.run(invoke(MarketCog.holdings, cog, it))
     assert "GOLD地金" in it.sent[-1]["embed"].description
     assert eco.for_guild(G).wallet.balance(U) < INITIAL_BALANCE
 
@@ -242,13 +243,13 @@ def test_order_command_dispatches_spot_short_and_bond(eco):
     cog = make_cog(eco)
     eco.for_guild(G).wallet.credit(U, 20_000, "テスト")
     it = It()
-    asyncio.run(MarketCog.order.callback(cog, it, choice("teio"), 2_000, None, None))  # 現物買い
+    asyncio.run(invoke(MarketCog.order, cog, it, choice("teio"), 2_000, None, None))  # 現物買い
     assert eco.for_guild(G).crypto.crypto_holding(U, "teio")[0] > 0
     it = It()
-    asyncio.run(MarketCog.order.callback(cog, it, choice("gold"), 1_000, choice("short"), choice(2)))
+    asyncio.run(invoke(MarketCog.order, cog, it, choice("gold"), 1_000, choice("short"), choice(2)))
     assert eco.for_guild(G).margin.short_position(U, "gold")[0] > 0 and "空売り" in it.sent[-1]["embed"].title
     it = It()
-    asyncio.run(MarketCog.order.callback(cog, it, choice("bond_normal"), 1_000, None, None))
+    asyncio.run(invoke(MarketCog.order, cog, it, choice("bond_normal"), 1_000, None, None))
     assert len(eco.for_guild(G).bonds.bond_list(U)["active"]) == 1 and "通常債" in it.sent[-1]["embed"].title
 
 
@@ -262,7 +263,7 @@ def test_order_command_refuses_nonsense_combinations(eco):
         (choice("cs"), 1_000, None, choice(2)),  # 現物買いにレバレッジなし
     ):
         it = It()
-        asyncio.run(MarketCog.order.callback(cog, it, *args))
+        asyncio.run(invoke(MarketCog.order, cog, it, *args))
         assert it.sent[-1]["ephemeral"] and "❌" in it.sent[-1]["embed"].title
     assert eco.for_guild(G).crypto.holdings(U) == [] and eco.for_guild(G).bonds.bond_list(U)["active"] == []
     assert eco.for_guild(G).wallet.balance(U) == INITIAL_BALANCE  # 何も買われていない
@@ -273,7 +274,7 @@ def test_bond_below_minimum_is_refused(eco):
 
     cog = make_cog(eco)
     it = It()
-    asyncio.run(MarketCog.order.callback(cog, it, choice("bond_normal"), 500, None, None))
+    asyncio.run(invoke(MarketCog.order, cog, it, choice("bond_normal"), 500, None, None))
     assert "買えません" in it.sent[-1]["embed"].title and eco.for_guild(G).wallet.balance(U) == INITIAL_BALANCE
 
 
@@ -292,15 +293,15 @@ def test_positions_and_settle_command_close_each_kind(eco):
     assert codes[:2] == ["spot:cs", "short:teio"] and len(codes) == 3
     for code in ("spot:cs", "short:teio", bond_id):
         it = It()
-        asyncio.run(MarketCog.settle.callback(cog, it, code, None))
+        asyncio.run(invoke(MarketCog.settle, cog, it, code, None))
         assert "❌" not in it.sent[-1]["embed"].title, code
     assert a.crypto.holdings(U) == [] and a.margin.short_positions(U) == []
     assert [r["kind"] for r in a.bonds.bond_list(U)["active"]] == ["junk"]
     it = It()
-    asyncio.run(MarketCog.settle.callback(cog, it, "bond:99999", None))  # 無い番号
+    asyncio.run(invoke(MarketCog.settle, cog, it, "bond:99999", None))  # 無い番号
     assert "売れません" in it.sent[-1]["embed"].title
     it = It()
-    asyncio.run(MarketCog.settle.callback(cog, it, "なにか", None))
+    asyncio.run(invoke(MarketCog.settle, cog, it, "なにか", None))
     assert "決済できません" in it.sent[-1]["embed"].title
 
 
@@ -311,7 +312,7 @@ def test_settle_half_of_a_spot_position(eco):
     a = eco.for_guild(G)
     a.crypto.crypto_buy(U, 2_000, cog._market_svc.latest_price("cs"), "cs")
     have = a.crypto.crypto_holding(U, "cs")[0]
-    asyncio.run(MarketCog.settle.callback(cog, It(), "spot:cs", choice("half")))
+    asyncio.run(invoke(MarketCog.settle, cog, It(), "spot:cs", choice("half")))
     assert a.crypto.crypto_holding(U, "cs")[0] == have - have // 2
 
 
@@ -323,7 +324,7 @@ def test_holdings_screen_lists_everything_with_a_button_per_position(eco):
     a.crypto.crypto_buy(U, 1_000, cog._market_svc.latest_price("gold"), "gold")
     a.bonds.bond_buy(U, "normal", 1_000, time.time())
     it = It()
-    asyncio.run(MarketCog.holdings.callback(cog, it))
+    asyncio.run(invoke(MarketCog.holdings, cog, it))
     text = it.sent[-1]["embed"].description
     assert "GOLD地金" in text and "債券" in text and "通常債" in text
     view = it.sent[-1]["view"]
@@ -348,8 +349,13 @@ def test_holdings_view_only_works_for_the_owner(eco):
 
     stranger = SimpleNamespace(user=SimpleNamespace(id=999), response=Resp())
     for view in (HoldingsView(cog, U, G), MarketView(cog, U, G)):
-        assert asyncio.run(view.interaction_check(stranger)) is False
-        assert asyncio.run(view.interaction_check(SimpleNamespace(user=SimpleNamespace(id=U), response=Resp()))) is True
+        assert asyncio.run(view.interaction_check(as_interaction(stranger))) is False
+        assert (
+            asyncio.run(
+                view.interaction_check(as_interaction(SimpleNamespace(user=SimpleNamespace(id=U), response=Resp())))
+            )
+            is True
+        )
     assert len(sent) == 2
 
 
@@ -358,7 +364,7 @@ def test_empty_holdings_has_no_buttons(eco):
 
     cog = make_cog(eco)
     it = It()
-    asyncio.run(MarketCog.holdings.callback(cog, it))
+    asyncio.run(invoke(MarketCog.holdings, cog, it))
     assert (
         "まだ持っていません" in it.sent[-1]["embed"].description and "view" not in it.sent[-1]
     )  # view=None は渡さない
@@ -369,7 +375,7 @@ def test_board_without_symbol_shows_summary_with_switcher_and_with_symbol_posts_
 
     cog = make_cog(eco)
     it = It()
-    asyncio.run(MarketCog.board.callback(cog, it, None, None))
+    asyncio.run(invoke(MarketCog.board, cog, it, None, None))
     assert "全銘柄" in it.sent[-1]["embed"].title and it.sent[-1]["ephemeral"] and it.sent[-1]["view"]
     view = it.sent[-1]["view"]
     assert [len(s.options) for s in view.children] == [5, len(market.PERIODS)]
@@ -387,7 +393,7 @@ def test_board_without_symbol_shows_summary_with_switcher_and_with_symbol_posts_
     asyncio.run(view._on_symbol(SimpleNamespace(response=Resp())))
     assert "TEIO重工" in swap[0] and "TEIO重工" in swap[1] and "全銘柄" in swap[2]
     it = It()
-    asyncio.run(MarketCog.board.callback(cog, it, choice("numa"), None))
+    asyncio.run(invoke(MarketCog.board, cog, it, choice("numa"), None))
     assert "NUMAバイオ" in it.sent[-1]["embed"].title and "view" not in it.sent[-1]
 
 
@@ -399,10 +405,10 @@ def test_settle_by_percent_sells_that_share_of_a_spot_position(eco):
     assert a.crypto.crypto_buy(U, 2_000, cog._market_svc.latest_price("cs"), "cs").ok
     have = a.crypto.crypto_holding(U, "cs")[0]
     assert have > 0
-    asyncio.run(MarketCog.settle.callback(cog, It(), "spot:cs", None, 25))
+    asyncio.run(invoke(MarketCog.settle, cog, It(), "spot:cs", None, 25))
     assert a.crypto.crypto_holding(U, "cs")[0] == have - have * 25 // 100
     left = a.crypto.crypto_holding(U, "cs")[0]
-    asyncio.run(MarketCog.settle.callback(cog, It(), "spot:cs", None, 100))  # 100%は、全部
+    asyncio.run(invoke(MarketCog.settle, cog, It(), "spot:cs", None, 100))  # 100%は、全部
     assert a.crypto.crypto_holding(U, "cs")[0] == 0 and left > 0
 
 
@@ -416,7 +422,7 @@ def test_percent_units_are_at_least_one_unit_and_both_options_are_refused(eco):
 
     cog = make_cog(eco)
     it = It()
-    asyncio.run(MarketCog.settle.callback(cog, it, "spot:cs", choice("half"), 20))
+    asyncio.run(invoke(MarketCog.settle, cog, it, "spot:cs", choice("half"), 20))
     assert "どちらか1つ" in it.sent[-1]["embed"].title
 
 
@@ -428,5 +434,5 @@ def test_percent_closes_that_share_of_a_margin_position(eco):
     a.wallet.credit(U, 20_000, "テスト")
     assert a.margin.short_open(U, 10_000, cog._market_svc.latest_price("cs"), 1, "cs").ok
     have = a.margin.short_position(U, "cs")[0]
-    asyncio.run(MarketCog.settle.callback(cog, It(), "short:cs", None, 30))
+    asyncio.run(invoke(MarketCog.settle, cog, It(), "short:cs", None, 30))
     assert a.margin.short_position(U, "cs")[0] == have - have * 30 // 100
