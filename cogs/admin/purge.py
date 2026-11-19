@@ -4,10 +4,13 @@ Bot は自分の発言を消すのに「メッセージの管理」権限は要�
 自分の発言は一括削除できないので、1件ずつ消す（Discord の制限に合わせて、discord.py が自動で待つ）。
 """
 
+import logging
 from dataclasses import dataclass
 from typing import Awaitable, Callable, Optional
 
 import discord
+
+_log = logging.getLogger(__name__)
 
 PROGRESS_EVERY = 25  # この件数ごとに、進み具合を知らせる
 
@@ -41,7 +44,7 @@ async def delete_own_messages(
             continue  # 先に消えていた
         except discord.HTTPException as exc:
             result.failed += 1
-            print(f"発言を消せません: channel={getattr(channel, 'id', '?')} message={message.id}: {exc!r}")
+            _log.warning(f"発言を消せません: channel={getattr(channel, 'id', '?')} message={message.id}: {exc!r}")
         if on_progress is not None and (result.deleted + result.failed) % PROGRESS_EVERY == 0:
             await on_progress(result)
     return result

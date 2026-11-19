@@ -17,13 +17,12 @@ from cogs.quiz.embeds import (
     result_embed,
     verdict,
 )
-from cogs.shared import ui
+from cogs.shared import logthrottle, ui
 from cogs.shared.bridges import IQuizAdminBridge, IQuizButtonBridge, NoOpQuizButtonBridge
 from cogs.shared.messages import format_failure
 from domain import approval, quizpay
 from domain.duration import format_minutes, parse_duration
 from domain.ports.repos import IGuildRepo, IQuizRepo
-from infra import logthrottle
 
 if TYPE_CHECKING:
     from cogs.shared.bot import CasinoBot

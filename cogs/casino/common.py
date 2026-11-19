@@ -1,5 +1,6 @@
 """ゲーム共通の流れ: 賭け金の検証と預かり、精算、ボタンの持ち主確認、結果の表示。"""
 
+import logging
 from dataclasses import dataclass
 from typing import Any
 
@@ -12,6 +13,8 @@ from domain import approval, missions, teiai
 from domain.games.rtplevel import MIN_BET as MIN_BET  # noqa: F401
 from domain.ports.repos import IDebtRepo, IGuildRepo, IPachinkoRepo
 from services.casino import CasinoService
+
+_log = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
@@ -34,7 +37,7 @@ def log_display_failure(game: str, step: str, exc: Exception) -> None:
     画面が途中で止まって見える原因（通信エラーなど）を、あとから調べられるようにする。"""
     status = getattr(exc, "status", "?")
     code = getattr(exc, "code", "?")
-    print(f"演出の表示に失敗: {game}/{step}: {type(exc).__name__} status={status} code={code}: {exc}")
+    _log.warning(f"演出の表示に失敗: {game}/{step}: {type(exc).__name__} status={status} code={code}: {exc}")
 
 
 class GameContext:
@@ -281,7 +284,7 @@ class GameOwnerView(ui.OwnerView):
         self.ctx = ctx
 
     async def on_error(self, interaction: discord.Interaction, error: Exception, item: discord.ui.Item[Any]) -> None:
-        print(f"ゲーム中のエラー: {self.ctx.game}: {error!r}")
+        _log.warning(f"ゲーム中のエラー: {self.ctx.game}: {error!r}")
         self.ctx.abort()  # 賭け金を返す
         try:
             await ui.send_channel(

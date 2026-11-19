@@ -1,5 +1,6 @@
 """/証券（注文・保有・市況・決済）— 4銘柄（CSトークン・TEIO重工・NUMAバイオ・GOLD地金）と債券の売買、価格のチャート。"""
 
+import logging
 import random
 import time
 from types import SimpleNamespace
@@ -22,7 +23,7 @@ from cogs.market.embeds import (
 )
 from cogs.market.views import HoldingsView, MarketView
 from cogs.market.views import OptionAmountModal as OptionAmountModal  # noqa: F401
-from cogs.shared import ui
+from cogs.shared import logthrottle, ui
 from cogs.shared.amount import balance_choices, own_balance, typed_amount
 from cogs.shared.announce import announce_channel
 from domain import market, market_events
@@ -41,8 +42,9 @@ from domain.ports.repos import (
     IWalletRepo,
 )
 from domain.ports.session import ISessionGuard
-from infra import logthrottle
 from services.market import MarketService
+
+_log = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     from cogs.shared.bot import CasinoBot
@@ -113,22 +115,24 @@ class MarketCog(commands.Cog):
             prices, _event = self.step_prices()
             self._margin.margin_interest(time.time())
             for guild_id, user_id, symbol, side, loss in self._margin.margin_losscut(prices):
-                print(f"{market.SIDE_NAME[side]}をロスカット: guild={guild_id} user={user_id} {symbol} 損失={loss:,}")
+                _log.info(
+                    f"{market.SIDE_NAME[side]}をロスカット: guild={guild_id} user={user_id} {symbol} 損失={loss:,}"
+                )
             self._market.market_prune(time.time() - KEEP_DAYS * 86400)
             self._market.prune_chart_posts(time.time() - KEEP_DAYS * 86400)
         except Exception as exc:
-            print(f"価格の更新に失敗: {exc!r}")
+            _log.warning(f"価格の更新に失敗: {exc!r}")
             return
         try:
             await self._earnings_posts()
         except Exception as exc:
-            print(f"決算の告知に失敗: {exc!r}")
+            _log.warning(f"決算の告知に失敗: {exc!r}")
         now, cache = time.time(), {}
         for post in self._market.live_chart_posts():
             try:
                 await feed.refresh_post(self.bot, self._market, self, post, now, cache)
             except Exception as exc:
-                print(f"チャートの更新に失敗: {post}: {exc!r}")
+                _log.warning(f"チャートの更新に失敗: {post}: {exc!r}")
 
     async def _earnings_posts(self) -> None:
         await feed.earnings_posts(
@@ -147,7 +151,7 @@ class MarketCog(commands.Cog):
         try:
             await feed.retire_old_boards(self.bot, self._market)
         except Exception as exc:
-            print(f"古いチャート掲示の後始末に失敗: {exc!r}")
+            _log.warning(f"古いチャート掲示の後始末に失敗: {exc!r}")
 
     # ------------------------------ 表示 ------------------------------ #
     def chart_embed(

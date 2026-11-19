@@ -6,6 +6,7 @@
 - ミッション・連勝・週間ランキング・突発イベントには数えない。
 """
 
+import logging
 import random
 import time
 from typing import TYPE_CHECKING, Any, Optional
@@ -13,7 +14,7 @@ from typing import TYPE_CHECKING, Any, Optional
 import discord
 from discord.ext import commands, tasks
 
-from cogs.shared import ui
+from cogs.shared import logthrottle, ui
 from cogs.shared.announce import announce_channel
 from cogs.shared.bridges import BotBridges, IRaffleAdminBridge
 from cogs.shared.messages import format_failure
@@ -21,7 +22,8 @@ from cogs.shared.tasks import run_for_allowed_guilds
 from domain import approval
 from domain.ports import get_catalogs
 from domain.ports.repos import IGuildRepo, IRaffleRepo
-from infra import logthrottle
+
+_log = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     from cogs.shared.bot import CasinoBot
@@ -227,7 +229,7 @@ class RaffleCog(commands.Cog, IRaffleAdminBridge):
         try:
             await self.run_once()
         except Exception as exc:
-            print(f"抽選の確認に失敗: {exc!r}")
+            _log.warning(f"抽選の確認に失敗: {exc!r}")
 
     @tick.before_loop
     async def _before(self) -> None:

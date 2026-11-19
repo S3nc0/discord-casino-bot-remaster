@@ -6,11 +6,10 @@ from typing import TYPE_CHECKING, Any
 import discord
 
 from cogs.market.embeds import LIVE_MINUTES, earnings_announce_embed, earnings_result_embed
-from cogs.shared import ui
+from cogs.shared import logthrottle, ui
 from cogs.shared.announce import announce_channel
 from cogs.shared.tasks import allowed_guilds
 from domain.ports.repos import IEarningsRepo, IGuildRepo, IMarketDataRepo
-from infra import logthrottle
 
 if TYPE_CHECKING:
     from cogs.market.cog import MarketCog

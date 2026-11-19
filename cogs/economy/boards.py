@@ -6,10 +6,9 @@ from typing import Optional
 
 import discord
 
-from cogs.shared import ranking, ui
+from cogs.shared import logthrottle, ranking, ui
 from cogs.shared.ranking import RankingRepos
 from domain.ports.repos import IGuildRepo
-from infra import logthrottle
 
 
 class RankingView(ui.OwnerView):

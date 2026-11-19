@@ -17,13 +17,12 @@ from discord.ext import commands, tasks
 
 from cogs.arena.embeds import FORMAT_NAME, STAGE_LABEL, battle_embed
 from cogs.arena.views import BetPanel
-from cogs.shared import ui
+from cogs.shared import logthrottle, ui
 from cogs.shared.announce import announce_channel
 from cogs.shared.bridges import BotBridges, IArenaAdminBridge
 from cogs.shared.tasks import run_for_allowed_guilds
 from domain import arena as arena_mod
 from domain.ports.repos import IGuildRepo
-from infra import logthrottle
 from services.arena import ArenaService
 
 if TYPE_CHECKING:

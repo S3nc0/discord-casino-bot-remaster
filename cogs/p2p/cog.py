@@ -30,7 +30,7 @@ from cogs.p2p.views import (  # noqa: F401
     SellView,
     listing_view,
 )
-from cogs.shared import ui
+from cogs.shared import logthrottle, ui
 from cogs.shared.announce import announce_channel
 from cogs.shared.bridges import BotBridges, IP2PListingBridge, IP2PNavigationBridge
 from cogs.shared.confirm import confirm_action, confirmed_reply, user_session
@@ -39,7 +39,6 @@ from cogs.shared.tasks import run_for_allowed_guilds
 from domain.ports import get_catalogs
 from domain.ports.repos import IGuildRepo, IHorseRepo, IP2PRepo, IShopRepo, IWalletRepo
 from domain.ports.session import ISessionGuard
-from infra import logthrottle
 
 if TYPE_CHECKING:
     from cogs.shared.bot import CasinoBot

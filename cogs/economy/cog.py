@@ -1,6 +1,7 @@
 """/ペリカ — 残高・デイリー・ランキング・送金・履歴。"""
 
 import datetime
+import logging
 import math
 from typing import TYPE_CHECKING, Any, Optional
 
@@ -37,6 +38,8 @@ from domain.ports.repos import (
 from domain.ports.session import ISessionGuard
 from domain.types import DAILY_BASE, DAILY_STREAK_BONUS, DAILY_STREAK_CAP
 from services.economy import EconomyService
+
+_log = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     from cogs.shared.bot import CasinoBot
@@ -414,7 +417,7 @@ class EconomyCog(commands.Cog):
                     self.bot, self._ranking_repos, self._guild_repo, board, BOARD_INTERVAL_MINUTES
                 )
             except Exception as exc:  # 1つのサーバーの失敗で、他のサーバーの更新を止めない
-                print(f"ランキング掲示板の更新に失敗: {board}: {exc!r}")
+                _log.warning(f"ランキング掲示板の更新に失敗: {board}: {exc!r}")
 
     @refresh_boards.before_loop
     async def _before_refresh(self):

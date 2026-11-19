@@ -1,5 +1,6 @@
 """証券・債券・オプション市場のアプリケーションサービス（価格進行・集計・スナップショット）。"""
 
+import logging
 from typing import Any, Optional
 
 from domain import bonds, earnings, market, market_events
@@ -15,6 +16,8 @@ from domain.ports.repos import (
     IMarketEventRepo,
     IOptionRepo,
 )
+
+_log = logging.getLogger(__name__)
 
 
 class MarketService:
@@ -68,7 +71,7 @@ class MarketService:
         now = self.clock.now_ts()
         announced = self._market_events.event_step(now, rng)
         if announced is not None:
-            print(
+            _log.info(
                 f"ボラティリティ予告: {announced['symbol']} {market_events.LEAD_MIN}分後から{market_events.DURATION_MIN}分"
             )
         self._earnings.earnings_ensure(now, self.clock.offset_hours())

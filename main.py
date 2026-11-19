@@ -9,7 +9,6 @@ import json
 import logging
 import os
 import re
-import traceback
 
 import discord
 from discord import app_commands
@@ -26,6 +25,8 @@ from infra.db.repositories import open_repositories  # noqa: E402
 from infra.paths import CONFIG_PATH as _CONFIG_PATH  # noqa: E402
 from infra.paths import DB_PATH as _DB_PATH  # noqa: E402
 from services import Sessions  # noqa: E402
+
+_log = logging.getLogger(__name__)
 
 CONFIG_PATH = str(_CONFIG_PATH)
 DB_PATH = str(_DB_PATH)
@@ -58,7 +59,7 @@ class BotTree(app_commands.CommandTree):
         # Discord は3秒以内に応答しないと「応答しませんでした」と表示する。届くのが遅れていないかを記録しておく
         late = (discord.utils.utcnow() - interaction.created_at).total_seconds()
         if late > 1.5:
-            print(
+            _log.warning(
                 f"⚠ コマンドの受信が {late:.1f} 秒遅れました（{getattr(interaction.command, 'qualified_name', '?')}）。"
                 f"Bot のネットワークや、PC のスリープ・負荷を確認してください。ゲートウェイ遅延: {interaction.client.latency * 1000:.0f}ms"
             )
@@ -84,7 +85,7 @@ class BotTree(app_commands.CommandTree):
         elif isinstance(cause, discord.HTTPException):
             text = "Discord 側のエラーで失敗しました。時間をおいてもう一度お試しください。"
         else:
-            traceback.print_exception(type(error), error, error.__traceback__)
+            _log.error("予期しないエラー", exc_info=error)
             root = getattr(interaction.command, "root_parent", None)
             is_game = root is not None and root.name == "カジノ"
             text = "予期しないエラーが発生しました。" + (
@@ -98,7 +99,7 @@ class BotTree(app_commands.CommandTree):
                 await interaction.response.send_message(embed=embed, ephemeral=True)
         except discord.HTTPException:
             pass
-        print(f"コマンドエラー: {getattr(interaction.command, 'qualified_name', '?')}: {error!r}")
+        _log.warning(f"コマンドエラー: {getattr(interaction.command, 'qualified_name', '?')}: {error!r}")
 
 
 config = load_config()
@@ -135,12 +136,12 @@ async def sync_test_guild(guild_id: int) -> bool:
     try:
         await bot.tree.sync(guild=guild_obj)
     except discord.Forbidden:
-        print(
+        _log.warning(
             f"⚠ サーバー {guild_id} にコマンドを登録できませんでした。Bot がそのサーバーに招待されていないか、"
             "招待URLに applications.commands が含まれていません。招待すると、自動で登録されます。"
         )
         return False
-    print(f"✓ テストギルド {guild_id} にコマンド同期")
+    _log.info(f"✓ テストギルド {guild_id} にコマンド同期")
     return True
 
 
@@ -157,32 +158,32 @@ async def setup_hook():
     # 前回の起動中に落ちて、預かったままになっている賭け金を返す
     refunded = bot.repos.escrow.refund_all_escrows()
     if refunded:
-        print(f"中断していたゲーム {refunded} 件の賭け金を返金しました")
+        _log.info(f"中断していたゲーム {refunded} 件の賭け金を返金しました")
     failed = await load_all_cogs()
     if failed:
         # 同期は Discord 側の登録を丸ごと上書きするため、欠けた状態で行うとそのコマンドが消える
-        print(f"⚠ 読み込みに失敗した cog があるためコマンド同期をスキップします: {', '.join(failed)}")
+        _log.warning(f"⚠ 読み込みに失敗した cog があるためコマンド同期をスキップします: {', '.join(failed)}")
         return
     test_guild = bot.config.get("test_guild_id")
     if test_guild:
         await sync_test_guild(int(test_guild))
-        print(
+        _log.warning(
             "⚠ test_guild_id は開発用です。グローバルのコマンドも登録されていると、同じコマンドが2つ表示されます。本番では null にしてください。"
         )
     else:
         await bot.tree.sync()
-        print("✓ グローバルにコマンド同期（反映まで最大1時間）")
+        _log.info("✓ グローバルにコマンド同期（反映まで最大1時間）")
 
 
 @bot.event
 async def on_ready():
-    print("=" * 50)
+    _log.info("=" * 50)
     uid = bot.user.id if bot.user is not None else "?"
-    print(f"ログイン: {bot.user} (ID: {uid})")
-    print(f"参加サーバー数: {len(bot.guilds)}")
+    _log.info(f"ログイン: {bot.user} (ID: {uid})")
+    _log.info(f"参加サーバー数: {len(bot.guilds)}")
     allowed = bot.config.get("allowed_guild_ids") or []
-    print(f"許可サーバー: {allowed if allowed else '制限なし（どのサーバーでも遊べます）'}")
-    print("=" * 50)
+    _log.info(f"許可サーバー: {allowed if allowed else '制限なし（どのサーバーでも遊べます）'}")
+    _log.info("=" * 50)
 
 
 _lock_file = None  # 起動中ずっと保持する（閉じるとロックが外れる）
@@ -217,7 +218,8 @@ def main():
     if test_guild is not None and not str(test_guild).isdigit():
         raise SystemExit("config.json の test_guild_id は数字のサーバーIDか null にしてください。")
     try:
-        bot.run(token)
+        # root_logger=True: discord.py のログ設定を全ロガーに広げ、cogs/・services/ の logging も表示する
+        bot.run(token, root_logger=True)
     except discord.LoginFailure:
         raise SystemExit(
             "ログインに失敗しました。config.json の token が正しいか、再発行されていないか確認してください。"

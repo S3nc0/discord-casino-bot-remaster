@@ -44,7 +44,7 @@
 | パス | 内容 |
 |---|---|
 | `loader.py` | 読み込む Cog モジュール一覧（`COG_MODULES`）と `load_all_cogs()`（`main.py` とテストで共有） |
-| `shared/` | 共通 Discord 基盤（`bot.py` / `bridges.py` / `ui.py` / `texts.py` / `tasks.py` / `confirm.py` / `messages/` / `approval_guard.py` / `ranking.py` / `announce.py` / `amount.py` / `horse_display.py`）。`CasinoBot` と Cog 間ブリッジ（`bridges.py`: `BotBridges`・`resolve_bridge` / `require_bridge`・名目的基底クラス群）により Service Locator なしで疎結合に連携、`tasks.py` で承認済みギルド走査を共通化 |
+| `shared/` | 共通 Discord 基盤（`bot.py` / `bridges.py` / `ui.py` / `texts.py` / `tasks.py` / `confirm.py` / `messages/` / `approval_guard.py` / `ranking.py` / `announce.py` / `amount.py` / `horse_display.py` / `logthrottle.py`）。`CasinoBot` と Cog 間ブリッジ（`bridges.py`: `BotBridges`・`resolve_bridge` / `require_bridge`・名目的基底クラス群）により Service Locator なしで疎結合に連携、`tasks.py` で承認済みギルド走査を共通化、`logthrottle.py` で同じ原因の警告ログを間引く。`cogs/` は `infra/` を import しない（ログは標準 `logging`） |
 | `casino/` | `/カジノ`。`cog.py` と進行演出・静的台本（`common.py`・`simple.py`・`blackjack.py`・`chinchiro.py`・`pachinko.py`・`texts.py`） |
 | `economy/` | `/ペリカ`。`cog.py`・`boards.py`（残高・デイリー・ランキング・掲示板自動更新・送金・履歴） |
 | `teiai/` | `/ペリカ 帝愛` のパネル（`panel.py`）と海外逃亡の演出（`escape.py`）、静的 AA・状態文言（`texts.py`） |
@@ -136,7 +136,6 @@
 | `paths.py` | ルート・`catalogs/`・`config.json`・`data/casino.db` の基準パス解決 |
 | `catalogs/` | `catalogs/*.yaml` を責務別に読み込み・Pydantic 型検証・キャッシュするパッケージ（`loader.py`・`shop.py`・`economy.py`・`games.py`・`market.py`・`arena.py`・`company.py`、`YamlCatalogs(ICatalogs)`） |
 | `clock.py` | `ConfigClock(IClock)` とタイムゾーンに基づく現在時刻・日付の取得 |
-| `logthrottle.py` | 同じ原因のログを出し続けないための間引き |
 
 ### `infra/db/` — SQLite 永続化・独立リポジトリ群
 

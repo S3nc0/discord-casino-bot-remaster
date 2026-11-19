@@ -1,6 +1,7 @@
 """自動で更新されるランキング掲示板。"""
 
 import asyncio
+import logging
 from types import SimpleNamespace
 
 import discord
@@ -301,12 +302,13 @@ def test_board_commands_allow_server_managers_and_bot_owners_only(command):
         _check(command, 5, False, [7])  # どちらでもない
 
 
-def test_failure_log_is_throttled(capsys):
-    from infra import logthrottle
+def test_failure_log_is_throttled(caplog):
+    from cogs.shared import logthrottle
 
     logthrottle._last.clear()
-    for _ in range(5):
-        logthrottle.warn(("k", 1), "失敗しました")
-    logthrottle.warn(("k", 2), "別のサーバーの失敗")
-    out = capsys.readouterr().out
+    with caplog.at_level(logging.WARNING):
+        for _ in range(5):
+            logthrottle.warn(("k", 1), "失敗しました")
+        logthrottle.warn(("k", 2), "別のサーバーの失敗")
+    out = caplog.text
     assert out.count("失敗しました") == 1 and "別のサーバーの失敗" in out

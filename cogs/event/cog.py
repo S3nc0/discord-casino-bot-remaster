@@ -5,20 +5,22 @@ Bot が止まっていて開始を逃しても、告知はやり直さない（�
 """
 
 import datetime
+import logging
 from typing import TYPE_CHECKING, Any, Optional
 
 import discord
 from discord.ext import commands, tasks
 
 from cogs.event.texts import event_copy
-from cogs.shared import ui
+from cogs.shared import logthrottle, ui
 from cogs.shared.announce import announce_channel
 from cogs.shared.bridges import BotBridges, IEventAdminBridge
 from cogs.shared.tasks import run_for_allowed_guilds
 from domain import events
 from domain.ports.clock import IClock
 from domain.ports.repos import IEventRepo, IGuildRepo
-from infra import logthrottle
+
+_log = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     from cogs.shared.bot import CasinoBot
@@ -58,7 +60,7 @@ class EventCog(commands.Cog, IEventAdminBridge):
         try:
             await self.run_once()
         except Exception as exc:
-            print(f"突発イベントの確認に失敗: {exc!r}")
+            _log.warning(f"突発イベントの確認に失敗: {exc!r}")
 
     @tick.before_loop
     async def _before(self) -> None:

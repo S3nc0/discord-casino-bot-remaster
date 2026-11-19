@@ -4,12 +4,13 @@
 Bot が止まっていて月曜0時を逃しても、次に起動したときに1回だけ発表する（二重には発表しない）。
 """
 
+import logging
 from typing import TYPE_CHECKING, Any, Optional
 
 import discord
 from discord.ext import commands, tasks
 
-from cogs.shared import ui
+from cogs.shared import logthrottle, ui
 from cogs.shared.announce import announce_channel
 from cogs.shared.bridges import DeferredShopTitleBridge, IShopTitleBridge
 from cogs.shared.messages import format_standings_lines
@@ -18,8 +19,9 @@ from domain import shop, weekly
 from domain.ports import get_catalogs
 from domain.ports.clock import IClock
 from domain.ports.repos import IGuildRepo, IRecordRepo
-from infra import logthrottle
 from services.economy import EconomyService
+
+_log = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     from cogs.shared.bot import CasinoBot
@@ -50,7 +52,7 @@ class WeeklyCog(commands.Cog):
     async def cog_load(self) -> None:
         done = self._economy_svc.backfill_weekly()  # この機能の前に遊んだ分を、台帳から補う（初回だけ）
         if done:
-            print(f"週間ランキング: 過去の {done} ゲーム分を台帳から補いました")
+            _log.info(f"週間ランキング: 過去の {done} ゲーム分を台帳から補いました")
         self.check_weeks.start()
 
     async def cog_unload(self) -> None:
@@ -61,7 +63,7 @@ class WeeklyCog(commands.Cog):
         try:
             await self.run_once()
         except Exception as exc:
-            print(f"週間ランキングの確認に失敗: {exc!r}")
+            _log.warning(f"週間ランキングの確認に失敗: {exc!r}")
 
     @check_weeks.before_loop
     async def _before(self) -> None:
@@ -135,7 +137,7 @@ class WeeklyCog(commands.Cog):
             try:
                 await self._shop_bridge.sync_title_nick(uid, guild)
             except Exception as exc:
-                print(f"称号の取り消しをニックネームに反映できません: guild={guild.id} user={uid}: {exc!r}")
+                _log.warning(f"称号の取り消しをニックネームに反映できません: guild={guild.id} user={uid}: {exc!r}")
 
 
 async def setup(bot: "CasinoBot") -> None:

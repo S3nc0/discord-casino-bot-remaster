@@ -1,5 +1,6 @@
 """/クイズ — 持ち主・プレイヤーが出題する 4 択クイズの Cog と定期精算タスク。"""
 
+import logging
 import time
 from typing import TYPE_CHECKING, Any, Optional
 
@@ -74,13 +75,14 @@ from cogs.quiz.views import (
 from cogs.quiz.views import (
     verdicts_input as verdicts_input,  # noqa: F401
 )
-from cogs.shared import ui
+from cogs.shared import logthrottle, ui
 from cogs.shared.announce import announce_channel
 from cogs.shared.bridges import BotBridges, IQuizAdminBridge, IQuizButtonBridge
 from cogs.shared.tasks import allowed_guilds, run_for_allowed_guilds
 from domain.duration import format_minutes
 from domain.ports.repos import IGuildRepo, IQuizRepo
-from infra import logthrottle
+
+_log = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     from cogs.shared.bot import CasinoBot
@@ -119,7 +121,7 @@ class QuizCog(commands.Cog, IQuizAdminBridge, IQuizButtonBridge):
         try:
             await self.run_once()
         except Exception as exc:
-            print(f"クイズの精算に失敗: {exc!r}")
+            _log.warning(f"クイズの精算に失敗: {exc!r}")
 
     @tick.before_loop
     async def _before(self):

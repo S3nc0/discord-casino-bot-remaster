@@ -7,6 +7,7 @@
 """
 
 import asyncio
+import logging
 import time
 from typing import TYPE_CHECKING, Any, Optional, cast
 
@@ -17,14 +18,15 @@ from discord.ext import commands, tasks
 from cogs.horse.betting import BetPanel
 from cogs.horse.cards import RaceButton, card_embed, card_view, race_title
 from cogs.horse.stable import Stable
-from cogs.shared import ui
+from cogs.shared import logthrottle, ui
 from cogs.shared.announce import announce_channel
 from cogs.shared.bridges import BotBridges, IHorseAdminBridge, IHorseButtonBridge
 from cogs.shared.tasks import run_for_allowed_guilds
 from domain import horse as horse_mod  # noqa: F401
 from domain.ports.repos import IGuildRepo, IHorseRepo, IRaceRepo, IShopRepo
-from infra import logthrottle
 from services.horse import HorseService
+
+_log = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     from cogs.shared.bot import CasinoBot
@@ -377,7 +379,7 @@ class HorseCog(commands.Cog, IHorseAdminBridge, IHorseButtonBridge):
         try:
             await self.run_once()
         except Exception as exc:
-            print(f"競馬の確認に失敗: {exc!r}")
+            _log.warning(f"競馬の確認に失敗: {exc!r}")
 
     @tick.before_loop
     async def _before(self):

@@ -5,6 +5,7 @@
 """
 
 import asyncio
+import logging
 import random
 from dataclasses import dataclass
 
@@ -72,6 +73,8 @@ from cogs.casino.texts import (
 )
 from cogs.shared import ui
 from domain.games import pachinko, rtplevel
+
+_log = logging.getLogger(__name__)
 
 RNG = random.SystemRandom()
 MOOD_COLOR = {"normal": ui.DARK, "blue": ui.INFO, "red": ui.ERROR, "gold": ui.GOLD}  # 演出の色合い → 色
@@ -393,7 +396,7 @@ async def play_pachinko(interaction: discord.Interaction, deps: CasinoDeps, bet:
             try:  # 統計用の記録。失敗しても、結果には影響させない
                 pachinko_repo.pachinko_record_set(ctx.user_id, bet, pachinko.BALLS_PER_SET, r)
             except Exception as exc:
-                print(f"パチンコの記録に失敗: {exc!r}")
+                _log.warning(f"パチンコの記録に失敗: {exc!r}")
         top = top_round(results)
         body = result_body(ctx, results, sum(raw), net)
         color = ui.GOLD if top >= 10 else (ui.OK if net > 0 else ui.ERROR)

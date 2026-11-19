@@ -6,6 +6,7 @@
 ミッション・連勝・週間ランキング・突発イベントには数えない。
 """
 
+import logging
 import random
 import time
 from typing import TYPE_CHECKING, Any
@@ -15,6 +16,8 @@ from discord.ext import commands, tasks
 from cogs.market.bond_embeds import KIND_CHOICES, describe_done, due_text  # noqa: F401
 from cogs.shared.tasks import run_sync_for_allowed_guilds
 from domain.ports.repos import IBankRepo, IBondRepo, IGuildRepo, IOptionRepo
+
+_log = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     from cogs.shared.bot import CasinoBot
@@ -51,7 +54,7 @@ class BondCog(commands.Cog):
         try:
             self.run_once()
         except Exception as exc:
-            print(f"債券の満期確認に失敗: {exc!r}")
+            _log.warning(f"債券の満期確認に失敗: {exc!r}")
 
     @tick.before_loop
     async def _before(self):
@@ -66,7 +69,7 @@ class BondCog(commands.Cog):
             for user_id, result in self._bank.for_guild(guild.id).grace_expire(
                 now
             ):  # 破産猶予の時間切れ（強制破産と、CDS の配当）
-                print(
+                _log.warning(
                     f"強制破産: guild={guild.id} user={user_id} 差し押さえ={result['seized']:,} CDS配当={result['cds_paid']:,}"
                 )
 

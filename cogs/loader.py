@@ -4,9 +4,11 @@
 （ロード順に依存しない構成）。
 """
 
-import traceback
+import logging
 
 from discord.ext import commands
+
+_log = logging.getLogger(__name__)
 
 COG_MODULES: tuple[str, ...] = (
     "cogs.p2p.cog",
@@ -35,9 +37,8 @@ async def load_all_cogs(bot: commands.Bot) -> list[str]:
     for module in COG_MODULES:
         try:
             await bot.load_extension(module)
-            print(f"✓ ロード: {module}")
+            _log.info("✓ ロード: %s", module)
         except Exception:
-            print(f"✗ 失敗: {module}")
-            traceback.print_exc()
+            _log.exception("✗ 失敗: %s", module)
             failed.append(module)
     return failed

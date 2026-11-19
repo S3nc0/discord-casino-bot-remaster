@@ -7,6 +7,7 @@
 - 担保（CSトークン・称号・債券）は、次の段階で足す。
 """
 
+import logging
 from typing import TYPE_CHECKING, Any, Optional
 
 import discord
@@ -28,7 +29,7 @@ from cogs.loan.views import (  # noqa: F401
     offer_view,
     request_view,
 )
-from cogs.shared import ui
+from cogs.shared import logthrottle, ui
 from cogs.shared.amount import balance_choices
 from cogs.shared.announce import announce_channel
 from cogs.shared.bridges import BotBridges, ILoanButtonBridge
@@ -37,8 +38,9 @@ from cogs.shared.tasks import run_for_allowed_guilds
 from domain import loans
 from domain.duration import format_minutes
 from domain.ports.repos import IGuildRepo, IWalletRepo
-from infra import logthrottle
 from services.loan import LoanService
+
+_log = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     from cogs.shared.bot import CasinoBot
@@ -244,7 +246,7 @@ class LoanCog(commands.Cog, ILoanButtonBridge):
         try:
             await self.run_once()
         except Exception as exc:
-            print(f"貸付の確認に失敗: {exc!r}")
+            _log.warning(f"貸付の確認に失敗: {exc!r}")
 
     @tick.before_loop
     async def _before(self):
