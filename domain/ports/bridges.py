@@ -150,14 +150,14 @@ class NoOpNoticeSink(INoticeSink):
 class IMarketPriceReader:
     """保有資産の評価額算出・強制決済に使う最新市場価格の読み取り契約。"""
 
-    def latest_prices(self) -> dict[str, Any]:
+    def latest_prices(self) -> dict[str, float]:
         raise NotImplementedError
 
 
 class NoOpMarketPriceReader(IMarketPriceReader):
     """価格ソース未接続時に空辞書を返す LSP 準拠 Null 実装。"""
 
-    def latest_prices(self) -> dict[str, Any]:
+    def latest_prices(self) -> dict[str, float]:
         return {}
 
 

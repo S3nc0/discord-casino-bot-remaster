@@ -6,6 +6,7 @@ from domain import market as market_mod
 from domain.errors import fail
 from domain.market import DEFAULT
 from domain.ports.bridges import IGainsTaxCollector, IMarginCollateralGuard, NoOpMarginCollateralGuard
+from domain.ports.contracts import SpotHolding
 from domain.ports.repos import ICryptoRepo
 from domain.types import CryptoResult
 from infra.db.account import AccountCore
@@ -32,14 +33,14 @@ class CryptoRepo(ScopedRepo, ICryptoRepo):
         self._tax = tax
         self._collateral_guard: IMarginCollateralGuard = collateral_guard or NoOpMarginCollateralGuard()
 
-    def _crypto_holding_for(self, guild_id: int, user_id: int, symbol: str = DEFAULT) -> tuple[int, int]:
+    def _crypto_holding_for(self, guild_id: int, user_id: int, symbol: str = DEFAULT) -> SpotHolding:
         r = self._conn.execute(
             "SELECT units, cost FROM crypto WHERE guild_id=? AND user_id=? AND symbol=?",
             (guild_id, user_id, symbol),
         ).fetchone()
         return (r["units"], r["cost"]) if r else (0, 0)
 
-    def crypto_holding(self, user_id: int, symbol: str = DEFAULT) -> tuple[Any, ...]:
+    def crypto_holding(self, user_id: int, symbol: str = DEFAULT) -> SpotHolding:
         """(保有口数, 買うのにかかった総額)。読み取り専用。"""
         with self._lock:
             return self._crypto_holding_for(self._g(), user_id, symbol)

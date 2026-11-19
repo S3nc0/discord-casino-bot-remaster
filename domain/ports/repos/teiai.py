@@ -15,11 +15,12 @@ from domain.ports.bridges import (
     IStatusReader,
     IValuationSource,
 )
+from domain.ports.contracts import BankStatus, CdsHoldings, CdsQuote, HouseAccount, LoanBook, LoanCredit
 from domain.ports.repos.base import IGuildScopedRepo
 
 
 class ILoanRepo(IGuildScopedRepo, IOverdueLoanCollector):
-    def loan_credit(self, user_id: int, now: Optional[float] = None) -> dict[str, Any]:
+    def loan_credit(self, user_id: int, now: Optional[float] = None) -> LoanCredit:
         raise NotImplementedError
 
     def loan_request(
@@ -69,7 +70,7 @@ class ILoanRepo(IGuildScopedRepo, IOverdueLoanCollector):
     def loan_expire_offers(self, now: float) -> list[Any]:
         raise NotImplementedError
 
-    def loan_list(self, user_id: int) -> dict[str, Any]:
+    def loan_list(self, user_id: int) -> LoanBook:
         raise NotImplementedError
 
 
@@ -80,10 +81,10 @@ class IBankRepo(IGuildScopedRepo, IBankCashFlow, IHouseAccount, IGainsTaxCollect
     def bank_values(self) -> dict[int, int]:
         raise NotImplementedError
 
-    def bank_status(self, now: Optional[float] = None) -> dict[str, Any]:
+    def bank_status(self, now: Optional[float] = None) -> BankStatus:
         raise NotImplementedError
 
-    def house_account(self) -> dict[str, Any]:
+    def house_account(self) -> HouseAccount:
         raise NotImplementedError
 
     def bank_deposit(self, user_id: int, amount: int, now: Optional[float] = None) -> tuple[Any, ...]:
@@ -101,13 +102,13 @@ class IBankRepo(IGuildScopedRepo, IBankCashFlow, IHouseAccount, IGainsTaxCollect
     def grace_expire(self, now: float) -> list[Any]:
         raise NotImplementedError
 
-    def cds_quote(self, target_id: int, now: Optional[float] = None) -> dict[str, Any]:
+    def cds_quote(self, target_id: int, now: Optional[float] = None) -> CdsQuote:
         raise NotImplementedError
 
     def cds_buy(self, buyer_id: int, target_id: int, stake: int, now: Optional[float] = None) -> tuple[Any, ...]:
         raise NotImplementedError
 
-    def cds_list(self, user_id: int) -> dict[str, Any]:
+    def cds_list(self, user_id: int) -> CdsHoldings:
         raise NotImplementedError
 
     def cds_total_claims(self) -> int:

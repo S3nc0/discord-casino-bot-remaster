@@ -13,6 +13,7 @@ from domain.ports.bridges import (
     IValuationSource,
     IWealthyReader,
 )
+from domain.ports.contracts import RankEntry
 from domain.ports.repos import IWalletRepo
 from domain.shop import STREAK_GUARD
 from domain.types import DAILY_BASE, DAILY_STREAK_BONUS, DAILY_STREAK_CAP, DailyResult, TransferResult
@@ -266,7 +267,7 @@ class WalletRepo(ScopedRepo, IWalletRepo, IWealthyReader):
         """[(順位, ユーザーID, 純資産), ...]。このサーバーの口座だけで並べる。user_ids を渡すと、さらにその人たちに絞る。"""
         return [(i + 1, uid, bal) for i, (uid, bal) in enumerate(self._ranked(self._g(), user_ids)[:limit])]
 
-    def rank_of(self, user_id: int, user_ids: Optional[set[Any]] = None) -> Optional[tuple[Any, ...]]:
+    def rank_of(self, user_id: int, user_ids: Optional[set[Any]] = None) -> Optional[RankEntry]:
         """(順位, 純資産, 対象人数)。登録がなければ None。"""
         ranked = self._ranked(self._g(), user_ids)
         for i, (uid, bal) in enumerate(ranked):

@@ -5,6 +5,7 @@ domain/types.py は catalogs を読むため、ポート（domain/ports）から
 """
 
 from dataclasses import dataclass
+from typing import Any, Optional, TypedDict
 
 
 @dataclass(frozen=True)
@@ -21,3 +22,102 @@ class SeizedBelongings:
     """破産で没収したショップの持ち物（品 ID と個数の列。持ち物 → デイリー2倍券 → 保険券の順）。"""
 
     items: tuple[tuple[str, int], ...]
+
+
+# ------------------------------------------------------------------ #
+# 照会系の戻り値（キーが決まった辞書は TypedDict、位置で読むものは tuple）#
+# ------------------------------------------------------------------ #
+SpotHolding = tuple[int, int]
+"""現物の保有 (口数, 買うのにかかった総額)。"""
+
+MarginPosition = tuple[int, float, int]
+"""信用の建玉 (口数, 建てた総額, 担保)。建てていなければ (0, 0.0, 0)。"""
+
+PricePoint = tuple[float, float, int]
+"""価格の記録 (時刻, 価格, 出来事)。"""
+
+RankEntry = tuple[int, int, int]
+"""ランキングの位置 (順位, 額, 対象人数)。"""
+
+WeeklyRankEntry = tuple[int, int, int, int]
+"""週間ランキングの位置 (順位, 稼ぎ, ゲーム数, 人数)。"""
+
+
+class HouseAccount(TypedDict):
+    """帝愛の胴元の口座。"""
+
+    balance: int
+    skimmed: int  # これまでのピンハネの合計
+
+
+class BankThermostat(TypedDict):
+    enforce: bool
+    load: float
+    capacity: float
+    room: float
+    bailout_debt: float
+    payout_ratio: float
+    burned: float
+    bailed: float
+
+
+class BankStatus(TypedDict):
+    """帝愛銀行の状態（表示用）。"""
+
+    cash: float
+    loaned: float
+    deposits: int
+    locks: float
+    available: float
+    ratio: Optional[float]  # available ÷ 預金総額（預金がなければ None）
+    level: str  # safe / warn / danger / frozen
+    thermostat: BankThermostat
+
+
+class LoanCredit(TypedDict):
+    """借りる人の信用情報（資産の額は含めない）。"""
+
+    status: str
+    debt: int
+    grace_until: Optional[float]
+    repaid: int
+    overdue: int
+    discharged: int
+    active: int
+    owed: int
+    bankrupt_at: Optional[float]
+
+
+class LoanBook(TypedDict):
+    """自分が借りている／貸している、終了前の貸付（loans 表の行）。"""
+
+    borrowed: list[dict[str, Any]]
+    lent: list[dict[str, Any]]
+
+
+class CdsQuote(TypedDict):
+    odds: float
+    status: str
+    debt: int
+    grace: bool
+
+
+class CdsHoldings(TypedDict):
+    bought: list[dict[str, Any]]  # 自分が買っている有効な CDS（cds 表の行）
+    on_me: int  # 自分に掛けられている件数
+
+
+class MarginStatus(TypedDict):
+    """信用口座の維持率。建玉がなければ ratio は None。"""
+
+    equity: float
+    required: float
+    collateral: float
+    ratio: Optional[float]
+
+
+class HoldingBook(TypedDict):
+    """債券・オプションの一覧（表の行）。保有中（期限が近い順）と、直近に決着したもの（新しい順）。"""
+
+    active: list[dict[str, Any]]
+    done: list[dict[str, Any]]

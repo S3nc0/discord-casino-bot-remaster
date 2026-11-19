@@ -11,6 +11,7 @@ from domain import history as history_mod
 from domain import missions as missions_mod
 from domain import shop as shop_mod
 from domain import weekly as weekly_mod
+from domain.ports.contracts import WeeklyRankEntry
 from domain.ports.repos import IRecordRepo
 from infra.db.account import AccountCore
 from infra.db.base import EcoDb, ScopedRepo
@@ -124,7 +125,7 @@ class RecordRepo(ScopedRepo, IRecordRepo):
                 )
             ]
 
-    def weekly_rank(self, week: str, user_id: int) -> Optional[tuple[Any, ...]]:
+    def weekly_rank(self, week: str, user_id: int) -> Optional[WeeklyRankEntry]:
         """(順位, 稼ぎ, ゲーム数, 人数)。その週に遊んでいなければ None。"""
         rows = self.weekly_top(week, 10_000)
         for i, (uid, net, plays) in enumerate(rows):

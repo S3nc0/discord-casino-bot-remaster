@@ -43,7 +43,7 @@ class IShopRepo(IGuildScopedRepo):
     ) -> "PurchaseResult":
         raise NotImplementedError
 
-    def inventory(self, user_id: int) -> dict[str, Any]:
+    def inventory(self, user_id: int) -> dict[str, int]:
         raise NotImplementedError
 
     def get_profile(self, user_id: int, raw: bool = False) -> dict[str, Any]:

@@ -18,6 +18,7 @@ from domain.ports.bridges import (
     NoOpNoticeSink,
     NoOpSpotCollateralReader,
 )
+from domain.ports.contracts import MarginPosition, MarginStatus
 from domain.ports.repos import IMarginRepo
 from domain.types import CryptoResult
 from infra.db.account import AccountCore
@@ -57,7 +58,7 @@ class MarginRepo(ScopedRepo, IMarginRepo):
         self._crypto: ISpotCollateralReader = crypto or NoOpSpotCollateralReader()
         self._debt: IDebtOps = debt or NoOpDebtOps()
 
-    def _margin_position_for(self, guild_id: int, user_id: int, symbol: str, side: str) -> tuple[int, float, int]:
+    def _margin_position_for(self, guild_id: int, user_id: int, symbol: str, side: str) -> MarginPosition:
         r = self._conn.execute(
             f"SELECT units, entry_value, margin FROM {self._MARGIN_TABLE[side]} "
             "WHERE guild_id=? AND user_id=? AND symbol=?",
@@ -65,15 +66,15 @@ class MarginRepo(ScopedRepo, IMarginRepo):
         ).fetchone()
         return (r["units"], r["entry_value"], r["margin"]) if r else (0, 0.0, 0)
 
-    def margin_position(self, user_id: int, symbol: str, side: str) -> tuple[Any, ...]:
+    def margin_position(self, user_id: int, symbol: str, side: str) -> MarginPosition:
         """(口数, 建てた総額, 担保)。建てていなければ (0, 0.0, 0)。"""
         with self._lock:
             return self._margin_position_for(self._g(), user_id, symbol, side)
 
-    def short_position(self, user_id: int, symbol: str = DEFAULT) -> tuple[Any, ...]:
+    def short_position(self, user_id: int, symbol: str = DEFAULT) -> MarginPosition:
         return self.margin_position(user_id, symbol, "short")
 
-    def long_position(self, user_id: int, symbol: str = DEFAULT) -> tuple[Any, ...]:
+    def long_position(self, user_id: int, symbol: str = DEFAULT) -> MarginPosition:
         return self.margin_position(user_id, symbol, "long")
 
     def margin_positions_for(self, guild_id: int, user_id: int) -> list[Any]:
@@ -150,7 +151,7 @@ class MarginRepo(ScopedRepo, IMarginRepo):
         prices: dict[str, Any],
         add: Optional[tuple[Any, ...]] = None,
         drop_collateral: float = 0.0,
-    ) -> dict[str, Any]:
+    ) -> MarginStatus:
         """口座の維持率。add=(side, 銘柄, 建玉額, 預ける担保) を足した場合、drop_collateral を担保から引いた場合の仮の値も出せる。"""
         exposure: dict[str, float] = {}
         equity = 0.0
@@ -174,7 +175,7 @@ class MarginRepo(ScopedRepo, IMarginRepo):
             "ratio": equity / required if required > 0 else None,
         }
 
-    def margin_status(self, user_id: int, prices: Optional[dict[str, Any]] = None) -> dict[str, Any]:
+    def margin_status(self, user_id: int, prices: Optional[dict[str, Any]] = None) -> MarginStatus:
         """口座の維持率 {equity, required, collateral, ratio}。建玉がなければ ratio は None。読み取り専用。"""
         with self._lock:
             return self._margin_status_locked_for(self._g(), user_id, prices or self._market.latest_prices())

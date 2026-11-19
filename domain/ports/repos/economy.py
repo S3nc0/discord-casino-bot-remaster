@@ -4,6 +4,7 @@ import datetime
 from typing import TYPE_CHECKING, Any, Iterable, Optional
 
 from domain.ports.bridges import INoticeSink
+from domain.ports.contracts import RankEntry, WeeklyRankEntry
 from domain.ports.repos.base import IGuildScopedRepo
 
 if TYPE_CHECKING:
@@ -28,7 +29,7 @@ class IRecordRepo(IGuildScopedRepo):
     def weekly_top(self, week: str, limit: int = 10) -> list[Any]:
         raise NotImplementedError
 
-    def weekly_rank(self, week: str, user_id: int) -> Optional[tuple[Any, ...]]:
+    def weekly_rank(self, week: str, user_id: int) -> Optional[WeeklyRankEntry]:
         raise NotImplementedError
 
     def weekly_last_announced(self) -> Optional[str]:
@@ -178,7 +179,7 @@ class IWalletRankingReader(IGuildScopedRepo):
     def top(self, limit: int = 10, user_ids: Optional[set[Any]] = None) -> list[Any]:
         raise NotImplementedError
 
-    def rank_of(self, user_id: int, user_ids: Optional[set[Any]] = None) -> Optional[tuple[Any, ...]]:
+    def rank_of(self, user_id: int, user_ids: Optional[set[Any]] = None) -> Optional[RankEntry]:
         raise NotImplementedError
 
 
@@ -212,5 +213,5 @@ class IAssetRepo(IGuildScopedRepo):
     def final_top(self, limit: int = 10, user_ids: Optional[set[Any]] = None) -> list[Any]:
         raise NotImplementedError
 
-    def final_rank_of(self, user_id: int, user_ids: Optional[set[Any]] = None) -> Optional[tuple[Any, ...]]:
+    def final_rank_of(self, user_id: int, user_ids: Optional[set[Any]] = None) -> Optional[RankEntry]:
         raise NotImplementedError

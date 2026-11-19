@@ -12,6 +12,7 @@ from typing import Any, Optional
 from domain import loans as loans_mod
 from domain.errors import Failure, fail
 from domain.ports.bridges import IGraceReader, IStatusReader, NoOpGraceReader, NoOpStatusReader
+from domain.ports.contracts import LoanBook, LoanCredit
 from domain.ports.repos import ILoanRepo
 from infra.db.account import AccountCore
 from infra.db.base import EcoDb, ScopedRepo
@@ -100,7 +101,7 @@ class LoanRepo(ScopedRepo, ILoanRepo):
                 self._conn.execute("UPDATE loans SET status='repaid' WHERE id=?", (loan["id"],))
         return total
 
-    def loan_credit(self, user_id: int, now: Optional[float] = None) -> dict[str, Any]:
+    def loan_credit(self, user_id: int, now: Optional[float] = None) -> LoanCredit:
         """借りる人の信用情報。資産の額（残高・証券・預金）は含めない（見極めの駆け引きを残すため）。"""
         now = time.time() if now is None else now
         with self._lock:
@@ -416,7 +417,7 @@ class LoanRepo(ScopedRepo, ILoanRepo):
                 self._conn.execute("UPDATE loans SET status='expired' WHERE id=?", (r["id"],))
             return rows
 
-    def loan_list(self, user_id: int) -> dict[str, Any]:
+    def loan_list(self, user_id: int) -> LoanBook:
         """自分が借りている／貸している、終了前の貸付（承諾待ちを含む）。"""
         with self._lock:
             rows = [

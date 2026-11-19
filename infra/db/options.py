@@ -13,6 +13,7 @@ from domain import options as opt
 from domain.errors import fail
 from domain.options import name_of as name_of  # noqa: F401
 from domain.ports.bridges import IBankCashFlow, IDebtOps, IOptionHoldings, NoOpDebtOps
+from domain.ports.contracts import HoldingBook
 from domain.ports.repos import IOptionRepo
 from infra.db.account import AccountCore
 from infra.db.base import EcoDb, ScopedRepo
@@ -271,7 +272,7 @@ class OptionRepo(ScopedRepo, IOptionRepo, IOptionHoldings):
             for r in self._conn.execute("SELECT * FROM options WHERE guild_id=? AND status='active'", (guild_id,)):
                 totals[r["user_id"]] = totals.get(r["user_id"], 0) + self.option_value(r, now, prices)
 
-    def option_list(self, user_id: int, recent: int = 5) -> dict[str, Any]:
+    def option_list(self, user_id: int, recent: int = 5) -> HoldingBook:
         """有効なもの（満期が近い順）と、最近決着したもの（新しい順）。"""
         with self._lock:
             rows = [

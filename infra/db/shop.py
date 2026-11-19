@@ -143,7 +143,7 @@ class ShopRepo(ScopedRepo, IShopRepo, IShopBelongings):
             )
             return PurchaseResult(True, balance=self._account.raw_balance(gid, user_id))
 
-    def inventory(self, user_id: int) -> dict[str, Any]:
+    def inventory(self, user_id: int) -> dict[str, int]:
         with self._lock:
             return {
                 r["item_id"]: r["qty"]

@@ -6,6 +6,7 @@ import discord
 
 from cogs.shared import ui
 from domain import loans, teiai
+from domain.ports.contracts import LoanCredit
 
 
 def who(user_id: int) -> str:
@@ -23,7 +24,7 @@ def terms_lines(loan: dict[str, Any]) -> list[str]:
     ]
 
 
-def borrower_note(credit: dict[str, Any]) -> str:
+def borrower_note(credit: LoanCredit) -> str:
     """貸す人が、貸す相手のリスクを見られるように、借りる人の信用情報を出す（資産の額は見せない）。"""
     lines = [
         f"**借りる人の信用情報**\n身分: {teiai.STATUS_LABEL[credit['status']]}"

@@ -18,7 +18,7 @@ from domain.ports.bridges import (
     NoOpDebtRepayHook,
     NoOpMarginCollateralGuard,
 )
-from domain.ports.contracts import ActiveBond
+from domain.ports.contracts import ActiveBond, HoldingBook
 from domain.ports.repos import IBondRepo
 from infra.db.account import AccountCore
 from infra.db.base import EcoDb, ScopedRepo
@@ -101,7 +101,7 @@ class BondRepo(ScopedRepo, IBondRepo, IBondHoldings):
             ):
                 totals[r["user_id"]] = totals.get(r["user_id"], 0) + r["p"]
 
-    def bond_list(self, user_id: int, recent: int = 5) -> dict[str, Any]:
+    def bond_list(self, user_id: int, recent: int = 5) -> HoldingBook:
         """保有中（満期が近い順）と、直近に決着したもの（新しい順）。"""
         with self._lock:
             rows = self._conn.execute(
