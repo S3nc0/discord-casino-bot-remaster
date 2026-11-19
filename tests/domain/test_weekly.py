@@ -6,9 +6,11 @@ from types import SimpleNamespace
 
 import pytest
 
+from cogs.shared.bridges import IShopTitleBridge
 from cogs.weekly.cog import WeeklyCog  # noqa: F401
 from domain import shop, weekly
 from infra.db.repositories import open_repositories
+from tests.fakes import as_interaction
 from tests.support import make_shop_cog, make_test_bot, make_weekly_cog
 
 pytestmark = pytest.mark.real_scope
@@ -233,7 +235,7 @@ def test_limited_title_is_not_for_sale_but_can_be_worn_when_owned(eco):
         response=SimpleNamespace(send_message=send, defer=send),
         followup=SimpleNamespace(send=send),
     )
-    run(shop_actions.buy_item(cog, it, "👑週間王者", 1))
+    run(shop_actions.buy_item(cog, as_interaction(it), "👑週間王者", 1))
     assert "買えません" in sent[-1]["embed"].title and a.shop.inventory(A) == {}
 
 
@@ -243,9 +245,10 @@ def test_previous_holder_is_synced_off_the_nickname(eco, monkeypatch):
     cog, guild, today = make_cog(eco, monkeypatch, [NEXT_MON], channel=chan)
     synced = []
 
-    class FakeShop:
-        async def sync_title_nick(self, uid, g):
-            synced.append(uid)
+    class FakeShop(IShopTitleBridge):
+        async def sync_title_nick(self, user_id, here=None, member=None):
+            synced.append(user_id)
+            return "", 0
 
     cog._shop_bridge = FakeShop()
     a.records.set_weekly_announced("2026-10-19")

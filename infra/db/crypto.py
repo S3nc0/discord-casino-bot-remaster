@@ -5,7 +5,8 @@ from typing import Any, Optional
 from domain import market as market_mod
 from domain.errors import fail
 from domain.market import DEFAULT
-from domain.ports.bridges import IBankIncomeSink, IMarginCollateralGuard, NoOpMarginCollateralGuard
+from domain.ports.bridges import IGainsTaxCollector, IMarginCollateralGuard, NoOpMarginCollateralGuard
+from domain.ports.contracts import SpotHolding
 from domain.ports.repos import ICryptoRepo
 from domain.types import CryptoResult
 from infra.db.account import AccountCore
@@ -21,7 +22,7 @@ class CryptoRepo(ScopedRepo, ICryptoRepo):
         db: EcoDb,
         account: AccountCore,
         market: MarketDataRepo,
-        bank: IBankIncomeSink,
+        tax: IGainsTaxCollector,
         collateral_guard: Optional[IMarginCollateralGuard] = None,
         guild_id: int = 0,
         strict: bool = False,
@@ -29,17 +30,17 @@ class CryptoRepo(ScopedRepo, ICryptoRepo):
         super().__init__(db, guild_id, strict)
         self._account = account
         self._market = market
-        self._bank = bank
+        self._tax = tax
         self._collateral_guard: IMarginCollateralGuard = collateral_guard or NoOpMarginCollateralGuard()
 
-    def _crypto_holding_for(self, guild_id: int, user_id: int, symbol: str = DEFAULT) -> tuple[int, int]:
+    def _crypto_holding_for(self, guild_id: int, user_id: int, symbol: str = DEFAULT) -> SpotHolding:
         r = self._conn.execute(
             "SELECT units, cost FROM crypto WHERE guild_id=? AND user_id=? AND symbol=?",
             (guild_id, user_id, symbol),
         ).fetchone()
         return (r["units"], r["cost"]) if r else (0, 0)
 
-    def crypto_holding(self, user_id: int, symbol: str = DEFAULT) -> tuple[Any, ...]:
+    def crypto_holding(self, user_id: int, symbol: str = DEFAULT) -> SpotHolding:
         """(保有口数, 買うのにかかった総額)。読み取り専用。"""
         with self._lock:
             return self._crypto_holding_for(self._g(), user_id, symbol)
@@ -166,7 +167,7 @@ class CryptoRepo(ScopedRepo, ICryptoRepo):
             cost if units == have else round(cost * units / have)
         )  # 端数の按分は四捨五入（切り捨てだと取得額が少しずつ残る）
         self._account.ensure(guild_id, user_id)
-        tax = self._bank.charge_gains_tax_for(guild_id, user_id, proceeds - removed, taxable, f"{name}売却")
+        tax = self._tax.charge_gains_tax_for(guild_id, user_id, proceeds - removed, taxable, f"{name}売却")
         self._account.apply(
             guild_id, user_id, proceeds - tax, f"{name}売却:{market_mod.lots(units)}@{market_mod.fmt(price)}"
         )

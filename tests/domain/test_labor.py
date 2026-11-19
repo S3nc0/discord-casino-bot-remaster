@@ -10,6 +10,7 @@ from cogs.labor import cog as labor_cog
 from domain import labor as lab
 from domain import teiai
 from infra.db.repositories import open_repositories
+from tests.fakes import as_interaction, button, buttons, invoke, must
 from tests.support import make_labor_cog, make_test_bot
 
 U = 1
@@ -73,7 +74,7 @@ def test_click_outcome_has_no_accident():
 
 def test_works_from_zero_balance_and_pot_flushes_into_balance(eco):
     r = click(eco, 1)
-    assert r["ok"] and r["pay"] == 10 and eco.wallet.balance(U) == 0  # まだ受け取る前の稼ぎ
+    assert must(r)["ok"] and must(r)["pay"] == 10 and eco.wallet.balance(U) == 0  # まだ受け取る前の稼ぎ
     assert eco.labor.labor_state(U, T0 + 2, DAY)["pot"] == 10
     assert eco.labor.labor_collect(U, T0 + 3, DAY) == 10 and eco.wallet.balance(U) == 10
     assert eco.labor.labor_state(U, T0 + 4, DAY)["pot"] == 0
@@ -92,7 +93,7 @@ def test_earnings_stay_in_the_pot_until_collected_all_at_once(eco):
 
 
 def test_click_interval(eco):
-    assert click(eco, 1)["ok"]
+    assert must(click(eco, 1))["ok"]
     fast = eco.labor.labor_click(U, T0 + 0.2, DAY)
     assert not fast["ok"] and fast["quiet"]
     assert eco.labor.labor_click(U, T0 + 5, DAY)["pay"] > 0  # 事故はなく、毎回稼ぐ
@@ -100,7 +101,7 @@ def test_click_interval(eco):
 
 
 def test_fatigue_reduces_pay_and_recovers_over_time(eco):
-    first = click(eco, 1)["pay"]
+    first = must(click(eco, 1))["pay"]
     click(eco, 20, start=T0 + 10)
     s = eco.labor.labor_state(U, T0 + 10 + 20 * 1.5, DAY)
     assert s["fatigue"] > 30
@@ -162,23 +163,26 @@ def make_view(eco):
 
 def test_panel_view_buttons_and_owner_check(eco):
     view = make_view(eco)
-    labels = [c.label for c in view.children]
+    labels = [c.label or "" for c in buttons(view)]
+    assert len(labels) == len(view.children)  # 画面は、ボタンだけ
     assert labels[0] == "働く" and "休憩" not in labels and any("受け取る" in x for x in labels)
     assert sum("強化" in x for x in labels) == 2
-    assert view.children[0].disabled is False and view.children[1].disabled is True  # 稼ぎが無いので、受け取れない
-    assert labels[2] == "作業員" and all(c.disabled for c in view.children[3:])  # 元手 0 では、強化できない
+    assert (
+        button(view.children[0]).disabled is False and button(view.children[1]).disabled is True
+    )  # 稼ぎが無いので、受け取れない
+    assert labels[2] == "作業員" and all(c.disabled for c in buttons(view)[3:])  # 元手 0 では、強化できない
     stranger = SimpleNamespace(user=SimpleNamespace(id=U + 1), response=Resp())
-    assert asyncio.run(view.interaction_check(stranger)) is False and stranger.response.sent
+    assert asyncio.run(view.interaction_check(as_interaction(stranger))) is False and stranger.response.sent
 
 
 def test_panel_work_and_collect_update_message(eco):
     view = make_view(eco)
     it = SimpleNamespace(user=SimpleNamespace(id=U), response=Resp())
-    asyncio.run(view._work(it))
+    asyncio.run(view._work(as_interaction(it)))
     assert it.response.edits and it.response.edits[-1]["embed"].title.startswith("⛏")
     day = view._today()
     assert eco.labor.labor_state(U, 0, day)["pot"] == 10 and eco.wallet.balance(U) == 0
-    asyncio.run(view._collect(it))
+    asyncio.run(view._collect(as_interaction(it)))
     assert eco.wallet.balance(U) == 10 and eco.labor.labor_state(U, 0, day)["pot"] == 0
     embed = labor_cog.panel_embed(view.state)
     assert "疲労" in text(embed) and "今日の稼ぎ" in text(embed)
@@ -202,8 +206,9 @@ def test_ranking_total_today_and_my_rank(eco):
 def test_ranking_embed_shows_medals_and_my_rank_below_the_list():
     rows = [(i, 100 + i, 1_000 - i, 50) for i in range(1, 11)]
     e = labor_cog.ranking_embed({"rows": rows, "me": (14, 300, 90, 20)}, False)
-    assert "🥇" in e.description and "🥉" in e.description and "あなた" in e.description and "通算" in e.title
-    assert "まだ、だれも" in labor_cog.ranking_embed({"rows": [], "me": None}, True).description
+    text = must(e.description)
+    assert "🥇" in text and "🥉" in text and "あなた" in text and "通算" in must(e.title)
+    assert "まだ、だれも" in must(labor_cog.ranking_embed({"rows": [], "me": None}, True).description)
 
 
 # ------------------------------ 雇用（作業員） ------------------------------ #
@@ -290,22 +295,22 @@ def test_hire_tab_buttons_hire_and_dismiss_through_the_panel(eco):
     eco.wallet.credit(U, 5_000, "テスト")
     view = make_view(eco)
     it = SimpleNamespace(user=SimpleNamespace(id=U), response=Resp(), data={})
-    asyncio.run(view._goto("hire")(it))
+    asyncio.run(view._goto("hire")(as_interaction(it)))
     assert view.tab == "hire" and it.response.edits[-1]["embed"].title.startswith("👷")
-    labels = [c.label for c in view.children if hasattr(c, "label") and c.label]
+    labels = [c.label for c in buttons(view) if c.label]
     assert any("見習い" in x for x in labels) and any("寮を強化" in x for x in labels)
     assert not any("賃金" in x for x in labels)  # 賃金（待遇）の設定は、なくなった
     assert "賃金" not in text(labor_cog.hire_embed(view.state))
     assert not [c for c in view.children if isinstance(c, labor_cog.discord.ui.Select)]  # まだ、誰もいない
-    asyncio.run(view._hirer("apprentice")(it))
+    asyncio.run(view._hirer("apprentice")(as_interaction(it)))
     assert eco.labor.labor_state(U, 0, view._today())["apprentice"] == 1
     selects = [c for c in view.children if isinstance(c, labor_cog.discord.ui.Select)]
     assert len(selects) == 1 and selects[0].options[0].value == "apprentice"
     it.data = {"values": ["apprentice"]}
-    asyncio.run(view._dismiss(it))
+    asyncio.run(view._dismiss(as_interaction(it)))
     assert eco.labor.labor_state(U, 0, view._today())["apprentice"] == 0
-    asyncio.run(view._goto("work")(it))
-    assert view.children[0].label == "働く"
+    asyncio.run(view._goto("work")(as_interaction(it)))
+    assert button(view.children[0]).label == "働く"
 
 
 def test_hire_embed_shows_prices_slots_and_pending(eco):
@@ -367,18 +372,18 @@ def test_drink_is_not_wasted_when_not_tired(eco):
 
 def test_drink_button_in_the_panel(eco):
     view = make_view(eco)
-    drink = next(c for c in view.children if getattr(c, "emoji", None) and str(c.emoji) == "🥤")
-    assert drink.disabled and "ショップ" in drink.label  # 持っていない
+    drink = next(c for c in buttons(view) if c.emoji and str(c.emoji) == "🥤")
+    assert drink.disabled and "ショップ" in must(drink.label)  # 持っていない
     eco.wallet.credit(U, 1_000, "テスト")
     buy_drink(eco, 2)
     now = labor_cog.time.time()
     for i in range(30):  # 画面は、いまの時刻で読むので、いまの時刻で押す
         eco.labor.labor_click(U, now - 60 + i * 1.5, view._today())
     view.refresh()
-    drink = next(c for c in view.children if getattr(c, "emoji", None) and str(c.emoji) == "🥤")
+    drink = next(c for c in buttons(view) if c.emoji and str(c.emoji) == "🥤")
     assert drink.label == "栄養ドリンコ ×2"
     it = SimpleNamespace(user=SimpleNamespace(id=U), response=Resp(), data={})
-    asyncio.run(view._drink(it))
+    asyncio.run(view._drink(as_interaction(it)))
     assert eco.labor.labor_state(U, now, view._today())["drinks"] == 1 and it.response.edits
     assert "回復" in it.response.edits[-1]["embed"].description
 
@@ -584,7 +589,7 @@ def test_collect_announces_big_ores_publicly(eco, monkeypatch):
         user=SimpleNamespace(id=U, mention="<@1>"), response=Resp(), data={}, followup=SimpleNamespace(send=send)
     )
     monkeypatch.setattr(labor_cog.time, "time", lambda: T0 + H)
-    asyncio.run(view._collect(it))
+    asyncio.run(view._collect(as_interaction(it)))
     assert sent and "ダイヤ" in sent[0] and "銅" not in sent[0]
     assert "掘り出し" in it.response.edits[-1]["embed"].description
 
@@ -666,7 +671,7 @@ def test_the_default_skim_is_one_percent_and_the_screens_call_it_a_charity_donat
     eco.wallet.credit(U, 5_000, "テスト")
     eco.labor.labor_hire(U, "miner", T0, DAY)
     view = make_view(eco)
-    assert "総寄付金額" in labor_cog.panel_embed(eco.labor.labor_state(U, T0, DAY)).footer.text
+    assert "総寄付金額" in must(labor_cog.panel_embed(eco.labor.labor_state(U, T0, DAY)).footer.text)
     sent = []
 
     async def send(content, **kw):
@@ -676,7 +681,7 @@ def test_the_default_skim_is_one_percent_and_the_screens_call_it_a_charity_donat
         user=SimpleNamespace(id=U, mention="<@1>"), response=Resp(), data={}, followup=SimpleNamespace(send=send)
     )
     monkeypatch.setattr(labor_cog.time, "time", lambda: T0 + H)
-    asyncio.run(view._collect(it))
+    asyncio.run(view._collect(as_interaction(it)))
     desc = it.response.edits[-1]["embed"].description
     assert "慈善団体に寄付されます" in desc and str(lab.ORE_VALUE["diamond"] // 100) in desc  # ダイヤの1%
 
@@ -714,7 +719,7 @@ def test_uncollected_shows_how_much_of_it_the_workers_earned(eco, monkeypatch):
     worker_part = state["pot_workers_total"]
     for embed in (panel_embed(state), hire_embed(state)):
         field = next(f for f in embed.fields if f.name == "🎒 未受け取り")
-        assert f"うち作業員 {worker_part:,}ペリカ" in field.value
+        assert f"うち作業員 {worker_part:,}ペリカ" in must(field.value)
     eco.labor.labor_collect(U, T0 + 2 * H, DAY)
     after = eco.labor.labor_state(U, T0 + 2 * H, DAY)
     assert after["pot_workers_total"] == 0  # 受け取ると、0 に戻る
@@ -725,7 +730,7 @@ def test_uncollected_hides_the_worker_part_when_there_are_no_workers(eco):
 
     state = eco.labor.labor_state(U, T0, DAY)
     field = next(f for f in panel_embed(state).fields if f.name == "🎒 未受け取り")
-    assert "作業員" not in field.value
+    assert "作業員" not in must(field.value)
 
 
 def test_finds_are_logged_with_time_and_worker_and_shown_without_coal(eco, monkeypatch):
@@ -741,8 +746,10 @@ def test_finds_are_logged_with_time_and_worker_and_shown_without_coal(eco, monke
     assert sorted(f["ore"] for f in finds) == ["copper", "diamond"]  # 石炭は出さない
     assert all(T0 < f["at"] <= T0 + 3 * H and f["kind"] == "miner" for f in finds)  # 時刻は、働いた時間のあいだ
     assert eco.labor.labor_state(U, T0 + 3 * H, DAY)["finds"] == finds  # 読むだけでは増えない
-    field = next(f for f in panel_embed(eco.labor.labor_state(U, T0 + 3 * H, DAY)).fields if f.name.startswith("📜"))
-    assert "坑夫" in field.value and "ダイヤ" in field.value and "石炭" not in field.value
+    field = next(
+        f for f in panel_embed(eco.labor.labor_state(U, T0 + 3 * H, DAY)).fields if must(f.name).startswith("📜")
+    )
+    assert "坑夫" in must(field.value) and "ダイヤ" in must(field.value) and "石炭" not in must(field.value)
     eco.labor.labor_collect(U, T0 + 3 * H, DAY)
     assert eco.labor.labor_state(U, T0 + 3 * H, DAY)["finds"] == []  # 受け取ると、画面には出なくなる
 
@@ -898,7 +905,7 @@ def test_relics_show_on_the_screens_and_a_big_relic_is_announced_publicly(eco, m
         user=SimpleNamespace(id=U, mention="<@1>"), response=Resp(), data={}, followup=SimpleNamespace(send=send)
     )
     monkeypatch.setattr(labor_cog.time, "time", lambda: T0 + H)
-    asyncio.run(view._collect(it))
+    asyncio.run(view._collect(as_interaction(it)))
     assert sent and "竜の涙" in sent[0] and "三葉虫" not in sent[0]  # 大当たりだけ、公開で知らせる
     assert "発掘品が持ち物に入りました" in it.response.edits[-1]["embed"].description
 
@@ -919,7 +926,7 @@ def test_collect_button_works_when_only_relics_are_waiting(eco, monkeypatch):
         )
     view = make_view(eco)
     assert view.state["pot_total"] == 0 and view.state["relics"]  # お金はなく、発掘品だけがある
-    assert view.children[1].label.startswith("受け取る") and view.children[1].disabled is False
+    assert must(button(view.children[1]).label).startswith("受け取る") and button(view.children[1]).disabled is False
 
 
 def test_old_archaeologist_contracts_are_refunded_and_removed_once(eco):
@@ -969,7 +976,7 @@ def test_collect_message_shows_the_donation_total_instead_of_the_rate(eco, monke
     view = make_view(eco)
     it = SimpleNamespace(user=SimpleNamespace(id=U, mention="<@1>"), response=Resp(), data={}, followup=None)
     monkeypatch.setattr(labor_cog.time, "time", lambda: T0 + 200)
-    asyncio.run(view._collect(it))
+    asyncio.run(view._collect(as_interaction(it)))
     desc = it.response.edits[-1]["embed"].description
     assert "慈善団体に寄付されます" in desc and "寄付総額" not in desc and "稼ぎの" not in desc
 
@@ -1016,9 +1023,9 @@ def test_opening_the_workplace_again_deletes_the_previous_panel(eco, monkeypatch
     bot.get_partial_messageable = Partial
     cog = make_labor_cog(bot)
     first, second = It(), It()
-    asyncio.run(cog.work.callback(cog, first))
+    asyncio.run(invoke(cog.work, cog, first))
     assert deleted == []
-    asyncio.run(cog.work.callback(cog, second))
+    asyncio.run(invoke(cog.work, cog, second))
     assert deleted == [(7, first.mid)]  # 前に開いた作業場だけが消える
 
 
@@ -1040,7 +1047,7 @@ def test_merge_select_appears_only_with_ten_and_merges(eco):
     select = next(c for c in view.children if isinstance(c, discord.ui.Select))
     assert "★" in select.options[0].label
     it = SimpleNamespace(user=SimpleNamespace(id=U), response=Resp(), data={"values": ["relic_fossil"]})
-    asyncio.run(view._merge(it))
+    asyncio.run(view._merge(as_interaction(it)))
     assert eco.relics.relic_stock(U) == {"relic_fossil_s1": 1}
     assert "合体した" in it.response.edits[-1]["embed"].description
 

@@ -16,6 +16,7 @@ from cogs.teiai.texts import LEVEL_MARK as LEVEL_MARK
 from cogs.teiai.texts import LEVEL_TEXT as LEVEL_TEXT
 from cogs.teiai.texts import THERMOSTAT_OBSERVING, THERMOSTAT_TITLE
 from domain import teiai
+from domain.ports.contracts import BankStatus, BankThermostat, CdsHoldings, HouseAccount
 from domain.ports.repos import IBankRepo, IDebtRepo, INoticeRepo, IWalletRepo
 
 
@@ -27,7 +28,7 @@ def meter(ratio, width: int = 10) -> str:
     return "█" * filled + "░" * (width - filled)
 
 
-def thermostat_lines(thermo: dict) -> str:
+def thermostat_lines(thermo: BankThermostat) -> str:
     """サーモスタットの状態（熱量・器・熱浴とのやりとりの累計）。"""
     lines = [
         f"熱量 {ui.pelica(int(thermo['load']))}　器 {ui.pelica(int(thermo['capacity']))}　（空き {ui.pelica(int(thermo['room']))}）",
@@ -42,7 +43,7 @@ def thermostat_lines(thermo: dict) -> str:
     return "\n".join(lines)
 
 
-def bank_lines(bank: dict) -> str:
+def bank_lines(bank: BankStatus) -> str:
     mark = LEVEL_MARK[bank["level"]]
     if bank["ratio"] is None:
         ratio_text = "預金はまだありません"
@@ -58,8 +59,8 @@ def bank_lines(bank: dict) -> str:
 
 def render_teiai_panel_embed(
     *,
-    bank: dict,
-    house: dict,
+    bank: BankStatus,
+    house: HouseAccount,
     graced: list,
     claims: int,
     status: str,
@@ -67,7 +68,7 @@ def render_teiai_panel_embed(
     deposit: int,
     debt: int,
     grace_until: float | None,
-    cds: dict,
+    cds: CdsHoldings,
     uid: int,
 ) -> discord.Embed:
     """帝愛銀行と自分の状況の画面を組み立てる（純粋な Base）。"""

@@ -12,7 +12,8 @@ from domain import market as market_mod
 from domain import options as opt
 from domain.errors import fail
 from domain.options import name_of as name_of  # noqa: F401
-from domain.ports.bridges import IBankIncomeSink, IDebtOps, NoOpDebtOps
+from domain.ports.bridges import IBankCashFlow, IDebtOps, IOptionHoldings, NoOpDebtOps
+from domain.ports.contracts import HoldingBook
 from domain.ports.repos import IOptionRepo
 from infra.db.account import AccountCore
 from infra.db.base import EcoDb, ScopedRepo
@@ -21,7 +22,7 @@ from infra.db.market import MarketDataRepo
 from infra.db.market_events import MarketEventRepo
 
 
-class OptionRepo(ScopedRepo, IOptionRepo):
+class OptionRepo(ScopedRepo, IOptionRepo, IOptionHoldings):
     """オプションの売買と決済。"""
 
     def __init__(
@@ -31,7 +32,7 @@ class OptionRepo(ScopedRepo, IOptionRepo):
         market: MarketDataRepo,
         market_events: MarketEventRepo,
         earnings: EarningsRepo,
-        bank: IBankIncomeSink,
+        bank: IBankCashFlow,
         debt: Optional[IDebtOps] = None,
         guild_id: int = 0,
         strict: bool = False,
@@ -271,7 +272,7 @@ class OptionRepo(ScopedRepo, IOptionRepo):
             for r in self._conn.execute("SELECT * FROM options WHERE guild_id=? AND status='active'", (guild_id,)):
                 totals[r["user_id"]] = totals.get(r["user_id"], 0) + self.option_value(r, now, prices)
 
-    def option_list(self, user_id: int, recent: int = 5) -> dict[str, Any]:
+    def option_list(self, user_id: int, recent: int = 5) -> HoldingBook:
         """有効なもの（満期が近い順）と、最近決着したもの（新しい順）。"""
         with self._lock:
             rows = [
@@ -283,6 +284,16 @@ class OptionRepo(ScopedRepo, IOptionRepo):
         active = sorted((r for r in rows if r["status"] == "active"), key=lambda r: r["expiry"])
         done = [r for r in reversed(rows) if r["status"] != "active"][:recent]
         return {"active": active, "done": done}
+
+    def active_option_ids_for(self, guild_id: int, user_id: int) -> list[int]:
+        """持っている（status='active' の）建玉の ID（古い順）。呼び出し側のトランザクションの中で使う。"""
+        return [
+            r["id"]
+            for r in self._conn.execute(
+                "SELECT id FROM options WHERE guild_id=? AND user_id=? AND status='active' ORDER BY id",
+                (guild_id, user_id),
+            ).fetchall()
+        ]
 
     def option_close_locked_for(self, guild_id: int, user_id: int, option_id: int, now: float) -> tuple[Any, ...]:
         row = self._conn.execute(

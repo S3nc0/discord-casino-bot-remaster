@@ -8,6 +8,7 @@ from cogs.shared import ranking
 from domain import horse as horse_mod
 from domain import shop
 from infra.db.repositories import open_repositories
+from tests.fakes import invoke, must
 from tests.support import make_ranking_repos
 
 pytestmark = pytest.mark.real_scope
@@ -85,10 +86,10 @@ def test_final_ranking_and_breakdown_embeds(eco):
     assert eco.assets.final_top(2)[0][1] == B
     assert eco.assets.final_rank_of(A) == (2, 1000, 2)
     repos = make_ranking_repos(eco)
-    text = ranking.build_final_embed(repos, None, "t", A).description
+    text = must(ranking.build_final_embed(repos, None, "t", A).description)
     assert text.index(f"<@{B}>") < text.index(f"<@{A}>")
     d = ranking.build_breakdown_embed(repos, B, "b").description
-    assert "発掘品" in d and "総資産" in d
+    assert "発掘品" in must(d) and "総資産" in must(d)
 
 
 def test_ranking_view_can_switch_back_and_forth(eco):
@@ -110,8 +111,8 @@ def test_ranking_view_can_switch_back_and_forth(eco):
     view = RankingView(make_ranking_repos(eco), A, G)
 
     async def go():
-        await view.final.callback(it)
-        await view.normal.callback(it)
+        await invoke(view.final, it)
+        await invoke(view.normal, it)
 
     asyncio.run(go())
     import discord

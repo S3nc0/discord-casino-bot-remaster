@@ -9,6 +9,7 @@ import pytest
 from cogs.arena import cog as arena_cog
 from cogs.arena import views
 from domain import arena as a
+from tests.fakes import as_interaction, as_message, must
 from tests.support import make_arena_cog, make_test_bot
 
 U, V = 1, 2
@@ -168,7 +169,7 @@ def test_bet_panel_select_and_stake_modal_place_a_real_bet(setup, monkeypatch):
             sent.append(kw)
 
     it = SimpleNamespace(guild=guild, guild_id=0, user=SimpleNamespace(id=V), response=Resp())
-    asyncio.run(modal.on_submit(it))
+    asyncio.run(modal.on_submit(as_interaction(it)))
     assert repos.wallet.balance(V) == before - 500
     assert "賭けました" in sent[0]["embed"].title
 
@@ -196,7 +197,8 @@ def test_stake_modal_bet_refreshes_the_posted_panel_message(setup):
     repos.wallet.credit(V, 10_000, "テスト")
     t = repos.arena.arena_tournament_ensure("duel", DAY_START)
     panel = views.BetPanel(bot.services.arena, t)
-    panel.message = FakeMessage()
+    message = FakeMessage()
+    panel.message = as_message(message)
     fighter = views.bettable_fighters(t)[0]
     modal = views.StakeModal(panel, fighter)
     modal.stake._value = "500"
@@ -206,9 +208,9 @@ def test_stake_modal_bet_refreshes_the_posted_panel_message(setup):
             pass
 
     it = SimpleNamespace(guild=guild, guild_id=0, user=SimpleNamespace(id=V), response=Resp())
-    asyncio.run(modal.on_submit(it))
-    assert len(panel.message.edits) == 1  # 賭けた直後に、掲示を書き換えている
-    assert f"{fighter['name']}" in panel.message.edits[0]["embed"].description
+    asyncio.run(modal.on_submit(as_interaction(it)))
+    assert len(message.edits) == 1  # 賭けた直後に、掲示を書き換えている
+    assert f"{fighter['name']}" in message.edits[0]["embed"].description
 
 
 def test_tournament_embed_shows_who_bet_how_much_on_each_fighter(setup):
@@ -221,8 +223,8 @@ def test_tournament_embed_shows_who_bet_how_much_on_each_fighter(setup):
     repos.arena.arena_bet(V, fighter["id"], 700, DAY_START)
     panel = views.BetPanel(bot.services.arena, repos.arena.arena_tournament_get_by_day(t["day"], "duel"))
     desc = panel.embed().description
-    assert f"<@{U}>" in desc and "1,500" in desc
-    assert f"<@{V}>" in desc and "700" in desc
+    assert f"<@{U}>" in must(desc) and "1,500" in must(desc)
+    assert f"<@{V}>" in must(desc) and "700" in must(desc)
 
 
 def test_run_once_refreshes_the_auto_posted_panel_after_semis(setup, monkeypatch):

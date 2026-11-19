@@ -214,3 +214,17 @@ def test_cogs_have_no_untyped_cog_parameter():
                     if arg.arg == "cog" and arg.annotation is None:
                         found.append(f"{path.relative_to(ROOT)}:{node.lineno} {node.name}")
     assert not found, "型の無い cog 引数:\n" + "\n".join(found)
+
+
+def test_debt_repo_does_not_touch_other_domains_tables():
+    """破産・差し押さえは、各リポジトリのポート経由で行う。debt.py は他ドメインの表へ SQL を書かない(#67)。"""
+    import re
+
+    source = (ROOT / "infra/db/debt.py").read_text(encoding="utf-8")
+    foreign = ("options", "bonds", "inventory", "profile", "horses", "seized_items", "crypto", "companies", "loans")
+    found = [
+        f"{table}: {m.group(0)}"
+        for table in foreign
+        for m in re.finditer(rf"\b(?:FROM|UPDATE|INTO|JOIN)\s+{table}\b", source, flags=re.IGNORECASE)
+    ]
+    assert not found, "debt.py が他ドメインの表を直接操作している:\n" + "\n".join(found)

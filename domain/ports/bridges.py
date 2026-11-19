@@ -8,6 +8,8 @@
 from collections.abc import Callable
 from typing import TYPE_CHECKING, Any, Optional
 
+from domain.ports.contracts import ActiveBond, SeizedBelongings
+
 if TYPE_CHECKING:
     from domain.errors import Failure
     from domain.types import CryptoResult
@@ -148,19 +150,19 @@ class NoOpNoticeSink(INoticeSink):
 class IMarketPriceReader:
     """保有資産の評価額算出・強制決済に使う最新市場価格の読み取り契約。"""
 
-    def latest_prices(self) -> dict[str, Any]:
+    def latest_prices(self) -> dict[str, float]:
         raise NotImplementedError
 
 
 class NoOpMarketPriceReader(IMarketPriceReader):
     """価格ソース未接続時に空辞書を返す LSP 準拠 Null 実装。"""
 
-    def latest_prices(self) -> dict[str, Any]:
+    def latest_prices(self) -> dict[str, float]:
         return {}
 
 
-class IBankIncomeSink:
-    """帝愛銀行の現金・配当分配・利子源泉・胴元ピンハネ受け入れ契約。"""
+class IBankCashFlow:
+    """帝愛銀行の手元現金の同期・入金（配当分配・利子源泉）・払い出しの契約。"""
 
     def bank_sync_for(self, guild_id: int, now: float) -> dict[str, float]:
         raise NotImplementedError
@@ -184,6 +186,10 @@ class IBankIncomeSink:
     def bank_pay_for(self, guild_id: int, amount: int, now: Optional[float] = None) -> int:
         raise NotImplementedError
 
+
+class IHouseAccount:
+    """胴元口座（ピンハネの受け入れ・払い出し）と、日次支給枠の契約。"""
+
     def house_income_for(self, guild_id: int, amount: int) -> None:
         raise NotImplementedError
 
@@ -201,6 +207,10 @@ class IBankIncomeSink:
 
     def house_grant_use_for(self, guild_id: int, day: str, amount: int) -> None:
         raise NotImplementedError
+
+
+class IGainsTaxCollector:
+    """キャピタルゲイン課税の徴収契約。"""
 
     def charge_gains_tax_for(self, guild_id: int, user_id: int, profit: int, taxable: bool, what: str) -> int:
         raise NotImplementedError
@@ -392,6 +402,39 @@ class CompositeAssetCollector(IAssetCollector):
 # ------------------------------------------------------------------ #
 # 強制執行・自己破産ステップ群（OCP / Composite / LSP）                 #
 # ------------------------------------------------------------------ #
+class IOptionHoldings:
+    """差し押さえ・破産の換金で使う、オプション建玉の照会と決済の契約（options 表を外へ見せない）。"""
+
+    def active_option_ids_for(self, guild_id: int, user_id: int) -> list[int]:
+        raise NotImplementedError
+
+    def option_close_locked_for(self, guild_id: int, user_id: int, option_id: int, now: float) -> tuple[Any, ...]:
+        raise NotImplementedError
+
+
+class IBondHoldings:
+    """差し押さえ・破産の換金で使う、債券の照会と解約・償却の契約（bonds 表を外へ見せない）。"""
+
+    def active_bonds_for(self, guild_id: int, user_id: int) -> list[ActiveBond]:
+        raise NotImplementedError
+
+    def bond_cancel_locked_for(
+        self, guild_id: int, user_id: int, bond_id: int, now: Optional[float] = None
+    ) -> tuple[Any, ...]:
+        raise NotImplementedError
+
+    def bond_write_off_for(self, bond_id: int) -> None:
+        """解約できない債券を、払い戻しなしで解約済みにする（破産の差し押さえ用）。"""
+        raise NotImplementedError
+
+
+class IShopBelongings:
+    """破産で、ショップの持ち物・装備・消耗品をすべて没収する契約（inventory・profile 表を外へ見せない）。"""
+
+    def seize_belongings_for(self, guild_id: int, user_id: int) -> SeizedBelongings:
+        raise NotImplementedError
+
+
 class IAssetSeizureStep:
     """借金返済不足時の強制執行（ファーストロス差し押さえ）の 1 ステップ（OCP）。"""
 

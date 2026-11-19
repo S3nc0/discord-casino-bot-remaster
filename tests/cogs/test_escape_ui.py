@@ -8,6 +8,7 @@ import pytest
 from cogs.teiai import escape as esc
 from domain import teiai
 from infra.db.repositories import open_repositories
+from tests.fakes import as_interaction
 
 U = 1
 
@@ -63,7 +64,7 @@ def play(eco, win):
 
     real = eco.debt.escape_attempt
     eco.debt.escape_attempt = lambda uid: real(uid, rng=SimpleNamespace(random=lambda: 0.0 if win else 0.99))
-    asyncio.run(esc.run_escape(it, eco.debt, eco.notices, after))
+    asyncio.run(esc.run_escape(as_interaction(it), eco.debt, eco.notices, after))
     return it, hooked
 
 

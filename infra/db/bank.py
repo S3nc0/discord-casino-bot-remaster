@@ -21,6 +21,7 @@ from domain.ports.bridges import (
     NoOpNoticeSink,
     NoOpStatusReader,
 )
+from domain.ports.contracts import BankStatus, CdsHoldings, CdsQuote, HouseAccount
 from domain.ports.repos import IBankRepo
 from infra.db.account import AccountCore
 from infra.db.base import EcoDb, ScopedRepo
@@ -50,7 +51,7 @@ class BankRepo(ScopedRepo, IBankRepo):
         self._bankrupt_executor: IBankruptExecutor = bankrupt_executor or NoOpBankruptExecutor()
 
     # ------------------------------------------------------------------ #
-    # 銀行の手元・預金・課税（IBankIncomeSink / IValuationSource）
+    # 銀行の手元・預金・課税（IBankCashFlow / IHouseAccount / IGainsTaxCollector / IValuationSource）
     # ------------------------------------------------------------------ #
     def bank_sync_for(self, guild_id: int, now: float) -> dict[str, float]:
         """銀行の手元を取り出す（なければ作る）。地下融資の回収を、いまの時刻まで反映する。"""
@@ -155,7 +156,7 @@ class BankRepo(ScopedRepo, IBankRepo):
                 locks += min(claims, teiai.CDS_PAYOUT_CAP_RATE * r["debt"])
         return locks
 
-    def bank_status(self, now: Optional[float] = None) -> dict[str, Any]:
+    def bank_status(self, now: Optional[float] = None) -> BankStatus:
         """銀行の状態（表示用）。available は利用可能現金、ratio は available ÷ 預金総額（預金がなければ None）。"""
         now = time.time() if now is None else now
         with self._db.tx():
@@ -248,7 +249,7 @@ class BankRepo(ScopedRepo, IBankRepo):
             (guild_id, day, amount),
         )
 
-    def house_account(self) -> dict[str, Any]:
+    def house_account(self) -> HouseAccount:
         """帝愛の胴元の口座 {balance: いまの残高, skimmed: これまでのピンハネの合計}。読み取りだけ（なければ 0）。"""
         with self._lock:
             row = self._conn.execute(
@@ -450,7 +451,7 @@ class BankRepo(ScopedRepo, IBankRepo):
     # ------------------------------------------------------------------ #
     # CDS（破綻保証）
     # ------------------------------------------------------------------ #
-    def cds_quote(self, target_id: int, now: Optional[float] = None) -> dict[str, Any]:
+    def cds_quote(self, target_id: int, now: Optional[float] = None) -> CdsQuote:
         """対象の、いまの CDS のオッズと状況。読み取り専用。"""
         now = time.time() if now is None else now
         gid = self._g()
@@ -507,7 +508,7 @@ class BankRepo(ScopedRepo, IBankRepo):
             )
             return True, odds
 
-    def cds_list(self, user_id: int) -> dict[str, Any]:
+    def cds_list(self, user_id: int) -> CdsHoldings:
         """自分が買っている CDS（有効なもの）と、自分に掛けられている件数。"""
         with self._lock:
             gid = self._g()

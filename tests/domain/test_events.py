@@ -9,6 +9,7 @@ import pytest
 from cogs.casino import common
 from domain import events
 from infra.db.repositories import open_repositories
+from tests.fakes import as_guild, must
 from tests.support import make_casino_deps, make_event_cog, make_test_bot
 
 pytestmark = [pytest.mark.real_scope, pytest.mark.real_events]
@@ -153,18 +154,18 @@ def test_manual_event_lifecycle(tmp_path):
     eco.events.manual_event_start("ルーレット", 80, 50, 200)
     assert eco.events.manual_event_get(49) is None  # 開始前
     assert (
-        eco.events.manual_event_get(50)["boost"] == 80
+        must(eco.events.manual_event_get(50))["boost"] == 80
         and eco.events.manual_event_get(199) is not None
         and eco.events.manual_event_get(200) is None
     )
     assert eco.events.manual_event_finish_due(199) is None  # まだ
     done = eco.events.manual_event_finish_due(200)
-    assert done["game"] == "ルーレット" and eco.events.manual_event_finish_due(300) is None  # 終了の告知は1回だけ
+    assert must(done)["game"] == "ルーレット" and eco.events.manual_event_finish_due(300) is None  # 終了の告知は1回だけ
     eco.events.manual_event_start("パチンコ", 50, 0, 1000)
     eco.events.manual_event_start("スロット", 60, 0, 1000)  # 新しく開くと置き換わる
-    assert eco.events.manual_event_get(10)["game"] == "スロット"
+    assert must(eco.events.manual_event_get(10))["game"] == "スロット"
     stopped = eco.events.manual_event_stop(500)
-    assert stopped["game"] == "スロット" and eco.events.manual_event_get(501) is None
+    assert must(stopped)["game"] == "スロット" and eco.events.manual_event_get(501) is None
     assert (
         eco.events.manual_event_stop(501) is None and eco.events.manual_event_finish_due(5000) is None
     )  # 手動終了のあとに二重告知しない
@@ -219,18 +220,18 @@ def make_cog(tmp_path, monkeypatch):
 
 def test_cog_start_announces_replaces_and_stop_announces_the_end(tmp_path, monkeypatch):
     cog, bot, guild, chan = make_cog(tmp_path, monkeypatch)
-    ok, text = run(cog.start_manual(guild, "スロット", 80, 45))
+    ok, text = run(cog.start_manual(as_guild(guild), "スロット", 80, 45))
     assert ok and "45分" in text and "+80%" in text and "置き換え" not in text
     e = chan.sent[-1]["embed"]
     assert "特別イベント発生" in e.title and "1.8倍" in e.description and "/カジノ スロット" in e.description
-    ok, text = run(cog.start_manual(guild, "ルーレット", 50, 30))
+    ok, text = run(cog.start_manual(as_guild(guild), "ルーレット", 50, 30))
     assert (
         "置き換え" in text
         and bot.repos.for_guild(G).events.manual_event_get(bot.services.clock.now_ts())["game"] == "ルーレット"
     )
-    ok, text = run(cog.stop_manual(guild))
+    ok, text = run(cog.stop_manual(as_guild(guild)))
     assert ok and "終了" in chan.sent[-1]["embed"].title
-    ok, text = run(cog.stop_manual(guild))
+    ok, text = run(cog.stop_manual(as_guild(guild)))
     assert not ok and len(chan.sent) == 3  # 開催中でなければ何も出さない
 
 
@@ -252,7 +253,7 @@ def test_a_removed_game_in_a_running_manual_event_does_not_break_the_announcemen
     run(cog.run_once())
     assert len(chan.sent) == 1 and "終了" in chan.sent[0]["embed"].title
     bot.repos.for_guild(G).events.manual_event_start("コイン", 50, t - 10, t + 600)
-    ok, text = run(cog.stop_manual(guild))
+    ok, text = run(cog.stop_manual(as_guild(guild)))
     assert ok and "コイン" in text
 
 

@@ -6,12 +6,14 @@ import os
 import random
 import sqlite3
 from types import SimpleNamespace
+from typing import cast
 
 import pytest
 
 from domain import shop
 from domain.types import DAILY_BASE, INITIAL_BALANCE
 from infra.db.repositories import open_repositories
+from tests.fakes import as_interaction, invoke
 from tests.support import make_casino_deps, make_economy_cog, make_shop_cog, make_test_bot
 
 pytestmark = pytest.mark.real_scope  # この中は、本物の for_guild（サーバーごとに分かれる）で確かめる
@@ -245,13 +247,13 @@ def test_commands_and_games_use_the_servers_own_account(tmp_path):
 
     with mock.patch("asyncio.sleep", nosleep):
         random.seed(1)
-        run(simple.play_roulette(It(A), deps, 1_000, "red"))  # Aで遊ぶ
+        run(simple.play_roulette(as_interaction(It(A)), deps, 1_000, "red"))  # Aで遊ぶ
         after_a = eco.for_guild(A).wallet.balance(U1)
         assert eco.for_guild(B).wallet.balance(U1) == INITIAL_BALANCE and after_a != INITIAL_BALANCE
         shop_cog = make_shop_cog(bot)
         eco_cog = make_economy_cog(bot)
         it = It(B)
-        run(EconomyCog.daily.callback(eco_cog, it))  # Bでデイリー
+        run(invoke(EconomyCog.daily, eco_cog, it))  # Bでデイリー
         assert (
             eco.for_guild(B).wallet.balance(U1) == INITIAL_BALANCE + DAILY_BASE
             and eco.for_guild(A).wallet.balance(U1) == after_a
@@ -259,14 +261,14 @@ def test_commands_and_games_use_the_servers_own_account(tmp_path):
         from cogs.shop import actions as shop_actions
 
         it = It(A)
-        run(shop_actions.buy_item(shop_cog, it, "title_rookie", 1))  # Aで称号を買う
+        run(shop_actions.buy_item(shop_cog, as_interaction(it), "title_rookie", 1))  # Aで称号を買う
         assert eco.for_guild(A).shop.inventory(U1) == {"title_rookie": 1} and eco.for_guild(B).shop.inventory(U1) == {}
         eco.for_guild(B).wallet.credit(U2, 777, "テスト")  # Bに付与 → Bの口座だけ
         assert (
             eco.for_guild(B).wallet.balance(U2) == INITIAL_BALANCE + 777
             and eco.for_guild(A).wallet.peek_stats(U2) is None
         )
-        run(EconomyCog.ranking.callback(eco_cog, It(B)))  # 指定漏れがあれば strict でここで落ちる
+        run(invoke(EconomyCog.ranking, eco_cog, It(B)))  # 指定漏れがあれば strict でここで落ちる
 
 
 # --------------------------- レビュー指摘の追加確認 --------------------------- #
@@ -297,7 +299,9 @@ def test_migration_accepts_str_id_and_old_db_without_optional_tables(tmp_path):
     c.commit()
     c.close()
     eco = open_repositories(
-        path, legacy_guild_id=str(A), strict=True
+        path,
+        legacy_guild_id=cast(int, str(A)),
+        strict=True,  # config.json の文字列の ID も受け付ける
     )  # inventory / profile / ledger / escrow が無い古い記録でも移行できる
     assert eco.for_guild(A).wallet.balance(1) == 777 and eco.for_guild(B).wallet.balance(1) == INITIAL_BALANCE
 

@@ -11,6 +11,7 @@ from cogs.loan.cog import LoanButton, handle_button, offer_embed, who
 from domain import loans, teiai
 from domain.types import INITIAL_BALANCE
 from infra.db.repositories import open_repositories
+from tests.fakes import as_interaction, as_item, call, invoke, must
 from tests.support import make_loan_cog, make_test_bot
 
 NOW = 1_000_000.0
@@ -294,21 +295,23 @@ def test_buttons_accept_decline_cancel_with_the_right_people(eco, monkeypatch):
     svc = LoanService(eco.loans, _Clock())
     lid = offer(eco)
     log = []
-    asyncio.run(handle_button(svc, eco.guild, config, click(C, log), "accept", lid))  # 関係ない人
+    asyncio.run(handle_button(svc, eco.guild, config, as_interaction(click(C, log)), "accept", lid))  # 関係ない人
     assert log[-1] == ("send", "❌ できません") and eco.loans.loan_get(lid)["status"] == "offer"
-    asyncio.run(handle_button(svc, eco.guild, config, click(B, log), "accept", lid))
+    asyncio.run(handle_button(svc, eco.guild, config, as_interaction(click(B, log)), "accept", lid))
     assert (
         log[-1][:2] == ("edit", "🤝 貸付 #1 成立")
         and log[-1][2] is None
         and eco.loans.loan_get(lid)["status"] == "active"
     )
     lid2 = offer(eco)
-    asyncio.run(handle_button(svc, eco.guild, config, click(B, log), "cancel", lid2))  # 貸す側以外は、取り下げられない
+    asyncio.run(
+        handle_button(svc, eco.guild, config, as_interaction(click(B, log)), "cancel", lid2)
+    )  # 貸す側以外は、取り下げられない
     assert log[-1][0] == "send" and eco.loans.loan_get(lid2)["status"] == "offer"
-    asyncio.run(handle_button(svc, eco.guild, config, click(A, log), "cancel", lid2))
+    asyncio.run(handle_button(svc, eco.guild, config, as_interaction(click(A, log)), "cancel", lid2))
     assert log[-1][1].endswith("取り下げられました") and eco.loans.loan_get(lid2)["status"] == "cancelled"
     lid3 = offer(eco, principal=100)
-    asyncio.run(handle_button(svc, eco.guild, config, click(B, log), "decline", lid3))
+    asyncio.run(handle_button(svc, eco.guild, config, as_interaction(click(B, log)), "decline", lid3))
     assert log[-1][1].endswith("辞退されました")
 
 
@@ -318,7 +321,7 @@ def test_dynamic_button_id_round_trip():
     item = LoanButton("accept", 42)
     assert item.item.custom_id == "loan:accept:42"
     m = re.fullmatch(LoanButton.__discord_ui_compiled_template__.pattern, "loan:cancel:7")
-    restored = asyncio.run(LoanButton.from_custom_id(None, None, m))
+    restored = asyncio.run(LoanButton.from_custom_id(as_interaction(None), as_item(None), must(m)))
     assert (restored.act, restored.loan_id) == ("cancel", 7)
 
 
@@ -326,9 +329,9 @@ def test_offer_embed_and_names(eco):
     lid = offer(eco)
     e = offer_embed(eco.loans.loan_get(lid))
     assert (
-        f"<@{A}>" in e.description
-        and "1,200ペリカ" in e.description
-        and "日利: **2%**" in e.description
+        f"<@{A}>" in must(e.description)
+        and "1,200ペリカ" in must(e.description)
+        and "日利: **2%**" in must(e.description)
         and who(5) == "<@5>"
     )
 
@@ -409,32 +412,32 @@ def test_commands_offer_repay_and_list(eco, monkeypatch):
         )
 
     bad = SimpleNamespace(id=B, bot=True)
-    asyncio.run(cog.offer.callback(cog, inter(A), bad, 1000, 2.0, 10))
+    asyncio.run(invoke(cog.offer, cog, inter(A), bad, 1000, 2.0, 10))
     assert log[-1]["embed"].title == "❌ Bot には貸せません"
     member = SimpleNamespace(id=B, bot=False)
-    asyncio.run(cog.offer.callback(cog, inter(A), member, 1000, 2.5, 10))
+    asyncio.run(invoke(cog.offer, cog, inter(A), member, 1000, 2.5, 10))
     assert (
         log[-1]["embed"].title == "🤝 貸付の提案 #1"
         and log[-1]["content"] == f"<@{B}>"
         and eco.loans.loan_get(1)["message_id"] == 6001
         and eco.loans.loan_get(1)["rate_tenths"] == 25
     )
-    asyncio.run(cog.offer.callback(cog, inter(A), SimpleNamespace(id=A, bot=False), 1000, 2.0, 10))
+    asyncio.run(invoke(cog.offer, cog, inter(A), SimpleNamespace(id=A, bot=False), 1000, 2.0, 10))
     assert log[-1]["embed"].title == "❌ 提案できません"
     assert eco.loans.loan_accept(1, B, NOW)[0]
-    asyncio.run(cog.listing.callback(cog, inter(B)))
+    asyncio.run(invoke(cog.listing, cog, inter(B)))
     e = log[-1]["embed"]
     assert "ephemeral" not in log[-1] and e.title == f"🤝 ユーザー{B} の貸し借り"  # 一覧はみんなに見える
     assert f"<@{A}>" in e.fields[0].value and "元本1,000" in e.fields[0].value and e.fields[1].value == "なし"
-    asyncio.run(cog.repay.callback(cog, inter(B), 1, 100))
+    asyncio.run(invoke(cog.repay, cog, inter(B), 1, 100))
     assert (
         log[-1]["embed"].title.startswith("✅ #1 を 100ペリカ 返しました") and "ephemeral" not in log[-1]
     )  # 返済の完了もみんなに見える
     assert f"借りた人: <@{B}>　貸した人: <@{A}>" in log[-1]["embed"].description
-    choices = asyncio.run(cog.repay_autocomplete(inter(B), ""))
+    choices = asyncio.run(call(cog.repay_autocomplete, as_interaction(inter(B)), ""))
     assert [c.value for c in choices] == [1] and choices[0].name.startswith("#1 残り")
-    assert asyncio.run(cog.repay_autocomplete(inter(C), "")) == []
-    asyncio.run(cog.repay.callback(cog, inter(C), 1, None))
+    assert asyncio.run(call(cog.repay_autocomplete, as_interaction(inter(C)), "")) == []
+    asyncio.run(invoke(cog.repay, cog, inter(C), 1, None))
     assert log[-1]["embed"].title == "❌ 返せません" and log[-1]["ephemeral"] is True  # 失敗は本人だけ
 
 

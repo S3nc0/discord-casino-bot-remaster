@@ -37,6 +37,6 @@ quote-style = "double"
 include = ["domain", "services", "infra", "cogs", "tests", "main.py", "manage.py"]
 pythonVersion = "3.12"
 executionEnvironments = [
-  { root = "tests", extraPaths = ["."], reportArgumentType = "none", reportAttributeAccessIssue = "none", reportCallIssue = "none", reportFunctionMemberAccess = "none", reportOperatorIssue = "none", reportOptionalMemberAccess = "none", reportOptionalOperand = "none", reportOptionalSubscript = "none", reportPossiblyUnboundVariable = "none", reportRedeclaration = "none", reportUnusedExpression = "none" },
+  { root = "tests", extraPaths = ["."] },
 ]
 

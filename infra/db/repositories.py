@@ -215,7 +215,7 @@ def open_repositories(db_path: str, legacy_guild_id: Optional[int] = None, stric
     races = RaceRepo(db, account, horses, relics, bank, strict=strict)
     labor = LaborRepo(db, account, relics, bank, strict=strict)
     arena = ArenaRepo(db, account, bank, strict=strict)
-    company = CompanyRepo(db, account, debt, bank, notices, strict=strict)
+    company = CompanyRepo(db, account, debt, bank, bank, notices, strict=strict)
     earnings = EarningsRepo(db, account, bank, strict=strict)
 
     crypto = CryptoRepo(
@@ -226,7 +226,7 @@ def open_repositories(db_path: str, legacy_guild_id: Optional[int] = None, stric
         collateral_guard=LazyMarginCollateralGuard(lambda: margin),
         strict=strict,
     )
-    margin = MarginRepo(db, account, market, bank, notices, crypto, debt, strict=strict)
+    margin = MarginRepo(db, account, market, bank, bank, notices, crypto, debt, strict=strict)
 
     bonds = BondRepo(db, account, bank, debt_repay=debt, collateral_guard=margin, strict=strict)
     options = OptionRepo(db, account, market, market_events, earnings, bank, debt, strict=strict)
@@ -238,21 +238,21 @@ def open_repositories(db_path: str, legacy_guild_id: Optional[int] = None, stric
             CompanySeizureStep(account, company, notices),
             MarginSeizureStep(account, market, margin, notices),
             CryptoSeizureStep(account, market, crypto, notices),
-            OptionSeizureStep(db, account, options, notices),
-            BondSeizureStep(db, account, bonds, notices),
+            OptionSeizureStep(account, options, notices),
+            BondSeizureStep(account, bonds, notices),
         )
     )
     liquidation_step = CompositeLiquidationStep(
         (
             MarginLiquidationStep(market, margin),
             CryptoLiquidationStep(market, crypto),
-            BondLiquidationStep(db, account, bonds),
-            OptionLiquidationStep(db, options),
+            BondLiquidationStep(account, bonds),
+            OptionLiquidationStep(options),
             DepositLiquidationStep(account, bank),
             CompanyLiquidationStep(account, company),
         )
     )
-    seizure_value_step = CompositeSeizureValueStep((ShopAndHorseSeizureStep(db, auction, horses),))
+    seizure_value_step = CompositeSeizureValueStep((ShopAndHorseSeizureStep(shop, auction, horses),))
     bankrupt_prep_hook = CompositeBankruptPrepHook((p2p,))
 
     valuation_source = CompositeValuationSource((crypto, margin, bonds, bank, options, company))

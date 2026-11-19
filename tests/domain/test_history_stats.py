@@ -11,6 +11,7 @@ from cogs.market import orders
 from cogs.shared.messages import format_history
 from domain.types import DAILY_BASE, DAILY_STREAK_BONUS
 from infra.db.repositories import open_repositories
+from tests.fakes import as_interaction, invoke, must
 from tests.support import make_economy_cog, make_market_cog, make_ranking_repos, make_test_bot
 
 pytestmark = pytest.mark.real_scope
@@ -66,7 +67,7 @@ def test_history_command_shows_merged_lines(tmp_path):
     eco = open_repositories(str(tmp_path / "t.db"), strict=True)
     a = eco.for_guild(G)
     esc = a.escrow.place_bet(U, 100, "コイン")
-    a.escrow.settle(esc, 195, "コイン")
+    a.escrow.settle(must(esc), 195, "コイン")
     bot = make_test_bot(repos=eco)
     cog = make_economy_cog(bot)
     sent = []
@@ -82,7 +83,7 @@ def test_history_command_shows_merged_lines(tmp_path):
         sent.append(kw)
 
     it.response = SimpleNamespace(send_message=send)
-    run(EconomyCog.history.callback(cog, it))
+    run(invoke(EconomyCog.history, cog, it))
     text = sent[0]["embed"].description
     assert "コイン 賭100" in text and "**+95**" in text and "賭け:" not in text
 
@@ -116,7 +117,7 @@ def test_balance_card_shows_win_rate_profit_and_best_streak(tmp_path):
         id=U, display_name="テスト", display_avatar=SimpleNamespace(url="https://example.com/a.png")
     )
     it = SimpleNamespace(user=member, guild=SimpleNamespace(id=G), response=SimpleNamespace(send_message=send))
-    run(EconomyCog.balance.callback(cog, it, None))
+    run(invoke(EconomyCog.balance, cog, it, None))
     fields = {f.name: f.value for f in sent[0]["embed"].fields}
     assert fields["勝率"] == "75%（4戦）" and fields["ゲームの損益"] == "+200ペリカ" and fields["最大連勝"] == "2連勝"
     assert fields["連続ログイン"] == "まだ受け取っていません"
@@ -165,18 +166,18 @@ def cog(tmp_path):
 def test_sell_half_then_all_and_both_options_are_refused(cog):
     from discord import app_commands
 
-    run(orders.buy_spot(cog, It(), "cs", 2_000))
+    run(orders.buy_spot(cog, as_interaction(It()), "cs", 2_000))
     have = cog.bot.repos.for_guild(G).crypto.crypto_holding(U)[0]
     half = app_commands.Choice(name="半分", value="half")
     allc = app_commands.Choice(name="全部", value="all")
     it = It()
-    run(orders.sell_spot(cog, it, "cs", 1.0, half))
+    run(orders.sell_spot(cog, as_interaction(it), "cs", 1.0, half))
     assert (
         "どちらか1つ" in it.sent[-1]["embed"].title and cog.bot.repos.for_guild(G).crypto.crypto_holding(U)[0] == have
     )
-    run(orders.sell_spot(cog, It(), "cs", None, half))
+    run(orders.sell_spot(cog, as_interaction(It()), "cs", None, half))
     assert cog.bot.repos.for_guild(G).crypto.crypto_holding(U)[0] == have - have // 2
-    run(orders.sell_spot(cog, It(), "cs", None, allc))
+    run(orders.sell_spot(cog, as_interaction(It()), "cs", None, allc))
     assert cog.bot.repos.for_guild(G).crypto.crypto_holding(U) == (0, 0)
 
 
@@ -190,7 +191,9 @@ def test_ranking_counts_crypto_value_so_buying_does_not_drop_the_rank(tmp_path):
     assert [u for _, u, _ in a.wallet.top(10)] == [1, 2]
     a.crypto.crypto_buy(1, 9_000, 1000.0)  # 1番の人が、ほぼ全額をトークンに替える
     assert [(r, u) for r, u, _ in a.wallet.top(10)] == [(1, 1), (2, 2)]  # 順位は変わらない
-    assert a.wallet.top(10)[0][2] == 10_000 and a.wallet.rank_of(1)[1] == 10_000  # 総資産は売買前と同じ（手数料なし）
+    assert (
+        a.wallet.top(10)[0][2] == 10_000 and must(a.wallet.rank_of(1))[1] == 10_000
+    )  # 総資産は売買前と同じ（手数料なし）
     eco.market.market_set(2.0, 1500.0, 0)  # 価格が上がれば、総資産も増える
     assert a.wallet.top(10)[0][2] > 10_000
     eco.market.market_set(3.0, 100.0, 0)  # 暴落すれば、順位も下がる
@@ -205,7 +208,7 @@ def test_ranking_embed_shows_total_and_crypto_part(tmp_path):
     eco.market.market_set(1.0, 1000.0, 0)
     a.crypto.crypto_buy(1, 2_000, 1000.0)
     text = ranking.build_embed(make_ranking_repos(a), None, "t").description
-    assert "うちCS" in text and "3,000ペリカ" in text
+    assert "うちCS" in must(text) and "3,000ペリカ" in must(text)
 
 
 def test_daily_is_1000_every_6_hours_and_next_time_is_stated(tmp_path, monkeypatch):
@@ -226,16 +229,16 @@ def test_daily_is_1000_every_6_hours_and_next_time_is_stated(tmp_path, monkeypat
     it = SimpleNamespace(
         user=SimpleNamespace(id=U), guild=SimpleNamespace(id=G), response=SimpleNamespace(send_message=send)
     )
-    run(EconomyCog.daily.callback(cog, it))  # 7:30（6時〜の時間帯）
+    run(invoke(EconomyCog.daily, cog, it))  # 7:30（6時〜の時間帯）
     first = sent[-1]["embed"].description
     assert "+1,000ペリカ" in first and "12:00（日本時間）" in first
-    run(EconomyCog.daily.callback(cog, it))  # 同じ時間帯は受け取れない
+    run(invoke(EconomyCog.daily, cog, it))  # 同じ時間帯は受け取れない
     assert "まだ受け取れません" in sent[-1]["embed"].title and "12:00（日本時間）" in sent[-1]["embed"].description
     clock["now"] = clock["now"].replace(hour=12, minute=0)
-    run(EconomyCog.daily.callback(cog, it))  # 12:00になれば、また受け取れる
+    run(invoke(EconomyCog.daily, cog, it))  # 12:00になれば、また受け取れる
     assert "+1,000ペリカ" in sent[-1]["embed"].description and "18:00（日本時間）" in sent[-1]["embed"].description
     clock["now"] = clock["now"].replace(hour=18, minute=59)
-    run(EconomyCog.daily.callback(cog, it))
+    run(invoke(EconomyCog.daily, cog, it))
     assert "0:00（日本時間）" in sent[-1]["embed"].description  # 18時の次は、翌日の0:00
 
 

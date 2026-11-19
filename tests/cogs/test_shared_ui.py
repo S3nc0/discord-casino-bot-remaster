@@ -3,6 +3,7 @@
 import asyncio
 import datetime
 from types import SimpleNamespace
+from typing import Any, Optional
 
 import discord
 import pytest
@@ -10,8 +11,10 @@ import pytest
 from cogs.shared import ui
 from cogs.shared.announce import announce_channel
 from cogs.shared.confirm import confirmed_reply, user_session
+from domain.ports.repos import ILeaderboardConfigRepo
 from infra.clock import local_now, local_today
 from services.session import Sessions
+from tests.fakes import as_guild, as_interaction
 
 
 def make_interaction(uid: int = 1):
@@ -47,11 +50,11 @@ def test_owner_view_allows_owner_and_rejects_others():
     async def run():
         view = ui.OwnerView(owner_id=10, owner_message="本人専用です")
         ok_it, ok_sent, _ = make_interaction(10)
-        assert await view.interaction_check(ok_it) is True
+        assert await view.interaction_check(as_interaction(ok_it)) is True
         assert ok_sent == []
 
         bad_it, bad_sent, _ = make_interaction(99)
-        assert await view.interaction_check(bad_it) is False
+        assert await view.interaction_check(as_interaction(bad_it)) is False
         assert bad_sent == [{"content": "本人専用です", "embed": None, "ephemeral": True}]
 
     asyncio.run(run())
@@ -65,12 +68,12 @@ def test_owner_view_silent_and_custom_rejection():
     async def run():
         silent = ui.OwnerView(owner_id=10)
         it1, sent1, _ = make_interaction(99)
-        assert await silent.interaction_check(it1) is False
+        assert await silent.interaction_check(as_interaction(it1)) is False
         assert sent1 == []
 
         custom = CustomView(owner_id=10)
         it2, sent2, _ = make_interaction(99)
-        assert await custom.interaction_check(it2) is False
+        assert await custom.interaction_check(as_interaction(it2)) is False
         assert len(sent2) == 1 and "権限なし" in sent2[0]["embed"].title
 
     asyncio.run(run())
@@ -82,14 +85,14 @@ def test_user_session_lifecycle_and_exception_cleanup():
 
     async def run():
         it, sent, _ = make_interaction(1)
-        async with user_session(sessions, it) as ok:
+        async with user_session(sessions, as_interaction(it)) as ok:
             assert ok is True
             assert sessions.is_active(1)
         assert not sessions.is_active(1)
         assert sent == []
 
         with pytest.raises(RuntimeError):
-            async with user_session(sessions, it) as ok:
+            async with user_session(sessions, as_interaction(it)) as ok:
                 assert ok is True
                 raise RuntimeError("boom")
         assert not sessions.is_active(1)
@@ -103,7 +106,7 @@ def test_user_session_rejects_when_already_busy():
 
     async def run():
         it, sent, _ = make_interaction(1)
-        async with user_session(sessions, it, busy_title="いまは買えません") as ok:
+        async with user_session(sessions, as_interaction(it), busy_title="いまは買えません") as ok:
             assert ok is False
         assert len(sent) == 1
         assert "いまは買えません" in sent[0]["embed"].title
@@ -130,18 +133,18 @@ def test_confirmed_reply_branches():
             called.append(args)
             return None
 
-        r1 = await confirmed_reply(it, False, "t", "d", "ok", confirm_fn=yes)
+        r1 = await confirmed_reply(as_interaction(it), False, "t", "d", "ok", confirm_fn=yes)
         assert r1 == it.response.send_message
         assert called == []
 
-        r2 = await confirmed_reply(it, True, "t", "d", "ok", confirm_fn=yes)
+        r2 = await confirmed_reply(as_interaction(it), True, "t", "d", "ok", confirm_fn=yes)
         assert r2 == it.followup.send
         assert len(called) == 1
 
-        r3 = await confirmed_reply(it, True, "t", "d", "ok", confirm_fn=no)
+        r3 = await confirmed_reply(as_interaction(it), True, "t", "d", "ok", confirm_fn=no)
         assert r3 is None
 
-        r4 = await confirmed_reply(it, True, "t", "d", "ok", confirm_fn=timeout)
+        r4 = await confirmed_reply(as_interaction(it), True, "t", "d", "ok", confirm_fn=timeout)
         assert r4 is None
 
     asyncio.run(run())
@@ -162,17 +165,24 @@ def test_announce_channel_preference_and_permissions():
     channels = {100: board_ch, 200: sys_ch, 300: blocked_ch}
     guild = SimpleNamespace(id=1, me=object(), system_channel=sys_ch, get_channel=lambda cid: channels.get(cid))
 
-    eco_with_board = SimpleNamespace(get_leaderboard=lambda _gid: {"channel_id": 100})
-    assert announce_channel(guild, eco_with_board) is board_ch
+    class Boards(ILeaderboardConfigRepo):
+        def __init__(self, channel_id: Optional[int]) -> None:
+            self._channel_id = channel_id
 
-    eco_blocked_board = SimpleNamespace(get_leaderboard=lambda _gid: {"channel_id": 300})
-    assert announce_channel(guild, eco_blocked_board) is sys_ch
+        def get_leaderboard(self, guild_id: int) -> Optional[dict[str, Any]]:
+            return None if self._channel_id is None else {"channel_id": self._channel_id}
 
-    eco_no_board = SimpleNamespace(get_leaderboard=lambda _gid: None)
-    assert announce_channel(guild, eco_no_board) is sys_ch
+    eco_with_board = Boards(100)
+    assert announce_channel(as_guild(guild), eco_with_board) is board_ch
+
+    eco_blocked_board = Boards(300)
+    assert announce_channel(as_guild(guild), eco_blocked_board) is sys_ch
+
+    eco_no_board = Boards(None)
+    assert announce_channel(as_guild(guild), eco_no_board) is sys_ch
 
     guild_none = SimpleNamespace(id=1, me=object(), system_channel=blocked_ch, get_channel=lambda _cid: None)
-    assert announce_channel(guild_none, eco_no_board) is None
+    assert announce_channel(as_guild(guild_none), eco_no_board) is None
 
 
 def test_messages_format_failures_notices_and_memo():

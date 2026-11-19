@@ -9,6 +9,7 @@ from domain.ports.bridges import (
     ISpotCollateralReader,
     IValuationSource,
 )
+from domain.ports.contracts import HoldingBook, MarginPosition, MarginStatus, PricePoint, SpotHolding
 from domain.ports.repos.base import IGuildScopedRepo
 
 if TYPE_CHECKING:
@@ -17,7 +18,7 @@ if TYPE_CHECKING:
 
 
 class IMarketDataRepo(IGuildScopedRepo, IMarketPriceReader):
-    def market_latest(self, symbol: str = "cs") -> Optional[tuple[Any, ...]]:
+    def market_latest(self, symbol: str = "cs") -> Optional[PricePoint]:
         raise NotImplementedError
 
     def market_set(self, ts: float, price: float, event: int = 0, symbol: str = "cs") -> None:
@@ -105,7 +106,7 @@ class IEarningsRepo(IGuildScopedRepo):
 
 
 class ICryptoRepo(IGuildScopedRepo, ISpotCollateralReader, IValuationSource):
-    def crypto_holding(self, user_id: int, symbol: str = "cs") -> tuple[Any, ...]:
+    def crypto_holding(self, user_id: int, symbol: str = "cs") -> SpotHolding:
         raise NotImplementedError
 
     def holdings(self, user_id: int) -> list[Any]:
@@ -125,13 +126,13 @@ class ICryptoRepo(IGuildScopedRepo, ISpotCollateralReader, IValuationSource):
 
 
 class IMarginRepo(IGuildScopedRepo, IMarginCollateralGuard, IMarginRatioReader, IValuationSource):
-    def margin_position(self, user_id: int, symbol: str, side: str) -> tuple[Any, ...]:
+    def margin_position(self, user_id: int, symbol: str, side: str) -> MarginPosition:
         raise NotImplementedError
 
-    def short_position(self, user_id: int, symbol: str = "cs") -> tuple[Any, ...]:
+    def short_position(self, user_id: int, symbol: str = "cs") -> MarginPosition:
         raise NotImplementedError
 
-    def long_position(self, user_id: int, symbol: str = "cs") -> tuple[Any, ...]:
+    def long_position(self, user_id: int, symbol: str = "cs") -> MarginPosition:
         raise NotImplementedError
 
     def margin_positions(self, user_id: int) -> list[Any]:
@@ -149,7 +150,7 @@ class IMarginRepo(IGuildScopedRepo, IMarginCollateralGuard, IMarginRatioReader, 
     def margin_equity(self) -> dict[int, int]:
         raise NotImplementedError
 
-    def margin_status(self, user_id: int, prices: Optional[dict[str, Any]] = None) -> dict[str, Any]:
+    def margin_status(self, user_id: int, prices: Optional[dict[str, Any]] = None) -> MarginStatus:
         raise NotImplementedError
 
     def short_open(self, user_id: int, units: int, price: float, leverage: int, symbol: str = "cs") -> "CryptoResult":
@@ -186,7 +187,7 @@ class IBondRepo(IGuildScopedRepo, IValuationSource):
     def bond_values(self) -> dict[int, int]:
         raise NotImplementedError
 
-    def bond_list(self, user_id: int, recent: int = 5) -> dict[str, Any]:
+    def bond_list(self, user_id: int, recent: int = 5) -> HoldingBook:
         raise NotImplementedError
 
     def bond_settle(self, now: float, rng: Any = None) -> list[Any]:
@@ -232,7 +233,7 @@ class IOptionRepo(IGuildScopedRepo, IValuationSource):
     def option_values(self) -> dict[int, int]:
         raise NotImplementedError
 
-    def option_list(self, user_id: int, recent: int = 5) -> dict[str, Any]:
+    def option_list(self, user_id: int, recent: int = 5) -> HoldingBook:
         raise NotImplementedError
 
     def option_sell(self, user_id: int, option_id: int, now: Optional[float] = None) -> tuple[Any, ...]:

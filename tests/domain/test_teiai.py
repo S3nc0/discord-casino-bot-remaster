@@ -11,6 +11,7 @@ from cogs.shop import cog as shop_cog
 from domain import shop, teiai
 from domain.types import DAILY_BASE, INITIAL_BALANCE
 from infra.db.repositories import open_repositories
+from tests.fakes import as_guild, as_interaction, as_member, must
 from tests.support import make_casino_deps, make_ranking_repos, make_shop_cog, make_test_bot
 
 U, A, B = 1, 2, 3
@@ -210,6 +211,18 @@ def make_bankrupt_case(eco, debt=40_000):
 SHOP_VALUE = int((20_000 + 100_000 + 13_500) * teiai.SEIZE_RATE)  # ショップの全品の換金（購入額の50%）
 
 
+def test_bankruptcy_writes_off_unsellable_bonds_at_the_seize_rate(eco):
+    """売れない債券（ジャンク債）は、元本の SEIZE_RATE で換金して、解約済みにする。"""
+    eco.wallet.credit(U, 50_000, "テスト")
+    assert eco.bonds.bond_buy(U, "junk", 1_000, time.time())[0]
+    indebt(eco, debt=40_000, balance=0)
+    ok, result = eco.debt.bankrupt(U)
+    assert ok and result["seized"] == int(1_000 * teiai.SEIZE_RATE)
+    assert eco.db.conn.execute("SELECT status FROM bonds WHERE user_id=?", (U,)).fetchone()[0] == "cancelled"
+    reasons = [r[0] for r in eco.db.conn.execute("SELECT reason FROM ledger WHERE user_id=?", (U,))]
+    assert "破産:債券の差し押さえ" in reasons
+
+
 def test_bankruptcy_seizes_everything_and_pays_the_senior_then_the_junior_creditors(eco):
     make_bankrupt_case(eco, debt=40_000)
     ok, result = eco.debt.bankrupt(U)
@@ -326,14 +339,14 @@ def make_cog(eco):
 def test_status_tag_is_added_for_a_debtor_and_removed_after_paying_off(eco):
     cog, guild, member = make_cog(eco), guild_for(), Member(nick_="あだ名")
     indebt(eco, debt=500, balance=0)
-    asyncio.run(cog.sync_status_nick(guild, member))
+    asyncio.run(cog.sync_status_nick(as_guild(guild), as_member(member)))
     assert member.nick == "あだ名【地下労働者】"  # 称号の表示を選んでいなくても、身分は付く
     assert eco.guild.nick_managed(0, U) and not eco.guild.nick_pref(0, U)
-    asyncio.run(cog.sync_status_nick(guild, member))
+    asyncio.run(cog.sync_status_nick(as_guild(guild), as_member(member)))
     assert len(member.edits) == 1  # 変わらないなら、書き換えない
     with eco.db.tx():
         eco.db.conn.execute("UPDATE users SET debt=0, balance=100 WHERE user_id=?", (U,))
-    asyncio.run(cog.sync_status_nick(guild, member))
+    asyncio.run(cog.sync_status_nick(as_guild(guild), as_member(member)))
     assert member.nick == "あだ名" and not eco.guild.nick_managed(0, U)  # 元のニックネームに戻り、記録も消える
 
 
@@ -341,15 +354,15 @@ def test_status_tag_restores_no_nickname_and_never_touches_a_normal_player(eco):
     cog, guild = make_cog(eco), guild_for()
     normal = Member(uid=B, nick_="ふつう")
     eco.wallet.balance(B)
-    asyncio.run(cog.sync_status_nick(guild, normal))
+    asyncio.run(cog.sync_status_nick(as_guild(guild), as_member(normal)))
     assert normal.edits == [] and normal.nick == "ふつう"  # カタギで、称号の表示も選んでいない人には触らない
     member = Member()
     indebt(eco, debt=500, balance=0)
-    asyncio.run(cog.sync_status_nick(guild, member))
+    asyncio.run(cog.sync_status_nick(as_guild(guild), as_member(member)))
     assert member.nick == "たつ【地下労働者】"
     with eco.db.tx():
         eco.db.conn.execute("UPDATE users SET debt=0 WHERE user_id=?", (U,))
-    asyncio.run(cog.sync_status_nick(guild, member))
+    asyncio.run(cog.sync_status_nick(as_guild(guild), as_member(member)))
     assert member.nick is None  # もともとニックネームがなければ、なしに戻る
 
 
@@ -360,15 +373,15 @@ def test_status_replaces_the_title_tag_and_the_title_comes_back_for_those_who_ch
     eco.shop.equip(U, "title", item.id)
     eco.guild.set_nick_pref(0, U, True)  # 称号の表示を、自分で選んだ人
     cog, guild, member = make_cog(eco), guild_for(), Member()
-    asyncio.run(cog.sync_status_nick(guild, member))
+    asyncio.run(cog.sync_status_nick(as_guild(guild), as_member(member)))
     assert member.nick == "たつ【常連】"
     with eco.db.tx():
         eco.db.conn.execute("UPDATE users SET debt=500 WHERE user_id=?", (U,))
-    asyncio.run(cog.sync_status_nick(guild, member))
+    asyncio.run(cog.sync_status_nick(as_guild(guild), as_member(member)))
     assert member.nick == "たつ【地下労働者】"  # 差し押さえ中は、称号ではなく身分
     with eco.db.tx():
         eco.db.conn.execute("UPDATE users SET debt=0 WHERE user_id=?", (U,))
-    asyncio.run(cog.sync_status_nick(guild, member))
+    asyncio.run(cog.sync_status_nick(as_guild(guild), as_member(member)))
     assert member.nick == "たつ【常連】" and eco.guild.nick_pref(0, U)  # 完済すると、称号に戻る
 
 
@@ -435,11 +448,13 @@ def test_chinchiro_result_shows_what_was_seized_and_the_seed_money(tmp_path):
 
     it = It()
     it.response = SimpleNamespace(send_message=send)
-    ctx = asyncio.run(common.start_game(it, make_casino_deps(bot), 3_000, "チンチロ"))
-    view = play_ch.ChinchiroView(ctx, It(), [((1, 1, 1), ch.classify((1, 1, 1)))])  # 親がピンゾロ（5倍払い）
+    ctx = asyncio.run(common.start_game(as_interaction(it), make_casino_deps(bot), 3_000, "チンチロ"))
+    view = play_ch.ChinchiroView(
+        must(ctx), as_interaction(It()), [((1, 1, 1), ch.classify((1, 1, 1)))]
+    )  # 親がピンゾロ（5倍払い）
     view.player_rolls = [((2, 2, 3), ch.classify((2, 2, 3)))]
     text = view.final_embed().description
-    assert "CSトークンが差し押さえられました" in text  # 結果の画面に、差し押さえたものが出る
+    assert "CSトークンが差し押さえられました" in must(text)  # 結果の画面に、差し押さえたものが出る
     assert (
         eco.crypto.crypto_holding(U)[0] == 0 and eco.debt.debt(U) == 0
     )  # 12,000の倍払いは、CSトークンの差し押さえで足りた
@@ -453,7 +468,7 @@ def test_ranking_marks_people_who_are_not_katagi(eco):
     eco.wallet.balance(A)
     indebt(eco, user_id=A, debt=100, balance=900)
     text = ranking.build_embed(make_ranking_repos(eco), None, "t").description
-    assert f"<@{A}>🟤" in text and f"<@{U}>🟤" not in text
+    assert f"<@{A}>🟤" in must(text) and f"<@{U}>🟤" not in must(text)
 
 
 def _set_balance(eco, user_id, balance):
@@ -482,7 +497,7 @@ def test_ranking_marks_the_wealthy(eco):
     from cogs.shared import ranking
 
     _set_balance(eco, U, teiai.WEALTHY_ASSETS)
-    assert f"<@{U}>🟡" in ranking.build_embed(make_ranking_repos(eco), None, "t").description
+    assert f"<@{U}>🟡" in must(ranking.build_embed(make_ranking_repos(eco), None, "t").description)
 
 
 @pytest.mark.real_scope
@@ -581,7 +596,7 @@ def test_after_bankruptcy_removes_the_color_role_and_tags_the_nick(tmp_path):
     sc.set_color_role = fake_role
     cog.sync_status_nick = fake_nick
     try:
-        asyncio.run(cog.after_bankruptcy(SimpleNamespace(id=7), SimpleNamespace(id=U)))
+        asyncio.run(cog.after_bankruptcy(as_guild(SimpleNamespace(id=7)), as_member(SimpleNamespace(id=U))))
     finally:
         sc.set_color_role = orig
     assert calls == [("role", None), ("nick", U)]
@@ -602,7 +617,9 @@ def test_after_bankruptcy_never_raises_on_discord_failures(tmp_path):
     sc.set_color_role = fail_role
     cog.sync_status_nick = fail_nick
     try:
-        asyncio.run(cog.after_bankruptcy(SimpleNamespace(id=7), SimpleNamespace(id=U)))  # 例外にならない
+        asyncio.run(
+            cog.after_bankruptcy(as_guild(SimpleNamespace(id=7)), as_member(SimpleNamespace(id=U)))
+        )  # 例外にならない
     finally:
         sc.set_color_role = orig
 

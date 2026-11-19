@@ -19,6 +19,7 @@ from domain import teiai
 from domain.types import INITIAL_BALANCE
 from infra.db.quiz import QuizRepo
 from infra.db.repositories import open_repositories
+from tests.fakes import as_interaction, invoke, must
 from tests.support import make_quiz_cog, make_test_bot
 
 NOW = 1_000_000.0
@@ -120,7 +121,7 @@ def test_question_embed_lists_shuffled_choices(eco):
     qid = add(eco)
     q = eco.quiz.quiz_get(qid)
     e = question_embed(q, ["大阪", "東京", "京都", "名古屋"], 3)
-    assert "**B.** 東京" in e.description and "あと3問" in e.footer.text
+    assert "**B.** 東京" in must(e.description) and "あと3問" in must(e.footer.text)
 
 
 class Resp:
@@ -149,15 +150,15 @@ def test_play_flow_buttons_pay_the_player_only(eco):
     cog, log = make_cog(eco), []
     qid = add(eco)
     inter = SimpleNamespace(user=SimpleNamespace(id=1), guild_id=1, response=Resp(log))
-    asyncio.run(cog.play.callback(cog, inter))
+    asyncio.run(invoke(cog.play, cog, inter))
     assert log == [("send", "📰 クイズ #1")] and qid == 1
 
     async def run():
         view = AnswerView(cog._quiz, 1, eco.quiz.quiz_get(qid), ["大阪", "東京", "京都", "名古屋"])
         stranger = SimpleNamespace(user=SimpleNamespace(id=2), response=Resp(log))
-        assert await view.interaction_check(stranger) is False  # 他人は押せない
+        assert await view.interaction_check(as_interaction(stranger)) is False  # 他人は押せない
         mine = SimpleNamespace(user=SimpleNamespace(id=1), guild_id=1, response=Resp(log))
-        await view.children[1].callback(mine)  # B = 東京（正解）
+        await view.children[1].callback(as_interaction(mine))  # B = 東京（正解）
 
     asyncio.run(run())
     assert log[-1][:2] == ("edit", "⭕ 正解！") and log[-1][2] is None  # ボタンは外れる
@@ -166,16 +167,16 @@ def test_play_flow_buttons_pay_the_player_only(eco):
 
 def test_play_with_empty_bank(eco):
     cog, log = make_cog(eco), []
-    asyncio.run(cog.play.callback(cog, SimpleNamespace(user=SimpleNamespace(id=1), guild_id=1, response=Resp(log))))
+    asyncio.run(invoke(cog.play, cog, SimpleNamespace(user=SimpleNamespace(id=1), guild_id=1, response=Resp(log))))
     assert log == [("send", "📰 クイズ")]
 
 
 def test_admin_helpers_list_and_remove(eco):
     cog = make_cog(eco)
-    assert "まだありません" in cog.listing_embed().description
+    assert "まだありません" in must(cog.listing_embed().description)
     qid = add(eco)
     eco.quiz.quiz_answer(1, qid, "東京", NOW)
-    assert f"#{qid}" in cog.listing_embed().description and "1/1人正解" in cog.listing_embed().description
+    assert f"#{qid}" in must(cog.listing_embed().description) and "1/1人正解" in must(cog.listing_embed().description)
     assert isinstance(cog.add_modal(False), AddModal) and cog.add_modal(False).announce is False
     assert cog.remove(qid) and not cog.remove(qid)
 
@@ -202,12 +203,12 @@ def test_modal_validates_and_saves(eco):
             followups.append(kw["embed"].title)
 
     inter = SimpleNamespace(user=SimpleNamespace(id=99, display_name="持ち主"), response=Resp(log), followup=Follow())
-    asyncio.run(modal("a\nb\nc").on_submit(inter))  # 選択肢が足りない
-    asyncio.run(modal("a\nb\nc\nd", reward="abc").on_submit(inter))  # 数字ではない
-    asyncio.run(modal("a\nb\nc\nd", reward="0").on_submit(inter))  # 範囲外
+    asyncio.run(modal("a\nb\nc").on_submit(as_interaction(inter)))  # 選択肢が足りない
+    asyncio.run(modal("a\nb\nc\nd", reward="abc").on_submit(as_interaction(inter)))  # 数字ではない
+    asyncio.run(modal("a\nb\nc\nd", reward="0").on_submit(as_interaction(inter)))  # 範囲外
     assert log == [("send", "❌ 入力エラー")] * 3 and eco.quiz.quiz_list() == []
     log.clear()
-    asyncio.run(modal("a\nb\nc\nd").on_submit(inter))
+    asyncio.run(modal("a\nb\nc\nd").on_submit(as_interaction(inter)))
     assert log == [("defer",)] and followups == ["✅ クイズ #1 を登録しました"]
     q = eco.quiz.quiz_list()[0]
     assert (q["choices"][0], q["reward"]) == ("a", 150) and q["expires"] is not None
@@ -233,9 +234,9 @@ def test_old_questions_without_a_saved_order_get_one_on_upgrade(tmp_path):
         INSERT INTO quiz_questions (question, choices, reward, created) VALUES ('q', '["a","b","c","d"]', 100, 1);""")
     c.commit()
     c.close()
-    first = open_repositories(path).quiz.quiz_get(1)["order"]
+    first = must(open_repositories(path).quiz.quiz_get(1))["order"]
     assert (
-        sorted(first) == ["a", "b", "c", "d"] and open_repositories(path).quiz.quiz_get(1)["order"] == first
+        sorted(first) == ["a", "b", "c", "d"] and must(open_repositories(path).quiz.quiz_get(1))["order"] == first
     )  # 一度決めたら変わらない
 
 
@@ -243,7 +244,7 @@ def test_public_post_has_four_buttons_that_answer_for_the_clicker(eco):
     cog, log = make_cog(eco), []
     qid = add(eco, expires=9e12)
     q = eco.quiz.quiz_get(qid)
-    assert "新しいクイズ" in public_embed(q).title and "⏳ 期限" in public_embed(q).description
+    assert "新しいクイズ" in must(public_embed(q).title) and "⏳ 期限" in must(public_embed(q).description)
     pos = q["order"].index("東京")
     btn = PublicButton(qid, pos)
     assert btn.item.custom_id == f"quiz:{qid}:{pos}"
@@ -259,18 +260,18 @@ def test_public_post_has_four_buttons_that_answer_for_the_clicker(eco):
             user=SimpleNamespace(id=uid), guild_id=1, client=cog.bot, response=Resp(log), followup=Follow()
         )
 
-    asyncio.run(btn.callback(click(1)))
+    asyncio.run(invoke(btn, click(1)))
     assert log[-1] == ("send", "⭕ 正解！") and eco.wallet.balance(1) == INITIAL_BALANCE + 100
     assert public == ["⭕ <@1> が #1 に **正解！**（+100ペリカ）"]  # みんなに見える形で、その場で出る
-    asyncio.run(btn.callback(click(1)))  # 二重に押しても入らない・公開もしない
+    asyncio.run(invoke(btn, click(1)))  # 二重に押しても入らない・公開もしない
     assert (
         log[-1] == ("send", "❌ 答えられません") and eco.wallet.balance(1) == INITIAL_BALANCE + 100 and len(public) == 1
     )
-    asyncio.run(PublicButton(qid, (pos + 1) % 4).callback(click(2)))  # 不正解
+    asyncio.run(PublicButton(qid, (pos + 1) % 4).callback(as_interaction(click(2))))  # 不正解
     assert log[-1] == ("send", "❌ 不正解…") and eco.wallet.balance(2) == INITIAL_BALANCE
     assert public[-1] == "❌ <@2> が #1 に **不正解…**" and "東京" not in public[-1]  # 正解は公開しない
     eco.quiz.quiz_delete(qid)
-    asyncio.run(record_answer(cog._quiz, cog._guild_repo, cog._config, click(3), qid, 0))
+    asyncio.run(record_answer(cog._quiz, cog._guild_repo, cog._config, as_interaction(click(3)), qid, 0))
     assert log[-1] == ("send", "❌ この問題は終了しました")
 
 
@@ -283,7 +284,7 @@ def test_broadcast_posts_to_every_allowed_guild_channel(eco, monkeypatch):
         async def send(self, **kw):
             sent.append((kw["embed"].title, len(kw["view"].children)))
 
-    cog.bot.guilds = [SimpleNamespace(id=1), SimpleNamespace(id=2), SimpleNamespace(id=3)]
+    setattr(cog.bot, "guilds", [SimpleNamespace(id=1), SimpleNamespace(id=2), SimpleNamespace(id=3)])
     monkeypatch.setattr("domain.approval.is_allowed", lambda repo_, cfg, gid, uid: gid != 2)  # 2は許可されていない
     monkeypatch.setattr(
         "cogs.quiz.cog.announce_channel", lambda guild, repo_: None if guild.id == 3 else Chan()
@@ -487,7 +488,7 @@ def test_old_schema_gets_author_columns(tmp_path):
     c.commit()
     c.close()
     q = open_repositories(path).quiz.quiz_get(1)
-    assert (q["author_id"], q["guild_id"], q["settled"]) == (0, 0, 0)
+    assert (must(q)["author_id"], must(q)["guild_id"], must(q)["settled"]) == (0, 0, 0)
 
 
 DAY = 86400
@@ -548,14 +549,14 @@ def test_user_modal_posts_publicly_and_saves_the_message(eco):
     ):
         field._value = value
     inter, sent = user_inter(log)
-    asyncio.run(m.on_submit(inter))
+    asyncio.run(m.on_submit(as_interaction(inter)))
     q = eco.quiz.quiz_list()[0]
     assert log == [("send", "📰 みんなのクイズ #1")] and len(sent["kw"]["view"].children) == 4
     assert (q["author_id"], q["reward"], q["message_id"], q["channel_id"]) == (AUTHOR, 250, 9090, 777)
     assert abs(q["expires"] - q["created"] - 3 * DAY) < 1  # 日数の既定は3日
     m.terms._value = "0"  # 報酬は 1 以上
     log.clear()
-    asyncio.run(m.on_submit(inter))
+    asyncio.run(m.on_submit(as_interaction(inter)))
     assert log == [("send", "❌ 入力エラー")] and len(eco.quiz.quiz_list()) == 1
 
 
@@ -564,14 +565,14 @@ def test_public_button_rejects_the_author(eco):
     ok, qid = post(eco, now=time.time(), days=3)  # 期限は十分先
     pos = eco.quiz.quiz_get(qid)["order"].index("東京")
     click = SimpleNamespace(user=SimpleNamespace(id=AUTHOR), guild_id=1, client=cog.bot, response=Resp(log))
-    asyncio.run(PublicButton(qid, pos).callback(click))
+    asyncio.run(PublicButton(qid, pos).callback(as_interaction(click)))
     assert log[-1] == ("send", "❌ 答えられません") and eco.wallet.balance(AUTHOR) == INITIAL_BALANCE
 
 
 def test_run_once_settles_and_announces_the_result(eco, monkeypatch):
     monkeypatch.setattr("domain.approval.is_allowed", lambda *a: True)
     cog, ch = make_cog(eco), Channel()
-    cog.bot.guilds = [SimpleNamespace(id=1, get_channel=lambda cid: ch)]
+    setattr(cog.bot, "guilds", [SimpleNamespace(id=1, get_channel=lambda cid: ch)])
     ok, qid = post(eco, reward=10, days=1, now=1.0)  # とっくに期限切れ
     eco.quiz.quiz_set_message(qid, 4242)
     for uid, pick in ((1, "東京"), (2, "東京"), (3, "大阪"), (4, "大阪"), (5, "京都")):
@@ -595,9 +596,9 @@ def test_withdraw_command(eco, monkeypatch):
     cog, log, ch = make_cog(eco), [], Channel()
     ok, qid = post(eco)
     inter, _ = user_inter(log, guild=SimpleNamespace(id=1, get_channel=lambda cid: ch))
-    asyncio.run(cog.withdraw.callback(cog, inter, qid + 5))
+    asyncio.run(invoke(cog.withdraw, cog, inter, qid + 5))
     assert log[-1] == ("send", "❌ 取り下げられません")
-    asyncio.run(cog.withdraw.callback(cog, inter, qid))
+    asyncio.run(invoke(cog.withdraw, cog, inter, qid))
     assert log[-1] == ("send", f"✅ クイズ #{qid} を取り下げました") and ch.sent
 
 
@@ -688,9 +689,9 @@ def test_public_line_shows_the_authors_earnings_right_away(eco):
             user=SimpleNamespace(id=uid), guild_id=1, client=cog.bot, response=Resp(log), followup=Follow()
         )
 
-    asyncio.run(PublicButton(qid, right).callback(click(1)))
+    asyncio.run(PublicButton(qid, right).callback(as_interaction(click(1))))
     assert "💰" not in public[0]  # 1人目は出題者の受け取りがまだない
-    asyncio.run(PublicButton(qid, wrong).callback(click(2)))
+    asyncio.run(PublicButton(qid, wrong).callback(as_interaction(click(2))))
     assert public[1] == f"❌ <@2> が #{qid} に **不正解…**\n💰 出題者 <@{AUTHOR}> +400ペリカ（累計 400ペリカ）"
 
 
@@ -709,7 +710,7 @@ def test_public_line_tells_that_the_authors_shortfall_became_debt(eco):
     click = SimpleNamespace(
         user=SimpleNamespace(id=1), guild_id=1, client=cog.bot, response=Resp(log), followup=Follow()
     )
-    asyncio.run(PublicButton(qid, right).callback(click))
+    asyncio.run(PublicButton(qid, right).callback(as_interaction(click)))
     assert log[-1] == ("send", "⭕ 正解！")  # 回答者には、いつも通り報酬が入る
     assert f"⚠️ 出題者 <@{AUTHOR}> の残高が足りないため、不足 100ペリカ は出題者の借金になりました。" in public[0]
     assert eco.wallet.balance(1) == INITIAL_BALANCE + 100 and eco.debt.debt(AUTHOR) == 100 + teiai.SEED
@@ -769,9 +770,9 @@ def test_custom_wording_replaces_only_the_headline_everywhere(eco):
     q = eco.quiz.quiz_get(qid)
     assert verdict(q, True) == "お見事！" and verdict(q, False) == "不正解…"  # 片方だけ決めたら、もう片方は既定
     e = result_embed({"correct": True, "reward": 100, "reward_blocked": False, "explanation": "解説"}, 0, q)
-    assert e.title == "⭕ お見事！" and "+100" in e.description  # 報酬の表示は残る
+    assert e.title == "⭕ お見事！" and "+100" in must(e.description)  # 報酬の表示は残る
     e = result_embed({"correct": False, "answer": "東京", "explanation": "解説"}, 0, q)
-    assert e.title == "❌ 不正解…" and "東京" in e.description
+    assert e.title == "❌ 不正解…" and "東京" in must(e.description)
 
 
 def test_user_modal_saves_the_wording_and_public_answer_line_uses_it(eco):
@@ -788,7 +789,7 @@ def test_user_modal_saves_the_wording_and_public_answer_line_uses_it(eco):
     ):
         field._value = value
     inter, _ = user_inter(log)
-    asyncio.run(m.on_submit(inter))
+    asyncio.run(m.on_submit(as_interaction(inter)))
     q = eco.quiz.quiz_list()[0]
     assert (q["msg_right"], q["msg_wrong"]) == ("さすが！", "ざんねん…")
     m2 = UserModal(cog._quiz)
@@ -800,7 +801,7 @@ def test_user_modal_saves_the_wording_and_public_answer_line_uses_it(eco):
         (m2.verdicts, ""),
     ):
         field._value = value
-    asyncio.run(m2.on_submit(inter))
+    asyncio.run(m2.on_submit(as_interaction(inter)))
     assert all(
         (x["msg_right"], x["msg_wrong"]) == ("", "") for x in eco.quiz.quiz_list() if x["id"] != q["id"]
     )  # 省略なら空（既定）
@@ -824,9 +825,9 @@ def test_public_answer_line_and_result_use_the_custom_wording(eco):
             user=SimpleNamespace(id=uid), guild_id=1, client=cog.bot, response=Resp(log), followup=Follow()
         )
 
-    asyncio.run(PublicButton(qid, pos).callback(click(1)))
+    asyncio.run(PublicButton(qid, pos).callback(as_interaction(click(1))))
     assert log[-1] == ("send", "⭕ お見事！") and public[-1] == f"⭕ <@1> が #{qid} に **お見事！**（+100ペリカ）"
-    asyncio.run(PublicButton(qid, (pos + 1) % 4).callback(click(2)))
+    asyncio.run(PublicButton(qid, (pos + 1) % 4).callback(as_interaction(click(2))))
     assert log[-1] == ("send", "❌ おしい！") and public[-1] == f"❌ <@2> が #{qid} に **おしい！**"
 
 
@@ -890,4 +891,4 @@ def test_messages_tell_the_player_about_the_games_needed(eco):
     from cogs.quiz.cog import result_embed
 
     e = result_embed({"correct": True, "reward": 0, "reward_blocked": True, "explanation": ""}, 0)
-    assert "報酬はありません" in e.description and "3回以上" in e.description
+    assert "報酬はありません" in must(e.description) and "3回以上" in must(e.description)

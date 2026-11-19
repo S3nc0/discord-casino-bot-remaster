@@ -11,6 +11,7 @@ from domain import market, teiai
 from domain import options as opt
 from domain.types import INITIAL_BALANCE
 from infra.db.repositories import open_repositories
+from tests.fakes import as_interaction, invoke
 from tests.support import make_market_cog, make_test_bot
 
 pytestmark = pytest.mark.real_scope
@@ -227,19 +228,19 @@ def test_order_call_shows_condition_returns_and_holdings_and_settle_sells_it(cog
     from tests.domain.test_market import It
 
     it = It()
-    asyncio.run(MarketCog.order.callback(cog, it, choice("cs"), 2_000, choice("call"), None))
+    asyncio.run(invoke(MarketCog.order, cog, it, choice("cs"), 2_000, choice("call"), None))
     embed = it.sent[-1]["embed"]
     assert "爆騰コール" in embed.title and "最大損失はこの掛け金のみ" in embed.description
     assert "勝利条件" in embed.description and "想定リターン" in embed.description
     eco = cog.bot.repos.for_guild(G)
     oid = eco.options.option_list(U)["active"][0]["id"]
     it = It()
-    asyncio.run(MarketCog.holdings.callback(cog, it))
+    asyncio.run(invoke(MarketCog.holdings, cog, it))
     text = it.sent[-1]["embed"].description
     assert "オプション" in text and f"#{oid}" in text and "いま売ると" in text
     assert (f"opt:{oid}", "🚀 爆騰コール #" + str(oid) + " 売却") in cog.positions(U, G)
     it = it_sell = It()
-    asyncio.run(MarketCog.settle.callback(cog, it_sell, f"opt:{oid}", None))
+    asyncio.run(invoke(MarketCog.settle, cog, it_sell, f"opt:{oid}", None))
     assert "売りました" in it.sent[-1]["embed"].title and eco.options.option_list(U)["active"] == []
 
 
@@ -247,14 +248,14 @@ def test_order_put_and_refusals(cog):
     from tests.domain.test_market import It
 
     it = It()
-    asyncio.run(MarketCog.order.callback(cog, it, choice("gold"), 1_000, choice("put"), None))
+    asyncio.run(invoke(MarketCog.order, cog, it, choice("gold"), 1_000, choice("put"), None))
     assert "暴落プット" in it.sent[-1]["embed"].title
     for args in (
         (choice("cs"), 1_000, choice("call"), choice(3)),  # レバレッジなし
         (choice("bond_normal"), 1_000, choice("call"), None),  # 債券には買えない
     ):
         it = It()
-        asyncio.run(MarketCog.order.callback(cog, it, *args))
+        asyncio.run(invoke(MarketCog.order, cog, it, *args))
         assert it.sent[-1]["ephemeral"] and "❌" in it.sent[-1]["embed"].title
 
 
@@ -262,7 +263,7 @@ def test_order_put_and_refusals(cog):
 def test_default_target_follows_each_symbols_volatility():
     assert set(opt.STRIKE_BY_SYMBOL) == {s.key for s in market.SYMBOLS}
     # 値動きの大きい銘柄ほど、既定の基準が遠い（GOLD < TEIO < CS < NUMA）
-    order = sorted(opt.STRIKE_BY_SYMBOL, key=opt.STRIKE_BY_SYMBOL.get)
+    order = sorted(opt.STRIKE_BY_SYMBOL, key=lambda key: opt.STRIKE_BY_SYMBOL[key])
     assert order == ["gold", "teio", "cs", "numa"]
     assert opt.default_strike_pct("unknown") == opt.STRIKE_OTM
     assert opt.strike_for("call", 1000.0, 0.10) == 1100.0 and opt.strike_for("put", 1000.0, 0.10) == 900.0
@@ -296,7 +297,7 @@ def test_buy_amount_suggests_shares_of_the_balance_only_before_typing(eco):
     it = SimpleNamespace(guild_id=G, user=SimpleNamespace(id=U))
 
     async def names(current):
-        return [c.name for c in await cog._buy_amount_autocomplete(it, current)]
+        return [c.name for c in await cog._buy_amount_autocomplete(as_interaction(it), current)]
 
     got = asyncio.run(names(""))
     assert any("残高 8,000" in n for n in got)

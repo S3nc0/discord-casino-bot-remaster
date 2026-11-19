@@ -17,11 +17,14 @@ from domain.ports.bridges import (
     IAssetSeizureStep,
     IBankCdsBridge,
     IBankruptPrepHook,
+    IBondHoldings,
     ILiquidationStep,
     IMarketPriceReader,
     INoticeSink,
+    IOptionHoldings,
     IOverdueLoanCollector,
     ISeizureValueStep,
+    IShopBelongings,
     NoOpAssetSeizureStep,
     NoOpBankCdsBridge,
     NoOpBankruptPrepHook,
@@ -35,11 +38,9 @@ from infra.db.account import AccountCore
 from infra.db.auction import AuctionRepo
 from infra.db.bank import BankRepo
 from infra.db.base import EcoDb, ScopedRepo
-from infra.db.bonds import BondRepo
 from infra.db.crypto import CryptoRepo
 from infra.db.horse import HorseRepo
 from infra.db.margin import MarginRepo
-from infra.db.options import OptionRepo
 
 
 def _take_cash(account: AccountCore, guild_id: int, user_id: int, need: int, reason: str) -> int:
@@ -132,21 +133,17 @@ class CryptoSeizureStep(IAssetSeizureStep):
 
 
 class OptionSeizureStep(IAssetSeizureStep):
-    def __init__(self, db: EcoDb, account: AccountCore, options: OptionRepo, notices: INoticeSink) -> None:
-        self._conn = db.conn
+    def __init__(self, account: AccountCore, options: IOptionHoldings, notices: INoticeSink) -> None:
         self._account = account
         self._options = options
         self._notices = notices
 
     def seize(self, guild_id: int, user_id: int, need: int, reason: str, now: float) -> int:
         covered = 0
-        for row in self._conn.execute(
-            "SELECT id FROM options WHERE guild_id=? AND user_id=? AND status='active' ORDER BY id",
-            (guild_id, user_id),
-        ).fetchall():
+        for option_id in self._options.active_option_ids_for(guild_id, user_id):
             if covered >= need:
                 break
-            ok, got = self._options.option_close_locked_for(guild_id, user_id, row["id"], now)
+            ok, got = self._options.option_close_locked_for(guild_id, user_id, option_id, now)
             if ok and got > 0:
                 self._notices.note_for(guild_id, user_id, "seize_option", got=got)
                 covered += _take_cash(self._account, guild_id, user_id, need - covered, reason)
@@ -154,21 +151,17 @@ class OptionSeizureStep(IAssetSeizureStep):
 
 
 class BondSeizureStep(IAssetSeizureStep):
-    def __init__(self, db: EcoDb, account: AccountCore, bonds: BondRepo, notices: INoticeSink) -> None:
-        self._conn = db.conn
+    def __init__(self, account: AccountCore, bonds: IBondHoldings, notices: INoticeSink) -> None:
         self._account = account
         self._bonds = bonds
         self._notices = notices
 
     def seize(self, guild_id: int, user_id: int, need: int, reason: str, now: float) -> int:
         covered = 0
-        for row in self._conn.execute(
-            "SELECT id, kind FROM bonds WHERE guild_id=? AND user_id=? AND status='active' ORDER BY id",
-            (guild_id, user_id),
-        ).fetchall():
+        for bond in self._bonds.active_bonds_for(guild_id, user_id):
             if covered >= need:
                 break
-            ok, refund = self._bonds.bond_cancel_locked_for(guild_id, user_id, row["id"], now)
+            ok, refund = self._bonds.bond_cancel_locked_for(guild_id, user_id, bond.id, now)
             if ok:
                 self._notices.note_for(guild_id, user_id, "seize_bond", refund=refund)
                 covered += _take_cash(self._account, guild_id, user_id, need - covered, reason)
@@ -205,35 +198,25 @@ class CryptoLiquidationStep(ILiquidationStep):
 
 
 class BondLiquidationStep(ILiquidationStep):
-    def __init__(self, db: EcoDb, account: AccountCore, bonds: BondRepo) -> None:
-        self._conn = db.conn
+    def __init__(self, account: AccountCore, bonds: IBondHoldings) -> None:
         self._account = account
         self._bonds = bonds
 
     def liquidate(self, guild_id: int, user_id: int, now: float) -> None:
-        for row in self._conn.execute(
-            "SELECT id, principal FROM bonds WHERE guild_id=? AND user_id=? AND status='active' ORDER BY id",
-            (guild_id, user_id),
-        ).fetchall():
-            ok, _ = self._bonds.bond_cancel_locked_for(guild_id, user_id, row["id"], now)
+        for bond in self._bonds.active_bonds_for(guild_id, user_id):
+            ok, _ = self._bonds.bond_cancel_locked_for(guild_id, user_id, bond.id, now)
             if not ok:  # 解約できない債券は、元本の一部で換金して、差し押さえる
-                self._account.apply(
-                    guild_id, user_id, int(row["principal"] * teiai.SEIZE_RATE), "破産:債券の差し押さえ"
-                )
-                self._conn.execute("UPDATE bonds SET status='cancelled' WHERE id=?", (row["id"],))
+                self._account.apply(guild_id, user_id, int(bond.principal * teiai.SEIZE_RATE), "破産:債券の差し押さえ")
+                self._bonds.bond_write_off_for(bond.id)
 
 
 class OptionLiquidationStep(ILiquidationStep):
-    def __init__(self, db: EcoDb, options: OptionRepo) -> None:
-        self._conn = db.conn
+    def __init__(self, options: IOptionHoldings) -> None:
         self._options = options
 
     def liquidate(self, guild_id: int, user_id: int, now: float) -> None:
-        for row in self._conn.execute(
-            "SELECT id FROM options WHERE guild_id=? AND user_id=? AND status='active' ORDER BY id",
-            (guild_id, user_id),
-        ).fetchall():
-            self._options.option_close_locked_for(guild_id, user_id, row["id"], now)
+        for option_id in self._options.active_option_ids_for(guild_id, user_id):
+            self._options.option_close_locked_for(guild_id, user_id, option_id, now)
 
 
 class DepositLiquidationStep(ILiquidationStep):
@@ -250,34 +233,18 @@ class DepositLiquidationStep(ILiquidationStep):
 class ShopAndHorseSeizureStep(ISeizureValueStep):
     """ショップの持ち物・装備・持ち馬を没収して競売へ出品し、換金額（購入額の SEIZE_RATE）を返す。"""
 
-    def __init__(self, db: EcoDb, auction: AuctionRepo, horses: HorseRepo) -> None:
-        self._conn = db.conn
+    def __init__(self, shop: IShopBelongings, auction: AuctionRepo, horses: HorseRepo) -> None:
+        self._shop = shop
         self._auction = auction
         self._horses = horses
 
     def seize(self, guild_id: int, user_id: int, now: float) -> int:
         value = 0
-        for row in self._conn.execute(
-            "SELECT item_id, qty FROM inventory WHERE guild_id=? AND user_id=? AND qty>0", (guild_id, user_id)
-        ).fetchall():
-            item = shop_mod.BY_ID.get(row["item_id"])
-            value += (item.price if item else 0) * row["qty"]
-            self._auction.auction_list_locked_for(guild_id, row["item_id"], row["qty"], now)
-        prof = self._conn.execute(
-            "SELECT daily_boost, insurance FROM profile WHERE guild_id=? AND user_id=?", (guild_id, user_id)
-        ).fetchone()
-        if prof:
-            value += prof["daily_boost"] * shop_mod.BY_ID[shop_mod.DAILY_DOUBLE].price
-            value += prof["insurance"] * shop_mod.BY_ID[shop_mod.INSURANCE].price
-            self._auction.auction_list_locked_for(guild_id, shop_mod.DAILY_DOUBLE, prof["daily_boost"], now)
-            self._auction.auction_list_locked_for(guild_id, shop_mod.INSURANCE, prof["insurance"], now)
+        for item_id, qty in self._shop.seize_belongings_for(guild_id, user_id).items:
+            item = shop_mod.BY_ID.get(item_id)
+            value += (item.price if item else 0) * qty
+            self._auction.auction_list_locked_for(guild_id, item_id, qty, now)
         value += self._horses.seize_horses_for(guild_id, user_id, now)
-        self._conn.execute("DELETE FROM inventory WHERE guild_id=? AND user_id=?", (guild_id, user_id))
-        self._conn.execute(
-            "UPDATE profile SET title=NULL, card_color=NULL, card_icon=NULL, skin_dice=NULL, skin_table=NULL, "
-            "daily_boost=0, insurance=0 WHERE guild_id=? AND user_id=?",
-            (guild_id, user_id),
-        )
         return int(value * teiai.SEIZE_RATE)
 
 

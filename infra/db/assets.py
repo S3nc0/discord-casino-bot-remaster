@@ -19,6 +19,7 @@ from domain.ports.bridges import (
     IOverdueLoanCollector,
     IValuationSource,
 )
+from domain.ports.contracts import RankEntry
 from domain.ports.repos import IAssetRepo
 from domain.types import (
     FIXED_KEYS as FIXED_KEYS,  # noqa: F401
@@ -203,7 +204,7 @@ class AssetRepo(ScopedRepo, IAssetRepo):
         """[(順位, ユーザーID, ファイナル総資産), ...]。"""
         return [(i + 1, uid, total) for i, (uid, total, _p) in enumerate(self.final_assets(user_ids)[:limit])]
 
-    def final_rank_of(self, user_id: int, user_ids: Optional[set[Any]] = None) -> Optional[tuple[Any, ...]]:
+    def final_rank_of(self, user_id: int, user_ids: Optional[set[Any]] = None) -> Optional[RankEntry]:
         """(順位, ファイナル総資産, 対象人数)。登録がなければ None。"""
         ranked = self.final_assets(user_ids)
         for i, (uid, total, _p) in enumerate(ranked):

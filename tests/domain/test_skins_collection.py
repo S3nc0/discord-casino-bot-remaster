@@ -11,6 +11,7 @@ from cogs.shop import actions as shop_actions
 from cogs.shop.cog import SLOT_OF_KIND, UNEQUIP_NAMES, shop_slots
 from domain import shop, skins
 from infra.db.repositories import open_repositories
+from tests.fakes import as_interaction, invoke, must
 from tests.support import make_casino_deps, make_economy_cog, make_shop_cog, make_test_bot
 
 U, G = 7, 10
@@ -104,8 +105,8 @@ def test_using_a_collection_item_only_explains_and_a_skin_equips(eco):
     it = It()
     it.response = SimpleNamespace(send_message=send, defer=send)
     cog = make_shop_cog(make_test_bot(repos=eco))
-    run(shop_actions.use_item(cog, it, "col_beer"))
-    run(shop_actions.use_item(cog, it, "skin_gold_dice"))
+    run(shop_actions.use_item(cog, as_interaction(it), "col_beer"))
+    run(shop_actions.use_item(cog, as_interaction(it), "skin_gold_dice"))
     assert (
         "コレクション" in sent[0]
         and eco.shop.get_profile(U)["skin_dice"] == "skin_gold_dice"
@@ -120,7 +121,7 @@ def active(eco, game, **equipped):
 
 
 def test_a_skin_only_works_in_the_games_it_is_for(eco):
-    assert active(eco, skins.CHINCHIRO, skin_dice="skin_gold_dice").item_id == "skin_gold_dice"
+    assert must(active(eco, skins.CHINCHIRO, skin_dice="skin_gold_dice")).item_id == "skin_gold_dice"
     assert active(eco, skins.PACHINKO, skin_table="skin_vip") and active(eco, skins.BLACKJACK, skin_table="skin_vip")
     assert (
         active(eco, skins.PACHINKO, skin_table="skin_numa")
@@ -175,10 +176,10 @@ def test_start_game_reads_the_equipped_skin(eco):
         raise AssertionError("始められるはず")
 
     it.response.send_message = send
-    ctx = run(common.start_game(it, deps, 1000, "パチンコ"))
+    ctx = run(common.start_game(as_interaction(it), deps, 1000, "パチンコ"))
     assert ctx is not None and ctx.skin.item_id == "skin_vip"
     ctx.abort()
-    ctx2 = run(common.start_game(it, deps, 1000, "チンチロ"))  # チンチロ用の枠は空
+    ctx2 = run(common.start_game(as_interaction(it), deps, 1000, "チンチロ"))  # チンチロ用の枠は空
     assert ctx2 is not None and ctx2.skin is None
     ctx2.abort()
 
@@ -198,7 +199,7 @@ def test_balance_card_lists_the_collection_with_its_value(tmp_path):
         id=U, display_name="テスト", display_avatar=SimpleNamespace(url="https://example.com/a.png")
     )
     it = SimpleNamespace(user=member, guild=SimpleNamespace(id=G), response=SimpleNamespace(send_message=send))
-    run(EconomyCog.balance.callback(cog, it, None))
+    run(invoke(EconomyCog.balance, cog, it, None))
     fields = {f.name: f.value for f in sent[0]["embed"].fields}
     key = next(k for k in fields if k.startswith("🏆 コレクション"))
     assert "1,013,500" in key and fields[key] == "🍺 🪙"

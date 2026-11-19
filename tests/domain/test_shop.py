@@ -13,6 +13,7 @@ from cogs.shop import cog as shop_cog
 from domain import shop
 from domain.types import DAILY_BASE, DAILY_STREAK_BONUS, DAILY_STREAK_CAP, INITIAL_BALANCE
 from infra.db.repositories import open_repositories
+from tests.fakes import as_guild, as_interaction, as_member, fake_response, must
 from tests.support import make_shop_cog, make_test_bot
 
 
@@ -38,8 +39,8 @@ def test_catalog_is_consistent():
     assert shop.find("title_zawa") is shop.find("ざわ…ざわ…")
     assert shop.find("存在しない") is None
     # 同じ名前（「赤」）でも、種類つきなら区別して探せる
-    assert shop.find("カードの色:赤").kind == shop.CARD_COLOR
-    assert shop.find("名前の色（ロール）:赤").kind == shop.COLOR_ROLE
+    assert must(shop.find("カードの色:赤")).kind == shop.CARD_COLOR
+    assert must(shop.find("名前の色（ロール）:赤")).kind == shop.COLOR_ROLE
 
 
 # ----------------------------- 購入 ----------------------------- #
@@ -162,6 +163,7 @@ class FakeRole:
 class FakeMember:
     def __init__(self, roles):
         self.roles = list(roles)
+        self.id, self.display_name = 0, ""
 
     async def add_roles(self, *roles, **kw):
         self.roles.extend(r for r in roles if r not in self.roles)
@@ -173,6 +175,7 @@ class FakeMember:
 class FakeGuild:
     def __init__(self, roles, bot_pos=10, can_manage=True):
         self.roles = list(roles)
+        self.id = 0
         self.me = SimpleNamespace(
             top_role=FakeRole("Bot", bot_pos), guild_permissions=SimpleNamespace(manage_roles=can_manage)
         )
@@ -192,7 +195,7 @@ def run(coro):
 def test_color_role_is_created_without_permissions_just_below_bot_role(monkeypatch):
     monkeypatch.setattr(discord.utils, "get", lambda seq, name: next((r for r in seq if r.name == name), None))
     guild, member = FakeGuild([]), FakeMember([])
-    run(shop_cog.set_color_role(guild, member, shop.BY_ID["role_red"]))
+    run(shop_cog.set_color_role(as_guild(guild), as_member(member), shop.BY_ID["role_red"]))
     role = guild.created[0]
     assert role.name == "ペリカ・赤" and role.position == 9  # Bot(10) のすぐ下
     assert role in member.roles
@@ -203,17 +206,17 @@ def test_changing_color_removes_the_previous_color_role_only(monkeypatch):
     secret = FakeRole("シークレット", 3)  # 他のロールは触らない
     old = FakeRole("ペリカ・赤", 9, 0xE74C3C)
     guild, member = FakeGuild([secret, old]), FakeMember([secret, old])
-    run(shop_cog.set_color_role(guild, member, shop.BY_ID["role_blue"]))
+    run(shop_cog.set_color_role(as_guild(guild), as_member(member), shop.BY_ID["role_blue"]))
     names = {r.name for r in member.roles}
     assert names == {"シークレット", "ペリカ・青"}
-    run(shop_cog.set_color_role(guild, member, None))  # 外す
+    run(shop_cog.set_color_role(as_guild(guild), as_member(member), None))  # 外す
     assert {r.name for r in member.roles} == {"シークレット"}
 
 
 def test_color_role_requires_manage_roles_permission():
     guild, member = FakeGuild([], can_manage=False), FakeMember([])
     with pytest.raises(shop_cog.ShopError) as exc:
-        run(shop_cog.set_color_role(guild, member, shop.BY_ID["role_red"]))
+        run(shop_cog.set_color_role(as_guild(guild), as_member(member), shop.BY_ID["role_red"]))
     assert "ロールの管理" in str(exc.value) and not guild.created
 
 
@@ -222,20 +225,20 @@ def test_color_role_above_bot_role_is_rejected(monkeypatch):
     high = FakeRole("ペリカ・赤", 20, 0xE74C3C)  # 位置が Bot より上で、動かせない
 
     async def stuck(**kw):
-        raise discord.Forbidden(SimpleNamespace(status=403, reason="x"), "no")
+        raise discord.Forbidden(fake_response(403), "no")
 
     high.edit = stuck
     guild, member = FakeGuild([high]), FakeMember([])
     with pytest.raises(shop_cog.ShopError) as exc:
-        run(shop_cog.set_color_role(guild, member, shop.BY_ID["role_red"]))
+        run(shop_cog.set_color_role(as_guild(guild), as_member(member), shop.BY_ID["role_red"]))
     assert "Bot のロールより上" in str(exc.value) and not member.roles
 
 
 # --------------------------- コマンドの流れ --------------------------- #
 class FakeInteraction:
     def __init__(self, uid=1):
-        self.user = SimpleNamespace(id=uid, display_name="テスト")
-        self.guild = SimpleNamespace(id=10)
+        self.user: SimpleNamespace | FakeMember = SimpleNamespace(id=uid, display_name="テスト")
+        self.guild: SimpleNamespace | FakeGuild = SimpleNamespace(id=10)
         self.sent = []
         self.response = SimpleNamespace(send_message=self._send, defer=self._defer)
         self.followup = SimpleNamespace(send=self._send)
@@ -256,10 +259,10 @@ def test_cannot_buy_or_use_consumables_during_a_game(cog, eco):
     buy(eco, shop.INSURANCE)
     cog.bot.sessions.try_start(1)
     it = FakeInteraction()
-    run(shop_actions.buy_item(cog, it, "title_rookie", 1))
+    run(shop_actions.buy_item(cog, as_interaction(it), "title_rookie", 1))
     assert "遊んでいる" in it.sent[0]["embed"].description and "title_rookie" not in eco.shop.inventory(1)
     it = FakeInteraction()
-    run(shop_actions.use_item(cog, it, shop.INSURANCE))
+    run(shop_actions.use_item(cog, as_interaction(it), shop.INSURANCE))
     assert "ゲームの途中" in it.sent[0]["embed"].description
     assert eco.shop.inventory(1)[shop.INSURANCE] == 1 and eco.shop.get_profile(1)["insurance"] == 0  # 使われていない
     cog.bot.sessions.end(1)
@@ -267,19 +270,19 @@ def test_cannot_buy_or_use_consumables_during_a_game(cog, eco):
 
 def test_buy_and_use_flow(cog, eco):
     it = FakeInteraction()
-    run(shop_actions.buy_item(cog, it, "title_rookie", 1))
+    run(shop_actions.buy_item(cog, as_interaction(it), "title_rookie", 1))
     assert it.sent[-1]["ephemeral"] and "購入しました" in it.sent[-1]["embed"].title
     it = FakeInteraction()
-    run(shop_actions.use_item(cog, it, "見習いギャンブラー"))  # 名前でも指定できる
+    run(shop_actions.use_item(cog, as_interaction(it), "見習いギャンブラー"))  # 名前でも指定できる
     assert eco.shop.get_profile(1)["title"] == "title_rookie"
     it = FakeInteraction()
-    run(shop_actions.use_item(cog, it, "title_regular"))  # 持っていないものは使えない
+    run(shop_actions.use_item(cog, as_interaction(it), "title_regular"))  # 持っていないものは使えない
     assert "持っていません" in it.sent[0]["embed"].title
 
 
 def test_unknown_item(cog, eco):
     it = FakeInteraction()
-    run(shop_actions.buy_item(cog, it, "なにこれ", 1))
+    run(shop_actions.buy_item(cog, as_interaction(it), "なにこれ", 1))
     assert "見つかりません" in it.sent[0]["embed"].title
 
 
@@ -341,7 +344,7 @@ def test_privileged_role_with_same_name_is_never_reused(get_by_name):
     admin_like = FakeRole("ペリカ・赤", 5, 0, perms=8)  # 管理者権限
     guild, member = FakeGuild([admin_like]), FakeMember([])
     with pytest.raises(shop_cog.ShopError) as exc:
-        run(shop_cog.set_color_role(guild, member, shop.BY_ID["role_red"]))
+        run(shop_cog.set_color_role(as_guild(guild), as_member(member), shop.BY_ID["role_red"]))
     assert "権限を持っている" in str(exc.value)
     assert admin_like not in member.roles and not admin_like.edited and not guild.created  # 付与せず、位置も動かさない
 
@@ -349,16 +352,16 @@ def test_privileged_role_with_same_name_is_never_reused(get_by_name):
 def test_unrelated_role_with_the_prefix_is_not_removed(get_by_name):
     vip = FakeRole("ペリカ・VIP", 4, 0xFF0000, perms=0)  # 接頭辞が同じだけの別用途のロール
     guild, member = FakeGuild([vip]), FakeMember([vip])
-    run(shop_cog.set_color_role(guild, member, shop.BY_ID["role_blue"]))
+    run(shop_cog.set_color_role(as_guild(guild), as_member(member), shop.BY_ID["role_blue"]))
     assert vip in member.roles and any(r.name == "ペリカ・青" for r in member.roles)
-    run(shop_cog.set_color_role(guild, member, None))
+    run(shop_cog.set_color_role(as_guild(guild), as_member(member), None))
     assert vip in member.roles  # 外すときも、触らない
 
 
 def test_privileged_same_name_role_is_not_removed_either(get_by_name):
     staff_role = FakeRole("ペリカ・青", 4, 0x3498DB, perms=8)  # 権限つき: Bot の管理対象ではない
     guild, member = FakeGuild([staff_role]), FakeMember([staff_role])
-    run(shop_cog.set_color_role(guild, member, None))
+    run(shop_cog.set_color_role(as_guild(guild), as_member(member), None))
     assert staff_role in member.roles
 
 
@@ -366,7 +369,7 @@ def test_picks_the_harmless_role_when_duplicates_exist(get_by_name):
     risky = FakeRole("ペリカ・赤", 5, 0, perms=8)
     plain = FakeRole("ペリカ・赤", 9, 0xE74C3C, perms=0)
     guild, member = FakeGuild([risky, plain]), FakeMember([])
-    run(shop_cog.set_color_role(guild, member, shop.BY_ID["role_red"]))
+    run(shop_cog.set_color_role(as_guild(guild), as_member(member), shop.BY_ID["role_red"]))
     # 権限なしのロールがあるので、そちらを使う（権限つきの同名ロールは付けない）
     assert plain in member.roles and risky not in member.roles
 
@@ -374,7 +377,7 @@ def test_picks_the_harmless_role_when_duplicates_exist(get_by_name):
 def test_wrong_colour_on_existing_role_is_repaired(get_by_name):
     drifted = FakeRole("ペリカ・赤", 9, 0x123456, perms=0)  # 誰かが色を変えてしまった
     guild, member = FakeGuild([drifted]), FakeMember([])
-    run(shop_cog.set_color_role(guild, member, shop.BY_ID["role_red"]))
+    run(shop_cog.set_color_role(as_guild(guild), as_member(member), shop.BY_ID["role_red"]))
     assert drifted.colour.value == 0xE74C3C
 
 
@@ -392,7 +395,7 @@ def test_concurrent_first_purchases_create_one_role(cog, get_by_name):
     async def both():
         async def one(member):
             async with cog._role_lock(1):
-                await shop_cog.set_color_role(guild, member, shop.BY_ID["role_green"])
+                await shop_cog.set_color_role(as_guild(guild), member, shop.BY_ID["role_green"])
 
         await asyncio.gather(one(FakeMember([])), one(FakeMember([])))
 
@@ -418,7 +421,7 @@ def test_purchase_holds_the_session_while_waiting_for_confirmation(cog, eco, mon
             self.followup = SimpleNamespace(send=self._send)
 
     it = It()
-    run(shop_actions.buy_item(cog, it, "col_sunglasses", 1))  # 100,000: 確認ボタンが出る価格
+    run(shop_actions.buy_item(cog, as_interaction(it), "col_sunglasses", 1))  # 100,000: 確認ボタンが出る価格
     assert seen == {"active": True, "start_blocked": True}
     assert "col_sunglasses" in eco.shop.inventory(1)
     assert not cog.bot.sessions.is_active(1)  # 終わったら解除される
@@ -435,7 +438,7 @@ def test_use_prefers_the_owned_item_when_names_collide(cog, eco):
     it.guild, it.user = guild, member
     it.response.defer = lambda **k: asyncio.sleep(0)
     it.followup = SimpleNamespace(send=it._send)
-    run(shop_actions.use_item(cog, it, "赤"))
+    run(shop_actions.use_item(cog, as_interaction(it), "赤"))
     # 「赤」はカードの色にも同名があるが、持っている色ロールのほうを選ぶ（「持っていません」にならず、ロールが付く）
     assert [r.name for r in member.roles] == ["ペリカ・赤"]
 
@@ -448,7 +451,7 @@ def test_list_does_not_create_an_account(cog, eco):
 
 def test_buying_without_enough_pelica_shows_a_clear_message(cog, eco):
     it = FakeInteraction()
-    run(shop_actions.buy_item(cog, it, "col_sunglasses", 1))  # 100,000: 初期の 3,000 では足りない
+    run(shop_actions.buy_item(cog, as_interaction(it), "col_sunglasses", 1))  # 100,000: 初期の 3,000 では足りない
     embed = it.sent[-1]["embed"]
     assert "買えませんでした" in embed.title and "足りません" in embed.description and "100,000" in embed.description
     assert eco.wallet.balance(1) == INITIAL_BALANCE and eco.shop.inventory(1) == {}
@@ -489,7 +492,7 @@ def test_streak_guard_price_and_use_message(cog, eco):
     eco.wallet.credit(1, 100_000, "テスト")
     buy(eco, shop.STREAK_GUARD)
     it = FakeInteraction()
-    run(shop_actions.use_item(cog, it, shop.STREAK_GUARD))
+    run(shop_actions.use_item(cog, as_interaction(it), shop.STREAK_GUARD))
     assert "ここでは使いません" in it.sent[0]["embed"].title and eco.shop.inventory(1)[shop.STREAK_GUARD] == 1
 
 
@@ -573,10 +576,10 @@ def test_auction_screen_and_buy_flow(cog, eco):
     eco.wallet.credit(2, 50_000, "テスト")
     view = shop_cog.ShopView(cog, 2, eco.shop.guild_id, screen="auction")
     text = view.embed().fields[0].value
-    assert "連続守り券" in text and "×2" in text
+    assert "連続守り券" in must(text) and "×2" in must(text)
     it = FakeInteraction()
     it.user = SimpleNamespace(id=2)
-    run(shop_actions.buy_auction(cog, it, CARD, 1))
+    run(shop_actions.buy_auction(cog, as_interaction(it), CARD, 1))
     assert "競売で買いました" in it.sent[0]["embed"].title and CARD in eco.shop.inventory(2)
 
 
@@ -651,7 +654,7 @@ def test_shop_screen_shows_the_players_own_stock(eco):
     eco.wallet.credit(1, 100_000, "テスト")
     buy_at(eco, 3, time.time())
     cog = make_shop_cog(make_test_bot(repos=eco))
-    text = "\n".join(f.value for f in shop_cog.ShopView(cog, 1, 0, tab="item").embed().fields)
+    text = "\n".join(must(f.value) for f in shop_cog.ShopView(cog, 1, 0, tab="item").embed().fields)
     assert "📦 在庫 7/10" in text
 
 

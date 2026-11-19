@@ -11,6 +11,7 @@ from cogs.shared.messages.market import PIN_ACTION_TEXT
 from domain import bonds, market, market_events
 from domain import options as opt
 from domain.options import name_of
+from domain.ports.contracts import MarginStatus
 
 TICK_MINUTES = 1
 HOLDER_ROWS = 10  # チャートに載せる保有者の数
@@ -38,7 +39,7 @@ def margin_position_text(side: str, units: int, entry_value: float, margin: int,
     )
 
 
-def margin_ratio_text(status: dict) -> str:
+def margin_ratio_text(status: MarginStatus) -> str:
     """口座の維持率の表示（🟢 150%以上 / 🟡 強制決済ラインの手前 / 🔴 強制決済の対象）。建玉がなければ空文字。"""
     ratio = status["ratio"]
     if ratio is None:
@@ -301,7 +302,7 @@ def holdings_embed(
     bond_data: dict[str, list[dict]],
     option_quotes: dict[int, int],
     bond_quotes: dict[int, int],
-    margin_status: Optional[dict],
+    margin_status: Optional[MarginStatus],
 ) -> discord.Embed:
     if (
         not spots

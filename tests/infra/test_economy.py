@@ -6,6 +6,7 @@ from domain import teiai
 from domain.types import DAILY_BASE, DAILY_STREAK_BONUS, DAILY_STREAK_CAP, INITIAL_BALANCE
 from infra.db.repositories import open_repositories
 from services.session import Sessions
+from tests.fakes import must
 
 
 @pytest.fixture
@@ -86,7 +87,7 @@ def test_daily_streak_bonus_is_capped(eco):
     for i in range(30):
         last = eco.wallet.claim_daily(1, day + datetime.timedelta(days=i))
     cap = DAILY_BASE + DAILY_STREAK_BONUS * DAILY_STREAK_CAP
-    assert last.amount == cap
+    assert last is not None and last.amount == cap
 
 
 def test_ranking_global_and_per_guild(eco):
@@ -131,9 +132,9 @@ def test_stats_tracking(eco):
 def test_sessions_block_double_play_and_cooldown():
     s = Sessions(cooldown=2.0)
     assert s.try_start(1, now=100.0) is None
-    assert "遊んでいる" in s.try_start(1, now=100.5)  # 同時に2つは始められない
+    assert "遊んでいる" in must(s.try_start(1, now=100.5))  # 同時に2つは始められない
     s.end(1, now=101.0)
-    assert "少し待って" in s.try_start(1, now=102.0)  # 終了直後は待つ
+    assert "少し待って" in must(s.try_start(1, now=102.0))  # 終了直後は待つ
     assert s.try_start(1, now=103.5) is None
     assert s.try_start(2, now=100.0) is None  # 他の人には影響しない
 

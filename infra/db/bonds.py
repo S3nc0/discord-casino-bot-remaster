@@ -11,25 +11,27 @@ from typing import Any, Optional
 from domain import bonds as bonds_mod
 from domain.errors import fail
 from domain.ports.bridges import (
-    IBankIncomeSink,
+    IBankCashFlow,
+    IBondHoldings,
     IDebtRepayHook,
     IMarginCollateralGuard,
     NoOpDebtRepayHook,
     NoOpMarginCollateralGuard,
 )
+from domain.ports.contracts import ActiveBond, HoldingBook
 from domain.ports.repos import IBondRepo
 from infra.db.account import AccountCore
 from infra.db.base import EcoDb, ScopedRepo
 
 
-class BondRepo(ScopedRepo, IBondRepo):
+class BondRepo(ScopedRepo, IBondRepo, IBondHoldings):
     """債券（元本を預かり、満期に利息つきで返す。ジャンク債は倒産することがある）。購入・満期の決着・解約。"""
 
     def __init__(
         self,
         db: EcoDb,
         account: AccountCore,
-        bank: IBankIncomeSink,
+        bank: IBankCashFlow,
         debt_repay: Optional[IDebtRepayHook] = None,
         collateral_guard: Optional[IMarginCollateralGuard] = None,
         guild_id: int = 0,
@@ -99,7 +101,7 @@ class BondRepo(ScopedRepo, IBondRepo):
             ):
                 totals[r["user_id"]] = totals.get(r["user_id"], 0) + r["p"]
 
-    def bond_list(self, user_id: int, recent: int = 5) -> dict[str, Any]:
+    def bond_list(self, user_id: int, recent: int = 5) -> HoldingBook:
         """保有中（満期が近い順）と、直近に決着したもの（新しい順）。"""
         with self._lock:
             rows = self._conn.execute(
@@ -164,6 +166,19 @@ class BondRepo(ScopedRepo, IBondRepo):
                 if reason is not None:
                     return False, reason
             return self.bond_cancel_locked_for(gid, user_id, bond_id, now)
+
+    def active_bonds_for(self, guild_id: int, user_id: int) -> list[ActiveBond]:
+        """持っている（status='active' の）債券（古い順）。呼び出し側のトランザクションの中で使う。"""
+        return [
+            ActiveBond(id=r["id"], kind=r["kind"], principal=r["principal"])
+            for r in self._conn.execute(
+                "SELECT id, kind, principal FROM bonds WHERE guild_id=? AND user_id=? AND status='active' ORDER BY id",
+                (guild_id, user_id),
+            ).fetchall()
+        ]
+
+    def bond_write_off_for(self, bond_id: int) -> None:
+        self._conn.execute("UPDATE bonds SET status='cancelled' WHERE id=?", (bond_id,))
 
     def bond_cancel_locked_for(
         self, guild_id: int, user_id: int, bond_id: int, now: Optional[float] = None

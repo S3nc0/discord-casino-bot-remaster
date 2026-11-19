@@ -9,6 +9,7 @@ from cogs.p2p import cog as p2p_cog
 from domain import horse as horse_mod
 from domain import p2p, shop, teiai
 from infra.db.repositories import open_repositories
+from tests.fakes import as_interaction, invoke, must
 from tests.support import make_p2p_cog, make_shop_cog, make_test_bot
 
 pytestmark = pytest.mark.real_scope
@@ -341,18 +342,18 @@ def test_sell_view_lists_tradable_items_and_horses_and_the_modal_lists_it(cog, e
     assert f"item:{CARROT}" in values and f"horse:{hid}" in values and "item:title_regular" not in values
     go = view.children[1]
     no_pick = It(S)
-    asyncio.run(go.callback(no_pick))
+    asyncio.run(invoke(go, no_pick))
     assert "先に選んでください" in no_pick.sent[-1]["embed"].title  # 選ぶ前に押すと、案内
-    asyncio.run(view._on_pick(_PickIt(S, f"item:{CARROT}")))
+    asyncio.run(view._on_pick(as_interaction(_PickIt(S, f"item:{CARROT}"))))
     opened = It(S)
-    asyncio.run(go.callback(opened))
+    asyncio.run(invoke(go, opened))
     modal = opened.sent[-1]["modal"]
     assert (
         isinstance(modal, p2p_cog.SellModal) and modal.qty is not None and modal.hours is None
     )  # 定価・消耗品: 個数あり
-    asyncio.run(view._on_pick(_PickIt(S, f"horse:{hid}")))
+    asyncio.run(view._on_pick(as_interaction(_PickIt(S, f"horse:{hid}"))))
     horse_modal = It(S)
-    asyncio.run(view.children[2].callback(horse_modal))
+    asyncio.run(view.children[2].callback(as_interaction(horse_modal)))
     m2 = horse_modal.sent[-1]["modal"]
     assert m2.qty is None and m2.hours is not None  # 競り・馬: 個数なし・長さあり
 
@@ -373,21 +374,21 @@ def test_sell_modal_lists_the_item_and_validates_numbers(cog, eco):
     modal = p2p_cog.SellModal(view, "fixed")
     modal.price._value = "abc"
     bad = It(S)
-    asyncio.run(modal.on_submit(bad))
+    asyncio.run(modal.on_submit(as_interaction(bad)))
     assert "数字で入れて" in bad.sent[-1]["embed"].description and eco.shop.inventory(S)[CARROT] == 3
     modal.price._value = "1,500"
-    modal.qty._value = "2"
+    must(modal.qty)._value = "2"
     done = It(S)
-    asyncio.run(modal.on_submit(done))
+    asyncio.run(modal.on_submit(as_interaction(done)))
     assert "出品しました" in done.sent[-1]["embed"].title and eco.shop.inventory(S)[CARROT] == 1
     listing = eco.p2p.p2p_active(None)[0]
     assert listing["price"] == 1_500 and listing["qty"] == 2 and listing["mode"] == "fixed"
     view.target = f"item:{CARROT}"
     auction = p2p_cog.SellModal(view, "auction")
     auction.price._value = "1000"
-    auction.qty._value = "1"
-    auction.hours._value = "6"
-    asyncio.run(auction.on_submit(It(S)))
+    must(auction.qty)._value = "1"
+    must(auction.hours)._value = "6"
+    asyncio.run(auction.on_submit(as_interaction(It(S))))
     assert any(r["mode"] == "auction" and r["end_at"] > 0 for r in eco.p2p.p2p_active(None))
 
 
@@ -398,10 +399,12 @@ def test_auction_screen_shows_player_listings_with_sell_and_mine_buttons(shop_co
     labels = [getattr(c, "label", "") for c in view.children]
     assert "📤 出品する" in labels and "📋 自分の取引" in labels and "🛍️ ショップ" in labels
     assert view.auction_tab == "players"  # 出品があるので、最初に、プレイヤーの出品のタブが開く
-    assert any(isinstance(c, p2p_cog.discord.ui.Select) and "見る出品を選ぶ" in c.placeholder for c in view.children)
-    text = "\n".join(f.value for f in view.embed().fields)
+    assert any(
+        isinstance(c, p2p_cog.discord.ui.Select) and "見る出品を選ぶ" in must(c.placeholder) for c in view.children
+    )
+    text = "\n".join(must(f.value) for f in view.embed().fields)
     assert "にんじん" in text and f"#{lid}" in text  # 競売の画面に、プレイヤーの出品が並ぶ
-    assert all(c.row <= 4 for c in view.children)  # 画面の段に収まっている
+    assert all(c.row is not None and c.row <= 4 for c in view.children)  # 画面の段に収まっている
 
 
 def test_picking_a_player_listing_opens_the_detail_and_the_button_buys(shop_cog_obj, cog, eco, monkeypatch):
@@ -414,7 +417,7 @@ def test_picking_a_player_listing_opens_the_detail_and_the_button_buys(shop_cog_
     monkeypatch.setattr(p2p_cog, "confirm_action", yes)
     view = _auction_view(shop_cog_obj, B)
     pick = It(B, values=[str(lid)])
-    asyncio.run(view._on_player(pick))
+    asyncio.run(view._on_player(as_interaction(pick)))
     sent = pick.sent[-1]
     assert "にんじん" in sent["embed"].title and sent["view"].children and sent["ephemeral"] is True
     asyncio.run(sent["view"]._on_go(It(B)))
@@ -430,12 +433,12 @@ def test_own_listing_has_no_buy_button_and_mine_view_cancels(cog, eco):
     asyncio.run(cog.open_detail(own, lid))
     assert not own.sent[-1]["view"].children  # 自分の出品は、買えない
     mine = p2p_cog.MineView(cog, S, G)
-    assert f"#{lid}" in mine.embed().fields[0].value and mine.children
+    assert f"#{lid}" in must(mine.embed().fields[0].value) and mine.children
     gone = It(S, values=[str(lid)])
-    asyncio.run(mine._on_cancel(gone))
+    asyncio.run(mine._on_cancel(as_interaction(gone)))
     assert "取り消しました" in gone.sent[-1]["embed"].title and eco.shop.inventory(S)[CARROT] == 1
     empty = p2p_cog.MineView(cog, S, G)
-    assert not empty.children and "出していません" in empty.embed().fields[0].value
+    assert not empty.children and "出していません" in must(empty.embed().fields[0].value)
 
 
 def test_sell_screen_without_anything_to_sell_says_so(cog, eco):
@@ -481,7 +484,7 @@ def test_relics_can_be_traded_within_their_reference_value_range(eco):
 
 
 def test_the_most_valuable_relic_still_fits_under_the_pair_cap(eco):
-    top = max(shop.RELIC_VALUE, key=shop.RELIC_VALUE.get)
+    top = max(shop.RELIC_VALUE, key=lambda key: shop.RELIC_VALUE[key])
     lo, hi = p2p.price_range("item", top, 1)
     assert hi <= p2p.PAIR_DAILY_LIMIT and lo <= hi  # ★つきの高価な品も、売れない値段の幅にならない
     plain = "relic_fossil"
@@ -502,9 +505,9 @@ def test_auction_screen_opens_on_the_shelf_when_no_player_listings_and_tabs_swit
     labels = [getattr(c, "label", "") for c in again.children]
     assert any(label.startswith("🤝 プレイヤーの出品（1）") for label in labels)
     tab_it = _PickIt(B, "")
-    asyncio.run(again._make_auction_tab("teiai")(tab_it))
-    assert again.auction_tab == "teiai" and "帝愛の棚" in again.embed().title
-    assert all(c.row <= 4 for c in again.children)
+    asyncio.run(again._make_auction_tab("teiai")(as_interaction(tab_it)))
+    assert again.auction_tab == "teiai" and "帝愛の棚" in must(again.embed().title)
+    assert all(c.row is not None and c.row <= 4 for c in again.children)
 
 
 def test_player_tab_filters_sorts_and_shows_two_line_entries(shop_cog_obj, eco):
@@ -518,31 +521,37 @@ def test_player_tab_filters_sorts_and_shows_two_line_entries(shop_cog_obj, eco):
     _, pricey = eco.p2p.p2p_list(S, "item", shop.INSURANCE, 1, "auction", 3_000, 6, now + 1)
     _, mount = eco.p2p.p2p_list(S, "horse", str(hid), 1, "fixed", 40_000, None, now + 2)
     view = _auction_view(shop_cog_obj, B)
-    text = view.embed().fields[0].value
+    text = must(view.embed().fields[0].value)
     assert (
-        f"#{cheap}" in text and f"#{pricey}" in text and f"#{mount}" in text and "出品 <@1>" in text and "締切" in text
+        f"#{cheap}" in must(text)
+        and f"#{pricey}" in must(text)
+        and f"#{mount}" in must(text)
+        and "出品 <@1>" in must(text)
+        and "締切" in must(text)
     )
     assert text.index(f"#{pricey}") < text.index(f"#{cheap}")  # 締切が近い順（競りの6時間が、定価の7日より先）
     horse_only = _PickIt(B, "")
-    asyncio.run(view._make_p2p_filter("horse")(horse_only))
-    assert f"#{mount}" in view.embed().fields[0].value and f"#{cheap}" not in view.embed().fields[0].value
-    asyncio.run(view._make_p2p_filter("auction")(_PickIt(B, "")))
-    only_auction = view.embed().fields[0].value
-    assert f"#{pricey}" in only_auction and f"#{cheap}" not in only_auction
-    asyncio.run(view._make_p2p_filter("all")(_PickIt(B, "")))
-    asyncio.run(view._on_p2p_order(_PickIt(B, "price_desc")))
-    ordered = view.embed().fields[0].value
+    asyncio.run(view._make_p2p_filter("horse")(as_interaction(horse_only)))
+    assert f"#{mount}" in must(view.embed().fields[0].value) and f"#{cheap}" not in must(view.embed().fields[0].value)
+    asyncio.run(view._make_p2p_filter("auction")(as_interaction(_PickIt(B, ""))))
+    only_auction = must(view.embed().fields[0].value)
+    assert f"#{pricey}" in must(only_auction) and f"#{cheap}" not in must(only_auction)
+    asyncio.run(view._make_p2p_filter("all")(as_interaction(_PickIt(B, ""))))
+    asyncio.run(view._on_p2p_order(as_interaction(_PickIt(B, "price_desc"))))
+    ordered = must(view.embed().fields[0].value)
     assert ordered.index(f"#{mount}") < ordered.index(f"#{pricey}") < ordered.index(f"#{cheap}")  # 高い順
-    asyncio.run(view._on_p2p_order(_PickIt(B, "new")))
-    newest = view.embed().fields[0].value
+    asyncio.run(view._on_p2p_order(as_interaction(_PickIt(B, "new"))))
+    newest = must(view.embed().fields[0].value)
     assert newest.index(f"#{mount}") < newest.index(f"#{pricey}") < newest.index(f"#{cheap}")
 
 
 def test_empty_player_tab_invites_the_first_seller(shop_cog_obj, eco):
     view = _auction_view(shop_cog_obj, B)
-    asyncio.run(view._make_auction_tab("players")(_PickIt(B, "")))
-    assert "最初の出品者" in view.embed().fields[0].value
-    assert not any(isinstance(c, p2p_cog.discord.ui.Select) and "見る出品" in c.placeholder for c in view.children)
+    asyncio.run(view._make_auction_tab("players")(as_interaction(_PickIt(B, ""))))
+    assert "最初の出品者" in must(view.embed().fields[0].value)
+    assert not any(
+        isinstance(c, p2p_cog.discord.ui.Select) and "見る出品" in must(c.placeholder) for c in view.children
+    )
 
 
 # ----------------------------- 出品の告知（チャンネルへの投稿） ----------------------------- #
@@ -626,10 +635,10 @@ def test_selling_through_the_modal_posts_the_announcement(cog, eco, monkeypatch)
     view.target = f"item:{CARROT}"
     modal = p2p_cog.SellModal(view, "fixed")
     modal.price._value = "1500"
-    modal.qty._value = "1"
+    must(modal.qty)._value = "1"
     done = It(S)
-    done.guild = _guild(chan)
-    asyncio.run(modal.on_submit(done))
+    setattr(done, "guild", _guild(chan))
+    asyncio.run(modal.on_submit(as_interaction(done)))
     assert chan.sent and "告知チャンネルに" in done.sent[-1]["embed"].description
     assert eco.p2p.p2p_active(None)[0]["message_id"] == 501
 
@@ -643,12 +652,12 @@ def test_the_announce_button_opens_the_detail_for_anyone(cog, eco):
     bridges = BotBridges()
     bridges.register(IP2PListingBridge, cog)
     it = It(B)
-    it.client = SimpleNamespace(bridges=bridges)
-    asyncio.run(button.callback(it))
+    setattr(it, "client", SimpleNamespace(bridges=bridges))
+    asyncio.run(invoke(button, it))
     assert "にんじん" in it.sent[-1]["embed"].title and it.sent[-1]["view"].children
     gone = It(B)
-    gone.client = SimpleNamespace(bridges=BotBridges())
-    asyncio.run(button.callback(gone))
+    setattr(gone, "client", SimpleNamespace(bridges=BotBridges()))
+    asyncio.run(invoke(button, gone))
     assert "いまは使えません" in gone.sent[-1]["embed"].title
 
 

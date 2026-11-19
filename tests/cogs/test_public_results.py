@@ -2,7 +2,6 @@
 
 import asyncio
 import time
-from types import SimpleNamespace
 
 import pytest
 
@@ -10,6 +9,7 @@ from cogs.economy.cog import EconomyCog
 from cogs.teiai.panel import StakeModal, TeiaiPanel
 from domain import bonds, teiai
 from tests.domain.test_market import It
+from tests.fakes import as_interaction, invoke
 from tests.support import make_economy_cog, make_market_cog, make_test_bot
 
 pytestmark = pytest.mark.real_scope
@@ -39,10 +39,10 @@ def test_seed_borrow_is_public_on_success_and_private_on_failure(bot):
     eco.wallet.debit_up_to(U, eco.wallet.balance(U) - 100, "テスト")  # 手元 100 → 借りられる
     panel = make_panel(bot, U)
     it = It()
-    run(panel.seed.callback(it))
+    run(invoke(panel.seed, it))
     assert public(it) and "種銭を借りました" in it.sent[-1]["embed"].title and "テスト" in it.sent[-1]["embed"].title
     it = It()
-    run(panel.seed.callback(it))  # もう枠まで借りた
+    run(invoke(panel.seed, it))  # もう枠まで借りた
     assert not public(it) and "❌" in it.sent[-1]["embed"].title
 
 
@@ -52,19 +52,19 @@ def test_cds_on_someone_else_is_public_and_on_yourself_is_private(bot):
     eco.wallet.balance(T)
     panel = make_panel(bot, U)
     other = StakeModal(panel, T, 15.0)
-    other.stake = SimpleNamespace(value="500")
+    other.stake._value = "500"
     it = It()
-    run(other.on_submit(it))
+    run(other.on_submit(as_interaction(it)))
     assert public(it) and f"<@{T}>" in it.sent[-1]["embed"].title and "破産に賭けた" in it.sent[-1]["embed"].title
     mine = StakeModal(panel, U, 15.0)
-    mine.stake = SimpleNamespace(value="500")
+    mine.stake._value = "500"
     it = It()
-    run(mine.on_submit(it))
+    run(mine.on_submit(as_interaction(it)))
     assert not public(it) and "CDS を買いました" in it.sent[-1]["embed"].title
     bad = StakeModal(panel, T, 15.0)
-    bad.stake = SimpleNamespace(value="10")  # 最低額に満たない
+    bad.stake._value = "10"  # 最低額に満たない
     it = It()
-    run(bad.on_submit(it))
+    run(bad.on_submit(as_interaction(it)))
     assert not public(it) and "❌" in it.sent[-1]["embed"].title
 
 
@@ -77,10 +77,10 @@ def test_bond_sale_is_public_on_success_and_private_on_failure(bot):
     assert eco.bonds.bond_buy(U, "normal", 1_000, time.time())[0]
     bond_id = eco.bonds.bond_list(U)["active"][0]["id"]
     it = It()
-    run(orders.bond_cancel(cog, it, bond_id))
+    run(orders.bond_cancel(cog, as_interaction(it), bond_id))
     assert public(it) and "債券を売りました" in it.sent[-1]["embed"].title
     it = It()
-    run(orders.bond_cancel(cog, it, 999))
+    run(orders.bond_cancel(cog, as_interaction(it), 999))
     assert not public(it) and "❌" in it.sent[-1]["embed"].title
     assert bonds.NORMAL
 
@@ -98,6 +98,6 @@ def test_self_bankruptcy_result_is_public(bot, monkeypatch):
     it = It()
     it.guild.get_member = lambda uid: None
     cog = make_economy_cog(bot)
-    run(EconomyCog.bankrupt.callback(cog, it))
+    run(invoke(EconomyCog.bankrupt, cog, it))
     assert public(it) and "自己破産しました" in it.sent[-1]["embed"].title and "テスト" in it.sent[-1]["embed"].title
     assert eco.debt.status(U) == teiai.BANKRUPT

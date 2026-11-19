@@ -5,6 +5,7 @@ from typing import Any, Optional
 from domain import market as market_mod
 from domain.errors import Failure
 from domain.market import DEFAULT
+from domain.ports.contracts import PricePoint
 from domain.ports.repos import IMarketDataRepo
 from infra.db.base import EcoDb, ScopedRepo
 
@@ -15,7 +16,7 @@ class MarketDataRepo(ScopedRepo, IMarketDataRepo):
     def __init__(self, db: EcoDb, guild_id: int = 0, strict: bool = False) -> None:
         super().__init__(db, guild_id, strict)
 
-    def market_latest(self, symbol: str = DEFAULT) -> Optional[tuple[Any, ...]]:
+    def market_latest(self, symbol: str = DEFAULT) -> Optional[PricePoint]:
         """いまの価格 (時刻, 価格, 出来事)。まだ無ければ None。時計が戻っても、最後に記録した行を最新とする。"""
         with self._lock:
             r = self._conn.execute(
@@ -23,7 +24,7 @@ class MarketDataRepo(ScopedRepo, IMarketDataRepo):
             ).fetchone()
             return (r["ts"], r["price"], r["event"]) if r else None
 
-    def latest_prices(self) -> dict[str, Any]:
+    def latest_prices(self) -> dict[str, float]:
         """いまの全銘柄の価格 {銘柄: 価格}。まだ価格がない銘柄は入らない。"""
         with self._lock:
             return {k: p for k in market_mod.BY_KEY if (p := (self.market_latest(k) or (0, 0, 0))[1])}
