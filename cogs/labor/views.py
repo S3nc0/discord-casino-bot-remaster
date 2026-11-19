@@ -1,7 +1,5 @@
 """`/地下 作業` の作業場の画面（ボタン・タブ）。値の読み書きは services/labor.py の LaborService を通す。"""
 
-import time
-
 import discord
 
 from cogs.labor.embeds import hire_embed, ore_text, panel_embed, relic_text
@@ -36,7 +34,7 @@ class LaborView(ui.OwnerView):
     # -------------------------------------------------------------- #
     def refresh(self) -> None:
         """いまの状態を読み直して、ボタンを組み直す。"""
-        self.state = self._svc.state(self.guild_id, self.user_id, time.time())
+        self.state = self._svc.state(self.guild_id, self.user_id, self._svc.clock.now_ts())
         s = self.state
         self.clear_items()
         collect = discord.ui.Button(
@@ -151,7 +149,7 @@ class LaborView(ui.OwnerView):
 
     # -------------------------------------------------------------- #
     async def _work(self, interaction: discord.Interaction):
-        r = self._svc.click(self.guild_id, self.user_id, time.time())
+        r = self._svc.click(self.guild_id, self.user_id, self._svc.clock.now_ts())
         if not r["ok"]:
             return await self._show(interaction, "" if r.get("quiet") else f"⚠ {r['reason']}")
         note = f"⛏ **+{r['pay']:,}**"
@@ -164,14 +162,14 @@ class LaborView(ui.OwnerView):
         await self._show(interaction, note)
 
     async def _drink(self, interaction: discord.Interaction):
-        ok, reason = self._svc.drink(self.guild_id, self.user_id, time.time())
+        ok, reason = self._svc.drink(self.guild_id, self.user_id, self._svc.clock.now_ts())
         await self._show(
             interaction,
             f"🥤 ぐいっと飲んだ。疲労が {lab.DRINK_RECOVER:.0f} 回復した！" if ok else f"⚠ {format_failure(reason)}",
         )
 
     async def _collect(self, interaction: discord.Interaction):
-        got = self._svc.collect(self.guild_id, self.user_id, time.time())
+        got = self._svc.collect(self.guild_id, self.user_id, self._svc.clock.now_ts())
         amount, found, collected_relics = got["amount"], got["ores"], got["relics"]
         note = f"💰 **{amount:,}** ペリカを、まとめて手元に移しました。" if amount else ""
         if got["skimmed"]:
@@ -201,7 +199,7 @@ class LaborView(ui.OwnerView):
 
     def _hirer(self, kind: str):
         async def callback(interaction: discord.Interaction):
-            ok, reason = self._svc.hire(self.guild_id, self.user_id, kind, time.time())
+            ok, reason = self._svc.hire(self.guild_id, self.user_id, kind, self._svc.clock.now_ts())
             await self._show(
                 interaction,
                 f"{lab.WORKER_MARK[kind]} **{lab.WORKER_NAME[kind]}** を雇った！"
@@ -213,14 +211,14 @@ class LaborView(ui.OwnerView):
 
     async def _dismiss(self, interaction: discord.Interaction):
         kind = ui.selected_values(interaction)[0]
-        ok, reason = self._svc.dismiss(self.guild_id, self.user_id, kind, time.time())
+        ok, reason = self._svc.dismiss(self.guild_id, self.user_id, kind, self._svc.clock.now_ts())
         await self._show(
             interaction, f"**{lab.WORKER_NAME[kind]}** を解雇した。" if ok else f"⚠ {format_failure(reason)}"
         )
 
     async def _renew(self, interaction: discord.Interaction):
         want = not self.state["renew"]
-        self._svc.set_renew(self.guild_id, self.user_id, want, time.time())
+        self._svc.set_renew(self.guild_id, self.user_id, want, self._svc.clock.now_ts())
         await self._show(
             interaction,
             "🔁 自動更新を **オン** にした。契約が切れたら、貯まった稼ぎから契約料を払います。"
@@ -229,7 +227,7 @@ class LaborView(ui.OwnerView):
         )
 
     async def _dorm(self, interaction: discord.Interaction):
-        ok, reason = self._svc.dorm(self.guild_id, self.user_id, time.time())
+        ok, reason = self._svc.dorm(self.guild_id, self.user_id, self._svc.clock.now_ts())
         await self._show(
             interaction, "🏠 寮を強化した！　雇える人数が増えた。" if ok else f"⚠ {format_failure(reason)}"
         )
@@ -243,7 +241,7 @@ class LaborView(ui.OwnerView):
 
     def _upgrader(self, tool: str):
         async def callback(interaction: discord.Interaction):
-            ok, reason = self._svc.upgrade(self.guild_id, self.user_id, tool, time.time())
+            ok, reason = self._svc.upgrade(self.guild_id, self.user_id, tool, self._svc.clock.now_ts())
             await self._show(
                 interaction,
                 f"{lab.TOOL_MARK[tool]} **{lab.TOOL_NAME[tool]}** を強化した！（{lab.TOOL_EFFECT[tool]}）"

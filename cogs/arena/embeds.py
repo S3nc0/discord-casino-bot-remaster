@@ -1,7 +1,6 @@
 """地下闘技場の掲示（出場表・結果）を組み立てる。"""
 
 import datetime
-import time
 
 import discord
 
@@ -17,8 +16,8 @@ STAGE_LABEL = {
 }
 
 
-def when(ts: float) -> str:
-    if time.time() >= ts:
+def when(ts: float, now: float) -> str:
+    if now >= ts:
         return f"<t:{int(ts)}:t>"
     return f"<t:{int(ts)}:t>（<t:{int(ts)}:R>）"
 
@@ -57,22 +56,24 @@ def battle_embed(fighters: list, hp: list, title: str) -> discord.Embed:
     return ui.embed(title, "\n".join(lines), ui.GOLD)
 
 
-def _schedule_line(t: dict, semi_hour: int, final_hour: int) -> str:
+def _schedule_line(t: dict, semi_hour: int, final_hour: int, now: float, tz_hours: float) -> str:
     today = datetime.date.fromisoformat(t["day"])
-    jst = datetime.timezone(datetime.timedelta(hours=9))
-    semi_at = datetime.datetime.combine(today, datetime.time(semi_hour), tzinfo=jst).timestamp()
-    final_at = datetime.datetime.combine(today, datetime.time(final_hour), tzinfo=jst).timestamp()
+    tz = datetime.timezone(datetime.timedelta(hours=tz_hours))
+    semi_at = datetime.datetime.combine(today, datetime.time(semi_hour), tzinfo=tz).timestamp()
+    final_at = datetime.datetime.combine(today, datetime.time(final_hour), tzinfo=tz).timestamp()
     if t["status"] == "semi_betting":
-        return f"準決勝: {when(semi_at)}"
+        return f"準決勝: {when(semi_at, now)}"
     if t["status"] == "final_betting":
-        return f"決勝: {when(final_at)}"
+        return f"決勝: {when(final_at, now)}"
     return ""
 
 
-def tournament_embed(t: dict, semi_hour: int, final_hour: int, breakdown: dict) -> discord.Embed:
+def tournament_embed(
+    t: dict, semi_hour: int, final_hour: int, breakdown: dict, now: float, tz_hours: float
+) -> discord.Embed:
     fmt_label = FORMAT_NAME.get(t["format"], t["format"])
     status_label = STAGE_LABEL.get(t["status"], t["status"])
-    schedule = _schedule_line(t, semi_hour, final_hour)
+    schedule = _schedule_line(t, semi_hour, final_hour, now, tz_hours)
     lines = [f"今日の形式: {fmt_label}　状態: **{status_label}**" + (f"　{schedule}" if schedule else ""), ""]
     groups: dict[int, list[dict]] = {}
     finalists = []

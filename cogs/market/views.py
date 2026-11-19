@@ -1,6 +1,5 @@
 """`/証券` の保有・市況・オプション画面（View / Modal）。"""
 
-import time
 from typing import TYPE_CHECKING
 
 import discord
@@ -78,7 +77,7 @@ class MarketView(ui.OwnerView):
         self.period_select.callback = self._on_period
         self.add_item(self.symbol_select)
         self.add_item(self.period_select)
-        now = time.time()
+        now = cog._market_svc.clock.now_ts()
         ev = market_events.current(cog._market_svc.market_events(now), now)
         if ev is not None:  # イベントがあるとき、その銘柄のコール・プットを、すぐ買えるボタンを出す
             for kind in (opt.CALL, opt.PUT):

@@ -16,7 +16,9 @@ from domain.ports.bridges import (
     CompositeSeizureValueStep,
     CompositeValuationSource,
 )
+from domain.ports.clock import IClock
 from domain.ports.repos import IRepositoryBundle
+from infra.clock import ConfigClock
 from infra.db import schema
 from infra.db.account import AccountCore
 from infra.db.arena import ArenaRepo
@@ -166,9 +168,15 @@ class RepositoryBundle(IRepositoryBundle):
         self.db.close()
 
 
-def open_repositories(db_path: str, legacy_guild_id: Optional[int] = None, strict: bool = False) -> RepositoryBundle:
-    """DB を開き、マイグレーションとテーブル作成のうえ全リポジトリを組み立てて返す。"""
-    db = EcoDb(db_path)
+def open_repositories(
+    db_path: str, legacy_guild_id: Optional[int] = None, strict: bool = False, clock: Optional[IClock] = None
+) -> RepositoryBundle:
+    """DB を開き、マイグレーションとテーブル作成のうえ全リポジトリを組み立てて返す。
+
+    clock は日付の切り替わりに使う時差（utc_offset_hours）の出どころ。省略時は設定の既定値（ConfigClock({})）。
+    """
+    clock = clock if clock is not None else ConfigClock({})
+    db = EcoDb(db_path, clock)
     schema.migrate_to_guild_scope(db.conn, db.db_path, legacy_guild_id)
 
     account = AccountCore(db, debt_hook=LazyDebtLifecycleHook(lambda: debt))
@@ -215,7 +223,7 @@ def open_repositories(db_path: str, legacy_guild_id: Optional[int] = None, stric
     races = RaceRepo(db, account, horses, relics, bank, strict=strict)
     labor = LaborRepo(db, account, relics, bank, strict=strict)
     arena = ArenaRepo(db, account, bank, strict=strict)
-    company = CompanyRepo(db, account, debt, bank, bank, notices, strict=strict)
+    company = CompanyRepo(db, account, debt, bank, bank, notices, clock.offset_hours(), strict=strict)
     earnings = EarningsRepo(db, account, bank, strict=strict)
 
     crypto = CryptoRepo(

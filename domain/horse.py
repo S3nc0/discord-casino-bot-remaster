@@ -60,7 +60,7 @@ MAJOR_PRIZES = _CFG.major_prizes
 MAJOR_HOUSE_TOPUP = _CFG.major_house_topup
 
 
-def is_major_race(race: dict, tz_hours: float = 9.0) -> bool:
+def is_major_race(race: dict, tz_hours: float) -> bool:
     """定時レースで、発走が MAJOR_HOUR（21時）なら重賞。"""
     tz = datetime.timezone(datetime.timedelta(hours=tz_hours))
     return race["kind"] == "regular" and datetime.datetime.fromtimestamp(race["start_at"], tz).hour == MAJOR_HOUR

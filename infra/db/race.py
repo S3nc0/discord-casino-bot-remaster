@@ -2,7 +2,6 @@
 
 import datetime
 import random
-import time
 from collections import Counter
 from typing import Any, Optional
 
@@ -410,9 +409,7 @@ class RaceRepo(ScopedRepo, IRaceRepo):
                 bought.append(result)
             return True, bought
 
-    def race_run(
-        self, race_id: int, rng: Optional[random.Random] = None, tz_hours: float = 9.0
-    ) -> Optional[dict[str, Any]]:
+    def race_run(self, race_id: int, tz_hours: float, rng: Optional[random.Random] = None) -> Optional[dict[str, Any]]:
         """レースを走らせて、結果を決め、賞金と払い戻しを精算する。すでに終わっていれば None。
 
         結果は、ここで決まる（演出は、返した frames を見せるだけ）。(race, entries, order, frames, bets, prizes) を辞書で返す。
@@ -447,7 +444,7 @@ class RaceRepo(ScopedRepo, IRaceRepo):
             if is_major:
                 shortfall = max(0, placed_total - real_entries * horse_mod.ENTRY_FEE)
                 if shortfall:
-                    state = self._bank.bank_sync_for(gid, time.time())
+                    state = self._bank.bank_sync_for(gid, self._now())
                     topup = min(shortfall, int(state["cash"]), horse_mod.MAJOR_HOUSE_TOPUP)
                     if topup:
                         self._bank.bank_set_for(gid, state["cash"] - topup, state["loaned"])
@@ -518,7 +515,7 @@ class RaceRepo(ScopedRepo, IRaceRepo):
                 b["payout"] = pay
                 bets.append(b)
             self._bank.bank_income_for(
-                gid, int(lost * teiai.LOSS_SHARE), 1.0, needs_depositors=True
+                gid, int(lost * teiai.LOSS_SHARE), 1.0, self._now(), needs_depositors=True
             )  # 負けた額の一部が、預金者の利回り
             return {
                 "race": race,

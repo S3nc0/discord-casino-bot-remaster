@@ -4,7 +4,6 @@
 """
 
 import random
-import time
 from typing import Any, Optional
 
 from domain import earnings as ea
@@ -58,9 +57,8 @@ class EarningsRepo(ScopedRepo, IEarningsRepo):
                 )
             ]
 
-    def earnings_upcoming(self, now: Optional[float] = None) -> Optional[dict[str, Any]]:
+    def earnings_upcoming(self, now: float) -> Optional[dict[str, Any]]:
         """みんなに告知ずみの、発表前の決算（対象と時刻だけ。方向と大きさは入れない）。月曜 9:00 までは None。"""
-        now = time.time() if now is None else now
         with self._lock:
             r = self._conn.execute(
                 "SELECT id, symbol, announce_at, release_at FROM earnings WHERE released=0 AND announce_at<=? "
@@ -96,10 +94,9 @@ class EarningsRepo(ScopedRepo, IEarningsRepo):
                 self._conn.execute("UPDATE earnings SET released=1 WHERE id=?", (r["id"],))
             return rows
 
-    def earnings_memo(self, user_id: int, now: Optional[float] = None, rng: Any = None) -> Optional[ea.MemoInfo]:
+    def earnings_memo(self, user_id: int, now: float, rng: Any = None) -> Optional[ea.MemoInfo]:
         """デイリーのあとに、確率で届く、裏情報メモ。発表前の決算が無い・発表まで MEMO_LEAD_HOURS より先・
         この決算のメモをもう受け取っている・抽選に外れたら None。"""
-        now = time.time() if now is None else now
         rng = rng or random.SystemRandom()
         with self._db.tx():
             gid = self._g()
@@ -124,9 +121,8 @@ class EarningsRepo(ScopedRepo, IEarningsRepo):
             )
             return ea.build_memo(market_mod.BY_KEY[ev["symbol"]].name, hint, ev["release_at"])
 
-    def insider_stock(self, now: Optional[float] = None) -> Optional[dict[str, Any]]:
+    def insider_stock(self, now: float) -> Optional[dict[str, Any]]:
         """帝愛市の裏情報メモの在庫。{残り, 全部の数}。発表前の決算が無ければ None（売っていない）。"""
-        now = time.time() if now is None else now
         with self._lock:
             gid = self._g()
             ev = self._conn.execute(
@@ -139,9 +135,8 @@ class EarningsRepo(ScopedRepo, IEarningsRepo):
             ).fetchone()[0]
             return {"left": max(0, ea.SHOP_STOCK - sold), "total": ea.SHOP_STOCK}
 
-    def insider_buy(self, user_id: int, now: Optional[float] = None, rng: Any = None) -> tuple[Any, ...]:
+    def insider_buy(self, user_id: int, now: float, rng: Any = None) -> tuple[Any, ...]:
         """帝愛市で、裏情報メモを買う。(成功か, 理由かメモの文)。決算ごとに1人1枚、サーバーで SHOP_STOCK 枚まで。"""
-        now = time.time() if now is None else now
         rng = rng or random.SystemRandom()
         price = shop_mod.BY_ID[shop_mod.INSIDER_MEMO].price
         with self._db.tx():

@@ -1,6 +1,5 @@
 """競走馬・競売。"""
 
-import time
 from typing import Any, Optional
 
 from domain import horse as horse_mod
@@ -80,7 +79,7 @@ class HorseRepo(ScopedRepo, IHorseRepo):
             cur = self._conn.execute(
                 "INSERT INTO horses (guild_id, owner_id, name, coat, silks, speed, stamina, power, guts, created) "
                 "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-                (gid, user_id, name, coat, silks, s["speed"], s["stamina"], s["power"], s["guts"], time.time()),
+                (gid, user_id, name, coat, silks, s["speed"], s["stamina"], s["power"], s["guts"], self._now()),
             )
             return True, cur.lastrowid
 
@@ -203,13 +202,11 @@ class HorseRepo(ScopedRepo, IHorseRepo):
             )
         return len(rows) * self.HORSE_PRICE
 
-    def horse_auction_price(self, listed_at: float, now: Optional[float] = None) -> int:
-        now = time.time() if now is None else now
+    def horse_auction_price(self, listed_at: float, now: float) -> int:
         return max(1, round(self.HORSE_PRICE * teiai.auction_rate(listed_at, now)))
 
-    def auction_horses(self, now: Optional[float] = None) -> list[Any]:
+    def auction_horses(self, now: float) -> list[Any]:
         """帝愛の競売に出ている馬。[{馬の行, price, rate}]（出品の早い順）。"""
-        now = time.time() if now is None else now
         with self._lock:
             rows = self._conn.execute(
                 "SELECT * FROM horses WHERE guild_id=? AND owner_id=-1 ORDER BY listed_at, id", (self._g(),)
@@ -223,9 +220,8 @@ class HorseRepo(ScopedRepo, IHorseRepo):
             for r in rows
         ]
 
-    def auction_buy_horse(self, user_id: int, horse_id: int, now: Optional[float] = None) -> PurchaseResult:
+    def auction_buy_horse(self, user_id: int, horse_id: int, now: float) -> PurchaseResult:
         """競売の馬を買う。カタギだけ・持てるのは MAX_HORSES 頭まで。名前とステータスは、そのまま引き継ぐ。"""
-        now = time.time() if now is None else now
         with self._db.tx():
             gid = self._g()
             self._account.ensure(gid, user_id)

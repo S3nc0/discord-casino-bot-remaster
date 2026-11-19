@@ -6,7 +6,6 @@
 """
 
 import random
-import time
 from typing import Any, Optional
 
 from domain import shop as shop_mod
@@ -63,14 +62,12 @@ class AuctionRepo(ScopedRepo, IAuctionRepo):
             self._conn.execute("DELETE FROM seized_items WHERE item_id=?", (item_id,))
         return len(gone)
 
-    def auction_price(self, item_id: str, listed_at: float, now: Optional[float] = None) -> int:
+    def auction_price(self, item_id: str, listed_at: float, now: float) -> int:
         """1つあたりの、いまの値段（ペリカ）。"""
-        now = time.time() if now is None else now
         return max(1, round(shop_mod.BY_ID[item_id].price * teiai.auction_rate(listed_at, now)))
 
-    def auction_list(self, now: Optional[float] = None) -> list[Any]:
+    def auction_list(self, now: float) -> list[Any]:
         """競売の棚。品ごとに、残りの数と、いちばん安い（古い）出品の値段。[{item_id, qty, price, rate}]"""
-        now = time.time() if now is None else now
         with self._lock:
             rows = self._conn.execute(
                 "SELECT item_id, qty, listed_at FROM seized_items WHERE guild_id=? AND qty>0 ORDER BY listed_at, id",
@@ -94,7 +91,7 @@ class AuctionRepo(ScopedRepo, IAuctionRepo):
 
     def auction_buy(self, user_id: int, item_id: str, qty: int = 1, now: Optional[float] = None) -> PurchaseResult:
         """競売で買う。カタギだけ。持っているもの（消耗品以外）は買えない。安い（古い）出品から順に売れる。"""
-        now = time.time() if now is None else now
+        now = self._now() if now is None else now
         item = shop_mod.BY_ID.get(item_id)
         if item is None or qty < 1:
             return PurchaseResult(False, fail("auction_item_unavailable"))
@@ -185,9 +182,8 @@ class AuctionRepo(ScopedRepo, IAuctionRepo):
             "expires_at": r["expires_at"],
         }
 
-    def market_list(self, now: Optional[float] = None, rng: Any = None) -> list[dict[str, Any]]:
+    def market_list(self, now: float, rng: Any = None) -> list[dict[str, Any]]:
         """いま出ている帝愛の出品（売り切れ・期限切れ・まだ出ていないものは除く）。期限の近い順。"""
-        now = time.time() if now is None else now
         rng = rng or random.SystemRandom()
         with self._db.tx():
             gid = self._g()
@@ -203,7 +199,7 @@ class AuctionRepo(ScopedRepo, IAuctionRepo):
         self, user_id: int, listing_id: int, qty: int = 1, now: Optional[float] = None, rng: Any = None
     ) -> MarketPurchase:
         """帝愛の出品を買う。カタギだけ（差し押さえ品の競売と同じ）。闇市品は、買ったときに中身が決まる。"""
-        now = time.time() if now is None else now
+        now = self._now() if now is None else now
         rng = rng or random.SystemRandom()
         with self._db.tx():
             gid = self._g()

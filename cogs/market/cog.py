@@ -2,7 +2,6 @@
 
 import logging
 import random
-import time
 from types import SimpleNamespace
 from typing import TYPE_CHECKING, Any, Optional
 
@@ -90,11 +89,13 @@ class MarketCog(commands.Cog):
     async def tick(self):
         try:
             prices, _event = self.step_prices()
-            for guild_id, user_id, symbol, side, loss in self._market_svc.accrue_and_losscut(time.time(), prices):
+            for guild_id, user_id, symbol, side, loss in self._market_svc.accrue_and_losscut(
+                self._market_svc.clock.now_ts(), prices
+            ):
                 _log.info(
                     f"{market.SIDE_NAME[side]}をロスカット: guild={guild_id} user={user_id} {symbol} 損失={loss:,}"
                 )
-            self._market_svc.prune(time.time() - KEEP_DAYS * 86400)
+            self._market_svc.prune(self._market_svc.clock.now_ts() - KEEP_DAYS * 86400)
         except Exception as exc:
             _log.warning(f"価格の更新に失敗: {exc!r}")
             return
@@ -102,7 +103,7 @@ class MarketCog(commands.Cog):
             await self._earnings_posts()
         except Exception as exc:
             _log.warning(f"決算の告知に失敗: {exc!r}")
-        now, cache = time.time(), {}
+        now, cache = self._market_svc.clock.now_ts(), {}
         for post in self._market_svc.live_chart_posts():
             try:
                 await feed.refresh_post(self.bot, self._market_svc, self, post, now, cache)
@@ -137,7 +138,7 @@ class MarketCog(commands.Cog):
         ended: bool = False,
         symbol: str = market.DEFAULT,
     ) -> discord.Embed:
-        now = time.time()
+        now = self._market_svc.clock.now_ts()
         _label, seconds = market.PERIODS[period]
         hist = self._market_svc.market_history(now - seconds, symbol)
         pin = self._market_svc.market_pin(symbol)
@@ -159,7 +160,7 @@ class MarketCog(commands.Cog):
         )
 
     def summary_embed(self, guild_id: Optional[int] = None) -> discord.Embed:
-        now = time.time()
+        now = self._market_svc.clock.now_ts()
         hist_24h = self._market_svc.histories(CORRELATION_MINUTES, now)
         latest = self._market_svc.latest_prices()
         upcoming = self._market_svc.earnings_upcoming(now)
@@ -192,7 +193,7 @@ class MarketCog(commands.Cog):
         await self._post_chart(interaction, symbol.value, period.value if period else "24h")
 
     async def _post_chart(self, interaction: discord.Interaction, sym: str, key: str) -> None:
-        now = time.time()
+        now = self._market_svc.clock.now_ts()
         gid = ui.guild_id_of(interaction)
         await interaction.response.send_message(
             embed=self.chart_embed(key, guild_id=gid, live_until=now + LIVE_MINUTES * 60, symbol=sym),

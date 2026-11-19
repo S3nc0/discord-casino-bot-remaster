@@ -28,7 +28,7 @@ class IRaffleRepo(IGuildScopedRepo):
 class IShopRepo(IGuildScopedRepo):
     SLOTS: tuple[str, ...]
 
-    def shop_stock(self, user_id: int, item_id: str, now: Optional[float] = None) -> Optional[dict[str, Any]]:
+    def shop_stock(self, user_id: int, item_id: str, now: float) -> Optional[dict[str, Any]]:
         raise NotImplementedError
 
     def purchase(
@@ -57,16 +57,16 @@ class IShopRepo(IGuildScopedRepo):
 
 
 class IAuctionRepo(IGuildScopedRepo):
-    def auction_price(self, item_id: str, listed_at: float, now: Optional[float] = None) -> int:
+    def auction_price(self, item_id: str, listed_at: float, now: float) -> int:
         raise NotImplementedError
 
-    def auction_list(self, now: Optional[float] = None) -> list[Any]:
+    def auction_list(self, now: float) -> list[Any]:
         raise NotImplementedError
 
     def auction_buy(self, user_id: int, item_id: str, qty: int = 1, now: Optional[float] = None) -> "PurchaseResult":
         raise NotImplementedError
 
-    def market_list(self, now: Optional[float] = None, rng: Any = None) -> list[dict[str, Any]]:
+    def market_list(self, now: float, rng: Any = None) -> list[dict[str, Any]]:
         raise NotImplementedError
 
     def market_buy(
@@ -180,37 +180,37 @@ class ILaborRepo(IGuildScopedRepo):
     def labor_finds(self, user_id: int, limit: int = 6) -> list[Any]:
         raise NotImplementedError
 
-    def labor_state(self, user_id: int, now: Optional[float] = None, day: str = "") -> dict[str, Any]:
+    def labor_state(self, user_id: int, now: float, day: str = "") -> dict[str, Any]:
         raise NotImplementedError
 
     def labor_top(self, limit: int = 10, day: Optional[str] = None, user_id: Optional[int] = None) -> dict[str, Any]:
         raise NotImplementedError
 
-    def labor_click(self, user_id: int, now: Optional[float] = None, day: str = "", rng: Any = None) -> dict[str, Any]:
+    def labor_click(self, user_id: int, now: float, day: str = "", rng: Any = None) -> dict[str, Any]:
         raise NotImplementedError
 
     def labor_click_hours(self, user_id: int, since: float) -> list[Any]:
         raise NotImplementedError
 
-    def labor_collect(self, user_id: int, now: Optional[float] = None, day: str = "", detail: bool = False) -> Any:
+    def labor_collect(self, user_id: int, now: float, day: str = "", detail: bool = False) -> Any:
         raise NotImplementedError
 
-    def labor_drink(self, user_id: int, now: Optional[float] = None, day: str = "") -> tuple[Any, ...]:
+    def labor_drink(self, user_id: int, now: float, day: str = "") -> tuple[Any, ...]:
         raise NotImplementedError
 
-    def labor_upgrade(self, user_id: int, tool: str, now: Optional[float] = None, day: str = "") -> tuple[Any, ...]:
+    def labor_upgrade(self, user_id: int, tool: str, now: float, day: str = "") -> tuple[Any, ...]:
         raise NotImplementedError
 
-    def labor_hire(self, user_id: int, kind: str, now: Optional[float] = None, day: str = "") -> tuple[Any, ...]:
+    def labor_hire(self, user_id: int, kind: str, now: float, day: str = "") -> tuple[Any, ...]:
         raise NotImplementedError
 
-    def labor_dismiss(self, user_id: int, kind: str, now: Optional[float] = None, day: str = "") -> tuple[Any, ...]:
+    def labor_dismiss(self, user_id: int, kind: str, now: float, day: str = "") -> tuple[Any, ...]:
         raise NotImplementedError
 
-    def labor_dorm(self, user_id: int, now: Optional[float] = None, day: str = "") -> tuple[Any, ...]:
+    def labor_dorm(self, user_id: int, now: float, day: str = "") -> tuple[Any, ...]:
         raise NotImplementedError
 
-    def labor_set_renew(self, user_id: int, on: bool, now: Optional[float] = None, day: str = "") -> tuple[Any, ...]:
+    def labor_set_renew(self, user_id: int, on: bool, now: float, day: str = "") -> tuple[Any, ...]:
         raise NotImplementedError
 
 
@@ -237,13 +237,13 @@ class IP2PRepo(IGuildScopedRepo):
     def p2p_set_post(self, listing_id: int, channel_id: int, message_id: int) -> None:
         raise NotImplementedError
 
-    def p2p_buy(self, buyer_id: int, listing_id: int, now: Optional[float] = None) -> tuple[Any, ...]:
+    def p2p_buy(self, buyer_id: int, listing_id: int, now: float) -> tuple[Any, ...]:
         raise NotImplementedError
 
-    def p2p_bid(self, bidder_id: int, listing_id: int, amount: int, now: Optional[float] = None) -> tuple[Any, ...]:
+    def p2p_bid(self, bidder_id: int, listing_id: int, amount: int, now: float) -> tuple[Any, ...]:
         raise NotImplementedError
 
-    def p2p_cancel(self, user_id: int, listing_id: int, now: Optional[float] = None) -> tuple[Any, ...]:
+    def p2p_cancel(self, user_id: int, listing_id: int, now: float) -> tuple[Any, ...]:
         raise NotImplementedError
 
     def p2p_pull_back(self, user_id: int, now: Optional[float] = None) -> dict[str, int]:
@@ -255,7 +255,7 @@ class IP2PRepo(IGuildScopedRepo):
     def p2p_mark_post_done(self, listing_id: int) -> None:
         raise NotImplementedError
 
-    def p2p_settle(self, now: Optional[float] = None) -> list[Any]:
+    def p2p_settle(self, now: float) -> list[Any]:
         raise NotImplementedError
 
     def p2p_active(
@@ -268,7 +268,7 @@ class IP2PRepo(IGuildScopedRepo):
     ) -> list[Any]:
         raise NotImplementedError
 
-    def p2p_count(self, now: Optional[float] = None) -> int:
+    def p2p_count(self, now: float) -> int:
         raise NotImplementedError
 
     def p2p_mine(self, user_id: int, now: Optional[float] = None) -> dict[str, Any]:
@@ -276,13 +276,13 @@ class IP2PRepo(IGuildScopedRepo):
 
 
 class ICompanyRepo(IGuildScopedRepo):
-    def company_get(self, user_id: int, now: Optional[float] = None) -> Optional[dict[str, Any]]:
+    def company_get(self, user_id: int, now: float) -> Optional[dict[str, Any]]:
         raise NotImplementedError
 
-    def company_found(self, user_id: int, name: str, kind: str, now: Optional[float] = None) -> tuple[Any, ...]:
+    def company_found(self, user_id: int, name: str, kind: str, now: float) -> tuple[Any, ...]:
         raise NotImplementedError
 
-    def company_invest(self, user_id: int, amount: int, now: Optional[float] = None) -> tuple[Any, ...]:
+    def company_invest(self, user_id: int, amount: int, now: float) -> tuple[Any, ...]:
         raise NotImplementedError
 
     def company_withdraw(
@@ -290,25 +290,23 @@ class ICompanyRepo(IGuildScopedRepo):
     ) -> tuple[Any, ...]:
         raise NotImplementedError
 
-    def company_ship(self, user_id: int, now: Optional[float] = None) -> tuple[Any, ...]:
+    def company_ship(self, user_id: int, now: float) -> tuple[Any, ...]:
         raise NotImplementedError
 
-    def company_upgrade(self, user_id: int, now: Optional[float] = None) -> tuple[Any, ...]:
+    def company_upgrade(self, user_id: int, now: float) -> tuple[Any, ...]:
         raise NotImplementedError
 
-    def company_change_kind(self, user_id: int, kind: str, now: Optional[float] = None) -> tuple[Any, ...]:
+    def company_change_kind(self, user_id: int, kind: str, now: float) -> tuple[Any, ...]:
         raise NotImplementedError
 
-    def stake_invest(
-        self, investor_id: int, owner_id: int, amount: int, now: Optional[float] = None
-    ) -> tuple[Any, ...]:
+    def stake_invest(self, investor_id: int, owner_id: int, amount: int, now: float) -> tuple[Any, ...]:
         raise NotImplementedError
 
-    def stake_holdings(self, investor_id: int, now: Optional[float] = None) -> list[dict[str, Any]]:
+    def stake_holdings(self, investor_id: int, now: float) -> list[dict[str, Any]]:
         raise NotImplementedError
 
-    def company_set_dividend(self, user_id: int, rate: float, now: Optional[float] = None) -> tuple[Any, ...]:
+    def company_set_dividend(self, user_id: int, rate: float, now: float) -> tuple[Any, ...]:
         raise NotImplementedError
 
-    def company_settle_all(self, now: Optional[float] = None) -> list[dict[str, Any]]:
+    def company_settle_all(self, now: float) -> list[dict[str, Any]]:
         raise NotImplementedError

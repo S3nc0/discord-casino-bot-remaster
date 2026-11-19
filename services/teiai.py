@@ -84,7 +84,7 @@ class TeiaiService:
         return self._debt.for_guild(guild_id).escape_left(user_id)
 
     def escape_attempt(self, guild_id: int, user_id: int) -> tuple[Any, ...]:
-        return self._debt.for_guild(guild_id).escape_attempt(user_id)
+        return self._debt.for_guild(guild_id).escape_attempt(user_id, self._clock.now_ts())
 
     # ------------------------------ 帝愛銀行・CDS ------------------------------ #
     def panel(self, guild_id: int, user_id: int) -> TeiaiPanelSnapshot:
@@ -108,17 +108,17 @@ class TeiaiService:
         )
 
     def deposit(self, guild_id: int, user_id: int, amount: int) -> tuple[Any, ...]:
-        return self._bank.for_guild(guild_id).bank_deposit(user_id, amount)
+        return self._bank.for_guild(guild_id).bank_deposit(user_id, amount, self._clock.now_ts())
 
     def withdraw(self, guild_id: int, user_id: int, amount: Optional[int]) -> tuple[Any, ...]:
         """amount が None なら全額。"""
-        return self._bank.for_guild(guild_id).bank_withdraw(user_id, amount)
+        return self._bank.for_guild(guild_id).bank_withdraw(user_id, amount, self._clock.now_ts())
 
     def cds_quote(self, guild_id: int, target_id: int) -> CdsQuote:
-        return self._bank.for_guild(guild_id).cds_quote(target_id)
+        return self._bank.for_guild(guild_id).cds_quote(target_id, self._clock.now_ts())
 
     def cds_buy(self, guild_id: int, user_id: int, target_id: int, stake: int) -> tuple[Any, ...]:
-        return self._bank.for_guild(guild_id).cds_buy(user_id, target_id, stake)
+        return self._bank.for_guild(guild_id).cds_buy(user_id, target_id, stake, self._clock.now_ts())
 
     def grace_expire(self, guild_id: int, now: float) -> list[Any]:
         """破産猶予の時間切れ（強制破産と、CDS の配当）。(user_id, 結果) の一覧。"""

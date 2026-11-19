@@ -383,7 +383,7 @@ def test_arena_loan_and_shop_services_work_with_narrow_stubs():
 
     arena_svc = ArenaService(StubArena(), clock)
     assert arena_svc.ensure_tournament(1, "duel")["status"] == "semi_betting"
-    assert arena_svc.jst_hour() == 20
+    assert arena_svc.local_hour() == 20
     assert arena_svc.place_bet(1, 10, 1, 500) == (True, 500)
 
     loan_svc = LoanService(StubLoan(), clock)
@@ -399,6 +399,7 @@ def test_arena_loan_and_shop_services_work_with_narrow_stubs():
         StubP2P(),
         StubWallet({1: 5000}),
         StubGuild(),
+        clock,
     )
     owned = shop_mod.BY_ID["title_rookie"]
     assert shop_svc.precheck_buy(1, 1, owned, 1).status == "owned"

@@ -215,7 +215,7 @@ class ArenaCog(commands.Cog, IArenaAdminBridge):
 
     async def run_once(self) -> None:
         now = self._arena.clock.now_ts()
-        tz_hour = self._arena.jst_hour(now)
+        tz_hour = self._arena.local_hour(now)
 
         async def _handle(guild: discord.Guild) -> None:
             for fmt in arena_mod.FORMATS:

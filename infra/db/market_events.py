@@ -4,7 +4,6 @@
 """
 
 import random
-import time
 from typing import Any, Optional
 
 from domain import market_events as ev_mod
@@ -18,9 +17,8 @@ class MarketEventRepo(ScopedRepo, IMarketEventRepo):
     def __init__(self, db: EcoDb, guild_id: int = 0, strict: bool = False) -> None:
         super().__init__(db, guild_id, strict)
 
-    def market_events(self, now: Optional[float] = None) -> list[Any]:
+    def market_events(self, now: float) -> list[Any]:
         """終わっていないイベントと、直近に終わったもの（古い順）。"""
-        now = time.time() if now is None else now
         with self._lock:
             return [
                 dict(r)
@@ -29,9 +27,8 @@ class MarketEventRepo(ScopedRepo, IMarketEventRepo):
                 )
             ]
 
-    def vol_multipliers(self, now: Optional[float] = None) -> dict[str, Any]:
+    def vol_multipliers(self, now: float) -> dict[str, Any]:
         """いま発生中のイベントによる、銘柄ごとの値動きの倍率 {銘柄: 倍率}（なければ空）。"""
-        now = time.time() if now is None else now
         events = self.market_events(now)
         out = {}
         for ev in events:

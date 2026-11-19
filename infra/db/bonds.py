@@ -5,7 +5,6 @@
 """
 
 import random
-import time
 from typing import Any, Optional
 
 from domain import bonds as bonds_mod
@@ -193,7 +192,7 @@ class BondRepo(ScopedRepo, IBondRepo, IBondHoldings):
         kind = bonds_mod.KINDS[row["kind"]]
         if not kind.sellable:
             return False, fail("bond_not_sellable", name=kind.name)
-        refund = bonds_mod.sale_value(kind, row["principal"], time.time() if now is None else now, row["due"])
+        refund = bonds_mod.sale_value(kind, row["principal"], self._now() if now is None else now, row["due"])
         self._account.apply(guild_id, user_id, refund, "返金:債券売却")  # もともと自分のお金なので、借金の徴収はしない
         self._conn.execute("UPDATE bonds SET status='cancelled', paid=? WHERE id=?", (refund, bond_id))
         return True, refund

@@ -13,7 +13,8 @@ from tests.fakes import as_interaction, as_message, must
 from tests.support import make_arena_cog, make_test_bot
 
 U, V = 1, 2
-JST = datetime.timezone(datetime.timedelta(hours=9))
+TZ = 9.0  # 本番の utc_offset_hours
+JST = datetime.timezone(datetime.timedelta(hours=TZ))
 
 
 def jst(hour: float) -> float:
@@ -80,8 +81,8 @@ def test_run_once_creates_both_formats_and_announces_each(setup, monkeypatch):
     contents = [s["content"] for s in chan.sent if "content" in s]
     assert any("1on1" in c and "始まりました" in c for c in contents)
     assert any("バトルロイヤル" in c and "始まりました" in c for c in contents)
-    duel = repos.arena.arena_tournament_get_by_day(repos.arena.arena_today(DAY_START), "duel")
-    royale = repos.arena.arena_tournament_get_by_day(repos.arena.arena_today(DAY_START), "royale")
+    duel = repos.arena.arena_tournament_get_by_day(repos.arena.arena_today(DAY_START, TZ), "duel")
+    royale = repos.arena.arena_tournament_get_by_day(repos.arena.arena_today(DAY_START, TZ), "royale")
     assert duel["status"] == "semi_betting" and royale["status"] == "semi_betting"
 
 
@@ -92,7 +93,7 @@ def test_run_once_advances_both_formats_through_semis_and_final(setup, monkeypat
 
     _at(monkeypatch, bot, jst(a.SEMI_HOUR + 1))  # 準決勝の時刻を過ぎた
     asyncio.run(cog.run_once())
-    day = repos.arena.arena_today(DAY_START)
+    day = repos.arena.arena_today(DAY_START, TZ)
     duel = repos.arena.arena_tournament_get_by_day(day, "duel")
     royale = repos.arena.arena_tournament_get_by_day(day, "royale")
     assert duel["status"] == "final_betting" and royale["status"] == "final_betting"
@@ -126,7 +127,7 @@ def test_host_now_creates_and_posts_without_waiting_for_the_scheduled_hour(setup
     status = asyncio.run(cog.host_now(guild, None, advance=False, fmt="duel"))
     assert status == "🥊 1on1: 準決勝・受付中"
     assert "今日の🥊 1on1の大会です" in chan.sent[0]["content"]
-    t = repos.arena.arena_tournament_get_by_day(repos.arena.arena_today(jst(3.0)), "duel")
+    t = repos.arena.arena_tournament_get_by_day(repos.arena.arena_today(jst(3.0), TZ), "duel")
     assert t is not None and t["status"] == "semi_betting"  # まだ決着させていない
 
 
@@ -153,7 +154,7 @@ def test_bet_panel_select_and_stake_modal_place_a_real_bet(setup, monkeypatch):
     repos, chan, guild, bot, cog = setup
     repos.wallet.credit(V, 10_000, "テスト")
     _at(monkeypatch, bot, DAY_START)
-    t = repos.arena.arena_tournament_ensure("duel", DAY_START)
+    t = repos.arena.arena_tournament_ensure("duel", DAY_START, TZ)
     panel = views.BetPanel(bot.services.arena, t)
     bettable = views.bettable_fighters(t)
     assert bettable  # 受付中なら、賭けられる戦士がいる
@@ -176,7 +177,7 @@ def test_bet_panel_select_and_stake_modal_place_a_real_bet(setup, monkeypatch):
 
 def test_bet_panel_has_no_select_once_betting_is_closed(setup):
     repos, chan, guild, bot, cog = setup
-    t = repos.arena.arena_tournament_ensure("duel", DAY_START)
+    t = repos.arena.arena_tournament_ensure("duel", DAY_START, TZ)
     repos.arena.arena_run_semis(t["id"])
     t = repos.arena.arena_tournament_get_by_day(t["day"], "duel")
     assert views.bettable_fighters(t)  # 決勝の受付中は、決勝進出の2人に賭けられる
@@ -195,7 +196,7 @@ class FakeMessage:
 def test_stake_modal_bet_refreshes_the_posted_panel_message(setup):
     repos, chan, guild, bot, cog = setup
     repos.wallet.credit(V, 10_000, "テスト")
-    t = repos.arena.arena_tournament_ensure("duel", DAY_START)
+    t = repos.arena.arena_tournament_ensure("duel", DAY_START, TZ)
     panel = views.BetPanel(bot.services.arena, t)
     message = FakeMessage()
     panel.message = as_message(message)
@@ -217,7 +218,7 @@ def test_tournament_embed_shows_who_bet_how_much_on_each_fighter(setup):
     repos, chan, guild, bot, cog = setup
     repos.wallet.credit(U, 10_000, "テスト")
     repos.wallet.credit(V, 10_000, "テスト")
-    t = repos.arena.arena_tournament_ensure("duel", DAY_START)
+    t = repos.arena.arena_tournament_ensure("duel", DAY_START, TZ)
     fighter = views.bettable_fighters(t)[0]
     repos.arena.arena_bet(U, fighter["id"], 1_500, DAY_START)
     repos.arena.arena_bet(V, fighter["id"], 700, DAY_START)
@@ -231,7 +232,7 @@ def test_run_once_refreshes_the_auto_posted_panel_after_semis(setup, monkeypatch
     repos, chan, guild, bot, cog = setup
     _at(monkeypatch, bot, DAY_START)
     asyncio.run(cog.run_once())
-    day = repos.arena.arena_today(DAY_START)
+    day = repos.arena.arena_today(DAY_START, TZ)
     panel = cog._panels[(guild.id, day, "duel")]
     refreshed = []
     orig_refresh = panel.refresh

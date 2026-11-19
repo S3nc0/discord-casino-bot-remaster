@@ -28,10 +28,6 @@ class CasinoDeps:
     config: dict[str, Any]
 
 
-def local_now(deps: CasinoDeps):
-    return deps.casino.clock.now()
-
-
 def log_display_failure(game: str, step: str, exc: Exception) -> None:
     """演出の表示（メッセージの書き換え）に失敗したことを記録する。精算は済んでいるので結果には影響しないが、
     画面が途中で止まって見える原因（通信エラーなど）を、あとから調べられるようにする。"""
@@ -94,7 +90,7 @@ class GameContext:
             tags=tags,
             rtp_kind=rtp_kind,
             rtp_done=rtp_done,
-            now=local_now(self.deps),
+            now=self.casino.clock.now(),
         )
         self.done = True
         if not rtp_done:

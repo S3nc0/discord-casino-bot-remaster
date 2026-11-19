@@ -1,6 +1,5 @@
 """運営向けの経済・イベント・還元率・統計・履歴操作（`/運営 付与/残高設定/イベント/還元率/統計/履歴`）。"""
 
-import time
 from typing import TYPE_CHECKING, Optional
 
 import discord
@@ -135,7 +134,7 @@ async def pachinko_stats(
         guild = await pick_guild(cog.bot, interaction, guild_id)
         if guild is None:
             return
-    since = time.time() - days * 86400 if days else None
+    since = cog._clock.now_ts() - days * 86400 if days else None
     data = cog._admin.pachinko_stats(guild.id if guild else None, since)
     scope = (guild.name if guild else "全サーバー") + (f"・過去{days}日" if days else "・全期間")
     await interaction.response.send_message(embed=pachinko_stats_embed(data, scope), ephemeral=True)

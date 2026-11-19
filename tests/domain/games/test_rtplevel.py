@@ -1,6 +1,7 @@
 """還元率レベル: 勝ち分だけの増減、レベルごとの還元率、保存、実際の精算への反映、コマンド。"""
 
 import asyncio
+import datetime
 import random
 from types import SimpleNamespace
 
@@ -13,7 +14,7 @@ from domain.games import chinchiro as ch
 from domain.games import pachinko, roulette, rtplevel, slot
 from domain.types import INITIAL_BALANCE
 from infra.db.repositories import open_repositories
-from tests.fakes import as_interaction, invoke, must
+from tests.fakes import as_interaction, freeze_time, invoke, must
 from tests.support import make_approval_cog, make_casino_deps, make_test_bot
 
 OWNER, FRIEND = 1, 2
@@ -141,6 +142,9 @@ def test_levels_are_saved_per_guild_and_game_with_three_as_default(tmp_path):
 
 
 # ----------------------------- 精算への反映 ----------------------------- #
+NIGHT = datetime.datetime(2026, 11, 6, 3, 0, tzinfo=datetime.timezone(datetime.timedelta(hours=9))).timestamp()
+
+
 def make_bot(tmp_path):
     return make_test_bot(str(tmp_path / "t.db"), strict=False)
 
@@ -156,7 +160,7 @@ def play(bot, game, bet, payout, kind=None, level=3):
 
 def test_settlement_applies_the_level_only_to_wins_and_stays_consistent(tmp_path, monkeypatch):
     bot = make_bot(tmp_path)
-    monkeypatch.setattr(common, "local_now", lambda b: __import__("datetime").datetime(2026, 11, 6, 3, 0))
+    freeze_time(monkeypatch, bot.services.clock, NIGHT)  # 現地 3:00（ミッションの日付が変わらない時間）
     ctx, net = play(bot, "パチンコ", 1000, 5000, level=6)  # 5倍に当たり
     assert net == rtplevel.adjust("パチンコ", 6, 1000, 5000) - 1000 and net > 4000 and ctx.rtp_shift == net - 4000
     ctx, net = play(bot, "パチンコ", 1000, 0, level=6)  # 負けは変わらない
@@ -270,7 +274,7 @@ def test_pachinko_sets_apply_the_level_to_each_set_not_to_the_sum(tmp_path, monk
     )  # 10倍が1回、あとは2回ハズレ
     monkeypatch.setattr(pg, "roll_set", lambda rng: next(plan))
     monkeypatch.setattr(play_pa, "STEP", 0)
-    monkeypatch.setattr(common, "local_now", lambda b: __import__("datetime").datetime(2026, 11, 6, 3, 0))
+    freeze_time(monkeypatch, bot.services.clock, NIGHT)  # 現地 3:00（ミッションの日付が変わらない時間）
     sent, edits = [], []
 
     class It:

@@ -4,7 +4,6 @@
 設立費は帝愛銀行へ、建設費・維持費は帝愛の胴元の口座へ入る。出荷の代金は、まず胴元の口座から出て、足りない分は1日の買取枠（DAILY_GRANT）まで帝愛が新しく出す。
 """
 
-import time
 from typing import Any, Optional
 
 from domain import company as company_mod
@@ -35,10 +34,14 @@ class CompanyRepo(ScopedRepo, ICompanyRepo, IValuationSource):
         bank: IBankCashFlow,
         house: IHouseAccount,
         notices: INoticeSink,
+        tz_hours: float,
         guild_id: int = 0,
         strict: bool = False,
     ) -> None:
         super().__init__(db, guild_id, strict)
+        self._tz_hours = (
+            tz_hours  # 日付の切り替わり（維持費の精算日・その日の買取価格）を決める時差。IClock.offset_hours()
+        )
         self._account = account
         self._status_reader = status_reader
         self._bank = bank
@@ -75,9 +78,9 @@ class CompanyRepo(ScopedRepo, ICompanyRepo, IValuationSource):
     def _settle(self, c: dict[str, Any], now: float) -> bool:
         """いまの時刻まで、生産と維持費を進めて保存する。倒産したら会社を消して False。"""
         gid = c["guild_id"]
-        c["stock"] = company_mod.produce(c["kind"], c["level"], gid, c["stock"], c["stock_ts"], now)
+        c["stock"] = company_mod.produce(c["kind"], c["level"], gid, c["stock"], c["stock_ts"], now, self._tz_hours)
         c["stock_ts"] = max(c["stock_ts"], now)
-        today = company_mod.day_of(now)
+        today = company_mod.day_of(now, self._tz_hours)
         fee = company_mod.daily_upkeep(c["level"])
         while c["upkeep_day"] < today:
             c["upkeep_day"] = company_mod.next_day(c["upkeep_day"])
@@ -122,7 +125,7 @@ class CompanyRepo(ScopedRepo, ICompanyRepo, IValuationSource):
 
     def _view(self, c: dict[str, Any], now: float) -> dict[str, Any]:
         """画面に出す形（会社の行に、その日の状態と、計算で出る数字を足す）。"""
-        state = company_mod.day_state(c["kind"], c["guild_id"], company_mod.day_of(now))
+        state = company_mod.day_state(c["kind"], c["guild_id"], company_mod.day_of(now, self._tz_hours))
         stakes = self._stakes(c["guild_id"], c["user_id"])
         return {
             **c,
@@ -135,7 +138,7 @@ class CompanyRepo(ScopedRepo, ICompanyRepo, IValuationSource):
             "yield_mult": state.yield_mult,
             "price": state.price,
             "stock_value": int(c["stock"] * state.price),
-            "budget": self._budget_for(c["guild_id"], company_mod.day_of(now)),
+            "budget": self._budget_for(c["guild_id"], company_mod.day_of(now, self._tz_hours)),
             "stakes_total": sum(stakes.values()),
             "stake_cap": company_mod.stake_cap(c["level"]),
             "investors": len(stakes),
@@ -145,16 +148,14 @@ class CompanyRepo(ScopedRepo, ICompanyRepo, IValuationSource):
     # ------------------------------------------------------------------ #
     # 会社の操作
     # ------------------------------------------------------------------ #
-    def company_get(self, user_id: int, now: Optional[float] = None) -> Optional[dict[str, Any]]:
+    def company_get(self, user_id: int, now: float) -> Optional[dict[str, Any]]:
         """自分の会社（いまの時刻まで精算したもの）。無ければ None。"""
-        now = time.time() if now is None else now
         with self._db.tx():
             c = self._current(self._g(), user_id, now)
             return self._view(c, now) if c else None
 
-    def company_found(self, user_id: int, name: str, kind: str, now: Optional[float] = None) -> tuple[Any, ...]:
+    def company_found(self, user_id: int, name: str, kind: str, now: float) -> tuple[Any, ...]:
         """会社を設立する（設立費と、Lv1 の建設費を払う）。(成功か, Failure か会社)。"""
-        now = time.time() if now is None else now
         ok, name = company_mod.check_name(name)
         if not ok:
             return False, name
@@ -177,15 +178,14 @@ class CompanyRepo(ScopedRepo, ICompanyRepo, IValuationSource):
             self._conn.execute(
                 "INSERT INTO companies (guild_id, user_id, name, kind, stock_ts, upkeep_day, created) "
                 "VALUES (?, ?, ?, ?, ?, ?, ?)",
-                (gid, user_id, name, kind, now, company_mod.day_of(now), now),
+                (gid, user_id, name, kind, now, company_mod.day_of(now, self._tz_hours), now),
             )
             c = self._load(gid, user_id)
             assert c is not None
             return True, self._view(c, now)
 
-    def company_invest(self, user_id: int, amount: int, now: Optional[float] = None) -> tuple[Any, ...]:
+    def company_invest(self, user_id: int, amount: int, now: float) -> tuple[Any, ...]:
         """個人の残高から、会社資金へ出資する。(成功か, Failure か会社資金)。"""
-        now = time.time() if now is None else now
         if amount <= 0:
             return False, fail("company_amount_invalid")
         with self._db.tx():
@@ -207,7 +207,7 @@ class CompanyRepo(ScopedRepo, ICompanyRepo, IValuationSource):
         self, user_id: int, amount: Optional[int] = None, now: Optional[float] = None
     ) -> tuple[Any, ...]:
         """会社資金を、個人の残高へ引き出す（amount が None なら全額）。(成功か, Failure か引き出した額)。"""
-        now = time.time() if now is None else now
+        now = self._now() if now is None else now
         if amount is not None and amount <= 0:
             return False, fail("company_amount_invalid")
         with self._db.tx():
@@ -232,15 +232,14 @@ class CompanyRepo(ScopedRepo, ICompanyRepo, IValuationSource):
             self._account.apply(gid, user_id, take, f"会社から引き出し:{c['name']}")
             return True, take
 
-    def company_ship(self, user_id: int, now: Optional[float] = None) -> tuple[Any, ...]:
+    def company_ship(self, user_id: int, now: float) -> tuple[Any, ...]:
         """倉庫の在庫を、今日の相場で帝愛に売る。(成功か, Failure か {paid, pinhane, price, left})。"""
-        now = time.time() if now is None else now
         with self._db.tx():
             gid = self._g()
             c = self._current(gid, user_id, now)
             if c is None:
                 return False, fail("company_none")
-            day = company_mod.day_of(now)
+            day = company_mod.day_of(now, self._tz_hours)
             price = company_mod.day_state(c["kind"], gid, day).price
             paid, pinhane, left = company_mod.sale(c["stock"], price, self._budget_for(gid, day))
             if paid <= 0:
@@ -269,9 +268,8 @@ class CompanyRepo(ScopedRepo, ICompanyRepo, IValuationSource):
                 "dividends": sum(shares.values()),
             }
 
-    def company_upgrade(self, user_id: int, now: Optional[float] = None) -> tuple[Any, ...]:
+    def company_upgrade(self, user_id: int, now: float) -> tuple[Any, ...]:
         """会社資金で、事業所を1レベル増築する。(成功か, Failure か新しいレベル)。"""
-        now = time.time() if now is None else now
         with self._db.tx():
             gid = self._g()
             c = self._current(gid, user_id, now)
@@ -288,9 +286,8 @@ class CompanyRepo(ScopedRepo, ICompanyRepo, IValuationSource):
             self._save(c)
             return True, c["level"]
 
-    def company_change_kind(self, user_id: int, kind: str, now: Optional[float] = None) -> tuple[Any, ...]:
+    def company_change_kind(self, user_id: int, kind: str, now: float) -> tuple[Any, ...]:
         """事業所の種類を変える。それまでの建設費と在庫を失い、会社資金で Lv1 から建て直す。(成功か, Failure か空文字)。"""
-        now = time.time() if now is None else now
         if kind not in company_mod.KINDS:
             return False, fail("company_kind_unknown")
         with self._db.tx():
@@ -312,11 +309,8 @@ class CompanyRepo(ScopedRepo, ICompanyRepo, IValuationSource):
     # ------------------------------------------------------------------ #
     # ほかの人の会社への出資（#71）
     # ------------------------------------------------------------------ #
-    def stake_invest(
-        self, investor_id: int, owner_id: int, amount: int, now: Optional[float] = None
-    ) -> tuple[Any, ...]:
+    def stake_invest(self, investor_id: int, owner_id: int, amount: int, now: float) -> tuple[Any, ...]:
         """owner_id の会社へ出資する。お金は会社資金に入り、払い戻しはできない。(成功か, Failure か {amount, total})。"""
-        now = time.time() if now is None else now
         if investor_id == owner_id:
             return False, fail("stake_self")
         if amount < company_mod.STAKE_MIN:
@@ -346,9 +340,8 @@ class CompanyRepo(ScopedRepo, ICompanyRepo, IValuationSource):
             )
             return True, {"amount": amount, "total": stakes.get(investor_id, 0) + amount, "name": c["name"]}
 
-    def stake_holdings(self, investor_id: int, now: Optional[float] = None) -> list[dict[str, Any]]:
+    def stake_holdings(self, investor_id: int, now: float) -> list[dict[str, Any]]:
         """自分の出資先。[{owner_id, name, kind, amount, dividends, share, dividend_rate}]（share は持分の割合）。"""
-        now = time.time() if now is None else now
         with self._db.tx():
             gid = self._g()
             rows = self._conn.execute(
@@ -374,9 +367,8 @@ class CompanyRepo(ScopedRepo, ICompanyRepo, IValuationSource):
                 )
             return out
 
-    def company_set_dividend(self, user_id: int, rate: float, now: Optional[float] = None) -> tuple[Any, ...]:
+    def company_set_dividend(self, user_id: int, rate: float, now: float) -> tuple[Any, ...]:
         """自分の会社の配当率を決める（0〜DIVIDEND_MAX）。(成功か, Failure か率)。"""
-        now = time.time() if now is None else now
         if not 0.0 <= rate <= company_mod.DIVIDEND_MAX:
             return False, fail("dividend_rate_range", max=company_mod.DIVIDEND_MAX)
         with self._db.tx():
@@ -389,9 +381,8 @@ class CompanyRepo(ScopedRepo, ICompanyRepo, IValuationSource):
             )
             return True, rate
 
-    def company_settle_all(self, now: Optional[float] = None) -> list[dict[str, Any]]:
+    def company_settle_all(self, now: float) -> list[dict[str, Any]]:
         """このサーバーの会社を、すべて精算する。倒産した会社 [{user_id, name}] を返す（告知用）。"""
-        now = time.time() if now is None else now
         bankrupt = []
         with self._db.tx():
             gid = self._g()

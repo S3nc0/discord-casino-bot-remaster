@@ -2,13 +2,15 @@
 
 from typing import Any, Optional
 
+from domain.ports.clock import IClock
 from domain.ports.repos import IHorseRepo, IP2PRepo, IShopRepo, IWalletRepo
 
 
 class P2PService:
     """出品・購入・入札・取り消し・精算と、出品できる持ち物の照会。"""
 
-    def __init__(self, p2p: IP2PRepo, horses: IHorseRepo, shop: IShopRepo, wallet: IWalletRepo) -> None:
+    def __init__(self, p2p: IP2PRepo, horses: IHorseRepo, shop: IShopRepo, wallet: IWalletRepo, clock: IClock) -> None:
+        self._clock = clock
         self._p2p = p2p
         self._horses = horses
         self._shop = shop
@@ -52,20 +54,20 @@ class P2PService:
         price: int,
         hours: Optional[int],
     ) -> tuple[Any, ...]:
-        return self._repo(guild_id).p2p_list(user_id, kind, ref, qty, mode, price, hours)
+        return self._repo(guild_id).p2p_list(user_id, kind, ref, qty, mode, price, hours, self._clock.now_ts())
 
     def buy(self, guild_id: int, user_id: int, listing_id: int) -> tuple[Any, ...]:
-        return self._repo(guild_id).p2p_buy(user_id, listing_id)
+        return self._repo(guild_id).p2p_buy(user_id, listing_id, self._clock.now_ts())
 
     def bid(self, guild_id: int, user_id: int, listing_id: int, amount: int) -> tuple[Any, ...]:
-        return self._repo(guild_id).p2p_bid(user_id, listing_id, amount)
+        return self._repo(guild_id).p2p_bid(user_id, listing_id, amount, self._clock.now_ts())
 
     def cancel(self, guild_id: int, user_id: int, listing_id: int) -> tuple[Any, ...]:
-        return self._repo(guild_id).p2p_cancel(user_id, listing_id)
+        return self._repo(guild_id).p2p_cancel(user_id, listing_id, self._clock.now_ts())
 
     def settle(self, guild_id: int) -> list[Any]:
         """締切の来た出品を精算する。[(出品, 結果), ...]。"""
-        return self._repo(guild_id).p2p_settle()
+        return self._repo(guild_id).p2p_settle(self._clock.now_ts())
 
     # ------------------------------ 告知の投稿の記録 ------------------------------ #
     def set_post(self, guild_id: int, listing_id: int, channel_id: int, message_id: int) -> None:

@@ -516,7 +516,7 @@ def _seized(eco, uid=1):
 
 def test_bankruptcy_lists_seized_items_but_not_collection_or_limited(eco):
     _seized(eco)
-    listed = {e["item_id"]: e for e in eco.auction.auction_list()}
+    listed = {e["item_id"]: e for e in eco.auction.auction_list(time.time())}
     assert listed[shop.STREAK_GUARD]["qty"] == 2 and CARD in listed
     assert listed[shop.STREAK_GUARD]["price"] == round(16_000 * teiai.AUCTION_START)
     assert not any(
@@ -548,12 +548,12 @@ def test_unsold_items_stay_on_the_shelf_at_the_floor_price(eco):
 def test_auction_buy_moves_item_pays_bank_and_blocks_non_katagi(eco):
     _seized(eco, uid=1)
     eco.wallet.credit(2, 100_000, "テスト")
-    cash_before = eco.bank.bank_status()["cash"]
+    cash_before = eco.bank.bank_status(time.time())["cash"]
     res = eco.auction.auction_buy(2, shop.STREAK_GUARD, qty=2)
     assert res.ok and eco.shop.inventory(2)[shop.STREAK_GUARD] == 2
     assert eco.wallet.balance(2) == INITIAL_BALANCE + 100_000 - 2 * round(16_000 * teiai.AUCTION_START)
-    assert not any(e["item_id"] == shop.STREAK_GUARD for e in eco.auction.auction_list())
-    assert eco.bank.bank_status()["cash"] > cash_before  # 売上は帝愛の収入
+    assert not any(e["item_id"] == shop.STREAK_GUARD for e in eco.auction.auction_list(time.time()))
+    assert eco.bank.bank_status(time.time())["cash"] > cash_before  # 売上は帝愛の収入
     # 破産者（カタギでない）は、買えない。持っているものは買えない
     with eco.db.tx():
         eco.db.conn.execute("UPDATE users SET debt=100 WHERE user_id=1")  # 借金のある人（カタギでない）は、買えない
@@ -660,12 +660,12 @@ def test_shop_screen_shows_the_players_own_stock(eco):
 
 def test_titles_are_confiscated_not_auctioned_and_old_title_listings_are_purged(eco):
     _seized(eco)
-    assert not any(shop.BY_ID[e["item_id"]].kind == shop.TITLE for e in eco.auction.auction_list())
+    assert not any(shop.BY_ID[e["item_id"]].kind == shop.TITLE for e in eco.auction.auction_list(time.time()))
     with eco.db.tx():  # 古い版が出品していた称号
         eco.db.conn.execute(
             "INSERT INTO seized_items (guild_id, item_id, qty, listed_at) VALUES (?, ?, 1, 0)",
             (eco.auction.guild_id, "title_zawa"),
         )
         assert eco.auction.purge_unlistable_auctions() == 1
-    assert "title_zawa" not in {e["item_id"] for e in eco.auction.auction_list()}
-    assert shop.STREAK_GUARD in {e["item_id"] for e in eco.auction.auction_list()}  # 出せる品は、残る
+    assert "title_zawa" not in {e["item_id"] for e in eco.auction.auction_list(time.time())}
+    assert shop.STREAK_GUARD in {e["item_id"] for e in eco.auction.auction_list(time.time())}  # 出せる品は、残る

@@ -1,7 +1,6 @@
 """競馬のレースカード・出馬表 Embed・公開ボタン（再起動耐性 DynamicItem）。"""
 
 import re
-import time
 from typing import TYPE_CHECKING, Any, cast
 
 import discord
@@ -29,7 +28,7 @@ def stat_short(e: dict) -> str:
 
 
 def race_title(desk: HorseDesk, race: dict) -> str:
-    tag = "（臨時）" if race["kind"] == "special" else ("🏆重賞" if horse_mod.is_major_race(race) else "")
+    tag = "（臨時）" if race["kind"] == "special" else ("🏆重賞" if desk.is_major_race(race) else "")
     return f"🏇 第{desk.race_number(race['id'])}競走{tag}"
 
 
@@ -55,9 +54,9 @@ async def refresh_entry_card(
         pass
 
 
-def when(ts: float) -> str:
+def when(ts: float, now: float) -> str:
     """時刻と「◯分後」。過ぎた時刻は、「◯秒前」が増え続けて紛らわしいので、時刻だけにする。"""
-    if time.time() >= ts:
+    if now >= ts:
         return f"<t:{int(ts)}:t>"
     return f"<t:{int(ts)}:t>（<t:{int(ts)}:R>）"
 
@@ -65,14 +64,17 @@ def when(ts: float) -> str:
 def card_embed(desk: HorseDesk, race: dict, closed: bool = False) -> discord.Embed:
     """出馬表。申し込み中は申し込みの馬、発売中は枠・オッズ・調子、終わったら着順。"""
     title = race_title(desk, race)
+    now = desk.clock.now_ts()
     entries = desk.race_entries(race["id"])
     if race["status"] == "entry":
         reg = [e for e in entries if e["lane"] < 0]
         if closed:
             lines = [f"出走の申し込みは、<t:{int(race['entry_close'])}:t> に締め切りました。"]
         else:
-            lines = [f"出走の申し込み: **{when(race['entry_close'])}** まで（出走料 {ui.pelica(horse_mod.ENTRY_FEE)}）"]
-            lines.append(f"発走: {when(race['start_at'])}")
+            lines = [
+                f"出走の申し込み: **{when(race['entry_close'], now)}** まで（出走料 {ui.pelica(horse_mod.ENTRY_FEE)}）"
+            ]
+            lines.append(f"発走: {when(race['start_at'], now)}")
             lines.append("`/競馬 厩舎` から、馬を申し込めます。足りない分は、帝愛の馬が走ります。")
         lines += ["", f"**申し込み {len(reg)} / {horse_mod.FIELD_SIZE}頭**"] + [
             f"{e['silks']} {e['name']}（<@{e['owner_id']}>）" for e in reg
@@ -87,8 +89,8 @@ def card_embed(desk: HorseDesk, race: dict, closed: bool = False) -> discord.Emb
             ]
         else:
             head = [
-                f"コース: **{track.label}**　発走: {when(race['start_at'])}",
-                f"馬券の発売: **{when(race['bet_close'])}** まで（単勝=1着・複勝=3着以内。**オッズは成績で決まり、賭けた時点で確定**）",
+                f"コース: **{track.label}**　発走: {when(race['start_at'], now)}",
+                f"馬券の発売: **{when(race['bet_close'], now)}** まで（単勝=1着・複勝=3着以内。**オッズは成績で決まり、賭けた時点で確定**）",
             ]
 
         def entry_style(e: dict) -> str:

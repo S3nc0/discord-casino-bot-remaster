@@ -133,7 +133,7 @@ def test_tear_adds_one_percent_to_the_owners_prize(eco):
     eco.races.race_set_odds(rid, horse_mod.make_all_odds(field["runners"]))
     give(eco, "relic_tear")
     before = eco.wallet.balance(U)
-    result = eco.races.race_run(rid, random.Random(3))
+    result = eco.races.race_run(rid, 9.0, random.Random(3))
     prize = result["prizes"].get(U, 0)
     if prize:  # 入賞したとき: 賞金は、表の額の1%増し（さらに、出走料ぶんの上限とピンハネがかかる）
         want = {

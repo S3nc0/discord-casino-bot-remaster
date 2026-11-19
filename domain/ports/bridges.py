@@ -49,26 +49,26 @@ class NoOpDebtLifecycleHook(IDebtLifecycleHook):
 class IStatusReader:
     """ユーザーの借金・身分・ブラックリスト状態の読み取り契約。"""
 
-    def status_for(self, guild_id: int, user_id: int, now: Optional[float] = None) -> str:
+    def status_for(self, guild_id: int, user_id: int, now: float) -> str:
         raise NotImplementedError
 
     def debt_for(self, guild_id: int, user_id: int) -> int:
         raise NotImplementedError
 
-    def loan_blacklisted_for(self, guild_id: int, user_id: int, now: Optional[float] = None) -> bool:
+    def loan_blacklisted_for(self, guild_id: int, user_id: int, now: float) -> bool:
         raise NotImplementedError
 
 
 class NoOpStatusReader(IStatusReader):
     """身分契約未接続時の安全デフォルト（カタギ・借金 0・制限なし）。"""
 
-    def status_for(self, guild_id: int, user_id: int, now: Optional[float] = None) -> str:
+    def status_for(self, guild_id: int, user_id: int, now: float) -> str:
         return "katagi"
 
     def debt_for(self, guild_id: int, user_id: int) -> int:
         return 0
 
-    def loan_blacklisted_for(self, guild_id: int, user_id: int, now: Optional[float] = None) -> bool:
+    def loan_blacklisted_for(self, guild_id: int, user_id: int, now: float) -> bool:
         return False
 
 
@@ -90,7 +90,7 @@ class IDebtOps:
     def owe_for(self, guild_id: int, user_id: int, shortfall: int, reason: str) -> int:
         raise NotImplementedError
 
-    def accrue_debt_interest_for(self, guild_id: int, user_id: int, now: Optional[float] = None) -> int:
+    def accrue_debt_interest_for(self, guild_id: int, user_id: int, now: float) -> int:
         raise NotImplementedError
 
 
@@ -112,7 +112,7 @@ class NoOpDebtOps(IDebtOps):
     def owe_for(self, guild_id: int, user_id: int, shortfall: int, reason: str) -> int:
         return 0
 
-    def accrue_debt_interest_for(self, guild_id: int, user_id: int, now: Optional[float] = None) -> int:
+    def accrue_debt_interest_for(self, guild_id: int, user_id: int, now: float) -> int:
         return 0
 
 
@@ -178,12 +178,12 @@ class IBankCashFlow:
         guild_id: int,
         amount: int,
         share: float,
-        now: Optional[float] = None,
+        now: float,
         needs_depositors: bool = False,
     ) -> None:
         raise NotImplementedError
 
-    def bank_pay_for(self, guild_id: int, amount: int, now: Optional[float] = None) -> int:
+    def bank_pay_for(self, guild_id: int, amount: int, now: float) -> int:
         raise NotImplementedError
 
 
@@ -233,15 +233,13 @@ class NoOpGraceReader(IGraceReader):
 class IBankCdsBridge(IGraceReader):
     """DebtRepo が BankRepo 具体型に依存せず猶予更新と CDS 精算を行う契約。"""
 
-    def grace_update_for(self, guild_id: int, user_id: int, now: Optional[float] = None) -> None:
+    def grace_update_for(self, guild_id: int, user_id: int, now: float) -> None:
         raise NotImplementedError
 
-    def cds_cover_self_for(self, guild_id: int, user_id: int, shortfall: int, now: Optional[float] = None) -> int:
+    def cds_cover_self_for(self, guild_id: int, user_id: int, shortfall: int, now: float) -> int:
         raise NotImplementedError
 
-    def cds_settle_default_for(
-        self, guild_id: int, target_id: int, debt_before: int, now: Optional[float] = None
-    ) -> int:
+    def cds_settle_default_for(self, guild_id: int, target_id: int, debt_before: int, now: float) -> int:
         raise NotImplementedError
 
     def cds_void_for(self, guild_id: int, target_id: int) -> None:
@@ -254,15 +252,13 @@ class NoOpBankCdsBridge(IBankCdsBridge):
     def grace_until_for(self, guild_id: int, user_id: int) -> Optional[float]:
         return None
 
-    def grace_update_for(self, guild_id: int, user_id: int, now: Optional[float] = None) -> None:
+    def grace_update_for(self, guild_id: int, user_id: int, now: float) -> None:
         return None
 
-    def cds_cover_self_for(self, guild_id: int, user_id: int, shortfall: int, now: Optional[float] = None) -> int:
+    def cds_cover_self_for(self, guild_id: int, user_id: int, shortfall: int, now: float) -> int:
         return 0
 
-    def cds_settle_default_for(
-        self, guild_id: int, target_id: int, debt_before: int, now: Optional[float] = None
-    ) -> int:
+    def cds_settle_default_for(self, guild_id: int, target_id: int, debt_before: int, now: float) -> int:
         return 0
 
     def cds_void_for(self, guild_id: int, target_id: int) -> None:

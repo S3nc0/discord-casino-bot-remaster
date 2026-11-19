@@ -8,7 +8,6 @@
 
 import asyncio
 import logging
-import time
 from typing import TYPE_CHECKING, Any, Optional, cast
 
 import discord
@@ -199,7 +198,7 @@ class HorseCog(commands.Cog, IHorseAdminBridge, IHorseButtonBridge):
         if action == "card":
             await interaction.response.send_message(embed=card_embed(desk, race), ephemeral=True)
             return
-        if race["status"] != "betting" or time.time() >= race["bet_close"]:
+        if race["status"] != "betting" or desk.clock.now_ts() >= race["bet_close"]:
             await interaction.response.send_message(
                 embed=ui.error_embed("買えません", "このレースの馬券は、まだ（またはもう）買えません。"), ephemeral=True
             )
@@ -222,7 +221,7 @@ class HorseCog(commands.Cog, IHorseAdminBridge, IHorseButtonBridge):
         desk = self._desk_for(interaction)
         races = desk.race_open()
         if not races:
-            slots = self._horse_svc.next_slots(ui.guild_id_of(interaction), time.time())
+            slots = self._horse_svc.next_slots(ui.guild_id_of(interaction))
             return await interaction.response.send_message(
                 embed=ui.embed(
                     "🏇 競馬",
@@ -250,7 +249,7 @@ class HorseCog(commands.Cog, IHorseAdminBridge, IHorseButtonBridge):
         desk = self._horse_svc.desk(guild.id)
         target = channel or announce_channel(guild, self._guild_repo)
         target_id = getattr(target, "id", 0)
-        race_id = desk.race_create_special(time.time(), entry_min, bet_min, target_id)
+        race_id = desk.race_create_special(desk.clock.now_ts(), entry_min, bet_min, target_id)
         await self._announce_entry(guild, desk, race_id)
         return race_id
 
@@ -371,7 +370,7 @@ class HorseCog(commands.Cog, IHorseAdminBridge, IHorseButtonBridge):
         await self.bot.wait_until_ready()
 
     async def run_once(self) -> None:
-        now = time.time()
+        now = self._horse_svc.clock.now_ts()
 
         async def _handle(guild: discord.Guild) -> None:
             desk = self._horse_svc.desk(guild.id)

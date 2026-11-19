@@ -10,7 +10,8 @@ pytestmark = pytest.mark.real_scope
 
 G, U, V = 10, 1, 2
 DAY = 86400
-NOON = co.day_start("2026-11-17") + DAY / 2  # ある日の正午（現地時間）
+TZ = 9.0  # 本番の utc_offset_hours
+NOON = co.day_start("2026-11-17", TZ) + DAY / 2  # ある日の正午（現地時間）
 FOUND_COST = co.FOUND_FEE + co.BUILD_COSTS[0]
 
 
@@ -59,15 +60,23 @@ def test_day_state_is_the_same_for_everyone_on_a_day_and_within_its_price_range(
 
 
 def test_produce_accrues_by_time_and_stops_at_the_storage_cap():
-    half = co.produce("mine", 1, G, 0.0, NOON, NOON + DAY / 2)
+    half = co.produce("mine", 1, G, 0.0, NOON, NOON + DAY / 2, TZ)
     assert half == pytest.approx(co.daily_output("mine", 1) / 2)  # 採掘場は、いつも生産 1.0 倍
-    assert co.produce("mine", 1, G, 0.0, NOON, NOON + 30 * DAY) == pytest.approx(co.storage_cap("mine", 1))
-    assert co.produce("mine", 1, G, 5.0, NOON, NOON - 10) == 5.0  # 時刻が戻っても、減らない
+    assert co.produce("mine", 1, G, 0.0, NOON, NOON + 30 * DAY, TZ) == pytest.approx(co.storage_cap("mine", 1))
+    assert co.produce("mine", 1, G, 5.0, NOON, NOON - 10, TZ) == 5.0  # 時刻が戻っても、減らない
+
+
+def test_day_boundary_follows_the_configured_offset():
+    """日付の切り替わりは、注入された時差（utc_offset_hours）で決まる。UTC 15:00 は JST では翌日、UTC では当日。"""
+    utc_15 = co.day_start("2026-11-17", 0.0) + 15 * 3600
+    assert co.day_of(utc_15, 9.0) == "2026-11-18"
+    assert co.day_of(utc_15, 0.0) == "2026-11-17"
+    assert co.day_start("2026-11-18", 9.0) == co.day_start("2026-11-17", 0.0) + 15 * 3600
 
 
 def test_farm_production_follows_each_days_yield():
-    start = co.day_start("2026-11-17")
-    total = co.produce("farm", 5, G, 0.0, start, start + 2 * DAY)
+    start = co.day_start("2026-11-17", TZ)
+    total = co.produce("farm", 5, G, 0.0, start, start + 2 * DAY, TZ)
     expected = sum(
         co.daily_output("farm", 5) * co.day_state("farm", G, d).yield_mult for d in ("2026-11-17", "2026-11-18")
     )

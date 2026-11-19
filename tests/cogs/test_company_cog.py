@@ -16,7 +16,7 @@ from tests.support import make_test_bot
 
 U = 1
 DAY = 86400
-NOON = co.day_start("2026-11-17") + DAY / 2
+NOON = co.day_start("2026-11-17", 9.0) + DAY / 2
 
 
 class _Resp:

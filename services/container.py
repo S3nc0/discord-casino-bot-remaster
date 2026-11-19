@@ -1,7 +1,7 @@
 """アプリケーションサービス群のコンテナと配線ヘルパー（Composition Root 用）。"""
 
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Optional
 
 from domain.ports.clock import IClock
 from domain.ports.repos import IRepositoryBundle
@@ -49,8 +49,11 @@ class ServiceRegistry:
     admin: AdminService
 
 
-def build_services(config: dict[str, Any], repos: IRepositoryBundle, sessions: ISessionGuard) -> ServiceRegistry:
-    clock = ConfigClock(config)
+def build_services(
+    config: dict[str, Any], repos: IRepositoryBundle, sessions: ISessionGuard, clock: Optional[IClock] = None
+) -> ServiceRegistry:
+    """clock を省略すると config の utc_offset_hours から作る。リポジトリと同じ時計を渡すと、時刻の出どころが1つになる。"""
+    clock = clock if clock is not None else ConfigClock(config)
     return ServiceRegistry(
         clock=clock,
         sessions=sessions,
@@ -100,6 +103,7 @@ def build_services(config: dict[str, Any], repos: IRepositoryBundle, sessions: I
             p2p=repos.p2p,
             wallet=repos.wallet,
             guild=repos.guild,
+            clock=clock,
         ),
         teiai=TeiaiService(
             bank=repos.bank,
@@ -110,7 +114,7 @@ def build_services(config: dict[str, Any], repos: IRepositoryBundle, sessions: I
             clock=clock,
         ),
         quiz=QuizService(quiz=repos.quiz, clock=clock),
-        p2p=P2PService(p2p=repos.p2p, horses=repos.horses, shop=repos.shop, wallet=repos.wallet),
+        p2p=P2PService(p2p=repos.p2p, horses=repos.horses, shop=repos.shop, wallet=repos.wallet, clock=clock),
         raffle=RaffleService(raffle=repos.raffle, clock=clock),
         event=EventService(events=repos.events, clock=clock),
         admin=AdminService(wallet=repos.wallet, rtp=repos.rtp, pachinko=repos.pachinko),

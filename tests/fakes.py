@@ -5,6 +5,7 @@
 テスト本体ではフェイクの属性（送ったメッセージなど）を型付きのまま読めるようにする。
 """
 
+import datetime
 from collections.abc import Callable, Coroutine
 from types import SimpleNamespace
 from typing import Any, cast
@@ -13,6 +14,8 @@ import aiohttp
 import discord
 from discord import app_commands
 from discord.ext import commands
+
+from domain.ports.clock import IClock
 
 Coro = Coroutine[Any, Any, Any]
 
@@ -87,3 +90,15 @@ def call(handler: Callable[..., Coro], *args: object) -> Coro:
 
 def as_item(fake: object) -> "discord.ui.Item[Any]":
     return cast("discord.ui.Item[Any]", fake)
+
+
+def freeze_time(monkeypatch: Any, clock: IClock, now: "float | Callable[[], float]") -> None:
+    """clock の現在時刻を now（UNIX 秒）に固定する。時差は clock.offset_hours() のまま。
+
+    now に関数を渡すと、呼ばれるたびにその値を使う（テストの途中で時刻を進めるとき）。
+    Service・Cog は同じ IClock を共有するので、bot.services.clock を渡せば全体の時刻が変わる。
+    リポジトリの内部処理の時刻は、eco.db.clock（make_test_bot では services と同じ時計）を渡す。
+    """
+    tz = datetime.timezone(datetime.timedelta(hours=clock.offset_hours()))
+    read = now if callable(now) else (lambda: now)
+    monkeypatch.setattr(clock, "now", lambda: datetime.datetime.fromtimestamp(read(), tz))

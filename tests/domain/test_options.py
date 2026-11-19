@@ -91,18 +91,18 @@ def test_premium_feeds_the_bank(eco):
 
 
 def test_buy_rules(eco):
-    assert not eco.options.option_buy(U, "call", "cs", 50)[0]  # 最低額
-    assert not eco.options.option_buy(U, "straddle", "cs", 1_000)[0]  # 種類
-    assert not eco.options.option_buy(U, "call", "cs", INITIAL_BALANCE + 1)[0]  # 残高不足
+    assert not eco.options.option_buy(U, "call", "cs", 50, time.time())[0]  # 最低額
+    assert not eco.options.option_buy(U, "straddle", "cs", 1_000, time.time())[0]  # 種類
+    assert not eco.options.option_buy(U, "call", "cs", INITIAL_BALANCE + 1, time.time())[0]  # 残高不足
     with eco.db.tx():
         eco.db.conn.execute("UPDATE users SET debt=100 WHERE user_id=?", (U,))
-    assert eco.options.option_buy(U, "call", "cs", 1_000)[1].code == "debt_blocks"
+    assert eco.options.option_buy(U, "call", "cs", 1_000, time.time())[1].code == "debt_blocks"
 
 
 def test_open_premium_cap(eco):
     eco.wallet.credit(U, 100_000, "テスト")
-    assert eco.options.option_buy(U, "call", "cs", 15_000)[0]
-    ok, why = eco.options.option_buy(U, "put", "cs", 10_000)
+    assert eco.options.option_buy(U, "call", "cs", 15_000, time.time())[0]
+    ok, why = eco.options.option_buy(U, "put", "cs", 10_000, time.time())
     assert not ok and why.code == "option_max_open_premium" and why.params["max_open"] == opt.MAX_OPEN_PREMIUM
 
 
@@ -195,7 +195,7 @@ def test_option_gains_value_when_the_price_moves_in_favour(eco):
 
 
 def test_options_count_in_the_ranking_and_are_seized_for_debt(eco):
-    ok, res = eco.options.option_buy(U, opt.CALL, "cs", 1_000)
+    ok, res = eco.options.option_buy(U, opt.CALL, "cs", 1_000, time.time())
     assert (
         dict((u, v) for _, u, v in eco.wallet.top(5))[U] > INITIAL_BALANCE - res["cost"]
     )  # 掛け金は、評価額として残る

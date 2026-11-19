@@ -1,6 +1,7 @@
 """プレイヤー間の取引（定価の市場と競り）: 値段の幅・手数料・入札・預かり・精算・送金の抜け道対策。"""
 
 import asyncio
+import time
 from types import SimpleNamespace
 
 import pytest
@@ -105,12 +106,12 @@ def test_listing_an_equipped_cosmetic_unequips_it(eco):
 def test_buying_pays_the_seller_minus_the_fee_and_moves_the_item(eco):
     give(eco, S, CARROT, 2)
     _, lid = eco.p2p.p2p_list(S, "item", CARROT, 2, "fixed", 2_000, None, NOW)
-    s0, b0, cash0 = eco.wallet.balance(S), eco.wallet.balance(B), eco.bank.bank_status()["cash"]
+    s0, b0, cash0 = eco.wallet.balance(S), eco.wallet.balance(B), eco.bank.bank_status(time.time())["cash"]
     ok, paid = eco.p2p.p2p_buy(B, lid, NOW + 1)
     assert ok and paid == 2_000
     assert eco.wallet.balance(B) == b0 - 2_000 and eco.shop.inventory(B)[CARROT] == 2
     assert eco.wallet.balance(S) == s0 + 2_000 - p2p.fee_of(2_000)  # 手数料を引いた額
-    assert eco.bank.bank_status()["cash"] > cash0  # 手数料は帝愛銀行の収入
+    assert eco.bank.bank_status(time.time())["cash"] > cash0  # 手数料は帝愛銀行の収入
     assert eco.p2p.p2p_get(lid)["status"] == "sold" and not eco.p2p.p2p_buy(C, lid, NOW + 2)[0]
 
 

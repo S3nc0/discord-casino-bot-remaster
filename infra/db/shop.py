@@ -3,7 +3,6 @@
 表の定義は infra/db/schema/tables.py にある。
 """
 
-import time
 from typing import Any, Optional
 
 from domain import shop as shop_mod
@@ -62,7 +61,7 @@ class ShopRepo(ScopedRepo, IShopRepo, IShopBelongings):
         )
         return SeizedBelongings(items=tuple(items))
 
-    def shop_stock(self, user_id: int, item_id: str, now: Optional[float] = None) -> Optional[dict[str, Any]]:
+    def shop_stock(self, user_id: int, item_id: str, now: float) -> Optional[dict[str, Any]]:
         """在庫のある品の、このプレイヤーの在庫 {stock: 買える数, max, next_at: 次に1つ増える時刻（満タンなら None）}。在庫のない品は None。
 
         読み取りだけ（記録がなければ、満タン）。
@@ -70,7 +69,6 @@ class ShopRepo(ScopedRepo, IShopRepo, IShopBelongings):
         rule = shop_mod.STOCK_RULES.get(item_id)
         if rule is None:
             return None
-        now = time.time() if now is None else now
         with self._lock:
             row = self._conn.execute(
                 "SELECT stock, updated FROM shop_stock WHERE guild_id=? AND user_id=? AND item_id=?",
@@ -98,7 +96,7 @@ class ShopRepo(ScopedRepo, IShopRepo, IShopBelongings):
         if qty < 1 or price <= 0:
             return PurchaseResult(False, fail("shop_invalid_qty_or_price"))
         total = price * qty
-        now = time.time() if now is None else now
+        now = self._now() if now is None else now
         with self._db.tx():
             gid = self._g()
             self._account.ensure(gid, user_id)
@@ -167,7 +165,7 @@ class ShopRepo(ScopedRepo, IShopRepo, IShopBelongings):
                 if row
                 else {"user_id": user_id, **dict.fromkeys(self.SLOTS), "daily_boost": 0, "insurance": 0}
             )
-            prof["status"] = self._status_reader.status_for(gid, user_id)
+            prof["status"] = self._status_reader.status_for(gid, user_id, self._now())
         prof["frozen"] = prof["status"] != teiai.KATAGI
         if prof["frozen"] and not raw:
             for slot in self.SLOTS:
