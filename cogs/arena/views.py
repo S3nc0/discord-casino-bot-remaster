@@ -43,7 +43,8 @@ class StakeModal(discord.ui.Modal):
             return
         await interaction.response.send_message(
             embed=ui.ok_embed(
-                "賭けました", f"**{self.fighter['name']}** に {ui.pelica(stake)}（的中すれば賭け金ぶん増えます）"
+                "賭けました",
+                f"**{self.fighter['name']}** に {ui.pelica(stake)}（的中すれば、賭け金はそのまま戻り、オッズに応じた利益が上乗せされます）",
             ),
             ephemeral=True,
         )

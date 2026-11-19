@@ -34,12 +34,12 @@ class ArenaService:
     def run_semis(
         self, guild_id: int, tournament_id: int, rng: Optional[random.Random] = None
     ) -> Optional[dict[str, Any]]:
-        return self._arena.for_guild(guild_id).arena_run_semis(tournament_id, rng)
+        return self._arena.for_guild(guild_id).arena_run_semis(tournament_id, rng, self.clock.now_ts())
 
     def run_final(
         self, guild_id: int, tournament_id: int, rng: Optional[random.Random] = None
     ) -> Optional[dict[str, Any]]:
-        return self._arena.for_guild(guild_id).arena_run_final(tournament_id, rng)
+        return self._arena.for_guild(guild_id).arena_run_final(tournament_id, rng, self.clock.now_ts())
 
     def tournament_by_day(self, guild_id: int, day: str, fmt: str) -> Optional[dict[str, Any]]:
         return self._arena.for_guild(guild_id).arena_tournament_get_by_day(day, fmt)

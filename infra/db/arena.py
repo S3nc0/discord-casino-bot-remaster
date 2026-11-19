@@ -8,6 +8,7 @@ import random
 from typing import Any, Optional
 
 from domain import arena as arena_mod
+from domain import teiai
 from domain.errors import fail
 from domain.ports.bridges import IBankCashFlow
 from domain.ports.repos import IArenaRepo
@@ -152,6 +153,7 @@ class ArenaRepo(ScopedRepo, IArenaRepo):
         winner: dict[str, Any],
         losers: list[dict[str, Any]],
         win_odds: float,
+        now: Optional[float] = None,
     ) -> None:
         """1試合ぶんを精算する。敗者側の賭け（観客ぶんも含む）が、勝者側のプレイヤーの配当の原資になる。"""
         loser_ids = [f["id"] for f in losers]
@@ -178,16 +180,29 @@ class ArenaRepo(ScopedRepo, IArenaRepo):
             "SELECT * FROM arena_bets WHERE tournament_id=? AND stage=? AND fighter_id=? AND settled=0",
             (tournament_id, stage, winner["id"]),
         ).fetchall()
-        player_due = sum(round(b["amount"] * rate) for b in win_bets if b["user_id"] > 0)
-        scale = arena_mod.payout_scale(losers_pool, player_due)
+        # 案B(#27): 勝てば元本は必ず戻す。利益は負けた側の賭け金と、足りない分だけ帝愛の手元現金から上限つきで補う
+        player_bets = [b for b in win_bets if b["user_id"] > 0]
+        # 補填と銀行の収入には時刻が要る。時刻が渡されないとき(古い呼び出し)は補填しない
+        state = self._bank.bank_sync_for(guild_id, now) if now is not None else None
+        cap = min(arena_mod.MATCH_SUBSIDY_MAX, max(0, int(state["cash"]))) if state is not None else 0
+        pays, subsidy, leftover = arena_mod.settle_payouts([b["amount"] for b in player_bets], rate, losers_pool, cap)
+        if subsidy and state is not None:
+            self._bank.bank_set_for(guild_id, state["cash"] - subsidy, state["loaned"])
+        if (
+            leftover and now is not None
+        ):  # 使われなかった負け分は、カジノの負け分と同じく一部を帝愛銀行の収入にする(残りは消える)
+            self._bank.bank_income_for(guild_id, int(leftover * teiai.LOSS_SHARE), 1.0, now, needs_depositors=True)
+        pay_of = {b["id"]: p for b, p in zip(player_bets, pays)}
         for b in win_bets:
-            pay = round(b["amount"] * rate * scale) if b["user_id"] > 0 else 0
+            pay = pay_of.get(b["id"], 0)
             if pay:
                 self._account.apply(guild_id, b["user_id"], pay, "闘技場:勝利の配当", income=max(0, pay - b["amount"]))
             self._conn.execute("UPDATE arena_bets SET payout=?, settled=1 WHERE id=?", (pay, b["id"]))
         self._conn.execute("UPDATE arena_fighters SET result='won' WHERE id=?", (winner["id"],))
 
-    def arena_run_semis(self, tournament_id: int, rng: Optional[random.Random] = None) -> Optional[dict[str, Any]]:
+    def arena_run_semis(
+        self, tournament_id: int, rng: Optional[random.Random] = None, now: Optional[float] = None
+    ) -> Optional[dict[str, Any]]:
         """準決勝の全組を同時に決着させ、決勝へ進む人（組の数ぶん）を決める。"""
         rng = rng or random.SystemRandom()
         with self._db.tx():
@@ -204,7 +219,7 @@ class ArenaRepo(ScopedRepo, IArenaRepo):
                 win_idx = arena_mod.simulate_match(group, bet_totals, rng)
                 winner, losers = group[win_idx], [f for i, f in enumerate(group) if i != win_idx]
                 win_odds = arena_mod.match_odds(group)[winner["name"]]
-                self._arena_settle_group(gid, tournament_id, "semi", winner, losers, win_odds)
+                self._arena_settle_group(gid, tournament_id, "semi", winner, losers, win_odds, now)
                 finalists.append(winner)
                 groups[group_no] = {"winner": winner["name"], "losers": [f["name"] for f in losers]}
             for w in finalists:
@@ -212,7 +227,9 @@ class ArenaRepo(ScopedRepo, IArenaRepo):
             self._conn.execute("UPDATE arena_tournaments SET status='final_betting' WHERE id=?", (tournament_id,))
             return {"groups": groups, "finalists": [w["name"] for w in finalists]}
 
-    def arena_run_final(self, tournament_id: int, rng: Optional[random.Random] = None) -> Optional[dict[str, Any]]:
+    def arena_run_final(
+        self, tournament_id: int, rng: Optional[random.Random] = None, now: Optional[float] = None
+    ) -> Optional[dict[str, Any]]:
         """決勝を決着させ、優勝者を決める（準決勝の勝者全員で、同時に戦う）。"""
         rng = rng or random.SystemRandom()
         with self._db.tx():
@@ -228,7 +245,7 @@ class ArenaRepo(ScopedRepo, IArenaRepo):
             champion = finalists[win_idx]
             losers = [f for i, f in enumerate(finalists) if i != win_idx]
             win_odds = arena_mod.match_odds(finalists, boost=arena_mod.FINAL_ODDS_BOOST)[champion["name"]]
-            self._arena_settle_group(gid, tournament_id, "final", champion, losers, win_odds)
+            self._arena_settle_group(gid, tournament_id, "final", champion, losers, win_odds, now)
             self._conn.execute("UPDATE arena_tournaments SET status='done' WHERE id=?", (tournament_id,))
             return {"champion": champion["name"], "runner_up": [f["name"] for f in losers]}
 

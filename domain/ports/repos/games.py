@@ -175,10 +175,14 @@ class IArenaRepo(IGuildScopedRepo):
     def arena_bet(self, user_id: int, fighter_id: int, amount: int, now: float) -> tuple[Any, ...]:
         raise NotImplementedError
 
-    def arena_run_semis(self, tournament_id: int, rng: Optional[random.Random] = None) -> Optional[dict[str, Any]]:
+    def arena_run_semis(
+        self, tournament_id: int, rng: Optional[random.Random] = None, now: Optional[float] = None
+    ) -> Optional[dict[str, Any]]:
         raise NotImplementedError
 
-    def arena_run_final(self, tournament_id: int, rng: Optional[random.Random] = None) -> Optional[dict[str, Any]]:
+    def arena_run_final(
+        self, tournament_id: int, rng: Optional[random.Random] = None, now: Optional[float] = None
+    ) -> Optional[dict[str, Any]]:
         raise NotImplementedError
 
     def arena_my_bets(self, tournament_id: int, user_id: int) -> list[Any]:

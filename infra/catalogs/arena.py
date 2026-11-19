@@ -29,6 +29,7 @@ class ArenaCatalog(ArenaCatalogContract):
     spectator_min_bet: int = Field(gt=0)
     spectator_max_bet: int = Field(gt=0)
     house_topup_max: int = Field(ge=0)
+    match_subsidy_max: int = Field(ge=0)
 
 
 @lru_cache(maxsize=1)

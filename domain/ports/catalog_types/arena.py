@@ -24,3 +24,4 @@ class ArenaCatalogContract:
     spectator_min_bet: int
     spectator_max_bet: int
     house_topup_max: int
+    match_subsidy_max: int

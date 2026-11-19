@@ -15,6 +15,7 @@ spectator_count_max: 8
 spectator_min_bet: 100
 spectator_max_bet: 3000
 house_topup_max: 5000
+match_subsidy_max: 5000    # 1試合で、配当の利益分が足りないとき帝愛銀行の手元現金から補う上限(#27)
 fighter_names:
   - 鉄拳のゴウ
   - 灼熱のレイジ
