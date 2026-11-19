@@ -9,6 +9,7 @@ import time
 from typing import Any, Optional
 
 from domain import arena as arena_mod
+from domain import teiai
 from domain.errors import fail
 from domain.ports.bridges import IBankCashFlow
 from domain.ports.repos import IArenaRepo
@@ -181,10 +182,19 @@ class ArenaRepo(ScopedRepo, IArenaRepo):
             "SELECT * FROM arena_bets WHERE tournament_id=? AND stage=? AND fighter_id=? AND settled=0",
             (tournament_id, stage, winner["id"]),
         ).fetchall()
-        player_due = sum(round(b["amount"] * rate) for b in win_bets if b["user_id"] > 0)
-        scale = arena_mod.payout_scale(losers_pool, player_due)
+        # 案B(#27): 勝てば元本は必ず戻す。利益は負けた側の賭け金と、足りない分だけ帝愛の手元現金から上限つきで補う
+        player_bets = [b for b in win_bets if b["user_id"] > 0]
+        now = time.time()
+        state = self._bank.bank_sync_for(guild_id, now)
+        cap = min(arena_mod.MATCH_SUBSIDY_MAX, max(0, int(state["cash"])))
+        pays, subsidy, leftover = arena_mod.settle_payouts([b["amount"] for b in player_bets], rate, losers_pool, cap)
+        if subsidy:
+            self._bank.bank_set_for(guild_id, state["cash"] - subsidy, state["loaned"])
+        if leftover:  # 使われなかった負け分は、カジノの負け分と同じく一部を帝愛銀行の収入にする(残りは消える)
+            self._bank.bank_income_for(guild_id, int(leftover * teiai.LOSS_SHARE), 1.0, now, needs_depositors=True)
+        pay_of = {b["id"]: p for b, p in zip(player_bets, pays)}
         for b in win_bets:
-            pay = round(b["amount"] * rate * scale) if b["user_id"] > 0 else 0
+            pay = pay_of.get(b["id"], 0)
             if pay:
                 self._account.apply(guild_id, b["user_id"], pay, "闘技場:勝利の配当", income=max(0, pay - b["amount"]))
             self._conn.execute("UPDATE arena_bets SET payout=?, settled=1 WHERE id=?", (pay, b["id"]))

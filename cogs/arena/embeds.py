@@ -89,7 +89,7 @@ def tournament_embed(t: dict, semi_hour: int, final_hour: int, breakdown: dict) 
     if finalists or t["status"] in ("final_betting", "done"):
         lines.append("__決勝__")
         if finalists:
-            odds = arena_mod.match_odds(finalists)
+            odds = arena_mod.match_odds(finalists, boost=arena_mod.FINAL_ODDS_BOOST)  # 精算と同じ決勝のオッズ
             lines.extend(fighter_line(f, breakdown.get(f["id"], []), odds[f["name"]]) for f in finalists)
         else:
             lines.append("（準決勝の結果で決まります）")

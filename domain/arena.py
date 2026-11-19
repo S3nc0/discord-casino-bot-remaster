@@ -38,7 +38,8 @@ MAX_STAKE = _CFG.max_stake
 
 SPECTATOR_COUNT = (_CFG.spectator_count_min, _CFG.spectator_count_max)
 SPECTATOR_BET = (_CFG.spectator_min_bet, _CFG.spectator_max_bet)
-HOUSE_TOPUP_MAX = _CFG.house_topup_max  # 観客の初期ランダム分を、帝愛の手元現金から補う上限（1試合あたり）
+HOUSE_TOPUP_MAX = _CFG.house_topup_max  # 観客の初期ランダム分を、帝愛の手元現金から補う上限（1大会あたり）
+MATCH_SUBSIDY_MAX = _CFG.match_subsidy_max  # 1試合で、配当の利益分の不足を帝愛銀行の手元現金から補う上限
 
 FORMATS = ("duel", "royale")
 GROUP_SIZE = {"duel": 2, "royale": 4}  # 1試合（準決勝1組・決勝）の人数
@@ -131,6 +132,22 @@ def battle_frames(count: int, winner_idx: int, rng: random.Random, frames: int =
             hp[j] = 0.0
     out[-1] = [round(x) for x in hp]
     return out
+
+
+def settle_payouts(stakes: list[int], rate: float, pool: int, subsidy_cap: int) -> tuple[list[int], int, int]:
+    """勝者の払い戻し(#27)。(各人の払い戻し, 帝愛の補填額, 余った原資)。
+
+    - 勝てば、賭け金(元本)は必ず戻す
+    - 利益(賭け金 × (オッズ − 1))の原資は、負けた側の賭け金 pool と、足りない分だけ帝愛の補填(上限 subsidy_cap)
+    - それでも足りなければ、利益の分だけを比例して減らす(元本は減らさない)。新しいペリカは作らない
+    """
+    profits = [max(0, round(a * rate) - a) for a in stakes]
+    due = sum(profits)
+    subsidy = min(max(0, due - pool), max(0, subsidy_cap))
+    scale = payout_scale(pool + subsidy, due)
+    paid = [round(p * scale) for p in profits]
+    leftover = max(0, pool + subsidy - sum(paid))
+    return [a + p for a, p in zip(stakes, paid)], subsidy, leftover
 
 
 def payout_scale(losers_pool: int, winners_due: int) -> float:

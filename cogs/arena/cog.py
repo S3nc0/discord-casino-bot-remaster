@@ -144,8 +144,9 @@ class ArenaCog(commands.Cog, IArenaAdminBridge):
         result = self._arena.run_final(guild.id, t["id"])
         if result:
             channel = await self._channel(guild)
-            if channel is not None and len(pre_finalists) == 2:
-                winner_idx = 0 if result["champion"] == pre_finalists[0]["name"] else 1
+            names = [f["name"] for f in pre_finalists]
+            if channel is not None and len(pre_finalists) >= 2 and result["champion"] in names:  # バトロワは4人決勝
+                winner_idx = names.index(result["champion"])
                 await self._animate_match(channel, pre_finalists, winner_idx, "👑 決勝、開戦！")
             if channel is not None:
                 await self._post(channel, embed=final_result_embed(result))

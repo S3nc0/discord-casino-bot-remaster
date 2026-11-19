@@ -90,6 +90,38 @@ def test_simulate_match_weapon_bonus_increases_win_chance():
     assert boosted > plain + 0.1  # 賭け総額ぶんの武器で、勝ちやすくなる
 
 
+def test_settle_payouts_returns_principal_and_funds_profit_from_pool_then_subsidy():
+    """#27 案B: 元本は必ず戻す。利益は負け分 → 帝愛の補填(上限つき)の順で払い、足りない分は利益だけ減らす。"""
+    pays, subsidy, left = a.settle_payouts([20_000], 2.0, 89, 0)  # 「2万賭けて89ペリカ」だった状況
+    assert pays == [20_089] and subsidy == 0 and left == 0  # 元本は戻り、利益は負け分の89だけ
+    pays, subsidy, left = a.settle_payouts([20_000], 2.0, 89, 5_000)
+    assert pays == [25_089] and subsidy == 5_000 and left == 0  # 補填は上限まで
+    pays, subsidy, left = a.settle_payouts([1_000, 3_000], 1.5, 10_000, 5_000)
+    assert pays == [1_500, 4_500] and subsidy == 0 and left == 8_000  # 足りていれば満額、補填なし、余りあり
+    pays, subsidy, left = a.settle_payouts([1_000, 3_000], 2.0, 1_000, 1_000)
+    assert pays == [1_500, 4_500] and subsidy == 1_000 and left == 0  # 利益 4,000 に原資 2,000 → 利益だけ半分
+    assert a.settle_payouts([], 2.0, 500, 1_000) == ([], 0, 500)
+
+
+def test_arena_winner_gets_principal_back_and_subsidy_comes_from_bank_cash(repos):
+    t = repos.arena.arena_tournament_ensure("duel", NOW, rng=random.Random(3))
+    repos.arena.arena_run_semis(t["id"], rng=random.Random(5))
+    finalists = [f for f in repos.arena.arena_fighters(t["id"]) if f["stage"] == "final"]
+    repos.wallet.credit(U, 100_000, "テスト")
+    repos.wallet.credit(V, 100_000, "テスト")
+    for f in finalists:  # 両方に賭ける人を分けて、勝った側の人が必ずいるようにする
+        repos.arena.arena_bet(U if f is finalists[0] else V, f["id"], a.MAX_STAKE, NOW)
+    cash_before = repos.bank.bank_status(NOW)["cash"]
+    result = repos.arena.arena_run_final(t["id"], rng=random.Random(7))
+    assert result is not None
+    winner_uid = U if result["champion"] == finalists[0]["name"] else V
+    bet = next(b for b in repos.arena.arena_my_bets(t["id"], winner_uid) if b["stage"] == "final")
+    assert bet["payout"] >= a.MAX_STAKE  # 元本は必ず戻る
+    subsidy_used = max(0, bet["payout"] - a.MAX_STAKE - a.MAX_STAKE)  # 利益のうち、負け分(2万)を超えた分が補填
+    assert subsidy_used <= a.MATCH_SUBSIDY_MAX
+    assert repos.bank.bank_status(NOW)["cash"] <= cash_before  # 補填は帝愛の手元現金から(新しく作らない)
+
+
 def test_payout_scale_caps_at_available_pool_and_never_exceeds_one():
     assert a.payout_scale(10_000, 5_000) == 1.0  # 原資が十分なら、満額
     assert a.payout_scale(2_000, 4_000) == 0.5  # 足りなければ、比例して減る
@@ -175,8 +207,8 @@ def test_arena_run_final_crowns_champion_and_pays_without_minting_money(repos):
     result = repos.arena.arena_run_final(t["id"], rng=random.Random(7))
     assert result is not None and result["champion"] in (finalists[0]["name"], finalists[1]["name"])
     after = repos.wallet.balance(U) + repos.wallet.balance(V)
-    # 負けた側の賭け(3,000)が原資。決勝はオッズにブーストがかかるが、原資を超えて配当しない
-    assert after - before <= 3_000
+    # #27 案B: 勝者の元本(3,000)は必ず戻る。利益の原資は負けた側の賭け(3,000)と、帝愛の上限つき補填だけ
+    assert 3_000 <= after - before <= 3_000 + 3_000 + a.MATCH_SUBSIDY_MAX
     tour = repos.arena.arena_tournament_get_by_day(repos.arena.arena_today(NOW), "duel")
     assert tour is not None and tour["status"] == "done"
 
@@ -206,6 +238,7 @@ def test_arena_payout_scales_down_when_pool_is_insufficient(repos):
     before = repos.wallet.balance(U)
     repos.arena.arena_run_semis(t["id"], rng=random.Random(1))
     my_bet = next(b for b in repos.arena.arena_my_bets(t["id"], U) if b["fighter_id"] == winner_bias["id"])
-    if my_bet["payout"] > 0:  # 勝っていれば、配当は原資（負け分）を超えない
-        assert my_bet["payout"] <= a.MIN_STAKE * a.MAX_ODDS + 1
+    if my_bet["payout"] > 0:  # 勝っていれば、元本は必ず戻り、利益だけが原資(負け分+補填)で頭打ちになる(#27)
+        assert my_bet["payout"] >= a.MAX_STAKE
+        assert my_bet["payout"] - a.MAX_STAKE <= a.MAX_STAKE * a.MAX_ODDS
     assert repos.wallet.balance(U) - before == my_bet["payout"]  # 賭け金はbet時点で引かれ済み。差分=配当そのもの
