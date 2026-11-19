@@ -79,7 +79,10 @@ class BetPanel(discord.ui.View):
 
     def embed(self) -> discord.Embed:
         breakdown = self.arena_svc.bets_breakdown(self.tournament["guild_id"], self.tournament["id"])
-        return tournament_embed(self.tournament, arena_mod.SEMI_HOUR, arena_mod.FINAL_HOUR, breakdown)
+        clock = self.arena_svc.clock
+        return tournament_embed(
+            self.tournament, arena_mod.SEMI_HOUR, arena_mod.FINAL_HOUR, breakdown, clock.now_ts(), clock.offset_hours()
+        )
 
     async def refresh(self) -> None:
         """最新のDB状態を読み直し、掲示メッセージを書き換える（賭けが入るたび・段が進むたび）。"""

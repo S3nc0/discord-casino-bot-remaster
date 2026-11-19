@@ -31,15 +31,14 @@ class ArenaRepo(ScopedRepo, IArenaRepo):
         self._account = account
         self._bank = bank
 
-    def arena_today(self, now: float, tz_hours: float = 9.0) -> str:
+    def arena_today(self, now: float, tz_hours: float) -> str:
         tz = datetime.timezone(datetime.timedelta(hours=tz_hours))
         return datetime.datetime.fromtimestamp(now, tz).date().isoformat()
 
     def arena_tournament_ensure(
-        self, fmt: str, now: Optional[float] = None, tz_hours: float = 9.0, rng: Optional[random.Random] = None
+        self, fmt: str, now: float, tz_hours: float, rng: Optional[random.Random] = None
     ) -> dict[str, Any]:
         """今日の、指定した形式の大会を用意する（無ければ作る）。すでにあれば、そのまま返す。"""
-        now = time.time() if now is None else now
         rng = rng or random.SystemRandom()
         day = self.arena_today(now, tz_hours)
         with self._db.tx():
@@ -69,7 +68,7 @@ class ArenaRepo(ScopedRepo, IArenaRepo):
             return result
 
     def arena_tournaments_ensure_today(
-        self, now: Optional[float] = None, tz_hours: float = 9.0, rng: Optional[random.Random] = None
+        self, now: float, tz_hours: float, rng: Optional[random.Random] = None
     ) -> list[dict[str, Any]]:
         """今日の大会を、1on1・バトロワの両方そろえて返す（無ければ作る）。"""
         return [self.arena_tournament_ensure(fmt, now, tz_hours, rng) for fmt in arena_mod.FORMATS]

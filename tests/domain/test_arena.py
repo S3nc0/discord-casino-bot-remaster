@@ -9,6 +9,7 @@ from infra.db.repositories import open_repositories
 
 U, V = 1, 2
 NOW = 1_000_000.0
+TZ = 9.0  # 本番の utc_offset_hours
 
 
 @pytest.fixture
@@ -107,25 +108,25 @@ def test_battle_frames_loser_reaches_zero_and_winner_survives():
 
 
 def test_arena_tournament_ensure_creates_once_per_format_and_is_idempotent(repos):
-    duel1 = repos.arena.arena_tournament_ensure("duel", NOW, rng=random.Random(1))
-    duel2 = repos.arena.arena_tournament_ensure("duel", NOW, rng=random.Random(2))  # 2回目は作り直さない
+    duel1 = repos.arena.arena_tournament_ensure("duel", NOW, TZ, rng=random.Random(1))
+    duel2 = repos.arena.arena_tournament_ensure("duel", NOW, TZ, rng=random.Random(2))  # 2回目は作り直さない
     assert duel1["id"] == duel2["id"]
     assert len(duel1["fighters"]) == 4
     assert len({f["group_no"] for f in duel1["fighters"]}) == 2
 
-    royale = repos.arena.arena_tournament_ensure("royale", NOW, rng=random.Random(1))
+    royale = repos.arena.arena_tournament_ensure("royale", NOW, TZ, rng=random.Random(1))
     assert royale["id"] != duel1["id"]  # 1on1とバトロワは、別の大会として両立する
     assert len(royale["fighters"]) == 16
     assert len({f["group_no"] for f in royale["fighters"]}) == 4
 
 
 def test_arena_tournaments_ensure_today_creates_both_formats(repos):
-    both = repos.arena.arena_tournaments_ensure_today(NOW, rng=random.Random(1))
+    both = repos.arena.arena_tournaments_ensure_today(NOW, TZ, rng=random.Random(1))
     assert {t["format"] for t in both} == {"duel", "royale"}
 
 
 def test_arena_bet_validates_range_eliminated_and_closed_stage(repos):
-    t = repos.arena.arena_tournament_ensure("duel", NOW, rng=random.Random(1))
+    t = repos.arena.arena_tournament_ensure("duel", NOW, TZ, rng=random.Random(1))
     fid = t["fighters"][0]["id"]
     assert repos.arena.arena_bet(U, fid, a.MIN_STAKE - 1, NOW)[0] is False
     assert repos.arena.arena_bet(U, fid, a.MAX_STAKE + 1, NOW)[0] is False
@@ -140,7 +141,7 @@ def test_arena_bet_validates_range_eliminated_and_closed_stage(repos):
 
 
 def test_arena_run_semis_advances_exactly_two_finalists_and_settles_group_bets(repos):
-    t = repos.arena.arena_tournament_ensure("duel", NOW, rng=random.Random(3))
+    t = repos.arena.arena_tournament_ensure("duel", NOW, TZ, rng=random.Random(3))
     fighters = t["fighters"]
     repos.arena.arena_bet(U, fighters[0]["id"], 2_000, NOW)
     repos.arena.arena_bet(V, fighters[1]["id"], 2_000, NOW)
@@ -157,7 +158,7 @@ def test_arena_run_semis_advances_exactly_two_finalists_and_settles_group_bets(r
 
 
 def test_arena_run_semis_for_royale_advances_four_finalists(repos):
-    t = repos.arena.arena_tournament_ensure("royale", NOW, rng=random.Random(3))
+    t = repos.arena.arena_tournament_ensure("royale", NOW, TZ, rng=random.Random(3))
     result = repos.arena.arena_run_semis(t["id"], rng=random.Random(5))
     assert result is not None and len(result["finalists"]) == 4  # 4組の準決勝→決勝は4人
     after_fighters = repos.arena.arena_fighters(t["id"])
@@ -166,7 +167,7 @@ def test_arena_run_semis_for_royale_advances_four_finalists(repos):
 
 
 def test_arena_run_final_crowns_champion_and_pays_without_minting_money(repos):
-    t = repos.arena.arena_tournament_ensure("duel", NOW, rng=random.Random(3))
+    t = repos.arena.arena_tournament_ensure("duel", NOW, TZ, rng=random.Random(3))
     repos.arena.arena_run_semis(t["id"], rng=random.Random(5))
     finalists = [f for f in repos.arena.arena_fighters(t["id"]) if f["stage"] == "final"]
     repos.arena.arena_bet(U, finalists[0]["id"], 3_000, NOW)
@@ -177,12 +178,12 @@ def test_arena_run_final_crowns_champion_and_pays_without_minting_money(repos):
     after = repos.wallet.balance(U) + repos.wallet.balance(V)
     # 負けた側の賭け(3,000)が原資。決勝はオッズにブーストがかかるが、原資を超えて配当しない
     assert after - before <= 3_000
-    tour = repos.arena.arena_tournament_get_by_day(repos.arena.arena_today(NOW), "duel")
+    tour = repos.arena.arena_tournament_get_by_day(repos.arena.arena_today(NOW, TZ), "duel")
     assert tour is not None and tour["status"] == "done"
 
 
 def test_arena_run_final_for_royale_settles_three_losers_at_once(repos):
-    t = repos.arena.arena_tournament_ensure("royale", NOW, rng=random.Random(3))
+    t = repos.arena.arena_tournament_ensure("royale", NOW, TZ, rng=random.Random(3))
     repos.arena.arena_run_semis(t["id"], rng=random.Random(5))
     pre_finalist_ids = {f["id"] for f in repos.arena.arena_fighters(t["id"]) if f["stage"] == "final"}
     result = repos.arena.arena_run_final(t["id"], rng=random.Random(7))
@@ -195,7 +196,7 @@ def test_arena_run_final_for_royale_settles_three_losers_at_once(repos):
 
 
 def test_arena_payout_scales_down_when_pool_is_insufficient(repos):
-    t = repos.arena.arena_tournament_ensure("duel", NOW, rng=random.Random(3))
+    t = repos.arena.arena_tournament_ensure("duel", NOW, TZ, rng=random.Random(3))
     fighters = t["fighters"]
     group1 = [f for f in fighters if f["group_no"] == 1]
     # 勝つ方に大量、負ける方には少額だけ賭けておく（原資が足りない状況を作る）

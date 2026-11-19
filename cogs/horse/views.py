@@ -1,7 +1,5 @@
 """競馬の画面部品の集約ファサード（cards / betting / stable の再エクスポート）。"""
 
-import time as time  # noqa: F401
-
 import discord as discord  # noqa: F401
 
 from cogs.horse.betting import BetPanel, StakeModal

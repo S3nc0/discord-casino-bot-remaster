@@ -410,9 +410,7 @@ class RaceRepo(ScopedRepo, IRaceRepo):
                 bought.append(result)
             return True, bought
 
-    def race_run(
-        self, race_id: int, rng: Optional[random.Random] = None, tz_hours: float = 9.0
-    ) -> Optional[dict[str, Any]]:
+    def race_run(self, race_id: int, tz_hours: float, rng: Optional[random.Random] = None) -> Optional[dict[str, Any]]:
         """レースを走らせて、結果を決め、賞金と払い戻しを精算する。すでに終わっていれば None。
 
         結果は、ここで決まる（演出は、返した frames を見せるだけ）。(race, entries, order, frames, bets, prizes) を辞書で返す。

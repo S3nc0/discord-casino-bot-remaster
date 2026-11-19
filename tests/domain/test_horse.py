@@ -324,8 +324,8 @@ def test_full_race_flow_pays_bettors_and_owners_and_is_settled_once(eco):
     # 全頭に単勝を買う → ちょうど1頭が当たる
     for lane in range(1, 9):
         assert eco.races.race_bet(V, rid, "win", lane, 100, NOW + 700)[0]
-    result = eco.races.race_run(rid, random.Random(5))
-    assert result is not None and eco.races.race_run(rid, random.Random(5)) is None  # 二重に精算しない
+    result = eco.races.race_run(rid, 9.0, random.Random(5))
+    assert result is not None and eco.races.race_run(rid, 9.0, random.Random(5)) is None  # 二重に精算しない
     winners = [b for b in result["bets"] if b["payout"]]
     assert len(winners) == 1 and winners[0]["lane"] == result["entries"][result["order"][0]]["lane"]
     assert eco.races.race_get(rid)["status"] == "done" and all(b["payout"] >= 0 for b in result["bets"])
@@ -366,7 +366,7 @@ def test_bet_locks_in_the_odds_and_place_pays_for_top_three(eco):
     ok, bet = eco.races.race_bet(V, rid, "place", 3, 1000, NOW + 700)
     assert ok and bet["odds"] == 2.0 and eco.wallet.balance(V) == INITIAL_BALANCE + 100_000 - 1000
     eco.races.race_set_odds(rid, [(9.0, 9.0)] * h.FIELD_SIZE)  # あとでオッズが変わっても、買った時点のオッズ
-    result = eco.races.race_run(rid, random.Random(3))
+    result = eco.races.race_run(rid, 9.0, random.Random(3))
     mine = next(b for b in result["bets"] if b["user_id"] == V)
     in_top3 = any(result["entries"][i]["lane"] == 3 for i in result["order"][:3])
     assert mine["payout"] == (2000 if in_top3 else 0)
@@ -492,7 +492,7 @@ def test_combo_bets_are_settled_by_the_real_finishing_order(eco):
             ok, bet = eco.races.race_bet(V, rid, kind, list(lanes), 100, at)
             if ok:
                 placed.append((kind, list(lanes), bet["odds"]))
-    result = eco.races.race_run(rid, random.Random(8))
+    result = eco.races.race_run(rid, 9.0, random.Random(8))
     order_lanes = [result["entries"][i]["lane"] for i in result["order"]]
     by_pick = {(b["kind"], b["picks"]): b for b in result["bets"]}
     assert placed and len(result["bets"]) == len(placed)
@@ -638,7 +638,7 @@ def test_horse_at_max_races_cannot_enter_and_auto_retires_on_the_final_race(eco)
     assert eco.races.race_register(U, hid, rid2, NOW + 1) == (True, "")
     field_ = eco.races.race_close_entries(rid2, random.Random(1))
     eco.races.race_set_odds(rid2, h.make_odds(field_["runners"]))
-    result = eco.races.race_run(rid2, random.Random(5))
+    result = eco.races.race_run(rid2, 9.0, random.Random(5))
     retired = [r for r in result["retired"] if r["id"] == hid]
     assert len(retired) == 1
     assert eco.horses.horse_get(hid)["owner_id"] == -2  # 持ち馬から消える
@@ -690,7 +690,7 @@ def test_major_race_at_21_doubles_prizes_and_tops_up_from_house_cash(eco):
     assert eco.races.race_register(U, hid, rid, NOW + 1) == (True, "")
     field_ = eco.races.race_close_entries(rid, random.Random(1))
     eco.races.race_set_odds(rid, h.make_odds(field_["runners"]))
-    result = eco.races.race_run(rid, random.Random(5), tz_hours=0.0)
+    result = eco.races.race_run(rid, 0.0, random.Random(5))
     assert result["is_major"]
     mine = next(e for e in result["entries"] if e["owner_id"] == U)
     if mine["finish"] <= 3:
@@ -707,7 +707,7 @@ def test_style_change_after_entries_close_does_not_affect_the_already_closed_rac
     assert mine.style == "nige"  # 締切時点の脚質がランナーにもコピーされている
     assert eco.horses.horse_set_style(U, hid, "oikomi")[0]  # 締切後に脚質を変える
     eco.races.race_set_odds(rid, h.make_odds(field_["runners"]))
-    result = eco.races.race_run(rid, random.Random(2))
+    result = eco.races.race_run(rid, 9.0, random.Random(2))
     mine_lane = next(e for e in result["entries"] if e["owner_id"] == U)["lane"]
     assert result["styles"][mine_lane] == "nige"  # 締切後の変更に引っぱられず、締切時点の脚質で走る
 

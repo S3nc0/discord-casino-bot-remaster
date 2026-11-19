@@ -11,7 +11,7 @@ from cogs.horse import views as views
 from cogs.horse.cog import HorseCog, anim_frames, comment, lane_text, laps_for, pick_frames
 from domain import horse as h
 from domain import shop
-from tests.fakes import as_interaction, invoke, must
+from tests.fakes import as_interaction, freeze_time, invoke, must
 from tests.support import make_horse_cog, make_shop_cog, make_test_bot
 
 U, V = 1, 2
@@ -92,12 +92,12 @@ def test_scheduled_flow_announces_closes_with_odds_runs_animation_and_settles(se
     ok, hid = eco.horses.horse_create(U, "テストホース", "栗毛", "🟥")
     assert ok
     now = 1_700_000_000.0
-    monkeypatch.setattr("cogs.horse.cog.time.time", lambda: now)
+    freeze_time(monkeypatch, bot.services.clock, now)
     asyncio.run(cog.run_once())  # 次の定時レースを作って、申し込み開始を知らせる
     race = eco.races.race_open()[0]
     assert race["status"] == "entry" and "申し込みが始まりました" in chan.sent[0]["content"]
     assert eco.races.race_register(U, hid, race["id"], now)[0]
-    monkeypatch.setattr("cogs.horse.cog.time.time", lambda: race["entry_close"] + 1)
+    freeze_time(monkeypatch, bot.services.clock, race["entry_close"] + 1)
     asyncio.run(cog.run_once())  # 締切 → 出馬表とオッズ
     race = eco.races.race_get(race["id"])
     assert race["status"] == "betting" and "出馬表とオッズ" in chan.sent[-1]["content"]
@@ -109,7 +109,7 @@ def test_scheduled_flow_announces_closes_with_odds_runs_animation_and_settles(se
     assert len(chan.retired) == 1 and "受付終了" in chan.retired[0][1]["embed"].title  # 申し込みの投稿を書き換えた
     assert chan.retired[0][1]["view"] is None and "R>" not in chan.retired[0][1]["embed"].description
     sent_before = len(chan.sent)
-    monkeypatch.setattr("cogs.horse.cog.time.time", lambda: race["start_at"] + 1)
+    freeze_time(monkeypatch, bot.services.clock, race["start_at"] + 1)
     asyncio.run(cog.run_once())  # 発走 → 精算 → アニメーション → 結果
     assert eco.races.race_get(race["id"])["status"] == "done"
     assert len(chan.retired) == 2 and "発売終了" in chan.retired[1][1]["embed"].title  # 出馬表の投稿も、書き換えた
@@ -126,7 +126,7 @@ def test_scheduled_flow_announces_closes_with_odds_runs_animation_and_settles(se
 
 def test_special_race_command_path_creates_and_announces(setup, monkeypatch):
     eco, chan, guild, bot, cog = setup
-    monkeypatch.setattr("cogs.horse.cog.time.time", lambda: 1_700_000_000.0)
+    freeze_time(monkeypatch, bot.services.clock, 1_700_000_000.0)
     rid = asyncio.run(cog.start_special(guild, 3, 4))
     race = eco.races.race_get(rid)
     assert race["kind"] == "special" and race["entry_close"] == 1_700_000_000.0 + 180
@@ -138,7 +138,7 @@ def test_special_race_can_use_a_chosen_channel(setup, monkeypatch):
     other = Chan()
     other.id = 77
     guild.get_channel = lambda cid: other if cid == 77 else chan
-    monkeypatch.setattr("cogs.horse.cog.time.time", lambda: 1_700_000_000.0)
+    freeze_time(monkeypatch, bot.services.clock, 1_700_000_000.0)
     rid = asyncio.run(cog.start_special(guild, 3, 4, other))
     assert eco.races.race_get(rid)["channel_id"] == 77 and not chan.sent
     assert "申し込みが始まりました" in other.sent[0]["content"]
@@ -156,8 +156,8 @@ def test_card_embed_for_each_stage_and_bet_panel(setup):
     card = views.card_embed(desk(eco), race)
     assert "発売中" in must(card.title) and must(card.description).count("単勝") >= h.FIELD_SIZE
     panel = views.BetPanel(make_test_bot(repos=eco).services.horse, V, {**race, "guild_id": 0})
-    assert len(panel.children) == 3 and "馬券を買う" in must(panel.embed(eco.races).title)
-    eco.races.race_run(rid, random.Random(2))
+    assert len(panel.children) == 3 and "馬券を買う" in must(panel.embed(desk(eco)).title)
+    eco.races.race_run(rid, 9.0, random.Random(2))
     assert "結果" in must(views.card_embed(desk(eco), eco.races.race_get(rid)).title)
 
 
@@ -204,7 +204,7 @@ def test_bet_panel_builds_for_every_kind_and_shows_the_odds(setup):
         panel.kind = kind
         panel._build(eco.races)
         selects[kind] = [c for c in panel.children if isinstance(c, views.discord.ui.Select)]
-        embed = panel.embed(eco.races)
+        embed = panel.embed(desk(eco))
         assert h.BET_KINDS[kind] in must(embed.description) and "オッズ" in must(embed.description)
     assert [len(v) for v in selects.values()] == [2, 2, 2, 2, 3, 2]  # 馬単だけ、1着と2着の2つ
     assert (selects["trio"][1].min_values, selects["trio"][1].max_values) == (3, 3)
@@ -267,7 +267,7 @@ def test_win_and_place_select_several_horses_at_once(setup):
         assert (sel.min_values, sel.max_values) == (1, len(eco.races.race_entries(rid)))  # 何頭でも選べる
     panel.multi = [5, 2, 7]
     assert panel.picked() == [2, 5, 7]
-    text = panel.embed(eco.races).description
+    text = panel.embed(desk(eco)).description
     assert "3頭" in must(text) and "2枠" in must(text) and "5枠" in must(text) and "7枠" in must(text)
 
 
@@ -303,7 +303,7 @@ def test_race_bet_many_checks_the_total_before_buying_anything(setup):
 
 
 @pytest.mark.filterwarnings("ignore::DeprecationWarning")
-def test_stake_modal_buys_every_selected_horse_and_announces_once(setup):
+def test_stake_modal_buys_every_selected_horse_and_announces_once(setup, monkeypatch):
     eco, chan, guild, bot, cog = setup
     eco.wallet.credit(V, 10_000, "テスト")
     before = eco.wallet.balance(V)
@@ -322,14 +322,8 @@ def test_stake_modal_buys_every_selected_horse_and_announces_once(setup):
             sent.append(kw)
 
     it = SimpleNamespace(guild=guild, guild_id=0, user=SimpleNamespace(id=V), response=Resp())
-    import time as _t
-
-    orig = _t.time
-    _t.time = lambda: now
-    try:
-        asyncio.run(modal.on_submit(as_interaction(it)))
-    finally:
-        _t.time = orig
+    freeze_time(monkeypatch, panel.desk_for(0).clock, now)
+    asyncio.run(modal.on_submit(as_interaction(it)))
     assert len(eco.races.race_bets(V, rid)) == 2 and eco.wallet.balance(V) == before - 800
     assert "合計" in sent[-1]["embed"].description
     posts = [m["content"] for m in chan.sent if "content" in m and "🎫" in m["content"]]
@@ -390,17 +384,16 @@ def test_result_embed_lists_every_winner_even_when_the_net_is_a_loss(setup):
     )
 
 
-def test_when_drops_the_relative_time_once_it_has_passed(monkeypatch):
-    monkeypatch.setattr(views.time, "time", lambda: 1000.0)
-    assert ":R>" in views.when(1100.0)
-    assert ":R>" not in views.when(900.0) and "<t:900:t>" in views.when(900.0)
+def test_when_drops_the_relative_time_once_it_has_passed():
+    assert ":R>" in views.when(1100.0, 1000.0)
+    assert ":R>" not in views.when(900.0, 1000.0) and "<t:900:t>" in views.when(900.0, 1000.0)
 
 
 def test_bet_close_rewrites_the_post_once_before_the_start(setup, monkeypatch):
     eco, chan, guild, bot, cog = setup
     rid, race, _ = _open_race(eco)
     eco.races.race_set_message(rid, chan.id, 321)
-    monkeypatch.setattr("cogs.horse.cog.time.time", lambda: race["bet_close"] + 1)
+    freeze_time(monkeypatch, bot.services.clock, race["bet_close"] + 1)
     asyncio.run(cog.run_once())
     asyncio.run(cog.run_once())  # 2回目は、もう書き換えない
     closed = [kw for mid, kw in chan.retired if mid == 321 and "締め切りました" in kw["embed"].description]
@@ -424,7 +417,7 @@ def test_card_posts_from_the_command_are_rewritten_when_betting_closes(setup, mo
     )
     asyncio.run(invoke(HorseCog.card, cog, interaction))
     assert cog._posts[rid] == [(chan.id, 900)]
-    monkeypatch.setattr("cogs.horse.cog.time.time", lambda: race["bet_close"] + 1)
+    freeze_time(monkeypatch, bot.services.clock, race["bet_close"] + 1)
     asyncio.run(cog.run_once())
     assert any(mid == 900 and "締め切りました" in kw["embed"].description for mid, kw in chan.retired)
     assert rid not in cog._posts

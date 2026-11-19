@@ -1,5 +1,6 @@
 """競馬のレース進行・オッズ計算・スケジュール管理のアプリケーションサービス。"""
 
+import datetime
 from typing import Any, Optional
 
 from domain import horse as horse_mod
@@ -10,10 +11,11 @@ from domain.ports.repos import IHorseRepo, IRaceRepo, IShopRepo
 class HorseDesk:
     """1 つのサーバーの競馬窓口（出走表・馬券・厩舎）。Cog は Repository ではなく、これを通して読み書きする。
 
-    時刻を引数に取る操作は、呼び出し側の時刻をそのまま渡す（時刻の扱いの統一は別の作業）。
+    時刻を引数に取る操作には、呼び出し側が clock.now_ts() を渡す（Cog は time.time() を直接呼ばない）。
     """
 
-    def __init__(self, horses: IHorseRepo, races: IRaceRepo, shop: IShopRepo) -> None:
+    def __init__(self, horses: IHorseRepo, races: IRaceRepo, shop: IShopRepo, clock: IClock) -> None:
+        self.clock = clock
         self._horses = horses
         self._races = races
         self._shop = shop
@@ -79,6 +81,16 @@ class HorseDesk:
     def horse_retire(self, user_id: int, horse_id: int) -> tuple[Any, ...]:
         return self._horses.horse_retire(user_id, horse_id)
 
+    def is_major_race(self, race: dict[str, Any]) -> bool:
+        """重賞か（発走時刻を、設定の時差の現地時間で見る）。"""
+        return horse_mod.is_major_race(race, self.clock.offset_hours())
+
+    def local_time(self, ts: float) -> datetime.datetime:
+        """ts を、設定の時差（utc_offset_hours）の現地時刻にする。"""
+        return datetime.datetime.fromtimestamp(
+            ts, datetime.timezone(datetime.timedelta(hours=self.clock.offset_hours()))
+        )
+
     def inventory(self, user_id: int) -> dict[str, Any]:
         """にんじんなど、馬に使う持ち物を見るための持ち物一覧。"""
         return self._shop.inventory(user_id)
@@ -104,7 +116,10 @@ class HorseService:
         if self._horses is None or self._shop is None:
             raise RuntimeError("HorseService に horses・shop が渡されていません")
         return HorseDesk(
-            self._horses.for_guild(guild_id), self._races.for_guild(guild_id), self._shop.for_guild(guild_id)
+            self._horses.for_guild(guild_id),
+            self._races.for_guild(guild_id),
+            self._shop.for_guild(guild_id),
+            self.clock,
         )
 
     def next_slots(self, guild_id: int, now: Optional[float] = None) -> list[float]:
@@ -125,4 +140,4 @@ class HorseService:
 
     def run_race(self, guild_id: int, race_id: int) -> Optional[dict[str, Any]]:
         """レースを実行して賞金・馬券を精算し、演出結果辞書を返す。"""
-        return self._races.for_guild(guild_id).race_run(race_id, tz_hours=self.clock.offset_hours())
+        return self._races.for_guild(guild_id).race_run(race_id, self.clock.offset_hours())

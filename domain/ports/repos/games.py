@@ -148,23 +148,21 @@ class IRaceRepo(IGuildScopedRepo):
     ) -> tuple[Any, ...]:
         raise NotImplementedError
 
-    def race_run(
-        self, race_id: int, rng: Optional[random.Random] = None, tz_hours: float = 9.0
-    ) -> Optional[dict[str, Any]]:
+    def race_run(self, race_id: int, tz_hours: float, rng: Optional[random.Random] = None) -> Optional[dict[str, Any]]:
         raise NotImplementedError
 
 
 class IArenaRepo(IGuildScopedRepo):
-    def arena_today(self, now: float, tz_hours: float = 9.0) -> str:
+    def arena_today(self, now: float, tz_hours: float) -> str:
         raise NotImplementedError
 
     def arena_tournament_ensure(
-        self, fmt: str, now: Optional[float] = None, tz_hours: float = 9.0, rng: Optional[random.Random] = None
+        self, fmt: str, now: float, tz_hours: float, rng: Optional[random.Random] = None
     ) -> dict[str, Any]:
         raise NotImplementedError
 
     def arena_tournaments_ensure_today(
-        self, now: Optional[float] = None, tz_hours: float = 9.0, rng: Optional[random.Random] = None
+        self, now: float, tz_hours: float, rng: Optional[random.Random] = None
     ) -> list[dict[str, Any]]:
         raise NotImplementedError
 

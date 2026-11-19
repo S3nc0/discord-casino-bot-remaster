@@ -1,6 +1,5 @@
 """競馬の厩舎画面（Stable）と調教・引退 View（GoldCarrotView / RetireView）。"""
 
-import time
 from typing import Optional
 
 import discord
@@ -304,7 +303,7 @@ class Stable(ui.OwnerView):
         nxt = next((r for r in desk.race_open() if r["status"] == "entry"), None)
         if nxt:
             e.set_footer(
-                text=f"次の申し込み: 第{desk.race_number(nxt['id'])}競走（締切 {time.strftime('%H:%M', time.localtime(nxt['entry_close']))}）"
+                text=f"次の申し込み: 第{desk.race_number(nxt['id'])}競走（締切 {desk.local_time(nxt['entry_close']):%H:%M}）"
             )
         return e
 
@@ -421,7 +420,7 @@ class Stable(ui.OwnerView):
                 embed=ui.error_embed("申し込めません", "いま、申し込みを受け付けているレースはありません。"),
                 ephemeral=True,
             )
-        ok, reason = desk.race_register(interaction.user.id, self.horse_id, race["id"], time.time())
+        ok, reason = desk.race_register(interaction.user.id, self.horse_id, race["id"], desk.clock.now_ts())
         if not ok:
             return await interaction.response.send_message(
                 embed=ui.error_embed("申し込めません", format_failure(reason)), ephemeral=True
@@ -437,7 +436,7 @@ class Stable(ui.OwnerView):
             return await interaction.response.send_message(
                 embed=ui.error_embed("取り下げられません", "申し込み中のレースはありません。"), ephemeral=True
             )
-        ok, reason = desk.race_withdraw(interaction.user.id, self.horse_id, race["id"], time.time())
+        ok, reason = desk.race_withdraw(interaction.user.id, self.horse_id, race["id"], desk.clock.now_ts())
         if not ok:
             return await interaction.response.send_message(
                 embed=ui.error_embed("取り下げられません", format_failure(reason)), ephemeral=True

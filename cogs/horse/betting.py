@@ -1,6 +1,5 @@
 """競馬の馬券購入パネル（BetPanel）と賭け金モーダル（StakeModal）。"""
 
-import time
 from collections.abc import Awaitable, Callable
 from typing import Optional
 
@@ -30,7 +29,7 @@ class StakeModal(discord.ui.Modal):
     async def _submit_many(self, interaction: discord.Interaction, desk: HorseDesk, lanes: list, stake: int) -> None:
         """単勝・複勝: 選んだ馬ごとに、同じ金額ずつ買う。"""
         ok, result = desk.race_bet_many(
-            interaction.user.id, self.panel.race["id"], self.panel.kind, lanes, stake, time.time()
+            interaction.user.id, self.panel.race["id"], self.panel.kind, lanes, stake, desk.clock.now_ts()
         )
         if not ok:
             await interaction.response.send_message(
@@ -67,7 +66,7 @@ class StakeModal(discord.ui.Modal):
             self.panel.kind,
             lanes if self.panel.kind in horse_mod.COMBO_SIZE else lanes[0],
             stake,
-            time.time(),
+            desk.clock.now_ts(),
         )
         if not ok:
             await interaction.response.send_message(
@@ -210,7 +209,7 @@ class BetPanel(ui.OwnerView):
         mine = desk.race_bets(self.user_id, self.race["id"])
         lanes = self.picked()
         lines = [
-            f"{race_title(desk, self.race)}　発売は {when(self.race['bet_close'])} まで",
+            f"{race_title(desk, self.race)}　発売は {when(self.race['bet_close'], desk.clock.now_ts())} まで",
             "種類と馬を選んで、「金額を入れて買う」を押します。**賭けた時点のオッズで確定**します。",
             "",
         ]
