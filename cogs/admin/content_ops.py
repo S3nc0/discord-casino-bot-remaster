@@ -254,7 +254,7 @@ async def quiz_bulk(
         return
     quizzes, errors = quizimport.parse_bulk(text)
     if not errors:
-        existing = cog._quiz.quiz_existing_questions()
+        existing = cog._quiz.existing_questions()
         errors = [
             f"{i}問目: すでに登録されている問題です（同じ問題文）。"
             for i, q in enumerate(quizzes, start=1)

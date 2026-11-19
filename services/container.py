@@ -7,14 +7,22 @@ from domain.ports.clock import IClock
 from domain.ports.repos import IRepositoryBundle
 from domain.ports.session import ISessionGuard
 from infra.clock import ConfigClock
+from services.admin import AdminService
 from services.arena import ArenaService
 from services.casino import CasinoService
+from services.company import CompanyService
 from services.economy import EconomyService
+from services.event import EventService
 from services.horse import HorseService
 from services.labor import LaborService
 from services.loan import LoanService
 from services.market import MarketService
+from services.p2p import P2PService
+from services.quiz import QuizService
+from services.raffle import RaffleService
+from services.ranking import RankingService
 from services.shop import ShopService
+from services.teiai import TeiaiService
 
 
 @dataclass(frozen=True)
@@ -29,8 +37,16 @@ class ServiceRegistry:
     economy: EconomyService
     labor: LaborService
     arena: ArenaService
+    company: CompanyService
     loan: LoanService
     shop: ShopService
+    teiai: TeiaiService
+    ranking: RankingService
+    quiz: QuizService
+    p2p: P2PService
+    raffle: RaffleService
+    event: EventService
+    admin: AdminService
 
 
 def build_services(config: dict[str, Any], repos: IRepositoryBundle, sessions: ISessionGuard) -> ServiceRegistry:
@@ -48,6 +64,7 @@ def build_services(config: dict[str, Any], repos: IRepositoryBundle, sessions: I
             records=repos.records,
             sessions=sessions,
             clock=clock,
+            pachinko=repos.pachinko,
         ),
         market=MarketService(
             market_data=repos.market,
@@ -59,16 +76,20 @@ def build_services(config: dict[str, Any], repos: IRepositoryBundle, sessions: I
             options_repo=repos.options,
             clock=clock,
         ),
-        horse=HorseService(races=repos.races, clock=clock),
+        horse=HorseService(races=repos.races, clock=clock, horses=repos.horses, shop=repos.shop),
         economy=EconomyService(
             wallet=repos.wallet,
             notices=repos.notices,
             earnings=repos.earnings,
             records=repos.records,
             clock=clock,
+            shop=repos.shop,
+            crypto=repos.crypto,
+            bonds=repos.bonds,
         ),
-        labor=LaborService(labor=repos.labor, clock=clock),
+        labor=LaborService(labor=repos.labor, clock=clock, relics=repos.relics),
         arena=ArenaService(arena=repos.arena, clock=clock),
+        company=CompanyService(company=repos.company, clock=clock),
         loan=LoanService(loans=repos.loans, clock=clock),
         shop=ShopService(
             shop_repo=repos.shop,
@@ -80,4 +101,18 @@ def build_services(config: dict[str, Any], repos: IRepositoryBundle, sessions: I
             wallet=repos.wallet,
             guild=repos.guild,
         ),
+        teiai=TeiaiService(
+            bank=repos.bank,
+            debt=repos.debt,
+            wallet=repos.wallet,
+            notices=repos.notices,
+            loans=repos.loans,
+            clock=clock,
+        ),
+        quiz=QuizService(quiz=repos.quiz, clock=clock),
+        p2p=P2PService(p2p=repos.p2p, horses=repos.horses, shop=repos.shop, wallet=repos.wallet),
+        raffle=RaffleService(raffle=repos.raffle, clock=clock),
+        event=EventService(events=repos.events, clock=clock),
+        admin=AdminService(wallet=repos.wallet, rtp=repos.rtp, pachinko=repos.pachinko),
+        ranking=RankingService(wallet=repos.wallet, crypto=repos.crypto, bonds=repos.bonds, assets=repos.assets),
     )

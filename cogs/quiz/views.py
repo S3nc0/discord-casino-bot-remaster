@@ -1,7 +1,6 @@
 """クイズの回答ボタン・出題モーダル・公開パネル。"""
 
 import re
-import time
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Optional, cast
 
@@ -17,20 +16,20 @@ from cogs.quiz.embeds import (
     result_embed,
     verdict,
 )
-from cogs.shared import ui
+from cogs.shared import approval_guard, logthrottle, ui
 from cogs.shared.bridges import IQuizAdminBridge, IQuizButtonBridge, NoOpQuizButtonBridge
 from cogs.shared.messages import format_failure
-from domain import approval, quizpay
+from domain import quizpay
 from domain.duration import format_minutes, parse_duration
-from domain.ports.repos import IGuildRepo, IQuizRepo
-from infra import logthrottle
+from domain.ports.repos import IGuildRepo
+from services.quiz import QuizService
 
 if TYPE_CHECKING:
     from cogs.shared.bot import CasinoBot
 
 
 async def record_answer(
-    quiz_repo: IQuizRepo,
+    quiz_svc: QuizService,
     guild_repo: IGuildRepo,
     config: dict[str, Any],
     interaction: discord.Interaction,
@@ -38,23 +37,21 @@ async def record_answer(
     pos: int,
 ) -> None:
     """公開された問題のボタン。押した人が答える（結果は本人だけに見える）。"""
-    quiz = quiz_repo.quiz_get(quiz_id)
+    quiz = quiz_svc.get(quiz_id)
     if quiz is None:
         await interaction.response.send_message(embed=ui.error_embed("この問題は終了しました"), ephemeral=True)
         return
-    guild_id = interaction.guild_id
-    if guild_id is None or not approval.is_allowed(guild_repo, config, guild_id, interaction.user.id):
-        await interaction.response.send_message(embed=ui.error_embed("利用できません"), ephemeral=True)
+    if not await approval_guard.allow_component(interaction, guild_repo, config):
         return
-    eco = quiz_repo.for_guild(guild_id)
-    ok, result = eco.quiz_answer(interaction.user.id, quiz_id, quiz["order"][pos], time.time())
+    guild_id = ui.guild_id_of(interaction)
+    ok, result = quiz_svc.answer(guild_id, interaction.user.id, quiz_id, quiz["order"][pos])
     if not ok:
         await interaction.response.send_message(
             embed=ui.error_embed("答えられません", format_failure(result)), ephemeral=True
         )
         return
     await interaction.response.send_message(
-        embed=result_embed(result, eco.quiz_next(interaction.user.id, time.time())[1], quiz), ephemeral=True
+        embed=result_embed(result, quiz_svc.next_for(guild_id, interaction.user.id)[1], quiz), ephemeral=True
     )
     if result["correct"]:
         paid = "報酬なし" if result["reward_blocked"] else f"+{ui.pelica(result['reward'])}"
@@ -106,9 +103,9 @@ def public_view(qid: int) -> discord.ui.View:
 class AnswerView(ui.OwnerView):
     """4択のボタン。押した人が挑戦者本人のときだけ受け付け、答えたらボタンを外す。"""
 
-    def __init__(self, quiz_repo: IQuizRepo, user_id: int, quiz: dict, order: list):
+    def __init__(self, quiz_svc: QuizService, user_id: int, quiz: dict, order: list):
         super().__init__(user_id, timeout=600)
-        self._quiz = quiz_repo
+        self._quiz = quiz_svc
         self.user_id, self.quiz, self.order = user_id, quiz, order
         for i in range(4):
             btn = discord.ui.Button(label=LETTERS[i], style=discord.ButtonStyle.primary)
@@ -120,14 +117,14 @@ class AnswerView(ui.OwnerView):
 
     def _make_callback(self, index: int):
         async def callback(interaction: discord.Interaction):
-            eco = self._quiz.for_guild(ui.guild_id_of(interaction))
-            ok, result = eco.quiz_answer(self.user_id, self.quiz["id"], self.order[index], time.time())
+            gid = ui.guild_id_of(interaction)
+            ok, result = self._quiz.answer(gid, self.user_id, self.quiz["id"], self.order[index])
             if not ok:
                 self.stop()
                 return await interaction.response.edit_message(
                     embed=ui.error_embed("答えられません", format_failure(result)), view=None
                 )
-            _, more = eco.quiz_next(self.user_id, time.time())
+            _, more = self._quiz.next_for(gid, self.user_id)
             self.stop()
             await interaction.response.edit_message(embed=result_embed(result, more, self.quiz), view=None)
 
@@ -197,14 +194,14 @@ class AddModal(QuizForm, title="クイズを追加"):
 
     def __init__(
         self,
-        quiz_repo: IQuizRepo,
+        quiz_svc: QuizService,
         bridge: IQuizAdminBridge,
         announce: bool = True,
         guild=None,
         channel=None,
     ):
         super().__init__()
-        self._quiz = quiz_repo
+        self._quiz = quiz_svc
         self._bridge = bridge
         self.announce, self.guild, self.channel = announce, guild, channel
 
@@ -214,15 +211,12 @@ class AddModal(QuizForm, title="クイズを追加"):
         except ValueError as exc:
             await interaction.response.send_message(embed=ui.error_embed("入力エラー", str(exc)), ephemeral=True)
             return
-        now = time.time()
-        expires = now + form.minutes * 60 if form.minutes else None
-        qid = self._quiz.quiz_add(
+        qid = self._quiz.add(
             self.question.value.strip(),
             form.choices,
             self.explanation.value.strip(),
             form.reward,
-            expires,
-            now,
+            form.minutes,
             interaction.user.display_name,
             form.msg_right,
             form.msg_wrong,
@@ -251,9 +245,9 @@ class UserModal(QuizForm, title="クイズを出題"):
     )
     verdicts = verdicts_input()
 
-    def __init__(self, quiz_repo: IQuizRepo):
+    def __init__(self, quiz_svc: QuizService):
         super().__init__()
-        self._quiz = quiz_repo
+        self._quiz = quiz_svc
 
     async def on_submit(self, interaction: discord.Interaction):
         try:
@@ -266,8 +260,9 @@ class UserModal(QuizForm, title="クイズを出題"):
         except ValueError as exc:
             await interaction.response.send_message(embed=ui.error_embed("入力エラー", str(exc)), ephemeral=True)
             return
-        eco = self._quiz.for_guild(ui.guild_id_of(interaction))
-        ok, result = eco.quiz_post(
+        gid = ui.guild_id_of(interaction)
+        ok, result = self._quiz.post(
+            gid,
             interaction.user.id,
             self.question.value.strip(),
             form.choices,
@@ -275,7 +270,6 @@ class UserModal(QuizForm, title="クイズを出題"):
             form.reward,
             form.minutes or quizpay.USER_DEFAULT_MINUTES,
             interaction.channel_id or 0,
-            time.time(),
             interaction.user.display_name,
             form.msg_right,
             form.msg_wrong,
@@ -285,11 +279,11 @@ class UserModal(QuizForm, title="クイズを出題"):
                 embed=ui.error_embed("出題できません", format_failure(result)), ephemeral=True
             )
             return
-        quiz_row = eco.quiz_get(result)
+        quiz_row = self._quiz.get_in(gid, result)
         assert quiz_row is not None
         await interaction.response.send_message(
             embed=public_embed(quiz_row),
             view=public_view(result),
             allowed_mentions=discord.AllowedMentions.none(),
         )
-        eco.quiz_set_message(result, (await interaction.original_response()).id)
+        self._quiz.set_message(gid, result, (await interaction.original_response()).id)

@@ -1,10 +1,9 @@
 """/会社 — 自分だけの会社（帝愛の子会社）を作り、事業所で製品を作って帝愛に売る。
 
-数字と決まりは domain/company.py（catalogs/company.yaml）、処理は infra/db/company.py、画面の部品は cogs/company/*.py。
+数字と決まりは domain/company.py（catalogs/company.yaml）、処理は services/company.py（保存は infra/db/company.py）、画面の部品は cogs/company/*.py。
 """
 
 import logging
-import time
 from typing import TYPE_CHECKING, Any
 
 import discord
@@ -18,7 +17,8 @@ from cogs.shared.announce import announce_channel
 from cogs.shared.messages import format_failure
 from cogs.shared.tasks import run_for_allowed_guilds
 from domain import company as company_mod
-from domain.ports.repos import ICompanyRepo, IGuildRepo
+from domain.ports.repos import IGuildRepo
+from services.company import CompanyService
 
 if TYPE_CHECKING:
     from cogs.shared.bot import CasinoBot
@@ -29,11 +29,11 @@ NONE = discord.AllowedMentions.none()
 
 class CompanyCog(commands.Cog):
     def __init__(
-        self, bot: commands.Bot, config: dict[str, Any], company_repo: ICompanyRepo, guild_repo: IGuildRepo
+        self, bot: commands.Bot, config: dict[str, Any], company: CompanyService, guild_repo: IGuildRepo
     ) -> None:
         self.bot = bot
         self._config = config
-        self._company = company_repo
+        self._company = company
         self._guild_repo = guild_repo
         self._busy: set[int] = set()
 
@@ -53,7 +53,7 @@ class CompanyCog(commands.Cog):
     )
     async def found(self, interaction: discord.Interaction, name: str, kind: app_commands.Choice[str]) -> None:
         gid = ui.guild_id_of(interaction)
-        ok, result = self._company.for_guild(gid).company_found(interaction.user.id, name, kind.value, time.time())
+        ok, result = self._company.found(gid, interaction.user.id, name, kind.value)
         if not ok:
             await interaction.response.send_message(
                 embed=ui.error_embed("設立できません", format_failure(result)), ephemeral=True
@@ -85,10 +85,8 @@ class CompanyCog(commands.Cog):
         await self.bot.wait_until_ready()
 
     async def run_once(self) -> None:
-        now = time.time()
-
         async def _handle(guild: discord.Guild) -> None:
-            for gone in self._company.for_guild(guild.id).company_settle_all(now):
+            for gone in self._company.settle_all(guild.id):
                 channel = announce_channel(guild, self._guild_repo)
                 if channel is None:
                     continue
@@ -117,4 +115,4 @@ class CompanyCog(commands.Cog):
 
 
 async def setup(bot: "CasinoBot") -> None:
-    await bot.add_cog(CompanyCog(bot, bot.config, bot.repos.company, bot.repos.guild))
+    await bot.add_cog(CompanyCog(bot, bot.config, bot.services.company, bot.repos.guild))

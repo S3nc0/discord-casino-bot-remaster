@@ -5,7 +5,7 @@
 """
 
 import datetime
-from typing import Any, Optional, Self
+from typing import Any, Optional, Self, cast
 
 from domain import shop as shop_mod
 from domain.games.rtplevel import DEFAULT_RTP_POLICY
@@ -13,6 +13,8 @@ from domain.ports.clock import IClock
 from domain.ports.repos import (
     IArenaRepo,
     IAuctionRepo,
+    IBondRepo,
+    ICryptoRepo,
     IDebtRepo,
     IEarningsRepo,
     IEscrowRepo,
@@ -262,7 +264,16 @@ def test_casino_service_works_with_narrow_bridge_stubs():
 def test_economy_horse_and_labor_services_work_with_narrow_stubs():
     clock = FakeClock(datetime.datetime(2026, 11, 15, 12, 0))
     wallet = StubWallet({1: 5000})
-    econ_svc = EconomyService(wallet, StubNotices(), StubEarnings(), StubRecords(), clock)
+    econ_svc = EconomyService(
+        wallet,
+        StubNotices(),
+        StubEarnings(),
+        StubRecords(),
+        clock,
+        shop=cast(IShopRepo, None),
+        crypto=cast(ICryptoRepo, None),
+        bonds=cast(IBondRepo, None),
+    )
     assert econ_svc.claim_daily(10, 1, clock.now(), 0).result.ok
     assert econ_svc.backfill_weekly() == 7
     assert econ_svc.transfer(10, 1, 2, 1000, 0.1, 10_000, 3).ok and wallet.transfers

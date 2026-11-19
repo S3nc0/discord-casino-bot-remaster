@@ -5,6 +5,7 @@
 """
 
 import asyncio
+import logging
 import random
 from dataclasses import dataclass
 
@@ -72,6 +73,8 @@ from cogs.casino.texts import (
 )
 from cogs.shared import ui
 from domain.games import pachinko, rtplevel
+
+_log = logging.getLogger(__name__)
 
 RNG = random.SystemRandom()
 MOOD_COLOR = {"normal": ui.DARK, "blue": ui.INFO, "red": ui.ERROR, "gold": ui.GOLD}  # 演出の色合い → 色
@@ -381,19 +384,16 @@ async def play_pachinko(interaction: discord.Interaction, deps: CasinoDeps, bet:
         return
     try:
         results = [pachinko.roll_set(RNG) for _ in range(sets)]
-        level = ctx.casino.rtp.for_guild(ctx.guild_id).rtp_level_get(
-            "パチンコ"
-        )  # 還元率レベルは、セットごとに勝ち分へかける
+        level = ctx.casino.rtp_level(ctx.guild_id, "パチンコ")  # 還元率レベルは、セットごとに勝ち分へかける
         raw = [bet * r.mult for r in results]
         adjusted = [rtplevel.adjust("パチンコ", level, bet, p) for p in raw]
         ctx.rtp_shift = sum(adjusted) - sum(raw)
         net = ctx.settle(sum(adjusted), keep_session=True, rtp_done=True)
-        pachinko_repo = ctx.deps.pachinko.for_guild(ctx.guild_id)
         for r in results:
             try:  # 統計用の記録。失敗しても、結果には影響させない
-                pachinko_repo.pachinko_record_set(ctx.user_id, bet, pachinko.BALLS_PER_SET, r)
+                ctx.casino.record_pachinko_set(ctx.guild_id, ctx.user_id, bet, pachinko.BALLS_PER_SET, r)
             except Exception as exc:
-                print(f"パチンコの記録に失敗: {exc!r}")
+                _log.warning(f"パチンコの記録に失敗: {exc!r}")
         top = top_round(results)
         body = result_body(ctx, results, sum(raw), net)
         color = ui.GOLD if top >= 10 else (ui.OK if net > 0 else ui.ERROR)

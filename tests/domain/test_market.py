@@ -423,14 +423,14 @@ def test_chart_command_registers_a_live_chart_that_updates_then_ends(cog):
     post = cog.bot.repos.market.live_chart_posts()[0]
     assert post["channel_id"] == 5 and post["guild_id"] == G and post["period"] == "24h"
     now = post["ts"] + 120
-    run(feed.refresh_post(cog.bot, cog._market, cog, post, now, {}))  # 2分後: 更新される（まだ続く）
+    run(feed.refresh_post(cog.bot, cog._market_svc, cog, post, now, {}))  # 2分後: 更新される（まだ続く）
     assert (
         len(ch.edits) == 1
         and "自動で更新（あと" in ch.edits[0][1].footer.text
         and cog.bot.repos.market.live_chart_posts()
     )
     end = post["ts"] + market_cog.LIVE_MINUTES * 60
-    run(feed.refresh_post(cog.bot, cog._market, cog, post, end, {}))  # 60分後: 最後に1回書き換えて、終わる
+    run(feed.refresh_post(cog.bot, cog._market_svc, cog, post, end, {}))  # 60分後: 最後に1回書き換えて、終わる
     assert "更新は終了しました" in ch.edits[-1][1].footer.text and cog.bot.repos.market.live_chart_posts() == []
     assert len(ch.edits) == 2  # 終わったあとは、もう更新しない
 
@@ -451,7 +451,7 @@ def test_tick_updates_only_live_posts_and_shares_one_embed_per_view(cog, monkeyp
     monkeypatch.setattr(cog, "chart_embed", lambda *a, **kw: built.append(1) or orig(*a, **kw))
     cache = {}
     for post in cog.bot.repos.market.live_chart_posts():
-        run(feed.refresh_post(cog.bot, cog._market, cog, post, now, cache))
+        run(feed.refresh_post(cog.bot, cog._market_svc, cog, post, now, cache))
     assert len(chans[5].edits) == 1 and len(chans[6].edits) == 1 and chans[7].edits == []
     assert len(built) == 1  # 同じ表示は、1回だけ作って使い回す
 
@@ -462,11 +462,11 @@ def test_deleted_chart_stops_being_updated_and_errors_do_not_stop_others(cog):
     cog.bot.repos.market.swap_chart_post(5, 105, G, "24h", time.time())
     post = cog.bot.repos.market.live_chart_posts()[0]
     ch.error = discord.NotFound(fake_response(404), "gone")  # 誰かがチャートを消した
-    run(feed.refresh_post(cog.bot, cog._market, cog, post, time.time(), {}))
+    run(feed.refresh_post(cog.bot, cog._market_svc, cog, post, time.time(), {}))
     assert cog.bot.repos.market.live_chart_posts() == []
     cog.bot.repos.market.swap_chart_post(5, 106, G, "24h", time.time())
     ch.error = discord.Forbidden(fake_response(403), "no")  # 権限が無い: 例外にせず、次の周期で再試行
-    run(feed.refresh_post(cog.bot, cog._market, cog, cog.bot.repos.market.live_chart_posts()[0], time.time(), {}))
+    run(feed.refresh_post(cog.bot, cog._market_svc, cog, cog.bot.repos.market.live_chart_posts()[0], time.time(), {}))
     assert cog.bot.repos.market.live_chart_posts()
 
 
@@ -474,7 +474,7 @@ def test_legacy_or_unknown_rows_end_without_crashing(cog):
     ch = EditChan(5)
     live_env(cog, ch)
     cog.bot.repos.market.swap_chart_post(5, 105, 0, "24h", 0)  # 古い版で作られた行（サーバーが分からない）
-    run(feed.refresh_post(cog.bot, cog._market, cog, cog.bot.repos.market.live_chart_posts()[0], time.time(), {}))
+    run(feed.refresh_post(cog.bot, cog._market_svc, cog, cog.bot.repos.market.live_chart_posts()[0], time.time(), {}))
     assert ch.edits == [] and cog.bot.repos.market.live_chart_posts() == []
 
 
@@ -496,11 +496,11 @@ def test_old_chart_board_is_removed_once(cog):
         cog.bot.repos.db.conn.execute(
             "INSERT INTO chart_boards (guild_id, channel_id, message_id) VALUES (?, 5, 777)", (G,)
         )
-    run(feed.retire_old_boards(cog.bot, cog._market))
+    run(feed.retire_old_boards(cog.bot, cog._market_svc))
     assert (
         ch.deleted == [777] and cog.bot.repos.market.list_chart_boards() == []
     )  # 掲示のメッセージを消し、設定も捨てる
-    run(feed.retire_old_boards(cog.bot, cog._market))
+    run(feed.retire_old_boards(cog.bot, cog._market_svc))
     assert ch.deleted == [777]  # 2回目は何もしない
 
 

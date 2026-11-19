@@ -7,6 +7,7 @@ from types import SimpleNamespace
 import pytest
 
 from cogs.labor import cog as labor_cog
+from cogs.labor import views as labor_views
 from domain import labor as lab
 from domain import teiai
 from infra.db.repositories import open_repositories
@@ -158,7 +159,7 @@ class Resp:
 
 def make_view(eco):
     bot = make_test_bot(repos=eco)
-    return labor_cog.LaborView(eco.labor, eco.relics, bot.services.labor, U, 0)
+    return labor_cog.LaborView(bot.services.labor, U, 0)
 
 
 def test_panel_view_buttons_and_owner_check(eco):
@@ -180,7 +181,7 @@ def test_panel_work_and_collect_update_message(eco):
     it = SimpleNamespace(user=SimpleNamespace(id=U), response=Resp())
     asyncio.run(view._work(as_interaction(it)))
     assert it.response.edits and it.response.edits[-1]["embed"].title.startswith("⛏")
-    day = view._today()
+    day = view._svc.today_key()
     assert eco.labor.labor_state(U, 0, day)["pot"] == 10 and eco.wallet.balance(U) == 0
     asyncio.run(view._collect(as_interaction(it)))
     assert eco.wallet.balance(U) == 10 and eco.labor.labor_state(U, 0, day)["pot"] == 0
@@ -303,12 +304,12 @@ def test_hire_tab_buttons_hire_and_dismiss_through_the_panel(eco):
     assert "賃金" not in text(labor_cog.hire_embed(view.state))
     assert not [c for c in view.children if isinstance(c, labor_cog.discord.ui.Select)]  # まだ、誰もいない
     asyncio.run(view._hirer("apprentice")(as_interaction(it)))
-    assert eco.labor.labor_state(U, 0, view._today())["apprentice"] == 1
+    assert eco.labor.labor_state(U, 0, view._svc.today_key())["apprentice"] == 1
     selects = [c for c in view.children if isinstance(c, labor_cog.discord.ui.Select)]
     assert len(selects) == 1 and selects[0].options[0].value == "apprentice"
     it.data = {"values": ["apprentice"]}
     asyncio.run(view._dismiss(as_interaction(it)))
-    assert eco.labor.labor_state(U, 0, view._today())["apprentice"] == 0
+    assert eco.labor.labor_state(U, 0, view._svc.today_key())["apprentice"] == 0
     asyncio.run(view._goto("work")(as_interaction(it)))
     assert button(view.children[0]).label == "働く"
 
@@ -376,15 +377,15 @@ def test_drink_button_in_the_panel(eco):
     assert drink.disabled and "ショップ" in must(drink.label)  # 持っていない
     eco.wallet.credit(U, 1_000, "テスト")
     buy_drink(eco, 2)
-    now = labor_cog.time.time()
+    now = labor_views.time.time()
     for i in range(30):  # 画面は、いまの時刻で読むので、いまの時刻で押す
-        eco.labor.labor_click(U, now - 60 + i * 1.5, view._today())
+        eco.labor.labor_click(U, now - 60 + i * 1.5, view._svc.today_key())
     view.refresh()
     drink = next(c for c in buttons(view) if c.emoji and str(c.emoji) == "🥤")
     assert drink.label == "栄養ドリンコ ×2"
     it = SimpleNamespace(user=SimpleNamespace(id=U), response=Resp(), data={})
     asyncio.run(view._drink(as_interaction(it)))
-    assert eco.labor.labor_state(U, now, view._today())["drinks"] == 1 and it.response.edits
+    assert eco.labor.labor_state(U, now, view._svc.today_key())["drinks"] == 1 and it.response.edits
     assert "回復" in it.response.edits[-1]["embed"].description
 
 
@@ -588,7 +589,7 @@ def test_collect_announces_big_ores_publicly(eco, monkeypatch):
     it = SimpleNamespace(
         user=SimpleNamespace(id=U, mention="<@1>"), response=Resp(), data={}, followup=SimpleNamespace(send=send)
     )
-    monkeypatch.setattr(labor_cog.time, "time", lambda: T0 + H)
+    monkeypatch.setattr(labor_views.time, "time", lambda: T0 + H)
     asyncio.run(view._collect(as_interaction(it)))
     assert sent and "ダイヤ" in sent[0] and "銅" not in sent[0]
     assert "掘り出し" in it.response.edits[-1]["embed"].description
@@ -680,7 +681,7 @@ def test_the_default_skim_is_one_percent_and_the_screens_call_it_a_charity_donat
     it = SimpleNamespace(
         user=SimpleNamespace(id=U, mention="<@1>"), response=Resp(), data={}, followup=SimpleNamespace(send=send)
     )
-    monkeypatch.setattr(labor_cog.time, "time", lambda: T0 + H)
+    monkeypatch.setattr(labor_views.time, "time", lambda: T0 + H)
     asyncio.run(view._collect(as_interaction(it)))
     desc = it.response.edits[-1]["embed"].description
     assert "慈善団体に寄付されます" in desc and str(lab.ORE_VALUE["diamond"] // 100) in desc  # ダイヤの1%
@@ -904,7 +905,7 @@ def test_relics_show_on_the_screens_and_a_big_relic_is_announced_publicly(eco, m
     it = SimpleNamespace(
         user=SimpleNamespace(id=U, mention="<@1>"), response=Resp(), data={}, followup=SimpleNamespace(send=send)
     )
-    monkeypatch.setattr(labor_cog.time, "time", lambda: T0 + H)
+    monkeypatch.setattr(labor_views.time, "time", lambda: T0 + H)
     asyncio.run(view._collect(as_interaction(it)))
     assert sent and "竜の涙" in sent[0] and "三葉虫" not in sent[0]  # 大当たりだけ、公開で知らせる
     assert "発掘品が持ち物に入りました" in it.response.edits[-1]["embed"].description
@@ -918,7 +919,7 @@ def test_collect_button_works_when_only_relics_are_waiting(eco, monkeypatch):
     eco.labor.labor_hire(U, "craftsman", T0, DAY)
     eco.labor.labor_click(U, T0 + H, DAY)
     eco.labor.labor_collect(U, T0 + H, DAY)  # クリックの稼ぎと、最初の発掘品を、先に受け取る
-    monkeypatch.setattr(labor_cog.time, "time", lambda: T0 + 3 * H)
+    monkeypatch.setattr(labor_views.time, "time", lambda: T0 + 3 * H)
     eco.labor.labor_click(U, T0 + 3 * H, DAY)  # 触れると、次の分が決済される（発掘品が入る）
     with eco.db.tx():
         eco.db.conn.execute(
@@ -975,7 +976,7 @@ def test_collect_message_shows_the_donation_total_instead_of_the_rate(eco, monke
         eco.labor.labor_click(U, T0 + k * 2, DAY)
     view = make_view(eco)
     it = SimpleNamespace(user=SimpleNamespace(id=U, mention="<@1>"), response=Resp(), data={}, followup=None)
-    monkeypatch.setattr(labor_cog.time, "time", lambda: T0 + 200)
+    monkeypatch.setattr(labor_views.time, "time", lambda: T0 + 200)
     asyncio.run(view._collect(as_interaction(it)))
     desc = it.response.edits[-1]["embed"].description
     assert "慈善団体に寄付されます" in desc and "寄付総額" not in desc and "稼ぎの" not in desc

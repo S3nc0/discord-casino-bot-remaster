@@ -1,6 +1,7 @@
 """自動で更新されるランキング掲示板。"""
 
 import asyncio
+import logging
 from types import SimpleNamespace
 
 import discord
@@ -185,7 +186,7 @@ def test_refresh_edits_the_same_message_with_latest_ranking(eco):
     eco.wallet.credit(1, 50_000, "テスト")
     run(
         boards.refresh_board(
-            cog.bot, cog._ranking_repos, cog._guild_repo, eco.guild.get_leaderboard(10), BOARD_INTERVAL_MINUTES
+            cog.bot, cog._ranking, cog._guild_repo, eco.guild.get_leaderboard(10), BOARD_INTERVAL_MINUTES
         )
     )
     msg = ch.messages[mid]
@@ -202,7 +203,7 @@ def test_refresh_reposts_when_the_message_was_deleted(eco):
     del ch.messages[old]  # 誰かが消した
     run(
         boards.refresh_board(
-            cog.bot, cog._ranking_repos, cog._guild_repo, eco.guild.get_leaderboard(10), BOARD_INTERVAL_MINUTES
+            cog.bot, cog._ranking, cog._guild_repo, eco.guild.get_leaderboard(10), BOARD_INTERVAL_MINUTES
         )
     )
     new = eco.guild.get_leaderboard(10)["message_id"]
@@ -215,7 +216,7 @@ def test_refresh_forgets_the_board_when_the_channel_is_gone(eco):
     guild.get_channel = lambda cid: None
     run(
         boards.refresh_board(
-            cog.bot, cog._ranking_repos, cog._guild_repo, eco.guild.get_leaderboard(10), BOARD_INTERVAL_MINUTES
+            cog.bot, cog._ranking, cog._guild_repo, eco.guild.get_leaderboard(10), BOARD_INTERVAL_MINUTES
         )
     )
     assert eco.guild.get_leaderboard(10) is None
@@ -227,7 +228,7 @@ def test_refresh_keeps_the_board_when_permissions_are_temporarily_missing(eco):
     board = eco.guild.get_leaderboard(10)
     ch.edit_error = http_error(403)
     run(
-        boards.refresh_board(cog.bot, cog._ranking_repos, cog._guild_repo, board, BOARD_INTERVAL_MINUTES)
+        boards.refresh_board(cog.bot, cog._ranking, cog._guild_repo, board, BOARD_INTERVAL_MINUTES)
     )  # 例外を出さず、次の周期で再試行する
     assert eco.guild.get_leaderboard(10) == board
 
@@ -238,7 +239,7 @@ def test_refresh_does_nothing_when_the_bot_is_not_in_the_guild_right_now(eco):
     cog.bot.get_guild = lambda gid: None
     run(
         boards.refresh_board(
-            cog.bot, cog._ranking_repos, cog._guild_repo, eco.guild.get_leaderboard(10), BOARD_INTERVAL_MINUTES
+            cog.bot, cog._ranking, cog._guild_repo, eco.guild.get_leaderboard(10), BOARD_INTERVAL_MINUTES
         )
     )
     assert eco.guild.get_leaderboard(10) is not None
@@ -304,12 +305,13 @@ def test_board_commands_allow_server_managers_and_bot_owners_only(command):
         _check(command, 5, False, [7])  # どちらでもない
 
 
-def test_failure_log_is_throttled(capsys):
-    from infra import logthrottle
+def test_failure_log_is_throttled(caplog):
+    from cogs.shared import logthrottle
 
     logthrottle._last.clear()
-    for _ in range(5):
-        logthrottle.warn(("k", 1), "失敗しました")
-    logthrottle.warn(("k", 2), "別のサーバーの失敗")
-    out = capsys.readouterr().out
+    with caplog.at_level(logging.WARNING):
+        for _ in range(5):
+            logthrottle.warn(("k", 1), "失敗しました")
+        logthrottle.warn(("k", 2), "別のサーバーの失敗")
+    out = caplog.text
     assert out.count("失敗しました") == 1 and "別のサーバーの失敗" in out

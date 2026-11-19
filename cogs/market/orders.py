@@ -91,7 +91,7 @@ async def buy_spot(
     async def run(uid: int) -> None:
         gid = ui.guild_id_of(interaction)
         price = cog._market_svc.latest_price(sym.key)
-        balance = cog._wallet.for_guild(gid).balance(uid)
+        balance = cog._economy_svc.balance_of(gid, uid)
         if balance < amount:
             await interaction.response.send_message(
                 embed=ui.error_embed(
@@ -111,7 +111,7 @@ async def buy_spot(
         if reply is None:
             return
         price = cog._market_svc.latest_price(sym.key)  # 確認を待つ間に動いた価格で、確定する
-        res = cog._crypto.for_guild(gid).crypto_buy(uid, amount, price, sym.key)
+        res = cog._market_svc.crypto_buy(gid, uid, amount, price, sym.key)
         if not res.ok:
             await reply(embed=ui.error_embed("買えませんでした", format_failure(res.reason)), ephemeral=True)
             return
@@ -147,8 +147,7 @@ async def margin_close(
 
     async def run(uid: int) -> None:
         gid = ui.guild_id_of(interaction)
-        margin_repo = cog._margin.for_guild(gid)
-        have, entry_value, margin = margin_repo.margin_position(uid, sym.key, side)
+        have, entry_value, margin = cog._market_svc.margin_position(gid, uid, sym.key, side)
         if have <= 0:
             await interaction.response.send_message(
                 embed=ui.error_embed(cannot, f"{sym.name}の{label}を建てていません。`/証券 注文` で建てられます。"),
@@ -168,17 +167,17 @@ async def margin_close(
         if reply is None:
             return
         price = cog._market_svc.latest_price(sym.key)
-        res = margin_repo.margin_close(uid, side, units, price, sym.key)
+        res = cog._market_svc.margin_close(gid, uid, side, units, price, sym.key)
         if not res.ok:
             await reply(embed=ui.error_embed(f"{cannot[:-2]}ませんでした", format_failure(res.reason)), ephemeral=True)
             return
-        left, left_entry, left_margin = margin_repo.margin_position(uid, sym.key, side)
+        left, left_entry, left_margin = cog._market_svc.margin_position(gid, uid, sym.key, side)
         rest = (
             f"\n\n残りの建玉\n{margin_position_text(side, left, left_entry, left_margin, price)}"
             if left > 0
             else f"\n{label}を全部閉じました。"
         )
-        debt = cog._debt.for_guild(gid).debt(uid)
+        debt = cog._teiai.debt_of(gid, uid)
         owed = (
             f"\n⚠️ 担保を超える損失は、手元の資産から取り立てられました（借金 {ui.pelica(debt)}）。" if debt > 0 else ""
         )
@@ -211,8 +210,7 @@ async def sell_spot(
 
     async def run(uid: int) -> None:
         gid = ui.guild_id_of(interaction)
-        crypto_repo = cog._crypto.for_guild(gid)
-        have, cost = crypto_repo.crypto_holding(uid, sym.key)
+        have, cost = cog._market_svc.crypto_holding(gid, uid, sym.key)
         if have <= 0:
             await interaction.response.send_message(
                 embed=ui.error_embed("売れません", f"{sym.name}を持っていません。`/証券 注文` で買えます。"),
@@ -232,11 +230,11 @@ async def sell_spot(
         if reply is None:
             return
         price = cog._market_svc.latest_price(sym.key)
-        res = crypto_repo.crypto_sell(uid, units, price, sym.key)
+        res = cog._market_svc.crypto_sell(gid, uid, units, price, sym.key)
         if not res.ok:
             await reply(embed=ui.error_embed("売れませんでした", format_failure(res.reason)), ephemeral=True)
             return
-        left, left_cost = crypto_repo.crypto_holding(uid, sym.key)
+        left, left_cost = cog._market_svc.crypto_holding(gid, uid, sym.key)
         pct = market.pnl_percent(price, have, cost)  # 売った分の、取得価格に対する増減
         rest = f"\n\n残りの持ち分\n{spot_position_text(left, left_cost, price)}" if left > 0 else "\n全部売りました。"
         await reply(
@@ -312,20 +310,17 @@ async def margin_order(
             return
         price = cog._market_svc.latest_price(sym.key)
         units = units_at(price)  # 確認を待つ間に動いた価格で、確定する
-        margin_repo = cog._margin.for_guild(gid)
-        res = (margin_repo.short_open if side == "short" else margin_repo.long_open)(
-            uid, units, price, leverage, sym.key
-        )
+        res = cog._market_svc.margin_open(gid, uid, side, units, price, leverage, sym.key)
         if not res.ok:
             await reply(embed=ui.error_embed(f"{label}できませんでした", format_failure(res.reason)), ephemeral=True)
             return
-        have, entry_value, margin_all = margin_repo.margin_position(uid, sym.key, side)
+        have, entry_value, margin_all = cog._market_svc.margin_position(gid, uid, sym.key, side)
         await reply(
             embed=ui.ok_embed(
                 f"{sym.name}を{label}しました",
                 f"**{market.lots(res.units)}**（価格 {market.pel(price)}・{leverage}倍）\n"
                 f"預けた担保: {ui.pelica(res.money)}\n残高: **{ui.pelica(res.balance)}**\n\n{margin_position_text(side, have, entry_value, margin_all, price)}\n\n"
-                f"{margin_ratio_text(margin_repo.margin_status(uid, cog._market_svc.latest_prices()))}\n"
+                f"{margin_ratio_text(cog._market_svc.margin_status(gid, uid, cog._market_svc.latest_prices()))}\n"
                 "閉じるには `/証券 保有` のボタンか、`/証券 決済` を使います。",
             )
         )
@@ -363,7 +358,7 @@ async def option_buy(
 
     def quote(price: float) -> tuple:
         now = time.time()
-        events = cog._market_events.market_events(now)
+        events = cog._market_svc.market_events(now)
         if pair and symbol2 is not None:
             rate = opt.pair_ask_rate(sym.key, symbol2, seconds, now, events)
             units = int(amount / rate) if rate > 0 else 0
@@ -398,8 +393,8 @@ async def option_buy(
         )
         if reply is None:
             return
-        res_ok, res = cog._options.for_guild(gid).option_buy(
-            uid, kind, sym.key, amount, symbol2=symbol2, strike_pct=None if pair else strike_pct
+        res_ok, res = cog._market_svc.option_buy(
+            gid, uid, kind, sym.key, amount, symbol2=symbol2, strike_pct=None if pair else strike_pct
         )
         if not res_ok:
             await reply(embed=ui.error_embed(f"{name}を買えませんでした", format_failure(res)), ephemeral=True)
@@ -438,7 +433,7 @@ async def option_write(
         now = time.time()
         strike = opt.strike_for(kind, price, strike_pct)
         units = int(amount / opt.margin_per_unit(strike))
-        bid = opt.bid_per_unit(kind, sym.key, price, strike, seconds, now, cog._market_events.market_events(now))
+        bid = opt.bid_per_unit(kind, sym.key, price, strike, seconds, now, cog._market_svc.market_events(now))
         return strike, units, math.ceil(round(units * opt.margin_per_unit(strike), 6)), int(bid * units)
 
     async def run(uid: int) -> None:
@@ -470,7 +465,7 @@ async def option_write(
         )
         if reply is None:
             return
-        ok, res = cog._options.for_guild(gid).option_write(uid, kind, sym.key, amount, strike_pct=strike_pct)
+        ok, res = cog._market_svc.option_write(gid, uid, kind, sym.key, amount, strike_pct=strike_pct)
         if not ok:
             await reply(embed=ui.error_embed(f"{label}できませんでした", format_failure(res)), ephemeral=True)
             return
@@ -496,9 +491,8 @@ async def option_sell(
 ) -> None:
     """オプションを、満期の前に手放す。買いはいまの値段（売値）で売り、裸売りは買値で買い戻す。"""
     gid = ui.guild_id_of(interaction)
-    opt_repo = cog._options.for_guild(gid)
-    opt_repo.option_settle(time.time())
-    row = next((r for r in opt_repo.option_list(interaction.user.id)["active"] if r["id"] == option_id), None)
+    cog._market_svc.option_settle(gid, time.time())
+    row = next((r for r in cog._market_svc.active_options(gid, interaction.user.id) if r["id"] == option_id), None)
     if row is None:
         await interaction.response.send_message(
             embed=ui.error_embed("売れません", "その番号のオプションは持っていません。"), ephemeral=True
@@ -507,7 +501,7 @@ async def option_sell(
     short, prices, now = row["side"] == "short", cog._market_svc.latest_prices(), time.time()
     fn = default_confirmed_reply if confirm_fn is None else confirm_fn
     if short:
-        cost = opt_repo.option_close_cost(row, now, prices)
+        cost = cog._market_svc.option_close_cost(gid, row, now, prices)
         text = (
             f"{option_line(row, prices)}\n買い戻しの費用 **{ui.pelica(cost)}**（預けた証拠金 {ui.pelica(row['margin'])}）。"
             + (
@@ -518,7 +512,7 @@ async def option_sell(
         )
         needs = cost >= CONFIRM_FROM or cost > row["margin"]
     else:
-        value = opt_repo.option_value(row, now, prices)
+        value = cog._market_svc.option_value(gid, row, now, prices)
         text = f"{option_line(row, prices)}\nいま売ると **{ui.pelica(value)}** です（掛け金 {ui.pelica(row['premium'])}）。"
         needs = value >= CONFIRM_FROM
     reply = await fn(
@@ -530,7 +524,7 @@ async def option_sell(
     )
     if reply is None:
         return
-    ok, got = opt_repo.option_sell(interaction.user.id, option_id)
+    ok, got = cog._market_svc.option_sell(gid, interaction.user.id, option_id)
     if not ok:
         await reply(embed=ui.error_embed("できませんでした", format_failure(got)), ephemeral=True)
         return
@@ -544,22 +538,22 @@ async def option_sell(
     else:
         body = f"受け取り: **{ui.pelica(got)}**（掛け金との差 {got - row['premium']:+,}ペリカ）"
         good = got >= row["premium"]
-    body += f"\n残高: **{ui.pelica(cog._wallet.for_guild(gid).balance(interaction.user.id))}**"
+    body += f"\n残高: **{ui.pelica(cog._economy_svc.balance_of(gid, interaction.user.id))}**"
     await reply(
         embed=ui.embed("買い戻しました" if short else "オプションを売りました", body, ui.OK if good else ui.ERROR)
     )
 
 
 async def bond_buy(cog: "MarketCog", interaction: discord.Interaction, kind_key: str, amount: int) -> None:
-    bonds_repo = cog._bonds.for_guild(ui.guild_id_of(interaction))
-    bonds_repo.bond_settle(time.time(), RNG)  # 満期の分を先に入金して、買える額を正しくする
+    gid = ui.guild_id_of(interaction)
+    cog._market_svc.bond_settle(gid, time.time(), RNG)  # 満期の分を先に入金して、買える額を正しくする
     if amount < bonds.MIN_AMOUNT:
         await interaction.response.send_message(
             embed=ui.error_embed("買えません", f"債券は {bonds.MIN_AMOUNT:,}ペリカ以上から買えます。"),
             ephemeral=True,
         )
         return
-    ok, reason = bonds_repo.bond_buy(interaction.user.id, kind_key, amount, time.time())
+    ok, reason = cog._market_svc.bond_buy(gid, interaction.user.id, kind_key, amount, time.time())
     if not ok:
         await interaction.response.send_message(
             embed=ui.error_embed("買えません", format_failure(reason)), ephemeral=True
@@ -569,7 +563,7 @@ async def bond_buy(cog: "MarketCog", interaction: discord.Interaction, kind_key:
 
 
 async def bond_cancel(cog: "MarketCog", interaction: discord.Interaction, bond_id: int) -> None:
-    ok, result = cog._bonds.for_guild(ui.guild_id_of(interaction)).bond_cancel(interaction.user.id, bond_id)
+    ok, result = cog._market_svc.bond_cancel(ui.guild_id_of(interaction), interaction.user.id, bond_id)
     if not ok:
         await interaction.response.send_message(
             embed=ui.error_embed("売れません", format_failure(result)), ephemeral=True

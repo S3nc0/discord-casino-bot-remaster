@@ -11,8 +11,7 @@ from cogs.shared.horse_display import stat_lines
 from cogs.shared.messages import format_failure
 from domain import horse as horse_mod
 from domain import shop
-from domain.ports.repos import IHorseRepo, IRaceRepo, IShopRepo
-from services.horse import HorseService
+from services.horse import HorseDesk, HorseService
 
 
 class NameModal(discord.ui.Modal):
@@ -85,7 +84,7 @@ class AppearanceView(discord.ui.View):
         await interaction.response.edit_message(embed=self.embed(), view=self)
 
     async def _on_go(self, interaction: discord.Interaction):
-        ok, result = self.stable.horses(interaction).horse_create(interaction.user.id, self.name, self.coat, self.silks)
+        ok, result = self.stable.desk(interaction).horse_create(interaction.user.id, self.name, self.coat, self.silks)
         if not ok:
             return await interaction.response.send_message(
                 embed=ui.error_embed("迎えられません", format_failure(result)), ephemeral=True
@@ -134,7 +133,7 @@ class StyleView(ui.OwnerView):
 
     async def _on_pick(self, interaction: discord.Interaction):
         value = ui.selected_values(interaction)[0]
-        horses = self.stable.horses(interaction)
+        horses = self.stable.desk(interaction)
         ok, reason = horses.horse_set_style(self.user_id, self.horse["id"], None if value == "auto" else value)
         if not ok:
             return await interaction.response.send_message(
@@ -159,7 +158,7 @@ class GoldCarrotView(ui.OwnerView):
         self._build()
 
     def embed(self) -> discord.Embed:
-        horse = self.stable.horses_for().horse_get(self.horse_id)
+        horse = self.stable.desk_here().horse_get(self.horse_id)
         assert horse is not None
         text = f"**{horse['name']}** に、金にんじん1本を使います。選んだ2か所に、{horse_mod.GOLD_CARROT_POINTS}点ずつ足します（同じところを2回選べば、+{2 * horse_mod.GOLD_CARROT_POINTS}）。\n"
         text += f"いまのステータス:\n{stat_lines(horse)}\n"
@@ -192,7 +191,7 @@ class GoldCarrotView(ui.OwnerView):
         return callback
 
     async def _on_use(self, interaction: discord.Interaction):
-        ok, result = self.stable.horses(interaction).horse_gold_carrot(
+        ok, result = self.stable.desk(interaction).horse_gold_carrot(
             interaction.user.id, self.horse_id, self.first, self.second
         )
         if not ok:
@@ -229,7 +228,7 @@ class RetireView(ui.OwnerView):
         )
 
     async def _on_ok(self, interaction: discord.Interaction):
-        horses = self.stable.horses(interaction)
+        horses = self.stable.desk(interaction)
         ok, result = horses.horse_retire(interaction.user.id, self.horse["id"])
         if not ok:
             return await interaction.response.send_message(
@@ -249,22 +248,16 @@ class Stable(ui.OwnerView):
 
     def __init__(
         self,
-        horses: IHorseRepo,
-        races: IRaceRepo,
-        shop_repo: IShopRepo,
         horse_svc: HorseService,
         user_id: int,
         guild_id: int,
     ) -> None:
         super().__init__(user_id, timeout=600)
-        self._horses = horses
-        self._races = races
-        self._shop = shop_repo
         self._svc = horse_svc
         self.user_id, self.guild_id = user_id, guild_id
         self.horse_id: Optional[int] = None
         self.src, self.dst = "speed", "guts"
-        owned = self.horses_for().horse_list(user_id)
+        owned = self.desk_here().horse_list(user_id)
         if owned:
             self.horse_id = owned[0]["id"]
         self._build()
@@ -274,20 +267,18 @@ class Stable(ui.OwnerView):
             "これは他の人の厩舎です。`/競馬 厩舎` で自分の厩舎を開けます。", ephemeral=True
         )
 
-    def horses_for(self) -> IHorseRepo:
-        return self._horses.for_guild(self.guild_id)
+    def desk_here(self) -> HorseDesk:
+        """画面を開いたサーバーの競馬窓口。"""
+        return self._svc.desk(self.guild_id)
 
-    def horses(self, interaction: discord.Interaction) -> IHorseRepo:
-        return self._horses.for_guild(ui.guild_id_of(interaction))
-
-    def races(self, interaction: discord.Interaction) -> IRaceRepo:
-        return self._races.for_guild(ui.guild_id_of(interaction))
+    def desk(self, interaction: discord.Interaction) -> HorseDesk:
+        """ボタンを押されたサーバーの競馬窓口。"""
+        return self._svc.desk(ui.guild_id_of(interaction))
 
     def embed(self) -> discord.Embed:
-        h_repo = self.horses_for()
-        r_repo = self._races.for_guild(self.guild_id)
-        inv = self._shop.for_guild(self.guild_id).inventory(self.user_id)
-        horse_rows = h_repo.horse_list(self.user_id)
+        desk = self.desk_here()
+        inv = desk.inventory(self.user_id)
+        horse_rows = desk.horse_list(self.user_id)
         e = ui.embed(
             "🐴 厩舎",
             f"購入券 **{inv.get(shop.HORSE_VOUCHER, 0)}枚**　🥕 にんじん **{inv.get(shop.CARROT, 0)}本**　"
@@ -297,12 +288,12 @@ class Stable(ui.OwnerView):
             "🐴 購入券を持っていれば、「新しい馬を迎える」で名前・毛色・勝負服の色を決めて迎えられます。",
             ui.INFO,
         )
-        open_races = {r["id"]: r for r in r_repo.race_open()}
+        open_races = {r["id"]: r for r in desk.race_open()}
         for h in horse_rows:
             registered = [
-                r for r in open_races.values() if any(x["horse_id"] == h["id"] for x in r_repo.race_entries(r["id"]))
+                r for r in open_races.values() if any(x["horse_id"] == h["id"] for x in desk.race_entries(r["id"]))
             ]
-            note = f"\n🏁 {race_title(r_repo, registered[0])} に出走予定" if registered else ""
+            note = f"\n🏁 {race_title(desk, registered[0])} に出走予定" if registered else ""
             mark = "▶ " if h["id"] == self.horse_id else ""
             style = h["style"] or horse_mod.style_of({k: h[k] for k in horse_mod.STAT_KEYS})
             e.add_field(
@@ -310,17 +301,17 @@ class Stable(ui.OwnerView):
                 value=f"{horse_mod.STYLE_MARK[style]} {horse_mod.STYLE_NAMES[style]}\n{stat_lines(h)}\n戦績 {h['races']}/{horse_mod.MAX_RACES}戦 {h['wins']}勝（3着以内 {h['places']}）　賞金 {ui.pelica(h['earnings'])}{note}",
                 inline=False,
             )
-        nxt = next((r for r in r_repo.race_open() if r["status"] == "entry"), None)
+        nxt = next((r for r in desk.race_open() if r["status"] == "entry"), None)
         if nxt:
             e.set_footer(
-                text=f"次の申し込み: 第{r_repo.race_number(nxt['id'])}競走（締切 {time.strftime('%H:%M', time.localtime(nxt['entry_close']))}）"
+                text=f"次の申し込み: 第{desk.race_number(nxt['id'])}競走（締切 {time.strftime('%H:%M', time.localtime(nxt['entry_close']))}）"
             )
         return e
 
     def _build(self) -> None:
         self.clear_items()
-        horses = self.horses_for().horse_list(self.user_id)
-        inv = self._shop.for_guild(self.guild_id).inventory(self.user_id)
+        horses = self.desk_here().horse_list(self.user_id)
+        inv = self.desk_here().inventory(self.user_id)
         can_buy = inv.get(shop.HORSE_VOUCHER, 0) > 0 and len(horses) < horse_mod.MAX_HORSES
         if horses:
             pick = discord.ui.Select(
@@ -386,7 +377,7 @@ class Stable(ui.OwnerView):
 
     async def _on_carrot(self, interaction: discord.Interaction):
         assert self.horse_id is not None
-        ok, result = self.horses(interaction).horse_carrot(interaction.user.id, self.horse_id, self.src, self.dst)
+        ok, result = self.desk(interaction).horse_carrot(interaction.user.id, self.horse_id, self.src, self.dst)
         if not ok:
             return await interaction.response.send_message(
                 embed=ui.error_embed("動かせません", format_failure(result)), ephemeral=True
@@ -399,7 +390,7 @@ class Stable(ui.OwnerView):
 
     async def _on_style(self, interaction: discord.Interaction):
         assert self.horse_id is not None
-        horse = self.horses(interaction).horse_get(self.horse_id)
+        horse = self.desk(interaction).horse_get(self.horse_id)
         if horse is None or horse["owner_id"] != interaction.user.id:
             return await interaction.response.send_message(
                 embed=ui.error_embed("選べません", "自分の馬を選んでください。"), ephemeral=True
@@ -409,7 +400,7 @@ class Stable(ui.OwnerView):
 
     async def _on_retire(self, interaction: discord.Interaction):
         assert self.horse_id is not None
-        horse = self.horses(interaction).horse_get(self.horse_id)
+        horse = self.desk(interaction).horse_get(self.horse_id)
         if horse is None or horse["owner_id"] != interaction.user.id:
             return await interaction.response.send_message(
                 embed=ui.error_embed("引退させられません", "自分の馬を選んでください。"), ephemeral=True
@@ -418,43 +409,41 @@ class Stable(ui.OwnerView):
         view = RetireView(self, interaction.user.id, horse, value)
         await interaction.response.send_message(embed=view.embed(), view=view, ephemeral=True)
 
-    def _next_entry_race(self, races: IRaceRepo):
-        return next((r for r in races.race_open() if r["status"] == "entry"), None)
+    def _next_entry_race(self, desk: HorseDesk):
+        return next((r for r in desk.race_open() if r["status"] == "entry"), None)
 
     async def _on_enter(self, interaction: discord.Interaction):
         assert self.horse_id is not None
-        r_repo = self.races(interaction)
-        h_repo = self.horses(interaction)
-        race = self._next_entry_race(r_repo)
+        desk = self.desk(interaction)
+        race = self._next_entry_race(desk)
         if race is None:
             return await interaction.response.send_message(
                 embed=ui.error_embed("申し込めません", "いま、申し込みを受け付けているレースはありません。"),
                 ephemeral=True,
             )
-        ok, reason = r_repo.race_register(interaction.user.id, self.horse_id, race["id"], time.time())
+        ok, reason = desk.race_register(interaction.user.id, self.horse_id, race["id"], time.time())
         if not ok:
             return await interaction.response.send_message(
                 embed=ui.error_embed("申し込めません", format_failure(reason)), ephemeral=True
             )
         await self._redraw(interaction)
-        await refresh_entry_card(interaction, h_repo, r_repo, race["id"])
+        await refresh_entry_card(interaction, desk, race["id"])
 
     async def _on_withdraw(self, interaction: discord.Interaction):
         assert self.horse_id is not None
-        r_repo = self.races(interaction)
-        h_repo = self.horses(interaction)
-        race = self._next_entry_race(r_repo)
+        desk = self.desk(interaction)
+        race = self._next_entry_race(desk)
         if race is None:
             return await interaction.response.send_message(
                 embed=ui.error_embed("取り下げられません", "申し込み中のレースはありません。"), ephemeral=True
             )
-        ok, reason = r_repo.race_withdraw(interaction.user.id, self.horse_id, race["id"], time.time())
+        ok, reason = desk.race_withdraw(interaction.user.id, self.horse_id, race["id"], time.time())
         if not ok:
             return await interaction.response.send_message(
                 embed=ui.error_embed("取り下げられません", format_failure(reason)), ephemeral=True
             )
         await self._redraw(interaction)
-        await refresh_entry_card(interaction, h_repo, r_repo, race["id"])
+        await refresh_entry_card(interaction, desk, race["id"])
 
     async def _on_new(self, interaction: discord.Interaction):
         await interaction.response.send_modal(NameModal(self))

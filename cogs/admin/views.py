@@ -1,7 +1,6 @@
 """運営コマンド（`/運営`）の確認ボタンと入力フォーム（お知らせ・クイズの一括登録・発言の削除）。"""
 
 import io
-import time
 from typing import TYPE_CHECKING, Any, Optional
 
 import discord
@@ -126,7 +125,7 @@ class QuizBulkConfirm(ui.OwnerView):
     async def register(self, interaction: discord.Interaction, button: discord.ui.Button):
         self.stop()
         await interaction.response.defer()
-        ids = self.cog._quiz.quiz_add_many(self.quizzes, time.time(), interaction.user.display_name)
+        ids = self.cog._quiz.add_many(self.quizzes, interaction.user.display_name)
         note = "告知はしていません。`/クイズ 挑戦` に出ます。"
         if self.announce:
             quiz_bridge = resolve_bridge(self.cog.bot, IQuizAdminBridge, self.cog._quiz_bridge)

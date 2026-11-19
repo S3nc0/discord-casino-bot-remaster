@@ -7,6 +7,7 @@ import discord
 
 from cogs.market import orders
 from cogs.shared import ui
+from cogs.shared.amount import typed_amount
 from domain import market, market_events
 from domain import options as opt
 
@@ -45,8 +46,8 @@ class OptionAmountModal(discord.ui.Modal):
         self.add_item(self.amount)
 
     async def on_submit(self, interaction: discord.Interaction) -> None:
-        raw = self.amount.value.replace(",", "").strip()
-        if not raw.isdigit() or int(raw) < opt.MIN_PREMIUM:
+        premium = typed_amount(self.amount.value)
+        if premium is None or premium < opt.MIN_PREMIUM:
             await interaction.response.send_message(
                 embed=ui.error_embed(
                     "掛け金が正しくありません", f"{opt.MIN_PREMIUM:,}ペリカ以上の数字で入れてください。"
@@ -54,7 +55,7 @@ class OptionAmountModal(discord.ui.Modal):
                 ephemeral=True,
             )
             return
-        await orders.option_buy(self.cog, interaction, self.kind, self.symbol, int(raw))
+        await orders.option_buy(self.cog, interaction, self.kind, self.symbol, premium)
 
 
 class MarketView(ui.OwnerView):
@@ -78,7 +79,7 @@ class MarketView(ui.OwnerView):
         self.add_item(self.symbol_select)
         self.add_item(self.period_select)
         now = time.time()
-        ev = market_events.current(cog._market_events.market_events(now), now)
+        ev = market_events.current(cog._market_svc.market_events(now), now)
         if ev is not None:  # イベントがあるとき、その銘柄のコール・プットを、すぐ買えるボタンを出す
             for kind in (opt.CALL, opt.PUT):
                 name, emoji, _ = opt.KINDS[kind]

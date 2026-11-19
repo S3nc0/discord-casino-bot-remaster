@@ -1,59 +1,16 @@
-"""会社の画面の部品（CompanyPanel と、金額・種類の入力）。"""
+"""会社の画面の部品（CompanyPanel と、種類の入力）。"""
 
-import time
 from typing import Optional
 
 import discord
 
 from cogs.company.embeds import company_embed, guide_embed, kind_label
 from cogs.shared import ui
+from cogs.shared.amount import AmountModal
 from cogs.shared.messages import format_failure
 from domain import company as company_mod
 from domain.errors import fail
-from domain.ports.repos import ICompanyRepo
-
-
-def parse_amount(raw: str) -> Optional[int]:
-    """入力された金額。空なら 0（＝全額）、数字でなければ None。"""
-    raw = raw.replace(",", "").strip()
-    if not raw:
-        return 0
-    return int(raw) if raw.isdigit() else None
-
-
-class AmountModal(discord.ui.Modal):
-    """出資する額・引き出す額の入力。"""
-
-    def __init__(self, panel: "CompanyPanel", mode: str):
-        super().__init__(title="会社へ出資する" if mode == "invest" else "会社資金を引き出す")
-        self.panel, self.mode = panel, mode
-        self.amount = discord.ui.TextInput(
-            label="金額（ペリカ）" if mode == "invest" else "金額（空欄なら全額）",
-            required=mode == "invest",
-            max_length=12,
-        )
-        self.add_item(self.amount)
-
-    async def on_submit(self, interaction: discord.Interaction) -> None:
-        amount = parse_amount(self.amount.value)
-        if amount is None:
-            await interaction.response.send_message(
-                embed=ui.error_embed("金額が正しくありません", "半角の数字で入れてください。"), ephemeral=True
-            )
-            return
-        repo = self.panel.repo(interaction)
-        if self.mode == "invest":
-            ok, result = repo.company_invest(interaction.user.id, amount, time.time())
-            done = "出資しました"
-        else:
-            ok, result = repo.company_withdraw(interaction.user.id, amount or None, time.time())
-            done = "引き出しました"
-        if not ok:
-            await interaction.response.send_message(
-                embed=ui.error_embed("できません", format_failure(result)), ephemeral=True
-            )
-            return
-        await self.panel.redraw(interaction, done)
+from services.company import CompanyService
 
 
 class KindView(ui.OwnerView):
@@ -83,7 +40,7 @@ class KindView(ui.OwnerView):
 
     async def _on_pick(self, interaction: discord.Interaction) -> None:
         kind = ui.selected_values(interaction)[0]
-        ok, reason = self.panel.repo(interaction).company_change_kind(interaction.user.id, kind, time.time())
+        ok, reason = self.panel.company.change_kind(ui.guild_id_of(interaction), interaction.user.id, kind)
         if not ok:
             await interaction.response.send_message(
                 embed=ui.error_embed("変えられません", format_failure(reason)), ephemeral=True
@@ -98,24 +55,21 @@ class KindView(ui.OwnerView):
 class CompanyPanel(ui.OwnerView):
     """`/会社 状況` の画面。出荷・出資・引き出し・増築・種類の変更を、ボタンで行う。"""
 
-    def __init__(self, repo: ICompanyRepo, user_id: int, guild_id: int) -> None:
+    def __init__(self, company: CompanyService, user_id: int, guild_id: int) -> None:
         super().__init__(
             user_id, timeout=600, owner_message="これは他の人の会社です。`/会社 状況` で自分の会社を開けます。"
         )
-        self._repo = repo
+        self.company = company
         self.user_id, self.guild_id = user_id, guild_id
         self._build()
 
-    def repo(self, interaction: discord.Interaction) -> ICompanyRepo:
-        return self._repo.for_guild(ui.guild_id_of(interaction))
-
     def embed(self) -> discord.Embed:
-        c = self._repo.for_guild(self.guild_id).company_get(self.user_id, time.time())
+        c = self.company.get(self.guild_id, self.user_id)
         return company_embed(c) if c else guide_embed()
 
     def _build(self) -> None:
         self.clear_items()
-        c = self._repo.for_guild(self.guild_id).company_get(self.user_id, time.time())
+        c = self.company.get(self.guild_id, self.user_id)
         if c is None:
             return
         buttons = [
@@ -144,7 +98,7 @@ class CompanyPanel(ui.OwnerView):
         )
 
     async def _on_ship(self, interaction: discord.Interaction) -> None:
-        ok, result = self.repo(interaction).company_ship(interaction.user.id, time.time())
+        ok, result = self.company.ship(ui.guild_id_of(interaction), interaction.user.id)
         if not ok:
             return await self._fail(interaction, result)
         note = f"出荷しました: 会社資金 +{ui.pelica(result['paid'])}（ピンハネ {ui.pelica(result['pinhane'])}）"
@@ -153,19 +107,38 @@ class CompanyPanel(ui.OwnerView):
         await self.redraw(interaction, note)
 
     async def _on_invest(self, interaction: discord.Interaction) -> None:
-        await interaction.response.send_modal(AmountModal(self, "invest"))
+        await interaction.response.send_modal(
+            AmountModal(title="会社へ出資する", label="金額（ペリカ）", required=True, on_amount=self._invest)
+        )
 
     async def _on_withdraw(self, interaction: discord.Interaction) -> None:
-        await interaction.response.send_modal(AmountModal(self, "withdraw"))
+        await interaction.response.send_modal(
+            AmountModal(
+                title="会社資金を引き出す", label="金額（空欄なら全額）", required=False, on_amount=self._withdraw
+            )
+        )
+
+    async def _invest(self, interaction: discord.Interaction, amount: Optional[int]) -> None:
+        ok, result = self.company.invest(ui.guild_id_of(interaction), interaction.user.id, amount or 0)
+        if not ok:
+            return await self._fail(interaction, result)
+        await self.redraw(interaction, "出資しました")
+
+    async def _withdraw(self, interaction: discord.Interaction, amount: Optional[int]) -> None:
+        # 空欄・0 は全額
+        ok, result = self.company.withdraw(ui.guild_id_of(interaction), interaction.user.id, amount or None)
+        if not ok:
+            return await self._fail(interaction, result)
+        await self.redraw(interaction, "引き出しました")
 
     async def _on_upgrade(self, interaction: discord.Interaction) -> None:
-        ok, result = self.repo(interaction).company_upgrade(interaction.user.id, time.time())
+        ok, result = self.company.upgrade(ui.guild_id_of(interaction), interaction.user.id)
         if not ok:
             return await self._fail(interaction, result)
         await self.redraw(interaction, f"増築しました: 事業所は Lv{result} になりました")
 
     async def _on_kind(self, interaction: discord.Interaction) -> None:
-        c = self.repo(interaction).company_get(interaction.user.id, time.time())
+        c = self.company.get(ui.guild_id_of(interaction), interaction.user.id)
         if c is None:
             return await self._fail(interaction, fail("company_none"))
         view = KindView(self, interaction.user.id, c["kind"])

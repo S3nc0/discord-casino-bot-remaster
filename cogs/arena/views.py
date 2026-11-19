@@ -6,6 +6,7 @@ import discord
 
 from cogs.arena.embeds import tournament_embed
 from cogs.shared import ui
+from cogs.shared.amount import reject_bad_amount, typed_amount
 from cogs.shared.messages import format_failure
 from domain import arena as arena_mod
 from services.arena import ArenaService
@@ -28,14 +29,12 @@ class StakeModal(discord.ui.Modal):
         self.add_item(self.stake)
 
     async def on_submit(self, interaction: discord.Interaction) -> None:
-        raw = self.stake.value.replace(",", "").strip()
-        if not raw.isdigit():
-            await interaction.response.send_message(
-                embed=ui.error_embed("金額が正しくありません", "半角の数字で入れてください。"), ephemeral=True
-            )
+        stake = typed_amount(self.stake.value)
+        if stake is None:
+            await reject_bad_amount(interaction)
             return
         ok, reason = self.panel.arena_svc.place_bet(
-            ui.guild_id_of(interaction), interaction.user.id, self.fighter["id"], int(raw)
+            ui.guild_id_of(interaction), interaction.user.id, self.fighter["id"], stake
         )
         if not ok:
             await interaction.response.send_message(
@@ -44,7 +43,7 @@ class StakeModal(discord.ui.Modal):
             return
         await interaction.response.send_message(
             embed=ui.ok_embed(
-                "賭けました", f"**{self.fighter['name']}** に {ui.pelica(int(raw))}（的中すれば賭け金ぶん増えます）"
+                "賭けました", f"**{self.fighter['name']}** に {ui.pelica(stake)}（的中すれば賭け金ぶん増えます）"
             ),
             ephemeral=True,
         )
@@ -79,15 +78,13 @@ class BetPanel(discord.ui.View):
             self.add_item(FighterSelect(self))
 
     def embed(self) -> discord.Embed:
-        breakdown = self.arena_svc.arena.for_guild(self.tournament["guild_id"]).arena_bets_breakdown(
-            self.tournament["id"]
-        )
+        breakdown = self.arena_svc.bets_breakdown(self.tournament["guild_id"], self.tournament["id"])
         return tournament_embed(self.tournament, arena_mod.SEMI_HOUR, arena_mod.FINAL_HOUR, breakdown)
 
     async def refresh(self) -> None:
         """最新のDB状態を読み直し、掲示メッセージを書き換える（賭けが入るたび・段が進むたび）。"""
-        fresh = self.arena_svc.arena.for_guild(self.tournament["guild_id"]).arena_tournament_get_by_day(
-            self.tournament["day"], self.tournament["format"]
+        fresh = self.arena_svc.tournament_by_day(
+            self.tournament["guild_id"], self.tournament["day"], self.tournament["format"]
         )
         if fresh is not None:
             self.tournament = fresh

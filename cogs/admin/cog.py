@@ -32,8 +32,10 @@ from cogs.shared.bridges import (
 from cogs.shared.tasks import allowed_guilds
 from domain import approval, events
 from domain.games import rtplevel
-from domain.ports.repos import IGuildRepo, IPachinkoRepo, IQuizRepo, IRtpRepo, IWalletRepo
+from domain.ports.repos import IGuildRepo
+from services.admin import AdminService
 from services.labor import LaborService
+from services.quiz import QuizService
 
 if TYPE_CHECKING:
     from cogs.shared.bot import CasinoBot
@@ -49,10 +51,8 @@ class ApprovalCog(commands.Cog, IApprovalBridge):
         bot: commands.Bot,
         config: dict[str, Any],
         guild_repo: IGuildRepo,
-        wallet: IWalletRepo,
-        rtp: IRtpRepo,
-        pachinko: IPachinkoRepo,
-        quiz_repo: IQuizRepo,
+        admin_svc: AdminService,
+        quiz_svc: QuizService,
         labor_svc: LaborService,
         *,
         event_bridge: Optional[IEventAdminBridge] = None,
@@ -63,10 +63,8 @@ class ApprovalCog(commands.Cog, IApprovalBridge):
         self.bot = bot
         self._config = config
         self._guild_repo = guild_repo
-        self._wallet = wallet
-        self._rtp = rtp
-        self._pachinko = pachinko
-        self._quiz = quiz_repo
+        self._admin = admin_svc
+        self._quiz = quiz_svc
         self._labor_svc = labor_svc
         self._event_bridge = event_bridge
         self._horse_bridge = horse_bridge
@@ -544,10 +542,8 @@ async def setup(bot: "CasinoBot"):
         bot,
         config=bot.config,
         guild_repo=bot.repos.guild,
-        wallet=bot.repos.wallet,
-        rtp=bot.repos.rtp,
-        pachinko=bot.repos.pachinko,
-        quiz_repo=bot.repos.quiz,
+        admin_svc=bot.services.admin,
+        quiz_svc=bot.services.quiz,
         labor_svc=bot.services.labor,
     )
     bot.bridges.register(IApprovalBridge, cog)

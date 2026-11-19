@@ -908,3 +908,23 @@ def test_economy_set_balance_exact_and_negative_means_debt(tmp_path):
     assert eco.wallet.set_balance(42, -2_000, "テスト")[2:] == (5_000, 2_000)  # いまの借金は置き換わる
     assert eco.wallet.set_balance(42, 1_000, "テスト")[2:] == (2_000, 2_000)  # 0以上なら、借金には触れない
     assert eco.wallet.balance(42) == 1_000 and eco.debt.debt(42) == 2_000
+
+
+# ----------------------------- ボタンの入口の検査 ----------------------------- #
+def test_allow_component_passes_allowed_servers_and_rejects_others(eco):
+    bot, cog, owner = make(eco)
+    ok = Interaction(bot, FRIEND, Guild(10))
+    assert run(approval_guard.allow_component(as_interaction(ok), eco.guild, bot.config)) is True and ok.sent == []
+    ng = Interaction(bot, FRIEND, Guild(20))
+    assert run(approval_guard.allow_component(as_interaction(ng), eco.guild, bot.config)) is False
+    assert "利用できません" in ng.sent[0]["embed"].title and ng.sent[0]["ephemeral"]
+    custom = Interaction(bot, FRIEND, Guild(20))
+    run(
+        approval_guard.allow_component(
+            as_interaction(custom), eco.guild, bot.config, title="使えません", text="いまは遊べません"
+        )
+    )
+    assert "使えません" in custom.sent[0]["embed"].title and custom.sent[0]["embed"].description == "いまは遊べません"
+    dm = Interaction(bot, FRIEND, Guild(10))
+    dm.guild_id = None
+    assert run(approval_guard.allow_component(as_interaction(dm), eco.guild, bot.config)) is False

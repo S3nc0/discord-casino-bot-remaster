@@ -58,16 +58,8 @@ def make_economy_cog(bot: Any):
         bot,
         config=bot.config,
         economy_svc=bot.services.economy,
-        wallet=bot.repos.wallet,
-        records=bot.repos.records,
-        bank=bot.repos.bank,
-        debt=bot.repos.debt,
-        loans=bot.repos.loans,
-        shop_repo=bot.repos.shop,
-        notices=bot.repos.notices,
-        crypto=bot.repos.crypto,
-        bonds_repo=bot.repos.bonds,
-        assets=bot.repos.assets,
+        teiai_svc=bot.services.teiai,
+        ranking_svc=bot.services.ranking,
         guild_repo=bot.repos.guild,
         sessions=bot.sessions,
         clock=bot.services.clock,
@@ -81,15 +73,8 @@ def make_market_cog(bot: Any):
         bot,
         config=bot.config,
         market_svc=bot.services.market,
-        market_data=bot.repos.market,
-        market_events_repo=bot.repos.market_events,
-        earnings_repo=bot.repos.earnings,
-        crypto=bot.repos.crypto,
-        margin=bot.repos.margin,
-        bonds_repo=bot.repos.bonds,
-        options_repo=bot.repos.options,
-        wallet=bot.repos.wallet,
-        debt=bot.repos.debt,
+        economy_svc=bot.services.economy,
+        teiai_svc=bot.services.teiai,
         guild_repo=bot.repos.guild,
         sessions=bot.sessions,
     )
@@ -102,9 +87,8 @@ def make_bond_cog(bot: Any):
         bot,
         config=bot.config,
         guild_repo=bot.repos.guild,
-        bonds_repo=bot.repos.bonds,
-        options_repo=bot.repos.options,
-        bank_repo=bot.repos.bank,
+        market_svc=bot.services.market,
+        teiai_svc=bot.services.teiai,
     )
 
 
@@ -114,10 +98,7 @@ def make_p2p_cog(bot: Any):
     cog = P2PCog(
         bot,
         bot.config,
-        bot.repos.p2p,
-        bot.repos.horses,
-        bot.repos.shop,
-        bot.repos.wallet,
+        bot.services.p2p,
         bot.repos.guild,
         bot.sessions,
     )
@@ -141,9 +122,6 @@ def make_horse_cog(bot: Any):
         bot,
         bot.config,
         bot.services.horse,
-        bot.repos.horses,
-        bot.repos.races,
-        bot.repos.shop,
         bot.repos.guild,
     )
     bot.bridges.register(IHorseAdminBridge, cog)
@@ -154,7 +132,7 @@ def make_horse_cog(bot: Any):
 def make_quiz_cog(bot: Any):
     from cogs.quiz.cog import QuizCog
 
-    cog = QuizCog(bot, bot.config, bot.repos.quiz, bot.repos.guild)
+    cog = QuizCog(bot, bot.config, bot.services.quiz, bot.repos.guild)
     bot.bridges.register(IQuizAdminBridge, cog)
     bot.bridges.register(IQuizButtonBridge, cog)
     return cog
@@ -163,7 +141,7 @@ def make_quiz_cog(bot: Any):
 def make_raffle_cog(bot: Any):
     from cogs.raffle.cog import RaffleCog
 
-    cog = RaffleCog(bot, bot.config, bot.repos.raffle, bot.repos.guild)
+    cog = RaffleCog(bot, bot.config, bot.services.raffle, bot.repos.guild)
     bot.bridges.register(IRaffleAdminBridge, cog)
     return cog
 
@@ -171,7 +149,7 @@ def make_raffle_cog(bot: Any):
 def make_event_cog(bot: Any):
     from cogs.event.cog import EventCog
 
-    cog = EventCog(bot, bot.config, bot.repos.events, bot.repos.guild, bot.services.clock)
+    cog = EventCog(bot, bot.config, bot.services.event, bot.repos.guild, bot.services.clock)
     bot.bridges.register(IEventAdminBridge, cog)
     return cog
 
@@ -183,10 +161,8 @@ def make_approval_cog(bot: Any):
         bot,
         config=bot.config,
         guild_repo=bot.repos.guild,
-        wallet=bot.repos.wallet,
-        rtp=bot.repos.rtp,
-        pachinko=bot.repos.pachinko,
-        quiz_repo=bot.repos.quiz,
+        admin_svc=bot.services.admin,
+        quiz_svc=bot.services.quiz,
         labor_svc=bot.services.labor,
     )
     bot.bridges.register(IApprovalBridge, cog)
@@ -194,9 +170,9 @@ def make_approval_cog(bot: Any):
 
 
 def make_ranking_repos(repos: RepositoryBundle):
-    from cogs.shared.ranking import RankingRepos
+    from services.ranking import RankingService
 
-    return RankingRepos(
+    return RankingService(
         wallet=repos.wallet,
         crypto=repos.crypto,
         bonds=repos.bonds,
@@ -209,8 +185,7 @@ def make_casino_deps(bot: Any):
 
     return CasinoDeps(
         casino=bot.services.casino,
-        debt=bot.repos.debt,
-        pachinko=bot.repos.pachinko,
+        teiai=bot.services.teiai,
         guild_repo=bot.repos.guild,
         config=bot.config,
     )
@@ -219,7 +194,7 @@ def make_casino_deps(bot: Any):
 def make_loan_cog(bot: Any):
     from cogs.loan.cog import LoanCog
 
-    cog = LoanCog(bot, bot.config, bot.services.loan, bot.repos.wallet, bot.repos.guild)
+    cog = LoanCog(bot, bot.config, bot.services.loan, bot.services.economy, bot.repos.guild)
     bot.bridges.register(ILoanButtonBridge, cog)
     return cog
 
@@ -227,7 +202,7 @@ def make_loan_cog(bot: Any):
 def make_labor_cog(bot: Any):
     from cogs.labor.cog import LaborCog
 
-    return LaborCog(bot, bot.repos.labor, bot.repos.relics, bot.services.labor)
+    return LaborCog(bot, bot.services.labor)
 
 
 def make_arena_cog(bot: Any):
@@ -243,7 +218,6 @@ def make_weekly_cog(bot: Any):
         bot,
         bot.config,
         bot.services.economy,
-        bot.repos.records,
         bot.repos.guild,
         clock=bot.services.clock,
     )

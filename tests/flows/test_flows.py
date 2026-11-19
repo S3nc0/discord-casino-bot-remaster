@@ -848,10 +848,10 @@ def test_every_game_title_shows_the_players_name(bot, monkeypatch, game):
 
 
 # ------------------- 演出の表示に失敗したときの記録 ------------------- #
-def test_display_failure_is_logged_with_game_step_and_status_and_settlement_still_holds(bot, capsys):
+def test_display_failure_is_logged_with_game_step_and_status_and_settlement_still_holds(bot, caplog):
     it = FakeInteraction(fail_edit_after=1, fail_with=http_error(503))  # 途中のコマの書き換えで、Discord 側の障害
     run(simple.play_roulette(as_interaction(it), make_casino_deps(bot), 100, "red"))
-    out = capsys.readouterr().out
+    out = caplog.text
     assert "演出の表示に失敗: ルーレット/途中のコマ 2/2: " in out and "status=503" in out
     assert_clean(bot)  # 精算は済み、次のゲームを始められる
     assert ledger_matches_balance(bot)
@@ -864,17 +864,17 @@ def test_display_failure_is_logged_with_game_step_and_status_and_settlement_stil
         (lambda it, deps: play_pa.play_pachinko(it, deps, 100), "パチンコ"),
     ],
 )
-def test_display_failure_is_logged_for_every_animated_game(bot, capsys, play, name):
+def test_display_failure_is_logged_for_every_animated_game(bot, caplog, play, name):
     it = FakeInteraction(fail_edit_after=0, fail_with=http_error(404))  # 最初の書き換えで、メッセージが消えていた
     run(play(it, make_casino_deps(bot)))
-    out = capsys.readouterr().out
+    out = caplog.text
     assert f"演出の表示に失敗: {name}/" in out and "status=404" in out
     assert_clean(bot)
 
 
-def test_log_display_failure_handles_errors_without_status(capsys):
+def test_log_display_failure_handles_errors_without_status(caplog):
     common.log_display_failure("テスト", "結果の表示", RuntimeError("boom"))
-    assert "演出の表示に失敗: テスト/結果の表示: RuntimeError status=? code=?: boom" in capsys.readouterr().out
+    assert "演出の表示に失敗: テスト/結果の表示: RuntimeError status=? code=?: boom" in caplog.text
 
 
 # ------------------- パチンコ: 連続投入とボタン ------------------- #

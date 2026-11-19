@@ -15,15 +15,14 @@ import discord
 from discord import app_commands
 from discord.ext import commands, tasks
 
-from cogs.arena.embeds import FORMAT_NAME, STAGE_LABEL, battle_embed
+from cogs.arena.embeds import FORMAT_NAME, STAGE_LABEL, battle_embed, final_result_embed, semis_result_embed
 from cogs.arena.views import BetPanel
-from cogs.shared import ui
+from cogs.shared import logthrottle, ui
 from cogs.shared.announce import announce_channel
 from cogs.shared.bridges import BotBridges, IArenaAdminBridge
 from cogs.shared.tasks import run_for_allowed_guilds
 from domain import arena as arena_mod
 from domain.ports.repos import IGuildRepo
-from infra import logthrottle
 from services.arena import ArenaService
 
 if TYPE_CHECKING:
@@ -124,7 +123,7 @@ class ArenaCog(commands.Cog, IArenaAdminBridge):
     ) -> Optional[dict[str, Any]]:
         """準決勝を決着させ、演出・結果投稿・パネル更新まで行う（時刻は見ない。呼ぶ側が判断する）。"""
         pre_fighters = t["fighters"]
-        result = self._arena.arena.for_guild(guild.id).arena_run_semis(t["id"])
+        result = self._arena.run_semis(guild.id, t["id"])
         if result:
             channel = await self._channel(guild)
             if channel is not None:
@@ -132,18 +131,7 @@ class ArenaCog(commands.Cog, IArenaAdminBridge):
                     group_fighters = [f for f in pre_fighters if f["group_no"] == group_no]
                     winner_idx = next(i for i, f in enumerate(group_fighters) if f["name"] == info["winner"])
                     await self._animate_match(channel, group_fighters, winner_idx, f"⏳ 準決勝 第{group_no}組、開戦！")
-                lines = [
-                    f"第{g}組: **{r['winner']}** が勝利（敗: {'・'.join(r['losers'])}）"
-                    for g, r in result["groups"].items()
-                ]
-                await self._post(
-                    channel,
-                    embed=ui.embed(
-                        "🏛️ 準決勝、決着！",
-                        "\n".join(lines) + f"\n\n決勝は **{' vs '.join(result['finalists'])}**",
-                        ui.GOLD,
-                    ),
-                )
+                await self._post(channel, embed=semis_result_embed(result))
             if day_key in self._panels:
                 await self._panels[day_key].refresh()
         return result
@@ -153,21 +141,14 @@ class ArenaCog(commands.Cog, IArenaAdminBridge):
     ) -> Optional[dict[str, Any]]:
         """決勝を決着させ、演出・結果投稿・パネル更新まで行う（時刻は見ない。呼ぶ側が判断する）。"""
         pre_finalists = [f for f in t["fighters"] if f["stage"] == "final"]
-        result = self._arena.arena.for_guild(guild.id).arena_run_final(t["id"])
+        result = self._arena.run_final(guild.id, t["id"])
         if result:
             channel = await self._channel(guild)
             if channel is not None and len(pre_finalists) == 2:
                 winner_idx = 0 if result["champion"] == pre_finalists[0]["name"] else 1
                 await self._animate_match(channel, pre_finalists, winner_idx, "👑 決勝、開戦！")
             if channel is not None:
-                await self._post(
-                    channel,
-                    embed=ui.embed(
-                        "👑 決勝、決着！",
-                        f"優勝: **{result['champion']}**（他: {'・'.join(result['runner_up'])}）",
-                        ui.GOLD,
-                    ),
-                )
+                await self._post(channel, embed=final_result_embed(result))
             if day_key in self._panels:
                 await self._panels[day_key].refresh()
                 del self._panels[day_key]  # 大会は終わったので、以後は書き換えない

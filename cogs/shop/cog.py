@@ -4,13 +4,14 @@
 """
 
 import asyncio
+import logging
 from typing import TYPE_CHECKING, Any, Optional
 
 import discord
 from discord import app_commands
 from discord.ext import commands, tasks
 
-from cogs.shared import ui
+from cogs.shared import logthrottle, ui
 from cogs.shared.bridges import BotBridges, IP2PNavigationBridge, IShopTitleBridge
 from cogs.shared.tasks import allowed_guilds
 from cogs.shop.discord_ops import ShopError, apply_title_nick, set_color_role
@@ -39,8 +40,9 @@ from domain import teiai
 from domain.ports import get_catalogs
 from domain.ports.repos import IGuildRepo
 from domain.ports.session import ISessionGuard
-from infra import logthrottle
 from services.shop import ShopService
+
+_log = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     from cogs.shared.bot import CasinoBot
@@ -114,7 +116,7 @@ class ShopCog(commands.Cog, IShopTitleBridge):
                     else:
                         others_failed += 1
                 except discord.HTTPException as exc:
-                    print(f"称号のニックネーム反映に失敗: guild={gid} user={user_id}: {exc!r}")
+                    _log.warning(f"称号のニックネーム反映に失敗: guild={gid} user={user_id}: {exc!r}")
                     if is_here:
                         problem = "Discord 側のエラーで失敗しました。"
                     else:
@@ -135,7 +137,7 @@ class ShopCog(commands.Cog, IShopTitleBridge):
         try:
             await self.run_status_nick()
         except Exception as exc:
-            print(f"身分のニックネームの更新に失敗: {exc!r}")
+            _log.warning(f"身分のニックネームの更新に失敗: {exc!r}")
 
     @status_nick_tick.before_loop
     async def _before_status_nick(self):

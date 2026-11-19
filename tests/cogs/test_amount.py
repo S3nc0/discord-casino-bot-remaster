@@ -14,6 +14,7 @@ from cogs.shared.amount import balance_choices, typed_amount
 from domain.types import INITIAL_BALANCE
 from infra.db.repositories import open_repositories
 from tests.fakes import as_interaction
+from tests.support import make_test_bot
 
 USER = 7
 
@@ -27,9 +28,14 @@ def interaction(guild_id: int | None = 1, **namespace):
     return SimpleNamespace(guild_id=guild_id, user=SimpleNamespace(id=USER), namespace=SimpleNamespace(**namespace))
 
 
+def economy(eco):
+    return make_test_bot(repos=eco).services.economy
+
+
 def choices(eco, current="", minimum=100, maximum=10_000):
     return [
-        (c.value, c.name) for c in balance_choices(eco.wallet, as_interaction(interaction()), current, minimum, maximum)
+        (c.value, c.name)
+        for c in balance_choices(economy(eco), as_interaction(interaction()), current, minimum, maximum)
     ]
 
 
@@ -82,7 +88,7 @@ def test_new_player_sees_the_starting_balance_and_no_account_is_created(eco):
 
 
 def test_dm_has_no_balance_and_no_choices(eco):
-    assert balance_choices(eco.wallet, as_interaction(interaction(guild_id=None)), "", 100, 10_000) == []
+    assert balance_choices(economy(eco), as_interaction(interaction(guild_id=None)), "", 100, 10_000) == []
 
 
 def test_commands_use_the_balance_choices_on_their_amount_fields():
@@ -105,3 +111,40 @@ def test_commands_use_the_balance_choices_on_their_amount_fields():
             assert (
                 option["autocomplete"] is True and "choices" not in option
             )  # Discord は、候補の固定リストと併用できない
+
+
+def test_optional_amount_tells_blank_from_bad_input():
+    from cogs.shared.amount import optional_amount
+
+    assert optional_amount("") == (True, None) and optional_amount("  ") == (True, None)
+    assert optional_amount("１，０００") == (True, 1000) and optional_amount("2,500") == (True, 2500)
+    assert optional_amount("abc") == (False, None) and optional_amount("-5") == (False, None)
+
+
+class _Resp:
+    def __init__(self):
+        self.sent = []
+
+    async def send_message(self, *a, **kw):
+        self.sent.append(kw)
+
+
+def test_amount_modal_passes_the_amount_or_rejects_bad_input():
+    import asyncio
+
+    from cogs.shared.amount import AmountModal
+
+    got = []
+
+    async def on_amount(it, amount):
+        got.append(amount)
+
+    modal = AmountModal(title="t", label="金額", required=False, on_amount=on_amount)
+    it = SimpleNamespace(response=_Resp())
+    for raw in ("1,200", "", "１０"):
+        modal.amount._value = raw
+        asyncio.run(modal.on_submit(as_interaction(it)))
+    assert got == [1200, None, 10] and it.response.sent == []
+    modal.amount._value = "十"
+    asyncio.run(modal.on_submit(as_interaction(it)))
+    assert got == [1200, None, 10] and "金額が正しくありません" in it.response.sent[0]["embed"].title

@@ -8,6 +8,7 @@ from domain import teiai
 from domain.types import INITIAL_BALANCE
 from infra.db.repositories import open_repositories
 from tests.fakes import must
+from tests.support import make_test_bot
 
 pytestmark = pytest.mark.real_scope
 
@@ -300,14 +301,14 @@ def test_panel_shows_meter_grace_list_and_my_cds(eco):
     eco.wallet.balance(T)
     eco.bank.cds_buy(B, T, 1_000, NOW)
     eco.bank.cds_buy(B, B, 500, NOW)
-    text = panel_embed(eco.bank, eco.debt, eco.wallet, A).description
+    text = panel_embed(make_test_bot(repos=eco).services.teiai, G, A).description
     assert (
-        "帝愛銀行" in must(panel_embed(eco.bank, eco.debt, eco.wallet, A).title)
+        "帝愛銀行" in must(panel_embed(make_test_bot(repos=eco).services.teiai, G, A).title)
         and "準備率" in must(text)
         and "余裕あり" in must(text)
     )
     go_into_debt(eco, T, 20_000)
-    e = panel_embed(eco.bank, eco.debt, eco.wallet, B)
+    e = panel_embed(make_test_bot(repos=eco).services.teiai, G, B)
     names = [f.name for f in e.fields]
     assert any("破産猶予" in must(n) for n in names) and any("CDS" in must(n) for n in names)
     mine = next(f for f in e.fields if f.name == "あなた").value
@@ -320,7 +321,7 @@ def test_panel_shows_frozen_state(eco):
     eco.wallet.credit(A, 20_000, "テスト")
     eco.bank.bank_deposit(A, 10_000, NOW)
     go_into_debt(eco, B, 200_000)  # 巨額の借金で、ロックが現金を超える
-    assert "支払停止" in must(panel_embed(eco.bank, eco.debt, eco.wallet, A).description)
+    assert "支払停止" in must(panel_embed(make_test_bot(repos=eco).services.teiai, G, A).description)
 
 
 # ----------------------------- 最前線サーモスタット（#32） ----------------------------- #
@@ -419,5 +420,7 @@ def test_panel_shows_the_thermostat_and_that_it_is_only_observing(eco):
 
     with eco.db.tx():
         eco.bank.bank_income_for(G, 50_000, 0.0, NOW)
-    field = next(f for f in panel_embed(eco.bank, eco.debt, eco.wallet, A).fields if "サーモスタット" in must(f.name))
+    field = next(
+        f for f in panel_embed(make_test_bot(repos=eco).services.teiai, G, A).fields if "サーモスタット" in must(f.name)
+    )
     assert "熱量" in must(field.value) and "観測だけ" in must(field.value)

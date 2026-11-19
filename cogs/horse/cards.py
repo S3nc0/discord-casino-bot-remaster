@@ -9,7 +9,7 @@ import discord
 from cogs.shared import ui
 from cogs.shared.bridges import IHorseButtonBridge, NoOpHorseButtonBridge
 from domain import horse as horse_mod
-from domain.ports.repos import IHorseRepo, IRaceRepo
+from services.horse import HorseDesk
 
 if TYPE_CHECKING:
     from cogs.shared.bot import CasinoBot
@@ -28,19 +28,18 @@ def stat_short(e: dict) -> str:
     return f"速{e['speed']} ス{e['stamina']} パ{e['power']} 根{e['guts']}"
 
 
-def race_title(races: IRaceRepo, race: dict) -> str:
+def race_title(desk: HorseDesk, race: dict) -> str:
     tag = "（臨時）" if race["kind"] == "special" else ("🏆重賞" if horse_mod.is_major_race(race) else "")
-    return f"🏇 第{races.race_number(race['id'])}競走{tag}"
+    return f"🏇 第{desk.race_number(race['id'])}競走{tag}"
 
 
 async def refresh_entry_card(
     interaction: discord.Interaction,
-    horses: IHorseRepo,
-    races: IRaceRepo,
+    desk: HorseDesk,
     race_id: int,
 ) -> None:
     """申し込み・取り下げのあと、チャンネルの出馬表（申し込み中）を、いまの申し込みに書き換える。"""
-    race = races.race_get(race_id)
+    race = desk.race_get(race_id)
     if race is None or race["status"] != "entry" or not race["message_id"] or not race["channel_id"]:
         return
     channel = interaction.guild.get_channel(race["channel_id"]) if interaction.guild else None
@@ -50,7 +49,7 @@ async def refresh_entry_card(
         await (
             cast(discord.TextChannel, channel)
             .get_partial_message(race["message_id"])
-            .edit(embed=card_embed(horses, races, race))
+            .edit(embed=card_embed(desk, race))
         )
     except discord.HTTPException:  # 消されていても、進行には関係ない
         pass
@@ -63,10 +62,10 @@ def when(ts: float) -> str:
     return f"<t:{int(ts)}:t>（<t:{int(ts)}:R>）"
 
 
-def card_embed(horses: IHorseRepo, races: IRaceRepo, race: dict, closed: bool = False) -> discord.Embed:
+def card_embed(desk: HorseDesk, race: dict, closed: bool = False) -> discord.Embed:
     """出馬表。申し込み中は申し込みの馬、発売中は枠・オッズ・調子、終わったら着順。"""
-    title = race_title(races, race)
-    entries = races.race_entries(race["id"])
+    title = race_title(desk, race)
+    entries = desk.race_entries(race["id"])
     if race["status"] == "entry":
         reg = [e for e in entries if e["lane"] < 0]
         if closed:

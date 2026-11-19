@@ -22,7 +22,7 @@ async def grant(
     if picked is None:
         return
     guild, member = picked
-    balance = cog._wallet.for_guild(guild.id).credit(member.id, amount, f"付与（管理）{reason}".strip())
+    balance = cog._admin.grant(guild.id, member.id, amount, f"付与（管理）{reason}".strip())
     await interaction.response.send_message(
         embed=ui.ok_embed(
             "付与しました",
@@ -40,8 +40,8 @@ async def set_balance(
     if picked is None:
         return
     guild, member = picked
-    before, after, debt_before, debt_after = cog._wallet.for_guild(guild.id).set_balance(
-        member.id, amount, f"残高の設定（管理）{reason}".strip()
+    before, after, debt_before, debt_after = cog._admin.set_balance(
+        guild.id, member.id, amount, f"残高の設定（管理）{reason}".strip()
     )
     await interaction.response.send_message(
         embed=ui.ok_embed(
@@ -105,15 +105,14 @@ async def rtp_set(cog: "ApprovalCog", interaction: discord.Interaction, guild_id
     guild = await pick_guild(cog.bot, interaction, guild_id)
     if guild is None:
         return
-    rtp = cog._rtp.for_guild(guild.id)
-    changed = rtp.rtp_level_set(None if game == "*" else game, level)
+    changed = cog._admin.rtp_set(guild.id, None if game == "*" else game, level)
     await interaction.response.send_message(
         embeds=[
             ui.ok_embed(
                 "還元率のレベルを変えました",
                 f"{guild.name}: {'、'.join(changed)} → レベル {level}（{LEVEL_NAME[level]}）",
             ),
-            rtp_table_embed(rtp.rtp_levels(), f"🎚️ {guild.name} の還元率"),
+            rtp_table_embed(cog._admin.rtp_levels(guild.id), f"🎚️ {guild.name} の還元率"),
         ],
         ephemeral=True,
     )
@@ -124,7 +123,7 @@ async def rtp_list(cog: "ApprovalCog", interaction: discord.Interaction, guild_i
     if guild_id and guild is None:
         return
     targets = [guild] if guild else allowed_guilds(cog.bot, cog._guild_repo, cog._config)
-    embeds = [rtp_table_embed(cog._rtp.for_guild(g.id).rtp_levels(), f"🎚️ {g.name} の還元率") for g in targets[:10]]
+    embeds = [rtp_table_embed(cog._admin.rtp_levels(g.id), f"🎚️ {g.name} の還元率") for g in targets[:10]]
     await interaction.response.send_message(embeds=embeds or [ui.error_embed("対象がありません")], ephemeral=True)
 
 
@@ -137,7 +136,7 @@ async def pachinko_stats(
         if guild is None:
             return
     since = time.time() - days * 86400 if days else None
-    data = cog._pachinko.pachinko_stats(guild.id if guild else None, since)
+    data = cog._admin.pachinko_stats(guild.id if guild else None, since)
     scope = (guild.name if guild else "全サーバー") + (f"・過去{days}日" if days else "・全期間")
     await interaction.response.send_message(embed=pachinko_stats_embed(data, scope), ephemeral=True)
 

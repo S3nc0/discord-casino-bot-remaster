@@ -40,21 +40,21 @@ class ShopService:
         wallet: IWalletRepo,
         guild: IGuildRepo,
     ) -> None:
-        self.shop = shop_repo
-        self.auction = auction
-        self.horses = horses
-        self.earnings = earnings
-        self.debt = debt
-        self.p2p = p2p
-        self.wallet = wallet
-        self.guild = guild
+        self._shop = shop_repo
+        self._auction = auction
+        self._horses = horses
+        self._earnings = earnings
+        self._debt = debt
+        self._p2p = p2p
+        self._wallet = wallet
+        self._guild = guild
 
     def peek_balance(self, guild_id: int, user_id: int) -> int:
-        me = self.wallet.for_guild(guild_id).peek_stats(user_id)
+        me = self._wallet.for_guild(guild_id).peek_stats(user_id)
         return me["balance"] if me else 0
 
     def stocks_for_items(self, guild_id: int, user_id: int, items: list[shop.Item]) -> dict[str, dict[str, Any]]:
-        repo = self.shop.for_guild(guild_id)
+        repo = self._shop.for_guild(guild_id)
         out: dict[str, dict[str, Any]] = {}
         for item in items:
             if item.id in shop.STOCK_RULES:
@@ -64,8 +64,8 @@ class ShopService:
         return out
 
     def precheck_buy(self, guild_id: int, user_id: int, item: shop.Item, qty: int) -> BuyItemPrecheck:
-        shop_repo = self.shop.for_guild(guild_id)
-        balance = self.wallet.for_guild(guild_id).balance(user_id)
+        shop_repo = self._shop.for_guild(guild_id)
+        balance = self._wallet.for_guild(guild_id).balance(user_id)
         total = item.price * qty
         if item.unique and shop_repo.inventory(user_id).get(item.id, 0) > 0:
             return BuyItemPrecheck(ok=False, status="owned", balance=balance, total=total)
@@ -78,17 +78,18 @@ class ShopService:
 
     def arm_consumable(self, guild_id: int, user_id: int, item_id: str) -> Optional[int]:
         """消耗品を有効化し、有効になった残り枚数を返す（未所持なら None）。"""
-        repo = self.shop.for_guild(guild_id)
+        repo = self._shop.for_guild(guild_id)
         if not repo.arm(user_id, item_id):
             return None
         return int(repo.get_profile(user_id)[CONSUMABLE_EFFECTS[item_id]])
 
     def catalog_snapshot(self, guild_id: int, user_id: int, tab: str, items: list[shop.Item]) -> dict[str, Any]:
         """カタログ画面描画・選択肢構築用のスナップショットを 1 回の取得で組む。"""
-        inv = self.shop.for_guild(guild_id).inventory(user_id)
+        inv = self._shop.for_guild(guild_id).inventory(user_id)
         balance = self.peek_balance(guild_id, user_id)
         waiting = (
-            len(self.auction.for_guild(guild_id).auction_list()) + len(self.horses.for_guild(guild_id).auction_horses())
+            len(self._auction.for_guild(guild_id).auction_list())
+            + len(self._horses.for_guild(guild_id).auction_horses())
             if tab == "home"
             else 0
         )
@@ -107,9 +108,9 @@ class ShopService:
         limit: int,
     ) -> dict[str, Any]:
         """競売画面描画・選択肢構築用のスナップショット（二重クエリ防止）。"""
-        listed = self.auction.for_guild(guild_id).auction_list()
-        horses = self.horses.for_guild(guild_id).auction_horses()
-        p2p_repo = self.p2p.for_guild(guild_id)
+        listed = self._auction.for_guild(guild_id).auction_list()
+        horses = self._horses.for_guild(guild_id).auction_horses()
+        p2p_repo = self._p2p.for_guild(guild_id)
         p2p_total = p2p_repo.p2p_count() if p2p_enabled else 0
         resolved_tab = tab if tab is not None else ("players" if p2p_enabled and p2p_total else "teiai")
         if not p2p_enabled:
@@ -128,17 +129,51 @@ class ShopService:
         }
 
     def equipped_title(self, guild_id: int, user_id: int) -> Optional[str]:
-        item = shop.BY_ID.get(self.shop.for_guild(guild_id).get_profile(user_id)["title"])
+        item = shop.BY_ID.get(self._shop.for_guild(guild_id).get_profile(user_id)["title"])
         return item.name if item else None
 
     def nick_tag(self, guild_id: int, user_id: int) -> Optional[str]:
-        status = self.debt.for_guild(guild_id).status(user_id)
+        status = self._debt.for_guild(guild_id).status(user_id)
         if status != teiai.KATAGI:
             return teiai.STATUS_NAME[status]
-        if self.guild.nick_pref(guild_id, user_id):
+        if self._guild.nick_pref(guild_id, user_id):
             return self.equipped_title(guild_id, user_id)
         return (
             teiai.STATUS_NAME[teiai.WEALTHY]
-            if self.wallet.for_guild(guild_id).display_status(user_id) == teiai.WEALTHY
+            if self._wallet.for_guild(guild_id).display_status(user_id) == teiai.WEALTHY
             else None
         )
+
+    # ------------------------------ 買う・身につける（Cog から使う） ------------------------------ #
+    def inventory(self, guild_id: int, user_id: int) -> dict[str, Any]:
+        return self._shop.for_guild(guild_id).inventory(user_id)
+
+    def profile(self, guild_id: int, user_id: int) -> dict[str, Any]:
+        return self._shop.for_guild(guild_id).get_profile(user_id)
+
+    def purchase(self, guild_id: int, user_id: int, item: shop.Item, qty: int) -> Any:
+        return self._shop.for_guild(guild_id).purchase(
+            user_id, item.id, shop.label(item), item.price, item.unique, qty=qty
+        )
+
+    def equip(self, guild_id: int, user_id: int, slot: str, item_id: Optional[str]) -> bool:
+        """slot に item_id を身につける（None なら外す）。"""
+        return self._shop.for_guild(guild_id).equip(user_id, slot, item_id)
+
+    def auction_list(self, guild_id: int) -> list[Any]:
+        return self._auction.for_guild(guild_id).auction_list()
+
+    def auction_buy(self, guild_id: int, user_id: int, item_id: str, qty: int) -> Any:
+        return self._auction.for_guild(guild_id).auction_buy(user_id, item_id, qty)
+
+    def auction_horses(self, guild_id: int) -> list[Any]:
+        return self._horses.for_guild(guild_id).auction_horses()
+
+    def auction_buy_horse(self, guild_id: int, user_id: int, horse_id: int) -> Any:
+        return self._horses.for_guild(guild_id).auction_buy_horse(user_id, horse_id)
+
+    def insider_stock(self, guild_id: int) -> Optional[dict[str, Any]]:
+        return self._earnings.for_guild(guild_id).insider_stock()
+
+    def insider_buy(self, guild_id: int, user_id: int) -> tuple[Any, ...]:
+        return self._earnings.for_guild(guild_id).insider_buy(user_id)

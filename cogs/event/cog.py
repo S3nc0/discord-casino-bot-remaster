@@ -5,20 +5,23 @@ Bot が止まっていて開始を逃しても、告知はやり直さない（�
 """
 
 import datetime
+import logging
 from typing import TYPE_CHECKING, Any, Optional
 
 import discord
 from discord.ext import commands, tasks
 
 from cogs.event.texts import event_copy
-from cogs.shared import ui
+from cogs.shared import logthrottle, ui
 from cogs.shared.announce import announce_channel
 from cogs.shared.bridges import BotBridges, IEventAdminBridge
 from cogs.shared.tasks import run_for_allowed_guilds
 from domain import events
 from domain.ports.clock import IClock
-from domain.ports.repos import IEventRepo, IGuildRepo
-from infra import logthrottle
+from domain.ports.repos import IGuildRepo
+from services.event import EventService
+
+_log = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     from cogs.shared.bot import CasinoBot
@@ -34,13 +37,13 @@ class EventCog(commands.Cog, IEventAdminBridge):
         self,
         bot: commands.Bot,
         config: dict[str, Any],
-        events_repo: IEventRepo,
+        event_svc: EventService,
         guild_repo: IGuildRepo,
         clock: IClock,
     ) -> None:
         self.bot = bot
         self._config = config
-        self._events = events_repo
+        self._events = event_svc
         self._guild_repo = guild_repo
         self._clock = clock
 
@@ -58,7 +61,7 @@ class EventCog(commands.Cog, IEventAdminBridge):
         try:
             await self.run_once()
         except Exception as exc:
-            print(f"突発イベントの確認に失敗: {exc!r}")
+            _log.warning(f"突発イベントの確認に失敗: {exc!r}")
 
     @tick.before_loop
     async def _before(self) -> None:
@@ -95,11 +98,9 @@ class EventCog(commands.Cog, IEventAdminBridge):
         channel: Optional[discord.abc.Messageable] = None,
     ) -> tuple[bool, str]:
         """持ち主が開く特別イベント。いま開催中のものがあれば置き換える。channel を渡すと、そこに告知する（終了の告知も同じ所）。"""
-        eco = self._events.for_guild(guild.id)
-        now = self._clock.now_ts()
-        replaced = eco.manual_event_get(now) is not None
-        eco.manual_event_start(game, boost_pct, now, now + minutes * 60, getattr(channel, "id", 0) or 0)
-        started = eco.manual_event_get(now)
+        replaced, started = self._events.start_manual(
+            guild.id, game, boost_pct, minutes, getattr(channel, "id", 0) or 0
+        )
         if started is not None:
             await self._post(guild, self.manual_embed(started, False), channel)
         title, _ = event_copy(game)
@@ -108,8 +109,7 @@ class EventCog(commands.Cog, IEventAdminBridge):
         )
 
     async def stop_manual(self, guild: discord.Guild) -> tuple[bool, str]:
-        eco = self._events.for_guild(guild.id)
-        m = eco.manual_event_stop(self._clock.now_ts())
+        m = self._events.stop_manual(guild.id)
         if m is None:
             return False, f"{guild.name}: 開催中の特別イベントはありません"
         await self._post(guild, self.manual_embed(m, True), _event_channel(guild, m))
@@ -128,17 +128,16 @@ class EventCog(commands.Cog, IEventAdminBridge):
 
     async def _run_guild(self, guild: discord.Guild, now: datetime.datetime) -> None:
         minutes = now.hour * 60 + now.minute
-        eco = self._events.for_guild(guild.id)
-        done = eco.manual_event_finish_due(now.timestamp())  # 時間が来た特別イベントの終了を、1回だけ告知する
+        done = self._events.finish_due(guild.id, now.timestamp())  # 時間が来た特別イベントの終了を、1回だけ告知する
         if done is not None:
             await self._post(guild, self.manual_embed(done, True), _event_channel(guild, done))
         ev = events.schedule(guild.id, now.date())
-        phase = eco.event_phase(now.date())
+        phase = self._events.phase(guild.id, now.date())
         if phase == 0 and ev.start_min <= minutes < ev.end_min:
-            eco.set_event_phase(now.date(), 1)
+            self._events.set_phase(guild.id, now.date(), 1)
             await self._post(guild, self.build_embed(ev, False))
         elif phase < 2 and minutes >= ev.end_min:
-            eco.set_event_phase(now.date(), 2)
+            self._events.set_phase(guild.id, now.date(), 2)
             if phase == 1:  # 開始を告知した分だけ、終了も告知する
                 await self._post(guild, self.build_embed(ev, True))
 
@@ -158,6 +157,6 @@ class EventCog(commands.Cog, IEventAdminBridge):
 
 
 async def setup(bot: "CasinoBot") -> None:
-    cog = EventCog(bot, bot.config, bot.repos.events, bot.repos.guild, bot.services.clock)
+    cog = EventCog(bot, bot.config, bot.services.event, bot.repos.guild, bot.services.clock)
     bot.bridges.register(IEventAdminBridge, cog)
     await bot.add_cog(cog)

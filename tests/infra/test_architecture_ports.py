@@ -1,8 +1,10 @@
 """水平ポート契約（名目的基底クラス・Bridge・Constructor DI）とレイヤ境界の自動ガードレールテスト。"""
 
 import ast
+import dataclasses
 import subprocess
 import sys
+import typing
 from pathlib import Path
 
 import pytest
@@ -75,17 +77,15 @@ def test_repository_bundle_satisfies_nominal_repo_ports():
     try:
         assert isinstance(repos, repo_ports.IRepositoryBundle)
         assert isinstance(repos, RepositoryBundle)
-        assert isinstance(repos.wallet, repo_ports.IWalletRepo)
-        assert isinstance(repos.escrow, repo_ports.IEscrowRepo)
-        assert isinstance(repos.records, repo_ports.IRecordRepo)
-        assert isinstance(repos.guild, repo_ports.IGuildRepo)
-        assert isinstance(repos.bank, repo_ports.IBankRepo)
-        assert isinstance(repos.debt, repo_ports.IDebtRepo)
-        assert isinstance(repos.shop, repo_ports.IShopRepo)
-        assert isinstance(repos.p2p, repo_ports.IP2PRepo)
-        assert isinstance(repos.horses, repo_ports.IHorseRepo)
-        assert isinstance(repos.races, repo_ports.IRaceRepo)
-        assert isinstance(repos.arena, repo_ports.IArenaRepo)
+        hints = typing.get_type_hints(repo_ports.IRepositoryBundle)
+        names = [f.name for f in dataclasses.fields(repo_ports.IRepositoryBundle)]
+        assert len(names) == 30, names  # フィールドを足したら、この数も直す（検証漏れを作らないため）
+        wrong = []
+        for name in names:
+            port = typing.get_origin(hints[name]) or hints[name]
+            if not isinstance(getattr(repos, name), port):
+                wrong.append(f"{name}: {type(getattr(repos, name)).__name__} は {port.__name__} ではない")
+        assert not wrong, "\n".join(wrong)
 
         scoped = repos.for_guild(1)
         assert scoped.wallet.balance(1) > 0
@@ -142,10 +142,10 @@ def test_services_no_infra_cogs_or_any_economy():
     assert not violations, "\n".join(violations)
 
 
-def test_cogs_no_infra_db_imports_and_no_service_locators():
-    """cogs/ は infra.db / infra.catalogs / infra.clock を import せず、bot.economy や旧 Service Locator を一切使わない。"""
+def test_cogs_no_infra_imports_and_no_service_locators():
+    """cogs/ は infra を一切 import せず、bot.economy や旧 Service Locator を一切使わない。"""
     forbidden_names = {"port_of", "guild_port", "get_cog_port", "require_cog_port", "services_of"}
-    forbidden_infra_prefixes = ("infra.db", "infra.catalogs", "infra.clock")
+    forbidden_infra_prefixes = ("infra",)
     violations: list[str] = []
     for path in _iter_py("cogs"):
         rel = path.relative_to(ROOT)
@@ -228,3 +228,35 @@ def test_debt_repo_does_not_touch_other_domains_tables():
         for m in re.finditer(rf"\b(?:FROM|UPDATE|INTO|JOIN)\s+{table}\b", source, flags=re.IGNORECASE)
     ]
     assert not found, "debt.py が他ドメインの表を直接操作している:\n" + "\n".join(found)
+
+
+def test_cogs_use_services_instead_of_repositories():
+    """Cog は Repository を持たず、状態を変える処理と時刻を伴う処理を services/ に任せる(#65)。
+
+    例外は IGuildRepo（サーバーの許可・告知先・表示の設定。全 Cog が共有する Discord 側の設定）と、
+    #67 でそれを用途別に分けた部分契約だけ。
+    """
+    allowed_repo_ports = {
+        "IGuildRepo",
+        "IGuildApprovalRepo",
+        "ILeaderboardConfigRepo",
+        "INickPrefRepo",
+        "IProfileDisplayReader",
+    }
+    violations: list[str] = []
+    for path in _iter_py("cogs"):
+        rel = path.relative_to(ROOT)
+        tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+        for node in ast.walk(tree):
+            if isinstance(node, ast.ImportFrom) and node.module and node.module.startswith("domain.ports.repos"):
+                for alias in node.names:
+                    if alias.name.endswith("Repo") and alias.name not in allowed_repo_ports:
+                        violations.append(f"{rel}:{node.lineno} imports {alias.name}")
+            elif (
+                isinstance(node, ast.Attribute)
+                and isinstance(node.value, ast.Attribute)
+                and node.value.attr == "repos"
+                and node.attr != "guild"
+            ):
+                violations.append(f"{rel}:{node.lineno} uses *.repos.{node.attr}")
+    assert not violations, "\n".join(violations)

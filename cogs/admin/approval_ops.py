@@ -1,5 +1,6 @@
 """サーバー承認・許可・取消の業務フロー（`/運営 サーバー*` と自動承認依頼）。"""
 
+import logging
 import time
 from typing import TYPE_CHECKING
 
@@ -10,6 +11,8 @@ from cogs.admin.targets import valid_guild_id
 from cogs.admin.views import ApprovalButton
 from cogs.shared import ui
 from domain import approval
+
+_log = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     from cogs.admin.cog import ApprovalCog
@@ -31,7 +34,7 @@ async def request_approval(cog: "ApprovalCog", guild: discord.Guild, renotify_af
             await user.send(embed=embed, view=view)
             delivered += 1
         except discord.HTTPException as exc:
-            print(f"承認の依頼を DM で送れません: owner={uid}: {exc!r}")
+            _log.warning(f"承認の依頼を DM で送れません: owner={uid}: {exc!r}")
     return delivered
 
 

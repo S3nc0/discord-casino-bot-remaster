@@ -57,7 +57,7 @@ from infra.db.market import MarketDataRepo
 from infra.db.market_events import MarketEventRepo
 from infra.db.options import OptionRepo
 from tests.fakes import as_bot, must
-from tests.support import make_test_bot
+from tests.support import make_economy_cog, make_test_bot
 
 G = 1
 U = 100
@@ -219,36 +219,17 @@ def test_bot_bridges_is_open_for_new_contracts_and_enforces_nominal_types():
 def test_deferred_and_dynamic_cog_bridges_are_load_order_independent(tmp_path):
     """ShopCog・P2PCog・EventCog 等のロード順序に依存せず、後から登録されたブリッジを動的解決できる。"""
     from cogs.admin.cog import ApprovalCog
-    from cogs.economy.cog import EconomyCog
     from cogs.event.cog import EventCog
     from cogs.p2p.cog import P2PCog
     from cogs.shop.cog import ShopCog
     from cogs.weekly.cog import WeeklyCog
 
     bot = make_test_bot(db_path=str(tmp_path / "order.db"))
-    eco = EconomyCog(
-        as_bot(bot),
-        config=bot.config,
-        economy_svc=bot.services.economy,
-        wallet=bot.repos.wallet,
-        records=bot.repos.records,
-        bank=bot.repos.bank,
-        debt=bot.repos.debt,
-        loans=bot.repos.loans,
-        shop_repo=bot.repos.shop,
-        notices=bot.repos.notices,
-        crypto=bot.repos.crypto,
-        bonds_repo=bot.repos.bonds,
-        assets=bot.repos.assets,
-        guild_repo=bot.repos.guild,
-        sessions=bot.sessions,
-        clock=bot.services.clock,
-    )
+    eco = make_economy_cog(bot)
     weekly = WeeklyCog(
         as_bot(bot),
         bot.config,
         bot.services.economy,
-        bot.repos.records,
         bot.repos.guild,
         clock=bot.services.clock,
     )
@@ -257,10 +238,8 @@ def test_deferred_and_dynamic_cog_bridges_are_load_order_independent(tmp_path):
         as_bot(bot),
         config=bot.config,
         guild_repo=bot.repos.guild,
-        wallet=bot.repos.wallet,
-        rtp=bot.repos.rtp,
-        pachinko=bot.repos.pachinko,
-        quiz_repo=bot.repos.quiz,
+        admin_svc=bot.services.admin,
+        quiz_svc=bot.services.quiz,
         labor_svc=bot.services.labor,
     )
 
@@ -286,14 +265,11 @@ def test_deferred_and_dynamic_cog_bridges_are_load_order_independent(tmp_path):
     p2p_cog = P2PCog(
         as_bot(bot),
         bot.config,
-        bot.repos.p2p,
-        bot.repos.horses,
-        bot.repos.shop,
-        bot.repos.wallet,
+        bot.services.p2p,
         bot.repos.guild,
         bot.sessions,
     )
-    event_cog = EventCog(as_bot(bot), bot.config, bot.repos.events, bot.repos.guild, bot.services.clock)
+    event_cog = EventCog(as_bot(bot), bot.config, bot.services.event, bot.repos.guild, bot.services.clock)
 
     bot.bridges.register(IShopTitleBridge, StubShop())
     bot.bridges.register(IP2PListingBridge, p2p_cog)

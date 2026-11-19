@@ -27,7 +27,7 @@ def bot(tmp_path):
 
 
 def make_panel(bot, uid):
-    return TeiaiPanel(bot.repos.bank, bot.repos.debt, bot.repos.wallet, bot.repos.notices, uid)
+    return TeiaiPanel(bot.services.teiai, uid)
 
 
 def public(it) -> bool:

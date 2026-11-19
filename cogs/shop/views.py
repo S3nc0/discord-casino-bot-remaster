@@ -179,7 +179,7 @@ class ShopView(ui.OwnerView):
         if kind == "horse":
             horses = self._screen_data.get("horses")
             if horses is None:
-                horses = self.cog.service.horses.for_guild(self.guild_id).auction_horses()
+                horses = self.cog.service.auction_horses(self.guild_id)
             horse = next((h for h in horses if str(h["id"]) == value), None)
             return horse["name"] if horse else "競走馬"
         item = shop.BY_ID.get(value)
@@ -347,9 +347,8 @@ class ShopView(ui.OwnerView):
             self._add_buy_button()
 
     def _build_inventory(self) -> None:
-        shop_repo = self.cog.service.shop.for_guild(self.guild_id)
-        inv = shop_repo.inventory(self.user_id)
-        self._screen_data = {"inv": inv, "prof": shop_repo.get_profile(self.user_id)}
+        inv = self.cog.service.inventory(self.guild_id, self.user_id)
+        self._screen_data = {"inv": inv, "prof": self.cog.service.profile(self.guild_id, self.user_id)}
         owned = [
             i
             for i in (shop.BY_ID.get(item_id) for item_id in inv)

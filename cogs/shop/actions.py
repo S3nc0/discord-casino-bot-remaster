@@ -39,8 +39,7 @@ async def buy_auction_horse(
             return
         gid = ui.guild_id_of(interaction)
         uid = interaction.user.id
-        horses_repo = cog.service.horses.for_guild(gid)
-        horse = next((h for h in horses_repo.auction_horses() if h["id"] == horse_id), None)
+        horse = next((h for h in cog.service.auction_horses(gid) if h["id"] == horse_id), None)
         if horse is None:
             await interaction.response.send_message(
                 embed=ui.error_embed("買えませんでした", "その馬は、もう売れてしまいました。"), ephemeral=True
@@ -56,7 +55,7 @@ async def buy_auction_horse(
         )
         if reply is None:
             return
-        res = horses_repo.auction_buy_horse(uid, horse_id)
+        res = cog.service.auction_buy_horse(gid, uid, horse_id)
         await _complete_purchase(
             reply,
             "競売で競走馬を買いました",
@@ -88,8 +87,7 @@ async def buy_auction(
         gid = ui.guild_id_of(interaction)
         uid = interaction.user.id
         qty = 1 if it.unique else qty
-        auction_repo = cog.service.auction.for_guild(gid)
-        entry = next((x for x in auction_repo.auction_list() if x["item_id"] == item_id), None)
+        entry = next((x for x in cog.service.auction_list(gid) if x["item_id"] == item_id), None)
         if entry is None:
             await interaction.response.send_message(
                 embed=ui.error_embed("買えませんでした", "その品は、もう売れてしまいました。"), ephemeral=True
@@ -106,7 +104,7 @@ async def buy_auction(
         )
         if reply is None:
             return
-        res = auction_repo.auction_buy(uid, item_id, qty)
+        res = cog.service.auction_buy(gid, uid, item_id, qty)
         await _complete_purchase(reply, "競売で買いました", name_qty, res, _item_hint(it.unique))
 
 
@@ -120,8 +118,7 @@ async def buy_insider_memo(
             return
         gid = ui.guild_id_of(interaction)
         uid = interaction.user.id
-        earnings_repo = cog.service.earnings.for_guild(gid)
-        stock = earnings_repo.insider_stock()
+        stock = cog.service.insider_stock(gid)
         if stock is None or stock["left"] <= 0:
             why = (
                 "いま、売れる情報はありません（次の決算が決まるまで、お待ちください）。"
@@ -141,7 +138,7 @@ async def buy_insider_memo(
         )
         if reply is None:
             return
-        done, result = earnings_repo.insider_buy(uid)
+        done, result = cog.service.insider_buy(gid, uid)
         if not done:
             await reply(embed=ui.error_embed("買えませんでした", format_failure(result)), ephemeral=True)
             return
@@ -217,7 +214,7 @@ async def buy_item(
         )
         if reply is None:
             return
-        res = cog.service.shop.for_guild(gid).purchase(uid, it.id, shop.label(it), it.price, it.unique, qty=qty)
+        res = cog.service.purchase(gid, uid, it, qty)
         await _complete_purchase(reply, "購入しました", name_qty, res, _item_hint(it.unique))
 
 
@@ -225,8 +222,7 @@ async def use_item(cog: "ShopCog", interaction: discord.Interaction, item: str) 
     """景品を身につける・使う。item は ID か名前（持っているものを優先する）。"""
     gid = ui.guild_id_of(interaction)
     uid = interaction.user.id
-    shop_repo = cog.service.shop.for_guild(gid)
-    inv = shop_repo.inventory(uid)
+    inv = cog.service.inventory(gid, uid)
     owned = [i for i in shop.find_all(item) if inv.get(i.id, 0) > 0]
     it = owned[0] if owned else shop.find(item)
     if it is None or inv.get(it.id, 0) <= 0:
@@ -300,7 +296,7 @@ async def use_item(cog: "ShopCog", interaction: discord.Interaction, item: str) 
             ephemeral=True,
         )
         return
-    shop_repo.equip(uid, SLOT_OF_KIND[it.kind], it.id)
+    cog.service.equip(gid, uid, SLOT_OF_KIND[it.kind], it.id)
     note = ""
     if it.kind == shop.TITLE:
         await interaction.response.defer(ephemeral=True)
@@ -339,7 +335,7 @@ async def unequip_item(cog: "ShopCog", interaction: discord.Interaction, slot: s
             return
         await interaction.followup.send(embed=ui.ok_embed("外しました", "名前の色を元に戻しました。"), ephemeral=True)
         return
-    cog.service.shop.for_guild(gid).equip(interaction.user.id, slot, None)
+    cog.service.equip(gid, interaction.user.id, slot, None)
     if slot == "title":
         await interaction.response.defer(ephemeral=True)
         problem, others = await cog.sync_title_nick(interaction.user.id, guild, member)
