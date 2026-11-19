@@ -57,8 +57,41 @@ def company_embed(c: dict[str, Any]) -> discord.Embed:
         inline=False,
     )
     e.add_field(name="🕴️ 帝愛の買取予算", value=ui.pelica(c["budget"]), inline=False)
+    if c.get("investors"):
+        e.add_field(
+            name="🤝 出資",
+            value=(
+                f"出資者 {c['investors']}人・出資の合計 **{ui.pelica(c['stakes_total'])}**"
+                f"（上限 {ui.pelica(c['stake_cap'])}）\n"
+                f"配当率 **{c.get('dividend_rate') or 0:.0%}**（出荷の買取代金から、出資額の比で配ります）\n"
+                f"個人の残高へ引き出せるのは {ui.pelica(c['withdrawable'])} まで（出資者のお金は増築・維持費だけに使えます）"
+            ),
+            inline=False,
+        )
     e.set_footer(text=PANEL_HINT)
     return e
+
+
+def holdings_embed(rows: list[dict[str, Any]]) -> discord.Embed:
+    """自分の出資先（/会社 持分）。"""
+    if not rows:
+        return ui.embed(
+            "🤝 出資先",
+            f"まだどの会社にも出資していません。`/会社 出資` で、ほかの人の会社に"
+            f" {ui.pelica(company_mod.STAKE_MIN)} から出資できます。",
+            ui.INFO,
+        )
+    lines = [
+        f"<@{r['owner_id']}> の **{r['name']}**（{kind_label(r['kind'])}）\n"
+        f"　出資 {ui.pelica(r['amount'])}・持分 {r['share']:.0%}・配当率 {r['dividend_rate']:.0%}"
+        f"・受け取った配当 {ui.pelica(r['dividends'])}"
+        for r in rows
+    ]
+    return ui.embed(
+        "🤝 出資先",
+        "\n".join(lines) + "\n\n出資は払い戻しできません。会社が倒産すると、持分はなくなります。",
+        ui.GOLD,
+    )
 
 
 def guide_embed() -> discord.Embed:

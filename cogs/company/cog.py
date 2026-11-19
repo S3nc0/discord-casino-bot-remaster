@@ -10,7 +10,7 @@ import discord
 from discord import app_commands
 from discord.ext import commands, tasks
 
-from cogs.company.embeds import kind_label
+from cogs.company.embeds import holdings_embed, kind_label
 from cogs.company.views import CompanyPanel
 from cogs.shared import ui
 from cogs.shared.announce import announce_channel
@@ -71,6 +71,52 @@ class CompanyCog(commands.Cog):
     async def status(self, interaction: discord.Interaction) -> None:
         panel = CompanyPanel(self._company, interaction.user.id, ui.guild_id_of(interaction))
         await interaction.response.send_message(embed=panel.embed(), view=panel, ephemeral=True)
+
+    # ------------------------------ ほかの人の会社への出資（#71） ------------------------------ #
+    @group.command(name="出資", description="ほかの人の会社に出資する（払い戻しなし。配当を受け取れる）")
+    @app_commands.rename(owner="社長", amount="金額")
+    @app_commands.describe(owner="出資する会社の社長", amount=f"出資する額（{company_mod.STAKE_MIN:,}ペリカから）")
+    async def stake(self, interaction: discord.Interaction, owner: discord.Member, amount: int) -> None:
+        gid = ui.guild_id_of(interaction)
+        ok, result = self._company.stake_invest(gid, interaction.user.id, owner.id, amount)
+        if not ok:
+            await interaction.response.send_message(
+                embed=ui.error_embed("出資できません", format_failure(result)), ephemeral=True
+            )
+            return
+        await interaction.response.send_message(
+            embed=ui.ok_embed(
+                "🤝 出資しました",
+                f"{interaction.user.mention} が、{owner.mention} の **{result['name']}** に"
+                f" **{ui.pelica(result['amount'])}** を出資しました（この会社への出資の合計 {ui.pelica(result['total'])}）。\n"
+                "出資は払い戻しできません。配当は、社長が決めた配当率で、出荷のたびに届きます。",
+            ),
+            allowed_mentions=NONE,
+        )
+
+    @group.command(name="配当率", description="自分の会社の配当率を決める（出荷の買取代金のうち、出資者に配る割合）")
+    @app_commands.rename(percent="割合")
+    @app_commands.describe(percent=f"0〜{company_mod.DIVIDEND_MAX:.0%} の整数（%）")
+    async def dividend(self, interaction: discord.Interaction, percent: app_commands.Range[int, 0, 100]) -> None:
+        gid = ui.guild_id_of(interaction)
+        ok, result = self._company.set_dividend(gid, interaction.user.id, percent / 100)
+        if not ok:
+            await interaction.response.send_message(
+                embed=ui.error_embed("配当率を変えられません", format_failure(result)), ephemeral=True
+            )
+            return
+        await interaction.response.send_message(
+            embed=ui.ok_embed(
+                "配当率を決めました", f"これからの出荷では、買取代金の **{result:.0%}** を出資者に配ります。"
+            ),
+            ephemeral=True,
+        )
+
+    @group.command(name="持分", description="自分の出資先と、受け取った配当を見る")
+    async def holdings(self, interaction: discord.Interaction) -> None:
+        gid = ui.guild_id_of(interaction)
+        rows = self._company.stake_holdings(gid, interaction.user.id)
+        await interaction.response.send_message(embed=holdings_embed(rows), ephemeral=True, allowed_mentions=NONE)
 
     # ------------------------------ 定時の精算（維持費・倒産） ------------------------------ #
     @tasks.loop(minutes=10)

@@ -46,6 +46,9 @@ class CompanyCatalog(CompanyCatalogContract):
     storage_days: int = Field(gt=0)
     bankrupt_days: int = Field(gt=0)
     daily_grant: int = Field(ge=0)
+    stake_min: int = Field(gt=0)
+    stake_cap_ratio: float = Field(ge=0)
+    dividend_max: float = Field(ge=0, le=1)
     kinds: tuple[CompanyKind, ...] = Field(min_length=1)
 
 

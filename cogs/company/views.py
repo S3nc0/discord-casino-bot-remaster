@@ -102,6 +102,8 @@ class CompanyPanel(ui.OwnerView):
         if not ok:
             return await self._fail(interaction, result)
         note = f"出荷しました: 会社資金 +{ui.pelica(result['paid'])}（ピンハネ {ui.pelica(result['pinhane'])}）"
+        if result.get("dividends"):
+            note += f"\n出資者へ配当 {ui.pelica(result['dividends'])} を配りました（会社資金から）"
         if result["left"]:
             note += f"。帝愛の買取予算が足りず、{ui.pelica(result['left'])} 分は在庫に残りました"
         await self.redraw(interaction, note)

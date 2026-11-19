@@ -38,6 +38,16 @@ class CompanyService:
     def change_kind(self, guild_id: int, user_id: int, kind: str) -> tuple[Any, ...]:
         return self._repo(guild_id).company_change_kind(user_id, kind, self._clock.now_ts())
 
+    # ------------------------------ ほかの人の会社への出資（#71） ------------------------------ #
+    def stake_invest(self, guild_id: int, investor_id: int, owner_id: int, amount: int) -> tuple[Any, ...]:
+        return self._repo(guild_id).stake_invest(investor_id, owner_id, amount, self._clock.now_ts())
+
+    def stake_holdings(self, guild_id: int, investor_id: int) -> list[dict[str, Any]]:
+        return self._repo(guild_id).stake_holdings(investor_id, self._clock.now_ts())
+
+    def set_dividend(self, guild_id: int, user_id: int, rate: float) -> tuple[Any, ...]:
+        return self._repo(guild_id).company_set_dividend(user_id, rate, self._clock.now_ts())
+
     def settle_all(self, guild_id: int) -> list[dict[str, Any]]:
         """維持費の精算。倒産した会社の一覧を返す。"""
         return self._repo(guild_id).company_settle_all(self._clock.now_ts())
