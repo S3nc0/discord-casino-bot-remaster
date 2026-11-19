@@ -1,6 +1,7 @@
 """運営コマンド（`/運営`）が出す埋め込みの組み立て。Discord への送受信はしない。"""
 
 import datetime
+from collections.abc import Sequence
 
 import discord
 
@@ -163,7 +164,7 @@ def approved_notice_embed() -> discord.Embed:
     )
 
 
-def server_list_embed(bot_guilds: list, status_rows: list, config: dict) -> discord.Embed:
+def server_list_embed(bot_guilds: Sequence[discord.Guild], status_rows: list, config: dict) -> discord.Embed:
     """許可・承認待ち・断ったサーバーの一覧。"""
     joined = {g.id: g for g in bot_guilds}
     rows = {r["guild_id"]: r for r in status_rows}

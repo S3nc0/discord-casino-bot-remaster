@@ -6,7 +6,7 @@
 import math
 import random
 import time
-from typing import Callable, Optional
+from typing import TYPE_CHECKING, Callable, Optional
 
 import discord
 
@@ -27,6 +27,9 @@ from domain import bonds, market
 from domain import options as opt
 from domain.ports import get_catalogs
 from domain.ports.session import ISessionGuard
+
+if TYPE_CHECKING:
+    from cogs.market.cog import MarketCog
 
 RNG = random.SystemRandom()
 CONFIRM_FROM = get_catalogs().market().market.confirm_from  # この額以上の売買は確認ボタンを挟む
@@ -74,7 +77,7 @@ async def run_trade(sessions: ISessionGuard, interaction: discord.Interaction, a
 
 
 async def buy_spot(
-    cog,
+    cog: "MarketCog",
     interaction: discord.Interaction,
     symbol: str,
     amount: int,
@@ -124,7 +127,7 @@ async def buy_spot(
 
 
 async def margin_close(
-    cog,
+    cog: "MarketCog",
     interaction: discord.Interaction,
     side: str,
     symbol: str,
@@ -192,7 +195,7 @@ async def margin_close(
 
 
 async def sell_spot(
-    cog,
+    cog: "MarketCog",
     interaction: discord.Interaction,
     symbol: str,
     lots,
@@ -251,7 +254,7 @@ async def sell_spot(
 
 
 async def margin_order(
-    cog,
+    cog: "MarketCog",
     interaction: discord.Interaction,
     side: str,
     symbol: str,
@@ -331,7 +334,7 @@ async def margin_order(
 
 
 async def option_buy(
-    cog,
+    cog: "MarketCog",
     interaction: discord.Interaction,
     kind: str,
     symbol: str,
@@ -415,7 +418,7 @@ async def option_buy(
 
 
 async def option_write(
-    cog,
+    cog: "MarketCog",
     interaction: discord.Interaction,
     kind: str,
     symbol: str,
@@ -485,7 +488,7 @@ async def option_write(
 
 
 async def option_sell(
-    cog,
+    cog: "MarketCog",
     interaction: discord.Interaction,
     option_id: int,
     *,
@@ -547,7 +550,7 @@ async def option_sell(
     )
 
 
-async def bond_buy(cog, interaction: discord.Interaction, kind_key: str, amount: int) -> None:
+async def bond_buy(cog: "MarketCog", interaction: discord.Interaction, kind_key: str, amount: int) -> None:
     bonds_repo = cog._bonds.for_guild(ui.guild_id_of(interaction))
     bonds_repo.bond_settle(time.time(), RNG)  # 満期の分を先に入金して、買える額を正しくする
     if amount < bonds.MIN_AMOUNT:
@@ -565,7 +568,7 @@ async def bond_buy(cog, interaction: discord.Interaction, kind_key: str, amount:
     await interaction.response.send_message(embed=bond_buy_embed(kind_key, amount, time.time()))
 
 
-async def bond_cancel(cog, interaction: discord.Interaction, bond_id: int) -> None:
+async def bond_cancel(cog: "MarketCog", interaction: discord.Interaction, bond_id: int) -> None:
     ok, result = cog._bonds.for_guild(ui.guild_id_of(interaction)).bond_cancel(interaction.user.id, bond_id)
     if not ok:
         await interaction.response.send_message(

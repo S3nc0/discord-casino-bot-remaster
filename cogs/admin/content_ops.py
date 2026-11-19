@@ -1,6 +1,6 @@
 """運営向けのコンテンツ・メッセージ操作（臨時競馬・お知らせ・発言削除・抽選・クイズ）。"""
 
-from typing import Optional
+from typing import TYPE_CHECKING, Optional
 
 import discord
 
@@ -19,12 +19,15 @@ from cogs.shared.bridges import (
 from cogs.shared.tasks import allowed_guilds
 from domain import quizimport
 
+if TYPE_CHECKING:
+    from cogs.admin.cog import ApprovalCog
+
 MAX_IMAGE_BYTES = ui.MAX_IMAGE_BYTES
 MAX_IMPORT_BYTES = 200 * 1024
 
 
 async def special_race(
-    cog,
+    cog: "ApprovalCog",
     interaction: discord.Interaction,
     guild_id: str,
     entry_min: int,
@@ -51,17 +54,17 @@ async def special_race(
 
 
 async def host_arena(
-    cog,
+    cog: "ApprovalCog",
     interaction: discord.Interaction,
     guild_id: str,
     advance: bool,
     fmt: Optional[str],
     channel_id: Optional[str],
 ) -> None:
-    guild = await cog._pick_guild(interaction, guild_id)
+    guild = await pick_guild(cog.bot, interaction, guild_id)
     if guild is None:
         return
-    ok, channel = await cog._pick_channel(interaction, guild, channel_id)
+    ok, channel = await pick_channel(interaction, guild, channel_id)
     if not ok:
         return
     arena_bridge = await require_bridge(interaction, cog.bot, IArenaAdminBridge, "闘技場")
@@ -78,7 +81,7 @@ async def host_arena(
 
 
 async def announce(
-    cog,
+    cog: "ApprovalCog",
     interaction: discord.Interaction,
     guild_id: Optional[str],
     image: Optional[discord.Attachment],
@@ -108,7 +111,9 @@ async def announce(
     await interaction.response.send_modal(AnnounceModal(cog, guilds, (title or "").strip()[:200], image, channel))
 
 
-async def purge_own_messages(cog, interaction: discord.Interaction, guild_id: str, channel_id: str) -> None:
+async def purge_own_messages(
+    cog: "ApprovalCog", interaction: discord.Interaction, guild_id: str, channel_id: str
+) -> None:
     guild = await pick_guild(cog.bot, interaction, guild_id)
     if guild is None:
         return
@@ -137,7 +142,7 @@ async def purge_own_messages(cog, interaction: discord.Interaction, guild_id: st
 
 
 async def raffle_start(
-    cog,
+    cog: "ApprovalCog",
     interaction: discord.Interaction,
     guild_id: str,
     fee: Optional[int],
@@ -161,7 +166,9 @@ async def raffle_start(
     )
 
 
-async def raffle_repost(cog, interaction: discord.Interaction, guild_id: str, channel_id: Optional[str]) -> None:
+async def raffle_repost(
+    cog: "ApprovalCog", interaction: discord.Interaction, guild_id: str, channel_id: Optional[str]
+) -> None:
     guild = await pick_guild(cog.bot, interaction, guild_id)
     if guild is None:
         return
@@ -178,7 +185,7 @@ async def raffle_repost(cog, interaction: discord.Interaction, guild_id: str, ch
     )
 
 
-async def raffle_cancel(cog, interaction: discord.Interaction, guild_id: str) -> None:
+async def raffle_cancel(cog: "ApprovalCog", interaction: discord.Interaction, guild_id: str) -> None:
     guild = await pick_guild(cog.bot, interaction, guild_id)
     if guild is None:
         return
@@ -193,7 +200,7 @@ async def raffle_cancel(cog, interaction: discord.Interaction, guild_id: str) ->
 
 
 async def quiz_add(
-    cog,
+    cog: "ApprovalCog",
     interaction: discord.Interaction,
     announce_flag: bool,
     guild_id: Optional[str],
@@ -212,7 +219,7 @@ async def quiz_add(
 
 
 async def quiz_bulk(
-    cog,
+    cog: "ApprovalCog",
     interaction: discord.Interaction,
     file: discord.Attachment,
     announce_flag: bool,
@@ -273,14 +280,14 @@ async def quiz_bulk(
     await interaction.followup.send(embeds=[head], view=view, ephemeral=True)
 
 
-async def quiz_list(cog, interaction: discord.Interaction) -> None:
+async def quiz_list(cog: "ApprovalCog", interaction: discord.Interaction) -> None:
     quiz_bridge = await require_bridge(interaction, cog.bot, IQuizAdminBridge, "クイズ機能", cog._quiz_bridge)
     if quiz_bridge is None:
         return
     await interaction.response.send_message(embed=quiz_bridge.listing_embed(), ephemeral=True)
 
 
-async def quiz_delete(cog, interaction: discord.Interaction, quiz_id: int) -> None:
+async def quiz_delete(cog: "ApprovalCog", interaction: discord.Interaction, quiz_id: int) -> None:
     quiz_bridge = await require_bridge(interaction, cog.bot, IQuizAdminBridge, "クイズ機能", cog._quiz_bridge)
     if quiz_bridge is None:
         return

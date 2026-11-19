@@ -1,6 +1,7 @@
 """`/証券` の保有・市況・オプション画面（View / Modal）。"""
 
 import time
+from typing import TYPE_CHECKING
 
 import discord
 
@@ -9,11 +10,14 @@ from cogs.shared import ui
 from domain import market, market_events
 from domain import options as opt
 
+if TYPE_CHECKING:
+    from cogs.market.cog import MarketCog
+
 
 class HoldingsView(ui.OwnerView):
     """/証券 保有 の、ボタンで決済する画面（開いた本人だけが操作できる）。"""
 
-    def __init__(self, cog, user_id: int, guild_id: int):
+    def __init__(self, cog: "MarketCog", user_id: int, guild_id: int):
         super().__init__(user_id, timeout=300, owner_message="自分の `/証券 保有` で操作してください。")
         self.cog, self.user_id = cog, user_id
         for code, label in cog.positions(user_id, guild_id)[:20]:
@@ -31,7 +35,7 @@ class HoldingsView(ui.OwnerView):
 class OptionAmountModal(discord.ui.Modal):
     """イベントのボタンから、コール・プットの掛け金を入れる画面。"""
 
-    def __init__(self, cog, kind: str, symbol: str):
+    def __init__(self, cog: "MarketCog", kind: str, symbol: str):
         name = opt.KINDS[kind][0]
         super().__init__(title=f"{market.BY_KEY[symbol].name}の{name}")
         self.cog, self.kind, self.symbol = cog, kind, symbol
@@ -56,7 +60,7 @@ class OptionAmountModal(discord.ui.Modal):
 class MarketView(ui.OwnerView):
     """/証券 市況 の、銘柄と期間のチャートを切り替える画面（自動更新はしない。開いた本人だけが操作できる）。"""
 
-    def __init__(self, cog, user_id: int, guild_id: int, period: str = "24h"):
+    def __init__(self, cog: "MarketCog", user_id: int, guild_id: int, period: str = "24h"):
         super().__init__(user_id, timeout=300, owner_message="自分の `/証券 市況` で操作してください。")
         self.cog, self.user_id, self.guild_id = cog, user_id, guild_id
         self.symbol, self.period = None, period

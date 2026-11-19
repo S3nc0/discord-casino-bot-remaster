@@ -1,7 +1,7 @@
 """証券市場の定期告知・ライブチャート更新・古い掲示板の片付け（Discord 投稿層）。"""
 
 import time
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import discord
 
@@ -11,6 +11,9 @@ from cogs.shared.announce import announce_channel
 from cogs.shared.tasks import allowed_guilds
 from domain.ports.repos import IEarningsRepo, IGuildRepo, IMarketDataRepo
 from infra import logthrottle
+
+if TYPE_CHECKING:
+    from cogs.market.cog import MarketCog
 
 
 async def earnings_posts(
@@ -43,7 +46,7 @@ async def earnings_posts(
 
 
 async def refresh_post(
-    bot: discord.Client, market_data: IMarketDataRepo, cog, post: dict, now: float, cache: dict
+    bot: discord.Client, market_data: IMarketDataRepo, cog: "MarketCog", post: dict, now: float, cache: dict
 ) -> None:
     """出したチャートを、最新に書き換える。時間が来たら、最後に1回だけ書き換えて、更新を終える。"""
     ends = post["ts"] + LIVE_MINUTES * 60

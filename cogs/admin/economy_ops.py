@@ -1,7 +1,7 @@
 """運営向けの経済・イベント・還元率・統計・履歴操作（`/運営 付与/残高設定/イベント/還元率/統計/履歴`）。"""
 
 import time
-from typing import Optional
+from typing import TYPE_CHECKING, Optional
 
 import discord
 
@@ -11,8 +11,13 @@ from cogs.shared import ui
 from cogs.shared.bridges import IEventAdminBridge, require_bridge
 from cogs.shared.tasks import allowed_guilds
 
+if TYPE_CHECKING:
+    from cogs.admin.cog import ApprovalCog
 
-async def grant(cog, interaction: discord.Interaction, guild_id: str, user_id: str, amount: int, reason: str) -> None:
+
+async def grant(
+    cog: "ApprovalCog", interaction: discord.Interaction, guild_id: str, user_id: str, amount: int, reason: str
+) -> None:
     picked = await pick_member(cog.bot, interaction, guild_id, user_id, "付与")
     if picked is None:
         return
@@ -29,7 +34,7 @@ async def grant(cog, interaction: discord.Interaction, guild_id: str, user_id: s
 
 
 async def set_balance(
-    cog, interaction: discord.Interaction, guild_id: str, user_id: str, amount: int, reason: str
+    cog: "ApprovalCog", interaction: discord.Interaction, guild_id: str, user_id: str, amount: int, reason: str
 ) -> None:
     picked = await pick_member(cog.bot, interaction, guild_id, user_id, "設定")
     if picked is None:
@@ -51,7 +56,7 @@ async def set_balance(
 
 
 async def event_start(
-    cog,
+    cog: "ApprovalCog",
     interaction: discord.Interaction,
     game: str,
     minutes: int,
@@ -82,7 +87,7 @@ async def event_start(
     )
 
 
-async def event_stop(cog, interaction: discord.Interaction, guild_id: Optional[str]) -> None:
+async def event_stop(cog: "ApprovalCog", interaction: discord.Interaction, guild_id: Optional[str]) -> None:
     if guild_id and await pick_guild(cog.bot, interaction, guild_id) is None:
         return
     event_bridge = await require_bridge(interaction, cog.bot, IEventAdminBridge, "イベント機能", cog._event_bridge)
@@ -96,7 +101,7 @@ async def event_stop(cog, interaction: discord.Interaction, guild_id: Optional[s
     )
 
 
-async def rtp_set(cog, interaction: discord.Interaction, guild_id: str, game: str, level: int) -> None:
+async def rtp_set(cog: "ApprovalCog", interaction: discord.Interaction, guild_id: str, game: str, level: int) -> None:
     guild = await pick_guild(cog.bot, interaction, guild_id)
     if guild is None:
         return
@@ -114,7 +119,7 @@ async def rtp_set(cog, interaction: discord.Interaction, guild_id: str, game: st
     )
 
 
-async def rtp_list(cog, interaction: discord.Interaction, guild_id: Optional[str]) -> None:
+async def rtp_list(cog: "ApprovalCog", interaction: discord.Interaction, guild_id: Optional[str]) -> None:
     guild = await pick_guild(cog.bot, interaction, guild_id) if guild_id else None
     if guild_id and guild is None:
         return
@@ -123,7 +128,9 @@ async def rtp_list(cog, interaction: discord.Interaction, guild_id: Optional[str
     await interaction.response.send_message(embeds=embeds or [ui.error_embed("対象がありません")], ephemeral=True)
 
 
-async def pachinko_stats(cog, interaction: discord.Interaction, guild_id: Optional[str], days: Optional[int]) -> None:
+async def pachinko_stats(
+    cog: "ApprovalCog", interaction: discord.Interaction, guild_id: Optional[str], days: Optional[int]
+) -> None:
     guild = None
     if guild_id:
         guild = await pick_guild(cog.bot, interaction, guild_id)
@@ -135,7 +142,9 @@ async def pachinko_stats(cog, interaction: discord.Interaction, guild_id: Option
     await interaction.response.send_message(embed=pachinko_stats_embed(data, scope), ephemeral=True)
 
 
-async def click_history(cog, interaction: discord.Interaction, guild_id: str, user_id: str, hours: int) -> None:
+async def click_history(
+    cog: "ApprovalCog", interaction: discord.Interaction, guild_id: str, user_id: str, hours: int
+) -> None:
     picked = await pick_member(cog.bot, interaction, guild_id, user_id, "確認")
     if picked is None:
         return

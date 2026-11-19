@@ -1,6 +1,6 @@
 """ショップの購入・競売・使用・装備・解除・称号表示切替のアクション群。"""
 
-from typing import Any, Callable, Optional, cast
+from typing import TYPE_CHECKING, Any, Callable, Optional, cast
 
 import discord
 
@@ -10,6 +10,9 @@ from cogs.shared.messages import format_failure, format_memo
 from cogs.shop.discord_ops import ShopError, apply_title_nick, nick_blocker, set_color_role
 from cogs.shop.embeds import SLOT_OF_KIND, UNEQUIP_NAMES, stock_text
 from domain import relics, shop
+
+if TYPE_CHECKING:
+    from cogs.shop.cog import ShopCog
 
 
 async def _complete_purchase(reply: Callable[..., Any], title: str, target_text: str, res: Any, hint: str) -> None:
@@ -27,7 +30,7 @@ def _item_hint(unique: bool) -> str:
 
 
 async def buy_auction_horse(
-    cog, interaction: discord.Interaction, horse_id: int, *, confirm_fn: Optional[Callable] = None
+    cog: "ShopCog", interaction: discord.Interaction, horse_id: int, *, confirm_fn: Optional[Callable] = None
 ) -> None:
     """競売の馬を買う（買い物の間は「プレイ中」にする）。"""
     fn = confirm_action if confirm_fn is None else confirm_fn
@@ -64,7 +67,12 @@ async def buy_auction_horse(
 
 
 async def buy_auction(
-    cog, interaction: discord.Interaction, item_id: str, qty: int = 1, *, confirm_fn: Optional[Callable] = None
+    cog: "ShopCog",
+    interaction: discord.Interaction,
+    item_id: str,
+    qty: int = 1,
+    *,
+    confirm_fn: Optional[Callable] = None,
 ) -> None:
     """競売で買う。買い物の間は「プレイ中」にする。"""
     fn = confirm_action if confirm_fn is None else confirm_fn
@@ -102,7 +110,9 @@ async def buy_auction(
         await _complete_purchase(reply, "競売で買いました", name_qty, res, _item_hint(it.unique))
 
 
-async def buy_insider_memo(cog, interaction: discord.Interaction, it, *, confirm_fn: Optional[Callable] = None) -> None:
+async def buy_insider_memo(
+    cog: "ShopCog", interaction: discord.Interaction, it, *, confirm_fn: Optional[Callable] = None
+) -> None:
     """帝愛市の、裏情報メモ。持ち物には増えず、買うとその場で、本人にだけメモが見える。"""
     fn = confirm_action if confirm_fn is None else confirm_fn
     async with user_session(cog._sessions, interaction, "いまは買えません") as ok:
@@ -139,7 +149,7 @@ async def buy_insider_memo(cog, interaction: discord.Interaction, it, *, confirm
 
 
 async def buy_item(
-    cog, interaction: discord.Interaction, item: str, qty: int = 1, *, confirm_fn: Optional[Callable] = None
+    cog: "ShopCog", interaction: discord.Interaction, item: str, qty: int = 1, *, confirm_fn: Optional[Callable] = None
 ) -> None:
     """景品を買う。item は ID か名前。消耗品だけ qty 個（1〜MAX_QTY）まとめて買える。"""
     fn = confirm_action if confirm_fn is None else confirm_fn
@@ -211,7 +221,7 @@ async def buy_item(
         await _complete_purchase(reply, "購入しました", name_qty, res, _item_hint(it.unique))
 
 
-async def use_item(cog, interaction: discord.Interaction, item: str) -> None:
+async def use_item(cog: "ShopCog", interaction: discord.Interaction, item: str) -> None:
     """景品を身につける・使う。item は ID か名前（持っているものを優先する）。"""
     gid = ui.guild_id_of(interaction)
     uid = interaction.user.id
@@ -313,7 +323,7 @@ async def use_item(cog, interaction: discord.Interaction, item: str) -> None:
     )
 
 
-async def unequip_item(cog, interaction: discord.Interaction, slot: str) -> None:
+async def unequip_item(cog: "ShopCog", interaction: discord.Interaction, slot: str) -> None:
     """slot（UNEQUIP_NAMES のキー）の装備を外す。"""
     name = UNEQUIP_NAMES[slot]
     guild = cast(discord.Guild, interaction.guild)
@@ -341,7 +351,7 @@ async def unequip_item(cog, interaction: discord.Interaction, slot: str) -> None
     await interaction.response.send_message(embed=ui.ok_embed("外しました", f"{name}を外しました。"), ephemeral=True)
 
 
-async def set_title_display(cog, interaction: discord.Interaction, mode: str) -> None:
+async def set_title_display(cog: "ShopCog", interaction: discord.Interaction, mode: str) -> None:
     """称号をニックネームに付ける（mode="on"）／付けない（"off"）。"""
     uid = interaction.user.id
     guild = cast(discord.Guild, interaction.guild)

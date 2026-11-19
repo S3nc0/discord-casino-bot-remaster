@@ -201,3 +201,16 @@ def test_production_follows_python_coding_conventions():
                     elif "classmethod" in dec_str and node.name not in allowed_classmethod_methods:
                         violations.append(f"{rel}:{node.lineno} @classmethod on {node.name}")
     assert not violations, "\n".join(violations)
+
+
+def test_cogs_have_no_untyped_cog_parameter():
+    """`cog` 引数に型が無いと Pyright が Unknown 扱いにし、消えたメソッドの呼び出しを見逃す(#61)。"""
+    found = []
+    for path in _iter_py("cogs"):
+        tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+        for node in ast.walk(tree):
+            if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                for arg in [*node.args.posonlyargs, *node.args.args, *node.args.kwonlyargs]:
+                    if arg.arg == "cog" and arg.annotation is None:
+                        found.append(f"{path.relative_to(ROOT)}:{node.lineno} {node.name}")
+    assert not found, "型の無い cog 引数:\n" + "\n".join(found)

@@ -1,6 +1,7 @@
 """サーバー承認・許可・取消の業務フロー（`/運営 サーバー*` と自動承認依頼）。"""
 
 import time
+from typing import TYPE_CHECKING
 
 import discord
 
@@ -10,8 +11,11 @@ from cogs.admin.views import ApprovalButton
 from cogs.shared import ui
 from domain import approval
 
+if TYPE_CHECKING:
+    from cogs.admin.cog import ApprovalCog
 
-async def request_approval(cog, guild: discord.Guild, renotify_after: int) -> int:
+
+async def request_approval(cog: "ApprovalCog", guild: discord.Guild, renotify_after: int) -> int:
     """持ち主に承認を依頼する DM を送る。届いた人数を返す（DM を受け取れない人には届かない）。"""
     cog._guild_repo.mark_guild_notified(
         guild.id
@@ -31,7 +35,9 @@ async def request_approval(cog, guild: discord.Guild, renotify_after: int) -> in
     return delivered
 
 
-async def ensure_requested(cog, guild: discord.Guild, renotify_after: int, reset_denied: bool = False) -> None:
+async def ensure_requested(
+    cog: "ApprovalCog", guild: discord.Guild, renotify_after: int, reset_denied: bool = False
+) -> None:
     """承認待ちとして記録し、まだ依頼していなければ依頼する。しばらく前の依頼なら催促する。"""
     if guild is None or guild.id in approval.preapproved(cog._config):
         return
@@ -57,7 +63,7 @@ async def announce_approved(guild: discord.Guild) -> None:
         pass
 
 
-async def handle_guild_join(cog, guild: discord.Guild) -> None:
+async def handle_guild_join(cog: "ApprovalCog", guild: discord.Guild) -> None:
     if not approval.requires_approval(cog._config):
         return
     row = cog._guild_repo.get_guild_status(guild.id)
@@ -66,19 +72,19 @@ async def handle_guild_join(cog, guild: discord.Guild) -> None:
     await cog.ensure_requested(guild, reset_denied=True)
 
 
-async def handle_ready(cog) -> None:
+async def handle_ready(cog: "ApprovalCog") -> None:
     if not approval.requires_approval(cog._config):
         return
     for guild in cog.bot.guilds:  # Bot が止まっている間に追加されたサーバーも拾う
         await cog.ensure_requested(guild)
 
 
-async def server_list(cog, interaction: discord.Interaction) -> None:
+async def server_list(cog: "ApprovalCog", interaction: discord.Interaction) -> None:
     e = server_list_embed(cog.bot.guilds, cog._guild_repo.list_guild_status(), cog._config)
     await interaction.response.send_message(embed=e, ephemeral=True)
 
 
-async def server_allow(cog, interaction: discord.Interaction, guild_id: str) -> None:
+async def server_allow(cog: "ApprovalCog", interaction: discord.Interaction, guild_id: str) -> None:
     if not valid_guild_id(guild_id):
         await interaction.response.send_message(
             embed=ui.error_embed("入力エラー", "サーバーidは数字だけで入力してください。"), ephemeral=True
@@ -100,7 +106,7 @@ async def server_allow(cog, interaction: discord.Interaction, guild_id: str) -> 
     )
 
 
-async def server_revoke(cog, interaction: discord.Interaction, guild_id: str) -> None:
+async def server_revoke(cog: "ApprovalCog", interaction: discord.Interaction, guild_id: str) -> None:
     if not valid_guild_id(guild_id):
         await interaction.response.send_message(
             embed=ui.error_embed("入力エラー", "サーバーidは数字だけで入力してください。"), ephemeral=True
