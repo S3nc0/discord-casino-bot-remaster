@@ -214,3 +214,28 @@ def test_cogs_have_no_untyped_cog_parameter():
                     if arg.arg == "cog" and arg.annotation is None:
                         found.append(f"{path.relative_to(ROOT)}:{node.lineno} {node.name}")
     assert not found, "型の無い cog 引数:\n" + "\n".join(found)
+
+
+def test_cogs_use_services_instead_of_repositories():
+    """Cog は Repository を持たず、状態を変える処理と時刻を伴う処理を services/ に任せる(#65)。
+
+    例外は IGuildRepo（サーバーの許可・告知先・表示の設定。全 Cog が共有する Discord 側の設定）だけ。
+    """
+    allowed_repo_ports = {"IGuildRepo"}
+    violations: list[str] = []
+    for path in _iter_py("cogs"):
+        rel = path.relative_to(ROOT)
+        tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+        for node in ast.walk(tree):
+            if isinstance(node, ast.ImportFrom) and node.module and node.module.startswith("domain.ports.repos"):
+                for alias in node.names:
+                    if alias.name.endswith("Repo") and alias.name not in allowed_repo_ports:
+                        violations.append(f"{rel}:{node.lineno} imports {alias.name}")
+            elif (
+                isinstance(node, ast.Attribute)
+                and isinstance(node.value, ast.Attribute)
+                and node.value.attr == "repos"
+                and node.attr != "guild"
+            ):
+                violations.append(f"{rel}:{node.lineno} uses *.repos.{node.attr}")
+    assert not violations, "\n".join(violations)

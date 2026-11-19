@@ -237,10 +237,8 @@ def test_deferred_and_dynamic_cog_bridges_are_load_order_independent(tmp_path):
         bot,
         config=bot.config,
         guild_repo=bot.repos.guild,
-        wallet=bot.repos.wallet,
-        rtp=bot.repos.rtp,
-        pachinko=bot.repos.pachinko,
-        quiz_repo=bot.repos.quiz,
+        admin_svc=bot.services.admin,
+        quiz_svc=bot.services.quiz,
         labor_svc=bot.services.labor,
     )
 

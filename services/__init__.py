@@ -1,5 +1,6 @@
 """アプリケーションサービス層（ユースケース調整）。"""
 
+from services.admin import AdminService
 from services.arena import ArenaService
 from services.casino import BeginGameResult, CasinoService, SettleGameResult
 from services.company import CompanyService
@@ -19,6 +20,7 @@ from services.shop import BuyItemPrecheck, ShopService
 from services.teiai import TeiaiPanelSnapshot, TeiaiService
 
 __all__ = [
+    "AdminService",
     "ArenaService",
     "BalanceCard",
     "BeginGameResult",

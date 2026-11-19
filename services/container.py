@@ -7,6 +7,7 @@ from domain.ports.clock import IClock
 from domain.ports.repos import IRepositoryBundle
 from domain.ports.session import ISessionGuard
 from infra.clock import ConfigClock
+from services.admin import AdminService
 from services.arena import ArenaService
 from services.casino import CasinoService
 from services.company import CompanyService
@@ -45,6 +46,7 @@ class ServiceRegistry:
     p2p: P2PService
     raffle: RaffleService
     event: EventService
+    admin: AdminService
 
 
 def build_services(config: dict[str, Any], repos: IRepositoryBundle, sessions: ISessionGuard) -> ServiceRegistry:
@@ -111,5 +113,6 @@ def build_services(config: dict[str, Any], repos: IRepositoryBundle, sessions: I
         p2p=P2PService(p2p=repos.p2p, horses=repos.horses, shop=repos.shop, wallet=repos.wallet),
         raffle=RaffleService(raffle=repos.raffle, clock=clock),
         event=EventService(events=repos.events, clock=clock),
+        admin=AdminService(wallet=repos.wallet, rtp=repos.rtp, pachinko=repos.pachinko),
         ranking=RankingService(wallet=repos.wallet, crypto=repos.crypto, bonds=repos.bonds, assets=repos.assets),
     )

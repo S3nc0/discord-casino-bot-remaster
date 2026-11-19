@@ -64,10 +64,10 @@ class CasinoService:
         rtp_policy: IRtpPolicy = DEFAULT_RTP_POLICY,
         pachinko: Optional[IPachinkoRepo] = None,
     ) -> None:
-        self.wallet = wallet
-        self.escrow = escrow
+        self._wallet = wallet
+        self._escrow = escrow
         self._shop = shop
-        self.rtp = rtp
+        self._rtp = rtp
         self._events = events
         self._notices = notices
         self._records = records
@@ -85,8 +85,8 @@ class CasinoService:
         balance_factor: int = 1,
     ) -> BeginGameResult:
         """排他セッションを取得し、賭け金を検証して預かる。失敗時はセッションを解放して返す。"""
-        wallet = self.wallet.for_guild(guild_id)
-        escrow_repo = self.escrow.for_guild(guild_id)
+        wallet = self._wallet.for_guild(guild_id)
+        escrow_repo = self._escrow.for_guild(guild_id)
         shop_repo = self._shop.for_guild(guild_id)
         reason = self.sessions.try_start(user_id)
         if reason:
@@ -125,8 +125,8 @@ class CasinoService:
         now: Optional[datetime.datetime] = None,
     ) -> SettleGameResult:
         """RTP・突発イベント補正を適用して預かり金を精算し、通知とミッション/連勝記録を更新する。"""
-        rtp_repo = self.rtp.for_guild(guild_id)
-        escrow_repo = self.escrow.for_guild(guild_id)
+        rtp_repo = self._rtp.for_guild(guild_id)
+        escrow_repo = self._escrow.for_guild(guild_id)
         event_repo = self._events.for_guild(guild_id)
         notice_repo = self._notices.for_guild(guild_id)
         record_repo = self._records.for_guild(guild_id)
@@ -172,7 +172,7 @@ class CasinoService:
         )
 
     def abort_game(self, guild_id: int, user_id: int, escrow_id: int) -> None:
-        escrow_repo = self.escrow.for_guild(guild_id)
+        escrow_repo = self._escrow.for_guild(guild_id)
         try:
             escrow_repo.refund(escrow_id)
         finally:
@@ -180,17 +180,17 @@ class CasinoService:
 
     # ------------------------------ ゲーム中の参照・追加の賭け ------------------------------ #
     def balance_of(self, guild_id: int, user_id: int) -> int:
-        return self.wallet.for_guild(guild_id).balance(user_id)
+        return self._wallet.for_guild(guild_id).balance(user_id)
 
     def escrow_amount(self, guild_id: int, escrow_id: int) -> int:
-        return self.escrow.for_guild(guild_id).escrow_amount(escrow_id)
+        return self._escrow.for_guild(guild_id).escrow_amount(escrow_id)
 
     def add_to_escrow(self, guild_id: int, escrow_id: int, extra: int, credit: bool = False) -> bool:
         """預かり金を足す（ブラックジャックのダブル）。credit なら足りない分を帝愛から借りる。"""
-        return self.escrow.for_guild(guild_id).add_to_escrow(escrow_id, extra, credit=credit)
+        return self._escrow.for_guild(guild_id).add_to_escrow(escrow_id, extra, credit=credit)
 
     def rtp_level(self, guild_id: int, game: str) -> int:
-        return self.rtp.for_guild(guild_id).rtp_level_get(game)
+        return self._rtp.for_guild(guild_id).rtp_level_get(game)
 
     def record_pachinko_set(self, guild_id: int, user_id: int, bet: int, balls: int, result: Any) -> None:
         """パチンコの統計用の記録（記録先が無い構成では何もしない）。"""
