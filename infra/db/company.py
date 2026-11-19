@@ -35,10 +35,14 @@ class CompanyRepo(ScopedRepo, ICompanyRepo, IValuationSource):
         bank: IBankCashFlow,
         house: IHouseAccount,
         notices: INoticeSink,
+        tz_hours: float,
         guild_id: int = 0,
         strict: bool = False,
     ) -> None:
         super().__init__(db, guild_id, strict)
+        self._tz_hours = (
+            tz_hours  # 日付の切り替わり（維持費の精算日・その日の買取価格）を決める時差。IClock.offset_hours()
+        )
         self._account = account
         self._status_reader = status_reader
         self._bank = bank
@@ -75,9 +79,9 @@ class CompanyRepo(ScopedRepo, ICompanyRepo, IValuationSource):
     def _settle(self, c: dict[str, Any], now: float) -> bool:
         """いまの時刻まで、生産と維持費を進めて保存する。倒産したら会社を消して False。"""
         gid = c["guild_id"]
-        c["stock"] = company_mod.produce(c["kind"], c["level"], gid, c["stock"], c["stock_ts"], now)
+        c["stock"] = company_mod.produce(c["kind"], c["level"], gid, c["stock"], c["stock_ts"], now, self._tz_hours)
         c["stock_ts"] = max(c["stock_ts"], now)
-        today = company_mod.day_of(now)
+        today = company_mod.day_of(now, self._tz_hours)
         fee = company_mod.daily_upkeep(c["level"])
         while c["upkeep_day"] < today:
             c["upkeep_day"] = company_mod.next_day(c["upkeep_day"])
@@ -122,7 +126,7 @@ class CompanyRepo(ScopedRepo, ICompanyRepo, IValuationSource):
 
     def _view(self, c: dict[str, Any], now: float) -> dict[str, Any]:
         """画面に出す形（会社の行に、その日の状態と、計算で出る数字を足す）。"""
-        state = company_mod.day_state(c["kind"], c["guild_id"], company_mod.day_of(now))
+        state = company_mod.day_state(c["kind"], c["guild_id"], company_mod.day_of(now, self._tz_hours))
         stakes = self._stakes(c["guild_id"], c["user_id"])
         return {
             **c,
@@ -135,7 +139,7 @@ class CompanyRepo(ScopedRepo, ICompanyRepo, IValuationSource):
             "yield_mult": state.yield_mult,
             "price": state.price,
             "stock_value": int(c["stock"] * state.price),
-            "budget": self._budget_for(c["guild_id"], company_mod.day_of(now)),
+            "budget": self._budget_for(c["guild_id"], company_mod.day_of(now, self._tz_hours)),
             "stakes_total": sum(stakes.values()),
             "stake_cap": company_mod.stake_cap(c["level"]),
             "investors": len(stakes),
@@ -177,7 +181,7 @@ class CompanyRepo(ScopedRepo, ICompanyRepo, IValuationSource):
             self._conn.execute(
                 "INSERT INTO companies (guild_id, user_id, name, kind, stock_ts, upkeep_day, created) "
                 "VALUES (?, ?, ?, ?, ?, ?, ?)",
-                (gid, user_id, name, kind, now, company_mod.day_of(now), now),
+                (gid, user_id, name, kind, now, company_mod.day_of(now, self._tz_hours), now),
             )
             c = self._load(gid, user_id)
             assert c is not None
@@ -240,7 +244,7 @@ class CompanyRepo(ScopedRepo, ICompanyRepo, IValuationSource):
             c = self._current(gid, user_id, now)
             if c is None:
                 return False, fail("company_none")
-            day = company_mod.day_of(now)
+            day = company_mod.day_of(now, self._tz_hours)
             price = company_mod.day_state(c["kind"], gid, day).price
             paid, pinhane, left = company_mod.sale(c["stock"], price, self._budget_for(gid, day))
             if paid <= 0:

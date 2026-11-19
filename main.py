@@ -21,6 +21,7 @@ bind_catalogs()
 from cogs.loader import load_all_cogs as _load_cogs  # noqa: E402
 from cogs.shared import approval_guard, ui  # noqa: E402
 from cogs.shared.bot import CasinoBot  # noqa: E402
+from infra.clock import ConfigClock  # noqa: E402
 from infra.db.repositories import open_repositories  # noqa: E402
 from infra.paths import CONFIG_PATH as _CONFIG_PATH  # noqa: E402
 from infra.paths import DB_PATH as _DB_PATH  # noqa: E402
@@ -111,7 +112,7 @@ if config.get("debug_http"):
     logging.getLogger("discord.http").setLevel(logging.DEBUG)
 # ペリカはサーバーごとに別々。古い形式の記録は legacy_guild_id（無ければ許可リストの先頭）のサーバーが引き継ぐ
 _legacy = config.get("legacy_guild_id") or next(iter(config.get("allowed_guild_ids") or []), None)
-_repos = open_repositories(DB_PATH, legacy_guild_id=_legacy, strict=True)
+_repos = open_repositories(DB_PATH, legacy_guild_id=_legacy, strict=True, clock=ConfigClock(config))
 _sessions = Sessions()
 bot = CasinoBot(
     config=config,

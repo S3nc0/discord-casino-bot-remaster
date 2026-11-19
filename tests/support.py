@@ -18,6 +18,7 @@ from cogs.shared.bridges import (
     IShopTitleBridge,
 )
 from domain.ports.session import ISessionGuard
+from infra.clock import ConfigClock
 from infra.db.repositories import RepositoryBundle, open_repositories
 from services import ServiceRegistry, build_services
 from services.session import Sessions
@@ -34,7 +35,11 @@ def make_test_bot(
 ) -> SimpleNamespace:
     """テスト用の軽量 Bot コンテナ（repos / services / sessions / bridges / config を保持）を組み立てる。"""
     cfg = {} if config is None else config
-    bundle = repos if repos is not None else open_repositories(db_path, legacy_guild_id=legacy_guild_id, strict=strict)
+    bundle = (
+        repos
+        if repos is not None
+        else open_repositories(db_path, legacy_guild_id=legacy_guild_id, strict=strict, clock=ConfigClock(cfg))
+    )
     sess = sessions if sessions is not None else Sessions(cooldown=0)
     services: ServiceRegistry = build_services(cfg, bundle, sess)
     cogs: dict[str, Any] = {}

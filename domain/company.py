@@ -34,7 +34,6 @@ KIND_NAMES = {k.key: k.name for k in _CFG.kinds}
 
 BANNED_NAME_CHARS = "@<>`*_~|#:/\\\n\r"
 DAY_SECONDS = 86400
-TZ_HOURS = 9.0
 
 
 @dataclass(frozen=True)
@@ -84,13 +83,14 @@ def daily_upkeep(level: int) -> int:
     return int(invested(level) * UPKEEP_RATE)
 
 
-def day_of(ts: float) -> str:
-    tz = datetime.timezone(datetime.timedelta(hours=TZ_HOURS))
+def day_of(ts: float, tz_hours: float) -> str:
+    """ts の、現地時間（UTC から tz_hours 時間ずれた時刻）での日付。tz_hours は IClock.offset_hours() の値を渡す。"""
+    tz = datetime.timezone(datetime.timedelta(hours=tz_hours))
     return datetime.datetime.fromtimestamp(ts, tz).date().isoformat()
 
 
-def day_start(day: str) -> float:
-    tz = datetime.timezone(datetime.timedelta(hours=TZ_HOURS))
+def day_start(day: str, tz_hours: float) -> float:
+    tz = datetime.timezone(datetime.timedelta(hours=tz_hours))
     return datetime.datetime.combine(datetime.date.fromisoformat(day), datetime.time(), tzinfo=tz).timestamp()
 
 
@@ -106,15 +106,15 @@ def day_state(kind: str, guild_id: int, day: str) -> DayState:
     return DayState(cond, round(rng.uniform(cond.price_lo, cond.price_hi), 2))
 
 
-def produce(kind: str, level: int, guild_id: int, stock: float, since: float, now: float) -> float:
+def produce(kind: str, level: int, guild_id: int, stock: float, since: float, now: float, tz_hours: float) -> float:
     """since から now までの生産を足した在庫。日をまたぐと、日ごとの生産量で積む。倉庫からあふれた分は捨てる。"""
     cap = storage_cap(kind, level)
     if now <= since:
         return min(stock, cap)
     per_second = daily_output(kind, level) / DAY_SECONDS
-    cursor, day = since, day_of(since)
+    cursor, day = since, day_of(since, tz_hours)
     while cursor < now and stock < cap:
-        end = min(now, day_start(next_day(day)))
+        end = min(now, day_start(next_day(day), tz_hours))
         stock += (end - cursor) * per_second * day_state(kind, guild_id, day).yield_mult
         cursor, day = end, next_day(day)
     return min(stock, cap)
