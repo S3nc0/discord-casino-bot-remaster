@@ -83,7 +83,7 @@ def build_services(config: dict[str, Any], repos: IRepositoryBundle, sessions: I
             crypto=repos.crypto,
             bonds=repos.bonds,
         ),
-        labor=LaborService(labor=repos.labor, clock=clock),
+        labor=LaborService(labor=repos.labor, clock=clock, relics=repos.relics),
         arena=ArenaService(arena=repos.arena, clock=clock),
         company=CompanyService(company=repos.company, clock=clock),
         loan=LoanService(loans=repos.loans, clock=clock),

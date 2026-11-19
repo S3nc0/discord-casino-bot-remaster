@@ -204,7 +204,7 @@ def make_loan_cog(bot: Any):
 def make_labor_cog(bot: Any):
     from cogs.labor.cog import LaborCog
 
-    return LaborCog(bot, bot.repos.labor, bot.repos.relics, bot.services.labor)
+    return LaborCog(bot, bot.services.labor)
 
 
 def make_arena_cog(bot: Any):
