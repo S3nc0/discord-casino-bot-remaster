@@ -14,7 +14,7 @@
 | プレゼンテーション | `cogs/` | スラッシュコマンド・ボタン・埋め込み・ゲーム進行演出（Discord に直接触るのはここだけ） |
 | アプリケーション | `services/` | ユースケース・実行制御（二重プレイ防止など）。`domain/` の契約とルールにのみ依存 |
 | ドメイン | `domain/` | 純粋な業務ルール・ゲーム計算（`games/`）・値型・水平ポート契約（`ports/`）。SQLite にも Discord にも触らない |
-| インフラストラクチャ | `infra/` | SQLite 永続化（`db/`）・YAML カタログ読み込み（`catalogs.py`）・時刻・パス解決（`paths.py`） |
+| インフラストラクチャ | `infra/` | SQLite 永続化（`db/`）・YAML カタログ読み込み（`catalogs/`）・時刻・パス解決（`paths.py`） |
 | 設定カタログ | `catalogs/` | 商品・確率表・配当表などの UI 非依存なゲームバランス/マスタ定義（YAML）。`infra/catalogs/` で型検証して読み込む |
 
 ## 最上位
@@ -26,7 +26,7 @@
 | `config.example.json` | 設定ファイルの見本（トークンなどは空）。`config.json` を作るときのひな形 |
 | `config.json` | 実際の設定（Bot のトークンなど）。**秘匿情報なので Git に入れない**（`.gitignore` 済み） |
 | `config.json.migrated-to-server` | 古い設定ファイルの控え。`config.json.*` として Git に入れない |
-| `catalogs/` | YAML の静的カタログ群（ショップ・スキン・遺物・債券・ミッション・イベント・地下作業・競馬・証券・帝愛・経済・ゲーム） |
+| `catalogs/` | YAML の静的カタログ群（ショップ・スキン・遺物・債券・ミッション・イベント・地下作業・競馬・証券・帝愛・経済・ゲーム・会社・闘技場） |
 | `data/` | 実行時のデータ。`casino.db`（SQLite 本体）と `bot.lock`（二重起動の防止）。**Git に入れない** |
 | `README.md` | 概要・コマンド一覧・導入手順・運用・docs への案内 |
 | `docs/` | 機能ごとの、くわしい仕様（`casino.md`・`stocks.md`・`teiai.md`・`horse.md`・`labor.md`・`arena.md`・`shop.md`・`admin.md`） |
@@ -54,7 +54,8 @@
 | `loan/` | `/貸付`。ユーザー同士の貸し借り（`cog.py`・`embeds.py`・`views.py`） |
 | `p2p/` | プレイヤー間の市場と競り（`cog.py`・`embeds.py`・`views.py`） |
 | `labor/` | `/地下 作業`・`/地下 ランキング`。クリッカー、作業員の雇用、鉱石の掘り出し |
-| `arena/` | `/闘技場`。地下闘技場。`cog.py`（進行・掲示）・`views.py`（賭けパネル）・`embeds.py` |
+| `company/` | `/会社`。会社の設立・事業所の増築・出荷・維持費（`cog.py`・`embeds.py`・`texts.py`・`views.py`） |
+| `arena/` | `/闘技場`。地下闘技場。`cog.py`（進行・掲示）・`views.py`（賭けパネル）・`embeds.py`。**停止中**: `loader.py` の `COG_MODULES` から外してある（コードは残す）。負け側の賭け金だけを配当の原資にしているため、配当が極端に小さくなる問題（#27）を直してから戻す。停止中は `/運営 闘技場開催` が「闘技場が読み込まれていません」と返す |
 | `quiz/` | `/クイズ`。`cog.py`・`embeds.py`・`texts.py`・`views.py`（4 択クイズと報酬） |
 | `raffle/` | 抽選。参加費を預かり、締切で 1 人に全額を渡す |
 | `event/` | 突発イベントの告知（`cog.py`・`texts.py`、1 日 1 回、30 分だけ勝ち分が増える） |
@@ -85,7 +86,7 @@
 
 | パス | 内容 |
 |---|---|
-| `catalogs.py` / `catalog_types/` | `ICatalogs` カタログ取得契約と責務別公称データ契約（`shop`・`economy`・`market`・`games`・`arena`） |
+| `catalogs.py` / `catalog_types/` | `ICatalogs` カタログ取得契約と責務別公称データ契約（`shop`・`economy`・`market`・`games`・`arena`・`company`） |
 | `clock.py` | `IClock`（現在時刻・日付・UTCオフセット・タイムスタンプの抽象契約） |
 | `session.py` | `ISessionGuard`（二重プレイ防止セッション管理の契約） |
 | `repos/` | 領域別 DB リポジトリ用名目的基底クラス群（`base.py`・`economy.py`・`teiai.py`・`market.py`・`social.py`・`games.py`・`bundle.py` / `__init__.py` で `IRepositoryBundle` 等を集約再エクスポート） |
@@ -133,7 +134,7 @@
 | パス | 内容 |
 |---|---|
 | `paths.py` | ルート・`catalogs/`・`config.json`・`data/casino.db` の基準パス解決 |
-| `catalogs/` | `catalogs/*.yaml` を責務別に読み込み・Pydantic 型検証・キャッシュするパッケージ（`loader.py`・`shop.py`・`economy.py`・`games.py`・`market.py`・`arena.py`、`YamlCatalogs(ICatalogs)`） |
+| `catalogs/` | `catalogs/*.yaml` を責務別に読み込み・Pydantic 型検証・キャッシュするパッケージ（`loader.py`・`shop.py`・`economy.py`・`games.py`・`market.py`・`arena.py`・`company.py`、`YamlCatalogs(ICatalogs)`） |
 | `clock.py` | `ConfigClock(IClock)` とタイムゾーンに基づく現在時刻・日付の取得 |
 | `logthrottle.py` | 同じ原因のログを出し続けないための間引き |
 
@@ -147,7 +148,7 @@
 | `lazy_bridges.py` | 初期化時の循環参照を解決する遅延解決ブリッジラッパー（`Lazy*`） |
 | `account.py` | `AccountCore`（口座残高・台帳記帳・借金ライフサイクルフックの共有プリミティブ） |
 | `escrow.py` / `wallet.py` | 賭け金預かり・精算（`EscrowRepo`）と残高・デイリー・ランキング・統計・送金（`WalletRepo`） |
-| `assets.py` / `auction.py` / `bank.py` / `bonds.py` / `crypto.py` / `debt.py` / `earnings.py` / `events.py` / `guild.py` / `horse.py` / `labor.py` / `loans.py` / `margin.py` / `market.py` / `market_events.py` / `notices.py` / `options.py` / `p2p.py` / `pachinko.py` / `quiz.py` / `race.py` / `raffle.py` / `records.py` / `relics.py` / `rtp.py` / `shop.py` / `arena.py` | 機能別の独立リポジトリ群と `IAssetCollector` / `IAssetSeizureStep` / `ILiquidationStep` 戦略群（各 `domain/ports/repos/` 契約を継承実装） |
+| `assets.py` / `auction.py` / `bank.py` / `bonds.py` / `company.py` / `crypto.py` / `debt.py` / `earnings.py` / `events.py` / `guild.py` / `horse.py` / `labor.py` / `loans.py` / `margin.py` / `market.py` / `market_events.py` / `notices.py` / `options.py` / `p2p.py` / `pachinko.py` / `quiz.py` / `race.py` / `raffle.py` / `records.py` / `relics.py` / `rtp.py` / `shop.py` / `arena.py` | 機能別の独立リポジトリ群と `IAssetCollector` / `IAssetSeizureStep` / `ILiquidationStep` 戦略群（各 `domain/ports/repos/` 契約を継承実装） |
 
 ## `tests/` — 自動テスト
 
