@@ -11,7 +11,7 @@ from cogs.shared import ui
 from cogs.shared.amount import reject_bad_amount, typed_amount
 from cogs.shared.messages import format_failure
 from domain import horse as horse_mod
-from domain.ports.repos import IRaceRepo
+from services.horse import HorseDesk, HorseService
 
 PostBetFn = Callable[[discord.Guild, dict, str], Awaitable[None]]
 
@@ -27,9 +27,9 @@ class StakeModal(discord.ui.Modal):
         )
         self.add_item(self.stake)
 
-    async def _submit_many(self, interaction: discord.Interaction, races: IRaceRepo, lanes: list, stake: int) -> None:
+    async def _submit_many(self, interaction: discord.Interaction, desk: HorseDesk, lanes: list, stake: int) -> None:
         """単勝・複勝: 選んだ馬ごとに、同じ金額ずつ買う。"""
-        ok, result = races.race_bet_many(
+        ok, result = desk.race_bet_many(
             interaction.user.id, self.panel.race["id"], self.panel.kind, lanes, stake, time.time()
         )
         if not ok:
@@ -56,12 +56,12 @@ class StakeModal(discord.ui.Modal):
         if stake is None:
             await reject_bad_amount(interaction)
             return
-        races = self.panel.races_for(ui.guild_id_of(interaction))
+        desk = self.panel.desk_for(ui.guild_id_of(interaction))
         lanes = self.panel.picked()
         if self.panel.kind in horse_mod.MULTI_KINDS:
-            await self._submit_many(interaction, races, lanes, stake)
+            await self._submit_many(interaction, desk, lanes, stake)
             return
-        ok, result = races.race_bet(
+        ok, result = desk.race_bet(
             interaction.user.id,
             self.panel.race["id"],
             self.panel.kind,
@@ -96,22 +96,22 @@ class BetPanel(ui.OwnerView):
 
     def __init__(
         self,
-        races: IRaceRepo,
+        horse_svc: HorseService,
         user_id: int,
         race: dict,
         post_bet_fn: Optional[PostBetFn] = None,
     ) -> None:
         super().__init__(user_id, timeout=300)
-        self._races = races
+        self._horse_svc = horse_svc
         self._post_bet = post_bet_fn
         self.user_id, self.race = user_id, race
         self.kind = "win"
         self.lanes = [1, 2, 3]  # 複数選ぶ馬券の選択（先頭から、必要な頭数だけ使う）
         self.multi = [1]  # 単勝・複勝で選んでいる馬（何頭でも）
-        self._build(self.races_for(race["guild_id"]))
+        self._build(self.desk_for(race["guild_id"]))
 
-    def races_for(self, guild_id: int) -> IRaceRepo:
-        return self._races.for_guild(guild_id)
+    def desk_for(self, guild_id: int) -> HorseDesk:
+        return self._horse_svc.desk(guild_id)
 
     async def _reject_non_owner(self, interaction: discord.Interaction) -> None:
         await interaction.response.send_message("この画面を使えるのは、開いた本人だけです。", ephemeral=True)
@@ -161,7 +161,7 @@ class BetPanel(ui.OwnerView):
             for e in entries
         ]
 
-    def _build(self, races: IRaceRepo) -> None:
+    def _build(self, desk: HorseDesk) -> None:
         self.clear_items()
         kind = discord.ui.Select(
             placeholder="馬券の種類",
@@ -173,7 +173,7 @@ class BetPanel(ui.OwnerView):
         )
         kind.callback = self._on_kind
         self.add_item(kind)
-        entries = races.race_entries(self.race["id"])
+        entries = desk.race_entries(self.race["id"])
         need = horse_mod.COMBO_SIZE.get(self.kind, 1)
         if self.kind == "exacta":
             for row, (label, i) in enumerate((("1着", 0), ("2着", 1)), start=1):
@@ -206,24 +206,24 @@ class BetPanel(ui.OwnerView):
         go.callback = self._on_go
         self.add_item(go)
 
-    def embed(self, races: IRaceRepo) -> discord.Embed:
-        mine = races.race_bets(self.user_id, self.race["id"])
+    def embed(self, desk: HorseDesk) -> discord.Embed:
+        mine = desk.race_bets(self.user_id, self.race["id"])
         lanes = self.picked()
         lines = [
-            f"{race_title(races, self.race)}　発売は {when(self.race['bet_close'])} まで",
+            f"{race_title(desk, self.race)}　発売は {when(self.race['bet_close'])} まで",
             "種類と馬を選んで、「金額を入れて買う」を押します。**賭けた時点のオッズで確定**します。",
             "",
         ]
         if self.kind in horse_mod.MULTI_KINDS:
-            names = {e["lane"]: e["name"] for e in races.race_entries(self.race["id"])}
+            names = {e["lane"]: e["name"] for e in desk.race_entries(self.race["id"])}
             lines.append(
                 f"選択中: **{horse_mod.BET_KINDS[self.kind]}**　{len(lanes)}頭（金額は、1頭ごとに同じだけ賭けます）"
             )
             for lane in lanes:
-                odds = races.race_odds(self.race["id"], self.kind, [lane])
+                odds = desk.race_odds(self.race["id"], self.kind, [lane])
                 lines.append(f"　{lane}枠 {names.get(lane, '')}" + (f"　オッズ **{odds:.1f}**" if odds else ""))
         else:
-            odds = races.race_odds(self.race["id"], self.kind, lanes) if len(set(lanes)) == len(lanes) else None
+            odds = desk.race_odds(self.race["id"], self.kind, lanes) if len(set(lanes)) == len(lanes) else None
             sep = "→" if self.kind == "exacta" else "・"
             shown = sep.join(map(str, lanes if self.kind == "exacta" else sorted(lanes)))
             lines.append(
@@ -242,9 +242,9 @@ class BetPanel(ui.OwnerView):
         return e
 
     async def _redraw(self, interaction: discord.Interaction) -> None:
-        races = self.races_for(self.race["guild_id"])
-        self._build(races)
-        await interaction.response.edit_message(embed=self.embed(races), view=self)
+        desk = self.desk_for(self.race["guild_id"])
+        self._build(desk)
+        await interaction.response.edit_message(embed=self.embed(desk), view=self)
 
     async def _on_kind(self, interaction: discord.Interaction):
         self.kind = ui.selected_values(interaction)[0]

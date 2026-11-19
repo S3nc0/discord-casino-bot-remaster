@@ -72,7 +72,7 @@ def build_services(config: dict[str, Any], repos: IRepositoryBundle, sessions: I
             options_repo=repos.options,
             clock=clock,
         ),
-        horse=HorseService(races=repos.races, clock=clock),
+        horse=HorseService(races=repos.races, clock=clock, horses=repos.horses, shop=repos.shop),
         economy=EconomyService(
             wallet=repos.wallet,
             notices=repos.notices,

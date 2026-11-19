@@ -5,7 +5,7 @@ from services.casino import BeginGameResult, CasinoService, SettleGameResult
 from services.company import CompanyService
 from services.container import ServiceRegistry, build_services
 from services.economy import BalanceCard, DailyClaimOutcome, EconomyService, MissionBoard
-from services.horse import HorseService
+from services.horse import HorseDesk, HorseService
 from services.labor import LaborService
 from services.loan import LoanService, LoanTickOutcome
 from services.market import MarketService
@@ -26,6 +26,7 @@ __all__ = [
     "CompanyService",
     "DailyClaimOutcome",
     "EconomyService",
+    "HorseDesk",
     "HorseService",
     "LaborService",
     "LoanService",

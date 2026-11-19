@@ -148,16 +148,16 @@ def test_card_embed_for_each_stage_and_bet_panel(setup):
     eco.wallet.credit(V, 10_000, "テスト")
     rid = eco.races.race_create_special(1_700_000_000.0, 1, 1)
     race = eco.races.race_get(rid)
-    assert "出走受付中" in views.card_embed(eco.horses, eco.races, race).title
+    assert "出走受付中" in views.card_embed(desk(eco), race).title
     field = eco.races.race_close_entries(rid, random.Random(1))
     eco.races.race_set_odds(rid, h.make_odds(field["runners"]))
     race = eco.races.race_get(rid)
-    card = views.card_embed(eco.horses, eco.races, race)
+    card = views.card_embed(desk(eco), race)
     assert "発売中" in card.title and card.description.count("単勝") >= h.FIELD_SIZE
-    panel = views.BetPanel(eco.races, V, {**race, "guild_id": 0})
+    panel = views.BetPanel(make_test_bot(repos=eco).services.horse, V, {**race, "guild_id": 0})
     assert len(panel.children) == 3 and "馬券を買う" in panel.embed(eco.races).title
     eco.races.race_run(rid, random.Random(2))
-    assert "結果" in views.card_embed(eco.horses, eco.races, eco.races.race_get(rid)).title
+    assert "結果" in views.card_embed(desk(eco), eco.races.race_get(rid)).title
 
 
 def test_stable_view_shows_horses_and_stats(setup):
@@ -169,7 +169,7 @@ def test_stable_view_shows_horses_and_stats(setup):
             (eco.horses.guild_id, U, shop.HORSE_VOUCHER),
         )
     eco.horses.horse_create(U, "ホースA", "鹿毛", "🟦")
-    stable = views.Stable(eco.horses, eco.races, eco.shop, bot.services.horse, U, 0)
+    stable = views.Stable(bot.services.horse, U, 0)
     emb = stable.embed()
     assert "ホースA" in emb.fields[0].name and "スピード" in emb.fields[0].value
     assert any(isinstance(c, views.discord.ui.Select) for c in stable.children)
@@ -197,7 +197,7 @@ def test_bet_panel_builds_for_every_kind_and_shows_the_odds(setup):
     field = eco.races.race_close_entries(rid, random.Random(1))
     eco.races.race_set_odds(rid, h.make_all_odds(field["runners"]))
     race = {**eco.races.race_get(rid), "guild_id": 0}
-    panel = views.BetPanel(eco.races, V, race)
+    panel = views.BetPanel(make_test_bot(repos=eco).services.horse, V, race)
     selects = {}
     for kind in h.BET_KINDS:
         panel.kind = kind
@@ -237,7 +237,9 @@ def test_bet_is_announced_publicly_in_the_race_channel(setup):
     eco, chan, guild, bot, cog = setup
     rid = eco.races.race_create_special(1_700_000_000.0, 1, 1)
     race = eco.races.race_get(rid)
-    panel = views.BetPanel(eco.races, V, {**race, "guild_id": 0}, cog.post_bet_announcement)
+    panel = views.BetPanel(
+        make_test_bot(repos=eco).services.horse, V, {**race, "guild_id": 0}, cog.post_bet_announcement
+    )
     interaction = SimpleNamespace(guild=guild, guild_id=0, user=SimpleNamespace(id=V))
     result = {"kind": "win", "lanes": [3], "name": "アルファ", "stake": 500, "odds": 4.2}
     asyncio.run(panel.announce_bet(interaction, "3", result))
@@ -256,7 +258,7 @@ def _open_race(eco):
 def test_win_and_place_select_several_horses_at_once(setup):
     eco, chan, guild, bot, cog = setup
     rid, race, now = _open_race(eco)
-    panel = views.BetPanel(eco.races, V, {**race, "guild_id": 0})
+    panel = views.BetPanel(make_test_bot(repos=eco).services.horse, V, {**race, "guild_id": 0})
     for kind in h.MULTI_KINDS:
         panel.kind = kind
         panel._build(eco.races)
@@ -305,7 +307,9 @@ def test_stake_modal_buys_every_selected_horse_and_announces_once(setup):
     eco.wallet.credit(V, 10_000, "テスト")
     before = eco.wallet.balance(V)
     rid, race, now = _open_race(eco)
-    panel = views.BetPanel(eco.races, V, {**race, "guild_id": 0}, cog.post_bet_announcement)
+    panel = views.BetPanel(
+        make_test_bot(repos=eco).services.horse, V, {**race, "guild_id": 0}, cog.post_bet_announcement
+    )
     panel.kind, panel.multi = "place", [3, 6]
     modal = views.StakeModal(panel)
     assert "1頭あたり" in modal.stake.label
@@ -345,11 +349,11 @@ def test_entry_card_in_the_channel_is_redrawn_when_registrations_change(setup):
     eco.races.race_set_message(rid, chan.id, 777)
     assert eco.races.race_register(U, hid, rid, 1_700_000_001.0)[0]
     interaction = SimpleNamespace(guild=guild, guild_id=0, user=SimpleNamespace(id=U))
-    asyncio.run(views.refresh_entry_card(interaction, eco.horses, eco.races, rid))
+    asyncio.run(views.refresh_entry_card(interaction, desk(eco), rid))
     mid, kw = chan.retired[-1]
     assert mid == 777 and "ライブホース" in kw["embed"].description
     assert eco.races.race_withdraw(U, hid, rid, 1_700_000_002.0)[0]
-    asyncio.run(views.refresh_entry_card(interaction, eco.horses, eco.races, rid))
+    asyncio.run(views.refresh_entry_card(interaction, desk(eco), rid))
     assert "ライブホース" not in chan.retired[-1][1]["embed"].description
 
 
@@ -378,7 +382,7 @@ def test_result_embed_lists_every_winner_even_when_the_net_is_a_loss(setup):
         {"user_id": U, "stake": 1000, "payout": 1500},  # 当たったが、合計は赤字
         {"user_id": V, "stake": 500, "payout": 0},
     ]
-    embed = horse_cog.result_embed(eco.horses, eco.races, {"race": race, "bets": bets, "prizes": {}})
+    embed = horse_cog.result_embed(desk(eco), {"race": race, "bets": bets, "prizes": {}})
     text = next(f.value for f in embed.fields if f.name == "払い戻し")
     assert f"<@{U}>" in text and "1,500" in text and "収支" not in text and f"<@{V}>" not in text
 
@@ -448,7 +452,7 @@ def _stable_with_horse(setup):
         )
     ok, hid = eco.horses.horse_create(U, "ホースA", "鹿毛", "🟦")
     assert ok
-    return eco, bot, views.Stable(eco.horses, eco.races, eco.shop, bot.services.horse, U, 0), hid
+    return eco, bot, views.Stable(bot.services.horse, U, 0), hid
 
 
 def test_name_modal_then_appearance_view_creates_a_horse_and_consumes_a_voucher(setup):
@@ -458,7 +462,7 @@ def test_name_modal_then_appearance_view_creates_a_horse_and_consumes_a_voucher(
             "INSERT INTO inventory (guild_id, user_id, item_id, qty) VALUES (?, ?, ?, 1)",
             (eco.horses.guild_id, U, shop.HORSE_VOUCHER),
         )
-    stable = views.Stable(eco.horses, eco.races, eco.shop, bot.services.horse, U, 0)
+    stable = views.Stable(bot.services.horse, U, 0)
     name_modal = views.NameModal(stable)
     name_modal.name._value = "新しい馬"
     it = _It(U)
@@ -510,3 +514,7 @@ def test_retire_view_charges_or_pays_and_updates_the_stable(setup):
     remaining = eco.horses.horse_list(U)
     assert remaining == []  # 持ち馬はもういない
     assert stable.horse_id is None
+
+
+def desk(eco, guild_id=0):
+    return make_test_bot(repos=eco).services.horse.desk(guild_id)

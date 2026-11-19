@@ -122,9 +122,6 @@ def make_horse_cog(bot: Any):
         bot,
         bot.config,
         bot.services.horse,
-        bot.repos.horses,
-        bot.repos.races,
-        bot.repos.shop,
         bot.repos.guild,
     )
     bot.bridges.register(IHorseAdminBridge, cog)
