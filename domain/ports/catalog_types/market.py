@@ -114,6 +114,7 @@ class EarningsSectionContract:
     surprise_prob: float
     surprise_range: tuple[float, float]
     memo_prob: float
+    memo_lead_hours: float
     memo_truth: float
     shop_truth: float
     shop_stock: int

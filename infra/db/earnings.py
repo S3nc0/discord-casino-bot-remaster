@@ -97,7 +97,8 @@ class EarningsRepo(ScopedRepo, IEarningsRepo):
             return rows
 
     def earnings_memo(self, user_id: int, now: Optional[float] = None, rng: Any = None) -> Optional[ea.MemoInfo]:
-        """デイリーのあとに、確率で届く、裏情報メモ。発表前の決算が無い・この決算のメモをもう受け取っている・抽選に外れたら None。"""
+        """デイリーのあとに、確率で届く、裏情報メモ。発表前の決算が無い・発表まで MEMO_LEAD_HOURS より先・
+        この決算のメモをもう受け取っている・抽選に外れたら None。"""
         now = time.time() if now is None else now
         rng = rng or random.SystemRandom()
         with self._db.tx():
@@ -107,6 +108,8 @@ class EarningsRepo(ScopedRepo, IEarningsRepo):
                 "ORDER BY release_at LIMIT 1",
                 (now,),
             ).fetchone()
+            if ev is not None and ev["release_at"] - now > ea.MEMO_LEAD_HOURS * 3600:
+                return None  # 発表がまだ先なので、このデイリーでは抽選しない(帝愛市のメモ売りは今までどおり)
             if ev is None or rng.random() >= ea.MEMO_PROB:
                 return None
             if self._conn.execute(

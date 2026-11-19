@@ -164,6 +164,23 @@ def test_memo_arrives_by_chance_once_per_earnings_and_is_sometimes_wrong(eco):
     assert a.earnings.earnings_memo(4, ts(2026, 11, 10, 14), always) is None  # 発表後（次の決算は未登録）は届かない
 
 
+def test_daily_memo_only_within_the_lead_time_before_the_release(eco):
+    """#70: 発表まで MEMO_LEAD_HOURS(48時間)より先のデイリーでは、当たりでもメモは届かない。"""
+    a = eco.for_guild(10)
+    always = SimpleNamespace(random=lambda: 0.0)
+    now = ts(2026, 11, 9, 10)
+    release = now + (ea.MEMO_LEAD_HOURS + 1) * 3600
+    with eco.db.tx():
+        eco.db.conn.execute(
+            "INSERT INTO earnings (symbol, announce_at, release_at, direction, size) VALUES ('teio', ?, ?, 1, 0.1)",
+            (now - 60, release),
+        )
+    assert ea.MEMO_LEAD_HOURS == 48
+    assert a.earnings.earnings_memo(1, now, always) is None  # 49時間前: 届かない
+    assert a.earnings.earnings_memo(1, release - ea.MEMO_LEAD_HOURS * 3600, always)  # ちょうど48時間前: 届く
+    assert a.earnings.earnings_memo(1, release - 3600, always) is None  # 同じ決算では1人1回のまま
+
+
 def test_post_announces_and_reports_results_to_each_allowed_guild(eco, monkeypatch):
     from cogs.market import cog as market_cog
 

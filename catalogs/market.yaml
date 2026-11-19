@@ -152,6 +152,7 @@ earnings:
   surprise_prob: 0.15
   surprise_range: [0.35, 0.60]
   memo_prob: 0.10
+  memo_lead_hours: 48
   memo_truth: 0.70
   shop_truth: 0.80
   shop_stock: 5

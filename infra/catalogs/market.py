@@ -134,6 +134,7 @@ class EarningsSection(EarningsSectionContract):
     surprise_prob: float = Field(ge=0, le=1)
     surprise_range: tuple[float, float]
     memo_prob: float = Field(ge=0, le=1)
+    memo_lead_hours: float = Field(gt=0)
     memo_truth: float = Field(gt=0.5, le=1)
     shop_truth: float = Field(gt=0.5, le=1)
     shop_stock: int = Field(gt=0)

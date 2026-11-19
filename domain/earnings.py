@@ -20,6 +20,8 @@ SIZE_RANGE = _CFG.size_range  # ふつうの決算の、理論価格の動き（
 SURPRISE_PROB = _CFG.surprise_prob  # 大サプライズの確率
 SURPRISE_RANGE = _CFG.surprise_range  # 大サプライズの動き（値幅制限 ±30% を突き抜ける）
 MEMO_PROB = _CFG.memo_prob  # デイリー1回あたりの、裏情報メモの確率
+# デイリーのメモは、発表までこの時間を切った決算だけ。1週間先の噂は、届いても忘れてしまう(#70)
+MEMO_LEAD_HOURS = _CFG.memo_lead_hours
 MEMO_TRUTH = _CFG.memo_truth  # 噂が、決算の方向と合っている確率（デイリーでもらうもの）
 SHOP_TRUTH = _CFG.shop_truth  # 帝愛市で買うメモの確度（お金を払うぶん、少し高い）
 SHOP_STOCK = _CFG.shop_stock  # 1つの決算に、1つのサーバーで売るメモの数
