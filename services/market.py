@@ -155,3 +155,139 @@ class MarketService:
             "bond_quotes": bond_quotes,
             "margin_status": margin_status,
         }
+
+    # ------------------------------ 定時処理・チャート掲示（Cog の tick から） ------------------------------ #
+    def accrue_and_losscut(self, now: float, prices: dict[str, float]) -> list[Any]:
+        """信用取引の金利を付け、維持率を割った建玉を強制決済する。決済した (guild, user, symbol, side, loss) の一覧。"""
+        self._margin.margin_interest(now)
+        return self._margin.margin_losscut(prices)
+
+    def prune(self, before: float) -> None:
+        """古い価格の記録とチャート掲示の記録を消す。"""
+        self._market.market_prune(before)
+        self._market.prune_chart_posts(before)
+
+    def settle_maturities(self, guild_id: int, now: float, rng: Any) -> None:
+        """満期の債券の入金・倒産抽選と、満期のオプションの決済。"""
+        self._bonds.for_guild(guild_id).bond_settle(now, rng)
+        self._options.for_guild(guild_id).option_settle(now)
+
+    def market_history(self, since: float, symbol: str) -> list[Any]:
+        return self._market.market_history(since, symbol)
+
+    def market_pin(self, symbol: str) -> int:
+        return self._market.market_pin(symbol)
+
+    def market_events(self, now: float) -> list[Any]:
+        return self._market_events.market_events(now)
+
+    def earnings_upcoming(self, now: float) -> Optional[dict[str, Any]]:
+        return self._earnings.earnings_upcoming(now)
+
+    def earnings_to_announce(self, now: float) -> list[Any]:
+        return self._earnings.earnings_to_announce(now)
+
+    def crypto_holders(self, guild_id: int, rows: int, symbol: str) -> Any:
+        return self._crypto.for_guild(guild_id).crypto_holders(rows, symbol)
+
+    def short_holders(self, guild_id: int, rows: int, symbol: str) -> Any:
+        return self._margin.for_guild(guild_id).short_holders(rows, symbol)
+
+    def margin_cut_map(self, guild_id: int, prices: dict[str, float]) -> Any:
+        return self._margin.for_guild(guild_id).margin_cut_map(prices)
+
+    def live_chart_posts(self) -> list[Any]:
+        return self._market.live_chart_posts()
+
+    def swap_chart_post(
+        self, channel_id: int, message_id: int, guild_id: int, period: str, now: float, symbol: str
+    ) -> Optional[int]:
+        return self._market.swap_chart_post(channel_id, message_id, guild_id, period, now, symbol)
+
+    def end_chart_post(self, channel_id: int) -> None:
+        self._market.end_chart_post(channel_id)
+
+    def delete_chart_post(self, channel_id: int) -> None:
+        self._market.delete_chart_post(channel_id)
+
+    def delete_guild_chart_posts(self, guild_id: int) -> None:
+        self._market.delete_guild_chart_posts(guild_id)
+
+    def list_chart_boards(self) -> list[Any]:
+        return self._market.list_chart_boards()
+
+    def delete_chart_board(self, guild_id: int) -> None:
+        self._market.delete_chart_board(guild_id)
+
+    # ------------------------------ 現物 ------------------------------ #
+    def crypto_holding(self, guild_id: int, uid: int, symbol: str) -> tuple[Any, ...]:
+        return self._crypto.for_guild(guild_id).crypto_holding(uid, symbol)
+
+    def crypto_buy(self, guild_id: int, uid: int, amount: int, price: float, symbol: str) -> Any:
+        return self._crypto.for_guild(guild_id).crypto_buy(uid, amount, price, symbol)
+
+    def crypto_sell(self, guild_id: int, uid: int, units: Optional[int], price: float, symbol: str) -> Any:
+        return self._crypto.for_guild(guild_id).crypto_sell(uid, units, price, symbol)
+
+    # ------------------------------ 信用取引 ------------------------------ #
+    def margin_position(self, guild_id: int, uid: int, symbol: str, side: str) -> tuple[Any, ...]:
+        return self._margin.for_guild(guild_id).margin_position(uid, symbol, side)
+
+    def margin_open(
+        self, guild_id: int, uid: int, side: str, units: int, price: float, leverage: int, symbol: str
+    ) -> Any:
+        """side が "short" なら空売り、それ以外は信用買いを建てる。"""
+        repo = self._margin.for_guild(guild_id)
+        return (repo.short_open if side == "short" else repo.long_open)(uid, units, price, leverage, symbol)
+
+    def margin_close(self, guild_id: int, uid: int, side: str, units: Optional[int], price: float, symbol: str) -> Any:
+        return self._margin.for_guild(guild_id).margin_close(uid, side, units, price, symbol)
+
+    def margin_status(self, guild_id: int, uid: int, prices: dict[str, float]) -> Any:
+        return self._margin.for_guild(guild_id).margin_status(uid, prices)
+
+    # ------------------------------ オプション ------------------------------ #
+    def option_buy(
+        self,
+        guild_id: int,
+        uid: int,
+        kind: str,
+        symbol: str,
+        amount: int,
+        *,
+        symbol2: Optional[str] = None,
+        strike_pct: Optional[float] = None,
+    ) -> tuple[Any, ...]:
+        return self._options.for_guild(guild_id).option_buy(
+            uid, kind, symbol, amount, symbol2=symbol2, strike_pct=strike_pct
+        )
+
+    def option_write(
+        self, guild_id: int, uid: int, kind: str, symbol: str, amount: int, *, strike_pct: Optional[float] = None
+    ) -> tuple[Any, ...]:
+        return self._options.for_guild(guild_id).option_write(uid, kind, symbol, amount, strike_pct=strike_pct)
+
+    def option_settle(self, guild_id: int, now: float) -> None:
+        self._options.for_guild(guild_id).option_settle(now)
+
+    def active_options(self, guild_id: int, uid: int) -> list[Any]:
+        return self._options.for_guild(guild_id).option_list(uid)["active"]
+
+    def option_close_cost(self, guild_id: int, row: Any, now: float, prices: dict[str, float]) -> int:
+        return self._options.for_guild(guild_id).option_close_cost(row, now, prices)
+
+    def option_value(self, guild_id: int, row: Any, now: float, prices: dict[str, float]) -> int:
+        return self._options.for_guild(guild_id).option_value(row, now, prices)
+
+    def option_sell(self, guild_id: int, uid: int, option_id: int) -> tuple[Any, ...]:
+        return self._options.for_guild(guild_id).option_sell(uid, option_id)
+
+    # ------------------------------ 債券 ------------------------------ #
+    def bond_settle(self, guild_id: int, now: float, rng: Any) -> None:
+        self._bonds.for_guild(guild_id).bond_settle(now, rng)
+
+    def bond_buy(self, guild_id: int, uid: int, kind: str, amount: int, now: float) -> tuple[Any, ...]:
+        return self._bonds.for_guild(guild_id).bond_buy(uid, kind, amount, now)
+
+    def bond_cancel(self, guild_id: int, uid: int, bond_id: int) -> tuple[Any, ...]:
+        return self._bonds.for_guild(guild_id).bond_cancel(uid, bond_id)

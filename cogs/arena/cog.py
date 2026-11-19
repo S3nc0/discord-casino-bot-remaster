@@ -123,7 +123,7 @@ class ArenaCog(commands.Cog, IArenaAdminBridge):
     ) -> Optional[dict[str, Any]]:
         """準決勝を決着させ、演出・結果投稿・パネル更新まで行う（時刻は見ない。呼ぶ側が判断する）。"""
         pre_fighters = t["fighters"]
-        result = self._arena.arena.for_guild(guild.id).arena_run_semis(t["id"])
+        result = self._arena.run_semis(guild.id, t["id"])
         if result:
             channel = await self._channel(guild)
             if channel is not None:
@@ -152,7 +152,7 @@ class ArenaCog(commands.Cog, IArenaAdminBridge):
     ) -> Optional[dict[str, Any]]:
         """決勝を決着させ、演出・結果投稿・パネル更新まで行う（時刻は見ない。呼ぶ側が判断する）。"""
         pre_finalists = [f for f in t["fighters"] if f["stage"] == "final"]
-        result = self._arena.arena.for_guild(guild.id).arena_run_final(t["id"])
+        result = self._arena.run_final(guild.id, t["id"])
         if result:
             channel = await self._channel(guild)
             if channel is not None and len(pre_finalists) == 2:

@@ -14,6 +14,7 @@ from domain.ports.repos import (
     IEscrowRepo,
     IEventRepo,
     INoticeRepo,
+    IPachinkoRepo,
     IRecordRepo,
     IRtpRepo,
     IShopRepo,
@@ -61,6 +62,7 @@ class CasinoService:
         sessions: ISessionGuard,
         clock: IClock,
         rtp_policy: IRtpPolicy = DEFAULT_RTP_POLICY,
+        pachinko: Optional[IPachinkoRepo] = None,
     ) -> None:
         self.wallet = wallet
         self.escrow = escrow
@@ -72,6 +74,7 @@ class CasinoService:
         self.sessions = sessions
         self.clock = clock
         self._rtp_policy = rtp_policy
+        self._pachinko = pachinko
 
     def begin_game(
         self,
@@ -174,3 +177,22 @@ class CasinoService:
             escrow_repo.refund(escrow_id)
         finally:
             self.sessions.end(user_id)
+
+    # ------------------------------ ゲーム中の参照・追加の賭け ------------------------------ #
+    def balance_of(self, guild_id: int, user_id: int) -> int:
+        return self.wallet.for_guild(guild_id).balance(user_id)
+
+    def escrow_amount(self, guild_id: int, escrow_id: int) -> int:
+        return self.escrow.for_guild(guild_id).escrow_amount(escrow_id)
+
+    def add_to_escrow(self, guild_id: int, escrow_id: int, extra: int, credit: bool = False) -> bool:
+        """預かり金を足す（ブラックジャックのダブル）。credit なら足りない分を帝愛から借りる。"""
+        return self.escrow.for_guild(guild_id).add_to_escrow(escrow_id, extra, credit=credit)
+
+    def rtp_level(self, guild_id: int, game: str) -> int:
+        return self.rtp.for_guild(guild_id).rtp_level_get(game)
+
+    def record_pachinko_set(self, guild_id: int, user_id: int, bet: int, balls: int, result: Any) -> None:
+        """パチンコの統計用の記録（記録先が無い構成では何もしない）。"""
+        if self._pachinko is not None:
+            self._pachinko.for_guild(guild_id).pachinko_record_set(user_id, bet, balls, result)

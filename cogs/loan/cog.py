@@ -37,7 +37,8 @@ from cogs.shared.messages import format_failure
 from cogs.shared.tasks import run_for_allowed_guilds
 from domain import loans
 from domain.duration import format_minutes
-from domain.ports.repos import IGuildRepo, IWalletRepo
+from domain.ports.repos import IGuildRepo
+from services.economy import EconomyService
 from services.loan import LoanService
 
 _log = logging.getLogger(__name__)
@@ -52,13 +53,13 @@ class LoanCog(commands.Cog, ILoanButtonBridge):
         bot: commands.Bot,
         config: dict[str, Any],
         loan_svc: LoanService,
-        wallet: IWalletRepo,
+        economy_svc: EconomyService,
         guild_repo: IGuildRepo,
     ) -> None:
         self.bot = bot
         self._config = config
         self._loans = loan_svc
-        self._wallet = wallet
+        self._economy_svc = economy_svc
         self._guild_repo = guild_repo
 
     async def cog_load(self) -> None:
@@ -79,11 +80,11 @@ class LoanCog(commands.Cog, ILoanButtonBridge):
     # ------------------------------ 提案 ------------------------------ #
     async def _principal_autocomplete(self, interaction: discord.Interaction, current: str):
         """貸す額の欄に、残高を見せる。"""
-        return balance_choices(self._wallet, interaction, current, loans.USER_MIN_PRINCIPAL)
+        return balance_choices(self._economy_svc, interaction, current, loans.USER_MIN_PRINCIPAL)
 
     async def _save_message_id(self, guild_id: int, loan_id: int, interaction: discord.Interaction, kind: str) -> None:
         try:
-            self._loans.loans.for_guild(guild_id).loan_set_message(loan_id, (await interaction.original_response()).id)
+            self._loans.set_message(guild_id, loan_id, (await interaction.original_response()).id)
         except discord.HTTPException as exc:  # 投稿は出ている。ボタンは番号で動くが、あとから書き換えられなくなる
             logthrottle.warn(
                 ("loan-msg", interaction.guild_id),
@@ -118,9 +119,9 @@ class LoanCog(commands.Cog, ILoanButtonBridge):
             return await interaction.response.send_message(
                 embed=ui.error_embed("提案できません", format_failure(result)), ephemeral=True
             )
-        loan = self._loans.loans.for_guild(guild_id).loan_get(result)
+        loan = self._loans.get(guild_id, result)
         assert loan is not None
-        credit = self._loans.loans.for_guild(guild_id).loan_credit(member.id)
+        credit = self._loans.credit(guild_id, member.id)
         await interaction.response.send_message(
             content=f"<@{member.id}>",
             embed=offer_embed(loan, borrower_note(credit)),
@@ -152,9 +153,9 @@ class LoanCog(commands.Cog, ILoanButtonBridge):
             return await interaction.response.send_message(
                 embed=ui.error_embed("募集できません", format_failure(result)), ephemeral=True
             )
-        loan = self._loans.loans.for_guild(guild_id).loan_get(result)
+        loan = self._loans.get(guild_id, result)
         assert loan is not None
-        credit = self._loans.loans.for_guild(guild_id).loan_credit(interaction.user.id)
+        credit = self._loans.credit(guild_id, interaction.user.id)
         await interaction.response.send_message(
             embed=request_embed(loan, borrower_note(credit)),
             view=request_view(result),
@@ -178,7 +179,7 @@ class LoanCog(commands.Cog, ILoanButtonBridge):
             return await interaction.response.send_message(
                 embed=ui.error_embed("返せません", format_failure(result)), ephemeral=True
             )
-        loan = self._loans.loans.for_guild(guild_id).loan_get(loan_id)
+        loan = self._loans.get(guild_id, loan_id)
         assert loan is not None
         left = self._loans.remaining(guild_id, loan)
         note = (
@@ -199,9 +200,9 @@ class LoanCog(commands.Cog, ILoanButtonBridge):
         if interaction.guild_id is None:
             return []
         guild_id = interaction.guild_id
-        now = self._loans.clock.now_ts()
+        now = self._loans.now_ts()
         out = []
-        for loan in self._loans.loans.for_guild(guild_id).loan_list(interaction.user.id)["borrowed"]:
+        for loan in self._loans.list_for(guild_id, interaction.user.id)["borrowed"]:
             if loan["status"] in ("offer", "request"):
                 continue
             left = self._loans.remaining(guild_id, loan, now)
@@ -213,8 +214,8 @@ class LoanCog(commands.Cog, ILoanButtonBridge):
     @group.command(name="一覧", description="借りている・貸している貸付を見る")
     async def listing(self, interaction: discord.Interaction):
         guild_id = ui.guild_id_of(interaction)
-        now = self._loans.clock.now_ts()
-        data = self._loans.loans.for_guild(guild_id).loan_list(interaction.user.id)
+        now = self._loans.now_ts()
+        data = self._loans.list_for(guild_id, interaction.user.id)
 
         def line(loan: dict[str, Any], mine_is_borrower: bool) -> str:
             other = (
@@ -324,6 +325,6 @@ class LoanCog(commands.Cog, ILoanButtonBridge):
 
 
 async def setup(bot: "CasinoBot") -> None:
-    cog = LoanCog(bot, bot.config, bot.services.loan, bot.repos.wallet, bot.repos.guild)
+    cog = LoanCog(bot, bot.config, bot.services.loan, bot.services.economy, bot.repos.guild)
     bot.bridges.register(ILoanButtonBridge, cog)
     await bot.add_cog(cog)

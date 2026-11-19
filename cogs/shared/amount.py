@@ -13,16 +13,14 @@ import discord
 from discord import app_commands
 
 from cogs.shared import ui
-from domain.ports.repos import IWalletRepo
-from domain.types import INITIAL_BALANCE
+from services.economy import EconomyService
 
 
-def own_balance(wallet: IWalletRepo, guild_id: Optional[int], user_id: int) -> Optional[int]:
+def own_balance(economy: EconomyService, guild_id: Optional[int], user_id: int) -> Optional[int]:
     """いまの残高。口座を作らずに読む（初めての人は、最初に遊ぶときに初期支給が入る額を返す）。DM などサーバー外は None。"""
     if guild_id is None:
         return None
-    stats = wallet.for_guild(guild_id).peek_stats(user_id)
-    return stats["balance"] if stats else INITIAL_BALANCE
+    return economy.peek_balance(guild_id, user_id)
 
 
 def typed_amount(current: str) -> Optional[int]:
@@ -74,7 +72,7 @@ class AmountModal(discord.ui.Modal):
 
 
 def balance_choices(
-    wallet: IWalletRepo,
+    economy: EconomyService,
     interaction: discord.Interaction,
     current: str,
     minimum: int,
@@ -86,7 +84,7 @@ def balance_choices(
     - それ以外（空・範囲外）は「残高 8,000ペリカ」。選ぶと minimum になるので、見るだけなら選ばずに数字を打つ。
     DM では候補を出さない。
     """
-    balance = own_balance(wallet, interaction.guild_id, interaction.user.id)
+    balance = own_balance(economy, interaction.guild_id, interaction.user.id)
     if balance is None:
         return []
     typed = typed_amount(current)

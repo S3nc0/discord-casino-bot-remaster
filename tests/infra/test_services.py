@@ -262,7 +262,9 @@ def test_casino_service_works_with_narrow_bridge_stubs():
 def test_economy_horse_and_labor_services_work_with_narrow_stubs():
     clock = FakeClock(datetime.datetime(2026, 11, 15, 12, 0))
     wallet = StubWallet({1: 5000})
-    econ_svc = EconomyService(wallet, StubNotices(), StubEarnings(), StubRecords(), clock)
+    econ_svc = EconomyService(
+        wallet, StubNotices(), StubEarnings(), StubRecords(), clock, shop=None, crypto=None, bonds=None
+    )
     assert econ_svc.claim_daily(10, 1, clock.now(), 0).result.ok
     assert econ_svc.backfill_weekly() == 7
     assert econ_svc.transfer(10, 1, 2, 1000, 0.1, 10_000, 3).ok and wallet.transfers

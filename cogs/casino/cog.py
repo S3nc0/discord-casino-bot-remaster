@@ -13,8 +13,10 @@ from cogs.casino.pachinko import play_pachinko
 from cogs.casino.simple import play_roulette, play_slot
 from cogs.shared.amount import balance_choices
 from domain.games import pachinko as pachinko_game
-from domain.ports.repos import IDebtRepo, IGuildRepo, IPachinkoRepo, IWalletRepo
+from domain.ports.repos import IGuildRepo
 from services.casino import CasinoService
+from services.economy import EconomyService
+from services.teiai import TeiaiService
 
 if TYPE_CHECKING:
     from cogs.shared.bot import CasinoBot
@@ -27,16 +29,14 @@ class Casino(commands.Cog):
         self,
         config: dict[str, Any],
         casino_svc: CasinoService,
-        wallet: IWalletRepo,
-        debt: IDebtRepo,
-        pachinko: IPachinkoRepo,
+        economy_svc: EconomyService,
+        teiai_svc: TeiaiService,
         guild_repo: IGuildRepo,
     ) -> None:
-        self._wallet = wallet
+        self._economy_svc = economy_svc
         self._deps = CasinoDeps(
             casino=casino_svc,
-            debt=debt,
-            pachinko=pachinko,
+            teiai=teiai_svc,
             guild_repo=guild_repo,
             config=config,
         )
@@ -45,7 +45,7 @@ class Casino(commands.Cog):
 
     async def _bet_autocomplete(self, interaction: discord.Interaction, current: str):
         """賭け金の欄に、残高を見せる。"""
-        return balance_choices(self._wallet, interaction, current, MIN_BET)
+        return balance_choices(self._economy_svc, interaction, current, MIN_BET)
 
     @casino.command(name="チンチロ", description="🎲 チンチロ。親と勝負、目が出なければ3回まで振れる")
     @app_commands.rename(bet="賭け金")
@@ -120,9 +120,8 @@ async def setup(bot: "CasinoBot") -> None:
         Casino(
             bot.config,
             bot.services.casino,
-            bot.repos.wallet,
-            bot.repos.debt,
-            bot.repos.pachinko,
+            bot.services.economy,
+            bot.services.teiai,
             bot.repos.guild,
         )
     )

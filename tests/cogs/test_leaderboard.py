@@ -183,7 +183,7 @@ def test_refresh_edits_the_same_message_with_latest_ranking(eco):
     eco.wallet.credit(1, 50_000, "テスト")
     run(
         boards.refresh_board(
-            cog.bot, cog._ranking_repos, cog._guild_repo, eco.guild.get_leaderboard(10), BOARD_INTERVAL_MINUTES
+            cog.bot, cog._ranking, cog._guild_repo, eco.guild.get_leaderboard(10), BOARD_INTERVAL_MINUTES
         )
     )
     msg = ch.messages[mid]
@@ -200,7 +200,7 @@ def test_refresh_reposts_when_the_message_was_deleted(eco):
     del ch.messages[old]  # 誰かが消した
     run(
         boards.refresh_board(
-            cog.bot, cog._ranking_repos, cog._guild_repo, eco.guild.get_leaderboard(10), BOARD_INTERVAL_MINUTES
+            cog.bot, cog._ranking, cog._guild_repo, eco.guild.get_leaderboard(10), BOARD_INTERVAL_MINUTES
         )
     )
     new = eco.guild.get_leaderboard(10)["message_id"]
@@ -213,7 +213,7 @@ def test_refresh_forgets_the_board_when_the_channel_is_gone(eco):
     guild.get_channel = lambda cid: None
     run(
         boards.refresh_board(
-            cog.bot, cog._ranking_repos, cog._guild_repo, eco.guild.get_leaderboard(10), BOARD_INTERVAL_MINUTES
+            cog.bot, cog._ranking, cog._guild_repo, eco.guild.get_leaderboard(10), BOARD_INTERVAL_MINUTES
         )
     )
     assert eco.guild.get_leaderboard(10) is None
@@ -225,7 +225,7 @@ def test_refresh_keeps_the_board_when_permissions_are_temporarily_missing(eco):
     board = eco.guild.get_leaderboard(10)
     ch.edit_error = http_error(403)
     run(
-        boards.refresh_board(cog.bot, cog._ranking_repos, cog._guild_repo, board, BOARD_INTERVAL_MINUTES)
+        boards.refresh_board(cog.bot, cog._ranking, cog._guild_repo, board, BOARD_INTERVAL_MINUTES)
     )  # 例外を出さず、次の周期で再試行する
     assert eco.guild.get_leaderboard(10) == board
 
@@ -236,7 +236,7 @@ def test_refresh_does_nothing_when_the_bot_is_not_in_the_guild_right_now(eco):
     cog.bot.get_guild = lambda gid: None
     run(
         boards.refresh_board(
-            cog.bot, cog._ranking_repos, cog._guild_repo, eco.guild.get_leaderboard(10), BOARD_INTERVAL_MINUTES
+            cog.bot, cog._ranking, cog._guild_repo, eco.guild.get_leaderboard(10), BOARD_INTERVAL_MINUTES
         )
     )
     assert eco.guild.get_leaderboard(10) is not None

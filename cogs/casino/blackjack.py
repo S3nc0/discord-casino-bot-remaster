@@ -94,7 +94,7 @@ class BlackjackView(GameOwnerView):
             return self._final
         g = self.game
         res = g.result()
-        bet = self.ctx.casino.escrow.for_guild(self.ctx.guild_id).escrow_amount(self.ctx.escrow_id) or self.ctx.bet
+        bet = self.ctx.casino.escrow_amount(self.ctx.guild_id, self.ctx.escrow_id) or self.ctx.bet
         self.ctx.bet = bet
         payout = rules.payout(res, bet)
         won = res in ("win", "blackjack")
@@ -170,10 +170,10 @@ class BlackjackView(GameOwnerView):
                 embed=ui.error_embed("ダブルできません", "ダブルは、最初の2枚のときだけ選べます。"), ephemeral=True
             )
         gid, uid, eid = self.ctx.guild_id, interaction.user.id, self.ctx.escrow_id
-        escrow_repo = self.ctx.casino.escrow.for_guild(gid)
-        if not escrow_repo.add_to_escrow(eid, self.ctx.bet):
-            need = self.ctx.bet - self.ctx.casino.wallet.for_guild(gid).balance(uid)
-            can, why = self.ctx.deps.debt.for_guild(gid).can_borrow_for_bet(uid, need)
+        casino = self.ctx.casino
+        if not casino.add_to_escrow(gid, eid, self.ctx.bet):
+            need = self.ctx.bet - casino.balance_of(gid, uid)
+            can, why = self.ctx.deps.teiai.can_borrow_for_bet(gid, uid, need)
             if not can:
                 return await interaction.response.send_message(
                     embed=ui.error_embed(
@@ -196,14 +196,14 @@ class BlackjackView(GameOwnerView):
                 or len(self.game.player) != 2
             ):
                 return
-            if not escrow_repo.add_to_escrow(eid, self.ctx.bet, credit=True):
+            if not casino.add_to_escrow(gid, eid, self.ctx.bet, credit=True):
                 return await interaction.followup.send(
                     embed=ui.error_embed("ダブルできません", "帝愛から借りられませんでした。"), ephemeral=True
                 )
-            self.ctx.bet = escrow_repo.escrow_amount(eid)
+            self.ctx.bet = casino.escrow_amount(gid, eid)
             self.game.double()
             return await self._after_origin()
-        self.ctx.bet = escrow_repo.escrow_amount(eid)
+        self.ctx.bet = casino.escrow_amount(gid, eid)
         self.game.double()
         await self._after(interaction)
 

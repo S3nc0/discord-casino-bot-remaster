@@ -8,6 +8,7 @@ import pytest
 from cogs.teiai import escape as esc
 from domain import teiai
 from infra.db.repositories import open_repositories
+from tests.support import make_test_bot
 
 U = 1
 
@@ -23,6 +24,7 @@ class Msg:
 class It:
     def __init__(self):
         self.user = SimpleNamespace(id=U, display_name="テスト")
+        self.guild_id = 0
         self.sent = []
         self.msg = Msg()
         self.followup = SimpleNamespace(send=self._send)
@@ -63,7 +65,7 @@ def play(eco, win):
 
     real = eco.debt.escape_attempt
     eco.debt.escape_attempt = lambda uid: real(uid, rng=SimpleNamespace(random=lambda: 0.0 if win else 0.99))
-    asyncio.run(esc.run_escape(it, eco.debt, eco.notices, after))
+    asyncio.run(esc.run_escape(it, make_test_bot(repos=eco).services.teiai, after))
     return it, hooked
 
 

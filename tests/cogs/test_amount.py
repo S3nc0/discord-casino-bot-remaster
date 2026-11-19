@@ -11,6 +11,7 @@ from cogs.market.cog import MarketCog
 from cogs.shared.amount import balance_choices, typed_amount
 from domain.types import INITIAL_BALANCE
 from infra.db.repositories import open_repositories
+from tests.support import make_test_bot
 
 USER = 7
 
@@ -24,8 +25,12 @@ def interaction(guild_id=1, **namespace):
     return SimpleNamespace(guild_id=guild_id, user=SimpleNamespace(id=USER), namespace=SimpleNamespace(**namespace))
 
 
+def economy(eco):
+    return make_test_bot(repos=eco).services.economy
+
+
 def choices(eco, current="", minimum=100, maximum=10_000):
-    return [(c.value, c.name) for c in balance_choices(eco.wallet, interaction(), current, minimum, maximum)]
+    return [(c.value, c.name) for c in balance_choices(economy(eco), interaction(), current, minimum, maximum)]
 
 
 def set_balance(eco, balance):
@@ -77,7 +82,7 @@ def test_new_player_sees_the_starting_balance_and_no_account_is_created(eco):
 
 
 def test_dm_has_no_balance_and_no_choices(eco):
-    assert balance_choices(eco.wallet, interaction(guild_id=None), "", 100, 10_000) == []
+    assert balance_choices(economy(eco), interaction(guild_id=None), "", 100, 10_000) == []
 
 
 def test_commands_use_the_balance_choices_on_their_amount_fields():

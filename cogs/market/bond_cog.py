@@ -15,7 +15,9 @@ from discord.ext import commands, tasks
 
 from cogs.market.bond_embeds import KIND_CHOICES, describe_done, due_text  # noqa: F401
 from cogs.shared.tasks import run_sync_for_allowed_guilds
-from domain.ports.repos import IBankRepo, IBondRepo, IGuildRepo, IOptionRepo
+from domain.ports.repos import IGuildRepo
+from services.market import MarketService
+from services.teiai import TeiaiService
 
 _log = logging.getLogger(__name__)
 
@@ -31,16 +33,14 @@ class BondCog(commands.Cog):
         bot: commands.Bot,
         config: dict[str, Any],
         guild_repo: IGuildRepo,
-        bonds_repo: IBondRepo,
-        options_repo: IOptionRepo,
-        bank_repo: IBankRepo,
+        market_svc: MarketService,
+        teiai_svc: TeiaiService,
     ):
         self.bot = bot
         self._config = config
         self._guild_repo = guild_repo
-        self._bonds = bonds_repo
-        self._options = options_repo
-        self._bank = bank_repo
+        self._market_svc = market_svc
+        self._teiai = teiai_svc
 
     async def cog_load(self):
         self.tick.start()
@@ -64,10 +64,9 @@ class BondCog(commands.Cog):
         now = time.time()
 
         def handle_guild(guild) -> None:
-            self._bonds.for_guild(guild.id).bond_settle(now, RNG)
-            self._options.for_guild(guild.id).option_settle(now)  # 満期のオプションの決済
-            for user_id, result in self._bank.for_guild(guild.id).grace_expire(
-                now
+            self._market_svc.settle_maturities(guild.id, now, RNG)  # 満期の債券と、満期のオプションの決済
+            for user_id, result in self._teiai.grace_expire(
+                guild.id, now
             ):  # 破産猶予の時間切れ（強制破産と、CDS の配当）
                 _log.warning(
                     f"強制破産: guild={guild.id} user={user_id} 差し押さえ={result['seized']:,} CDS配当={result['cds_paid']:,}"
@@ -88,8 +87,7 @@ async def setup(bot: "CasinoBot"):
             bot,
             config=bot.config,
             guild_repo=bot.repos.guild,
-            bonds_repo=bot.repos.bonds,
-            options_repo=bot.repos.options,
-            bank_repo=bot.repos.bank,
+            market_svc=bot.services.market,
+            teiai_svc=bot.services.teiai,
         )
     )

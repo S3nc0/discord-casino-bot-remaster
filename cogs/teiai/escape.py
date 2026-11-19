@@ -29,7 +29,7 @@ from cogs.teiai.texts import (
     WAVES as WAVES,
 )
 from domain import teiai
-from domain.ports.repos import IDebtRepo, INoticeRepo
+from services.teiai import TeiaiService
 
 
 def ship_frame(step: int) -> str:
@@ -44,18 +44,17 @@ def block(text: str) -> str:
 
 async def run_escape(
     interaction: discord.Interaction,
-    debt_repo: IDebtRepo,
-    notices_repo: INoticeRepo,
+    teiai_svc: TeiaiService,
     after_success,
 ) -> None:
     """確認 → 当たり外れを決める → 船のアニメーション → 結果。公開メッセージで見せる。"""
-    uid = interaction.user.id
-    debt = debt_repo.debt(uid)
+    uid, gid = interaction.user.id, ui.guild_id_of(interaction)
+    debt = teiai_svc.debt_of(gid, uid)
     ok = await confirm_action(
         interaction,
         "海外逃亡を試しますか？",
         f"成功率は **{teiai.ESCAPE_CHANCE:.0%}**。チャンスは通算 **{teiai.ESCAPE_MAX_TRIES}回** までで、失敗も1回に数えます"
-        f"（あと **{debt_repo.escape_left(uid)}回**）。\n"
+        f"（あと **{teiai_svc.escape_left(gid, uid)}回**）。\n"
         "・**成功**: 全財産とショップの全品を**置いていき**、帝愛の借金が**全額ゼロ**になります"
         f"（貸付は免責・貸付は{teiai.BLACKLIST_DAYS}日のブラックリスト）。\n"
         f"・**失敗**: 罰金（借金の**{teiai.ESCAPE_FINE_RATE:.0%}**・最低{teiai.ESCAPE_FINE_MIN:,}ペリカ）が借金に加わり、"
@@ -65,7 +64,7 @@ async def run_escape(
     )
     if ok is not True:
         return
-    done, result = debt_repo.escape_attempt(uid)
+    done, result = teiai_svc.escape_attempt(gid, uid)
     if not done:
         return await interaction.followup.send(
             embed=ui.error_embed("逃亡できません", format_failure(result)), ephemeral=True
@@ -95,6 +94,6 @@ async def run_escape(
         )
         embed = ui.embed(f"🚨 {name} の海外逃亡、失敗…", text, ui.ERROR)
     await message.edit(embed=embed)
-    notices_repo.take_notices(uid)
+    teiai_svc.take_notices(gid, uid)
     if result["escaped"]:
         await after_success(interaction)

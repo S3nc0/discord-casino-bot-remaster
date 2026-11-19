@@ -1,9 +1,8 @@
 """`/ペリカ 帝愛` のパネル: 帝愛銀行の金庫メーター・破産猶予の一覧・預金・種銭・CDS（cogs/economy/cog.py から使う）。
 
-数字と考え方は domain/teiai.py、処理は infra/db/bank.py。ここは画面の部品だけ（読み込まれる Cog ではない）。
+数字と考え方は domain/teiai.py、処理は services/teiai.py（保存は infra/db/bank.py）。ここは画面の部品だけ（読み込まれる Cog ではない）。
 """
 
-import time
 from typing import Optional
 
 import discord
@@ -17,7 +16,7 @@ from cogs.teiai.texts import LEVEL_MARK as LEVEL_MARK
 from cogs.teiai.texts import LEVEL_TEXT as LEVEL_TEXT
 from cogs.teiai.texts import THERMOSTAT_OBSERVING, THERMOSTAT_TITLE
 from domain import teiai
-from domain.ports.repos import IBankRepo, IDebtRepo, INoticeRepo, IWalletRepo
+from services.teiai import TeiaiService
 
 
 def meter(ratio, width: int = 10) -> str:
@@ -120,22 +119,21 @@ def render_teiai_panel_embed(
     return e
 
 
-def panel_embed(bank: IBankRepo, debt: IDebtRepo, wallet: IWalletRepo, uid: int) -> discord.Embed:
-    """帝愛銀行と、自分の状況の画面（Wings: 対象サーバーの各 Repository から値を集めて Base へ渡す）。"""
-    now = time.time()
-    status = debt.status(uid, now)
+def panel_embed(teiai_svc: TeiaiService, guild_id: int, uid: int) -> discord.Embed:
+    """帝愛銀行と、自分の状況の画面（値は TeiaiService から集め、Base へ渡す）。"""
+    snap = teiai_svc.panel(guild_id, uid)
     return render_teiai_panel_embed(
-        bank=bank.bank_status(now),
-        house=bank.house_account(),
-        graced=bank.grace_list(),
-        claims=bank.cds_total_claims(),
-        status=status,
-        display_status=wallet.display_status(uid) if status == teiai.KATAGI else status,
-        deposit=bank.deposit_of(uid),
-        debt=debt.debt(uid),
-        grace_until=bank.grace_until(uid),
-        cds=bank.cds_list(uid),
-        uid=uid,
+        bank=snap.bank,
+        house=snap.house,
+        graced=snap.graced,
+        claims=snap.claims,
+        status=snap.status,
+        display_status=snap.display_status,
+        deposit=snap.deposit,
+        debt=snap.debt,
+        grace_until=snap.grace_until,
+        cds=snap.cds,
+        uid=snap.uid,
     )
 
 
@@ -153,8 +151,8 @@ class StakeModal(discord.ui.Modal):
         if stake is None:
             await reject_bad_amount(interaction)
             return
-        bank, uid = self.panel.bank_for(interaction), interaction.user.id
-        ok, result = bank.cds_buy(uid, self.target_id, stake)
+        uid = interaction.user.id
+        ok, result = self.panel.teiai.cds_buy(ui.guild_id_of(interaction), uid, self.target_id, stake)
         if not ok:
             await interaction.response.send_message(
                 embed=ui.error_embed("買えませんでした", format_failure(result)), ephemeral=True
@@ -193,7 +191,7 @@ class TargetSelect(discord.ui.UserSelect):
             return await interaction.response.send_message(
                 embed=ui.error_embed("選べません", "Bot は選べません。"), ephemeral=True
             )
-        quote = self.panel.bank_for(interaction).cds_quote(target.id)
+        quote = self.panel.teiai.cds_quote(ui.guild_id_of(interaction), target.id)
         await interaction.response.send_modal(StakeModal(self.panel, target.id, quote["odds"]))
 
 
@@ -208,10 +206,7 @@ class TeiaiPanel(ui.OwnerView):
 
     def __init__(
         self,
-        bank: IBankRepo,
-        debt: IDebtRepo,
-        wallet: IWalletRepo,
-        notices: INoticeRepo,
+        teiai_svc: TeiaiService,
         uid: int,
         *,
         shop_bridge: Optional[IShopTitleBridge] = None,
@@ -221,24 +216,9 @@ class TeiaiPanel(ui.OwnerView):
             timeout=300,
             owner_message="この画面を使えるのは、コマンドを使った本人だけです。",
         )
-        self._bank = bank
-        self._debt = debt
-        self._wallet = wallet
-        self._notices = notices
+        self.teiai = teiai_svc
         self._shop_bridge: IShopTitleBridge = shop_bridge if shop_bridge is not None else NoOpShopTitleBridge()
         self.uid = uid
-
-    def bank_for(self, interaction: discord.Interaction) -> IBankRepo:
-        return self._bank.for_guild(ui.guild_id_of(interaction))
-
-    def debt_for(self, interaction: discord.Interaction) -> IDebtRepo:
-        return self._debt.for_guild(ui.guild_id_of(interaction))
-
-    def wallet_for(self, interaction: discord.Interaction) -> IWalletRepo:
-        return self._wallet.for_guild(ui.guild_id_of(interaction))
-
-    def notices_for(self, interaction: discord.Interaction) -> INoticeRepo:
-        return self._notices.for_guild(ui.guild_id_of(interaction))
 
     @discord.ui.button(label="預ける", style=discord.ButtonStyle.success)
     async def deposit(self, interaction: discord.Interaction, button: discord.ui.Button):
@@ -255,12 +235,12 @@ class TeiaiPanel(ui.OwnerView):
         )
 
     async def _deposit(self, interaction: discord.Interaction, amount: Optional[int]) -> None:
-        ok, result = self.bank_for(interaction).bank_deposit(interaction.user.id, amount or 0)
+        ok, result = self.teiai.deposit(ui.guild_id_of(interaction), interaction.user.id, amount or 0)
         text = f"帝愛に預けました。いまの預金: **{ui.pelica(result)}**" if ok else format_failure(result)
         await self._reply_bank(interaction, ok, text)
 
     async def _withdraw(self, interaction: discord.Interaction, amount: Optional[int]) -> None:
-        ok, result = self.bank_for(interaction).bank_withdraw(interaction.user.id, amount)  # None は全額
+        ok, result = self.teiai.withdraw(ui.guild_id_of(interaction), interaction.user.id, amount)  # None は全額
         text = f"**{ui.pelica(result)}** を引き出しました。" if ok else format_failure(result)
         await self._reply_bank(interaction, ok, text)
 
@@ -283,8 +263,7 @@ class TeiaiPanel(ui.OwnerView):
 
     @discord.ui.button(label="種銭を借りる", style=discord.ButtonStyle.secondary)
     async def seed(self, interaction: discord.Interaction, button: discord.ui.Button):
-        ok, result = self.debt_for(interaction).borrow_seed(interaction.user.id)
-        self.notices_for(interaction).take_notices(interaction.user.id)
+        ok, result = self.teiai.borrow_seed(ui.guild_id_of(interaction), interaction.user.id)
         if ok:  # 成功は公開（「💸 ○○ が帝愛から種銭を借りた」）。失敗は本人だけ
             return await interaction.response.send_message(
                 embed=ui.embed(
@@ -298,9 +277,7 @@ class TeiaiPanel(ui.OwnerView):
 
     @discord.ui.button(label="🚢 海外逃亡チャンス！！", style=discord.ButtonStyle.danger, row=1)
     async def escape(self, interaction: discord.Interaction, button: discord.ui.Button):
-        debt_repo = self.debt_for(interaction)
-        notices_repo = self.notices_for(interaction)
-        if debt_repo.debt(interaction.user.id) < teiai.ESCAPE_MIN_DEBT:
+        if self.teiai.debt_of(ui.guild_id_of(interaction), interaction.user.id) < teiai.ESCAPE_MIN_DEBT:
             return await interaction.response.send_message(
                 embed=ui.error_embed(
                     "逃亡できません", f"試せるのは、帝愛の借金が {teiai.ESCAPE_MIN_DEBT:,}ペリカ 以上のときだけです。"
@@ -317,16 +294,11 @@ class TeiaiPanel(ui.OwnerView):
                     inter.guild, member
                 )  # 破産と同じく、色ロールとニックネームをすぐに反映
 
-        await run_escape(interaction, debt_repo, notices_repo, after_success)
+        await run_escape(interaction, self.teiai, after_success)
 
     @discord.ui.button(label="更新", style=discord.ButtonStyle.secondary)
     async def refresh(self, interaction: discord.Interaction, button: discord.ui.Button):
         await interaction.response.edit_message(
-            embed=panel_embed(
-                self.bank_for(interaction),
-                self.debt_for(interaction),
-                self.wallet_for(interaction),
-                interaction.user.id,
-            ),
+            embed=panel_embed(self.teiai, ui.guild_id_of(interaction), interaction.user.id),
             view=self,
         )

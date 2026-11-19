@@ -56,7 +56,7 @@ from infra.db.margin import MarginRepo
 from infra.db.market import MarketDataRepo
 from infra.db.market_events import MarketEventRepo
 from infra.db.options import OptionRepo
-from tests.support import make_test_bot
+from tests.support import make_economy_cog, make_test_bot
 
 G = 1
 U = 100
@@ -218,31 +218,13 @@ def test_bot_bridges_is_open_for_new_contracts_and_enforces_nominal_types():
 def test_deferred_and_dynamic_cog_bridges_are_load_order_independent(tmp_path):
     """ShopCog・P2PCog・EventCog 等のロード順序に依存せず、後から登録されたブリッジを動的解決できる。"""
     from cogs.admin.cog import ApprovalCog
-    from cogs.economy.cog import EconomyCog
     from cogs.event.cog import EventCog
     from cogs.p2p.cog import P2PCog
     from cogs.shop.cog import ShopCog
     from cogs.weekly.cog import WeeklyCog
 
     bot = make_test_bot(db_path=str(tmp_path / "order.db"))
-    eco = EconomyCog(
-        bot,
-        config=bot.config,
-        economy_svc=bot.services.economy,
-        wallet=bot.repos.wallet,
-        records=bot.repos.records,
-        bank=bot.repos.bank,
-        debt=bot.repos.debt,
-        loans=bot.repos.loans,
-        shop_repo=bot.repos.shop,
-        notices=bot.repos.notices,
-        crypto=bot.repos.crypto,
-        bonds_repo=bot.repos.bonds,
-        assets=bot.repos.assets,
-        guild_repo=bot.repos.guild,
-        sessions=bot.sessions,
-        clock=bot.services.clock,
-    )
+    eco = make_economy_cog(bot)
     weekly = WeeklyCog(
         bot,
         bot.config,

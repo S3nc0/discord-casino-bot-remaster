@@ -11,8 +11,9 @@ from cogs.shared import approval_guard, ui
 from cogs.shared.messages import format_notices
 from domain import missions, teiai
 from domain.games.rtplevel import MIN_BET as MIN_BET  # noqa: F401
-from domain.ports.repos import IDebtRepo, IGuildRepo, IPachinkoRepo
+from domain.ports.repos import IGuildRepo
 from services.casino import CasinoService
+from services.teiai import TeiaiService
 
 _log = logging.getLogger(__name__)
 
@@ -22,8 +23,7 @@ class CasinoDeps:
     """カジノ UI / ゲーム実行に必要な明示依存コンテナ。"""
 
     casino: CasinoService
-    debt: IDebtRepo
-    pachinko: IPachinkoRepo
+    teiai: TeiaiService
     guild_repo: IGuildRepo
     config: dict[str, Any]
 
@@ -180,7 +180,7 @@ def signed(n: int) -> str:
 
 def result_lines(ctx: GameContext, payout: int, net: int, extra: str = "") -> str:
     """結果の共通表示。出目や役（extra）が先頭、そのあとに大勝ち・連勝の演出、賭け金・払い戻し・損益・残高、最後にミッション達成。"""
-    balance = ctx.casino.wallet.for_guild(ctx.guild_id).balance(ctx.user_id)
+    balance = ctx.casino.balance_of(ctx.guild_id, ctx.user_id)
     top = [extra] if extra else []
     if ctx.skin and net != 0:  # 演出の変更品の一言（勝ったとき・負けたとき）
         top.append(ctx.skin.win_line if net > 0 else ctx.skin.lose_line)
@@ -193,7 +193,7 @@ def result_lines(ctx: GameContext, payout: int, net: int, extra: str = "") -> st
         f"損益: **{signed(net)}ペリカ**",
         f"残高: **{ui.pelica(balance)}**",
     ]
-    debt = ctx.deps.debt.for_guild(ctx.guild_id).debt(ctx.user_id)
+    debt = ctx.deps.teiai.debt_of(ctx.guild_id, ctx.user_id)
     if debt:
         stats.append(f"借金: **{ui.pelica(debt)}**（収入の{int(teiai.REPAY_RATE * 100)}%が天引きで返済されます）")
     stats += ctx.notices  # 強制執行・種銭の一言

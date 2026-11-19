@@ -9,7 +9,8 @@ from cogs.market.embeds import LIVE_MINUTES, earnings_announce_embed, earnings_r
 from cogs.shared import logthrottle, ui
 from cogs.shared.announce import announce_channel
 from cogs.shared.tasks import allowed_guilds
-from domain.ports.repos import IEarningsRepo, IGuildRepo, IMarketDataRepo
+from domain.ports.repos import IGuildRepo
+from services.market import MarketService
 
 if TYPE_CHECKING:
     from cogs.market.cog import MarketCog
@@ -18,8 +19,7 @@ if TYPE_CHECKING:
 async def earnings_posts(
     bot: discord.Client,
     config: dict[str, Any],
-    earnings_repo: IEarningsRepo,
-    market_data: IMarketDataRepo,
+    market_svc: MarketService,
     guild_repo: IGuildRepo,
     earnings_results: list,
     *,
@@ -27,10 +27,10 @@ async def earnings_posts(
 ) -> None:
     """決算の予告（月曜9:00）と発表の結果を、各サーバーの告知チャンネルに投稿する。"""
     now = time.time()
-    embeds = [earnings_announce_embed(r) for r in earnings_repo.earnings_to_announce(now)]
+    embeds = [earnings_announce_embed(r) for r in market_svc.earnings_to_announce(now)]
     results, earnings_results[:] = list(earnings_results), []
     for r in results:
-        embeds.append(earnings_result_embed(r, market_data.market_pin(r["symbol"])))
+        embeds.append(earnings_result_embed(r, market_svc.market_pin(r["symbol"])))
     if not embeds:
         return
     for guild in allowed_guilds(bot, guild_repo, config):
@@ -45,7 +45,7 @@ async def earnings_posts(
 
 
 async def refresh_post(
-    bot: discord.Client, market_data: IMarketDataRepo, cog: "MarketCog", post: dict, now: float, cache: dict
+    bot: discord.Client, market_svc: MarketService, cog: "MarketCog", post: dict, now: float, cache: dict
 ) -> None:
     """出したチャートを、最新に書き換える。時間が来たら、最後に1回だけ書き換えて、更新を終える。"""
     ends = post["ts"] + LIVE_MINUTES * 60
@@ -53,7 +53,7 @@ async def refresh_post(
     channel = bot.get_channel(post["channel_id"])
     if channel is None:
         if expired or bot.get_guild(post["guild_id"]) is None:
-            market_data.end_chart_post(post["channel_id"])
+            market_svc.end_chart_post(post["channel_id"])
         return
     if post["guild_id"] > 0:
         key = (post["guild_id"], post["period"], post["symbol"], expired, int(ends // 60))
@@ -68,19 +68,19 @@ async def refresh_post(
         try:
             await ui.partial_message(channel, post["message_id"]).edit(embed=cache[key])
         except discord.NotFound:
-            market_data.delete_chart_post(post["channel_id"])
+            market_svc.delete_chart_post(post["channel_id"])
             return
         except discord.HTTPException as exc:
             logthrottle.warn(
                 ("chart", post["channel_id"]), f"チャートを更新できません: channel={post['channel_id']}: {exc!r}"
             )
     if expired:
-        market_data.end_chart_post(post["channel_id"])
+        market_svc.end_chart_post(post["channel_id"])
 
 
-async def retire_old_boards(bot: discord.Client, market_data: IMarketDataRepo) -> None:
+async def retire_old_boards(bot: discord.Client, market_svc: MarketService) -> None:
     """廃止した「チャート掲示」が残っていれば、メッセージを消して、設定も捨てる（1回だけ）。"""
-    for board in market_data.list_chart_boards():
+    for board in market_svc.list_chart_boards():
         channel = bot.get_channel(board["channel_id"])
         if channel is not None:
             try:
@@ -90,4 +90,4 @@ async def retire_old_boards(bot: discord.Client, market_data: IMarketDataRepo) -
                     ("chart-board", board["guild_id"]),
                     f"廃止したチャート掲示を消せません: guild={board['guild_id']}: {exc!r}",
                 )
-        market_data.delete_chart_board(board["guild_id"])
+        market_svc.delete_chart_board(board["guild_id"])

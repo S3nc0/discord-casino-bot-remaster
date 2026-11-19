@@ -29,20 +29,11 @@ from cogs.shared.announce import announce_channel
 from domain import market, market_events
 from domain import options as opt
 from domain.ports import get_catalogs
-from domain.ports.repos import (
-    IBondRepo,
-    ICryptoRepo,
-    IDebtRepo,
-    IEarningsRepo,
-    IGuildRepo,
-    IMarginRepo,
-    IMarketDataRepo,
-    IMarketEventRepo,
-    IOptionRepo,
-    IWalletRepo,
-)
+from domain.ports.repos import IGuildRepo
 from domain.ports.session import ISessionGuard
+from services.economy import EconomyService
 from services.market import MarketService
+from services.teiai import TeiaiService
 
 _log = logging.getLogger(__name__)
 
@@ -66,30 +57,16 @@ class MarketCog(commands.Cog):
         bot: commands.Bot,
         config: dict[str, Any],
         market_svc: MarketService,
-        market_data: IMarketDataRepo,
-        market_events_repo: IMarketEventRepo,
-        earnings_repo: IEarningsRepo,
-        crypto: ICryptoRepo,
-        margin: IMarginRepo,
-        bonds_repo: IBondRepo,
-        options_repo: IOptionRepo,
-        wallet: IWalletRepo,
-        debt: IDebtRepo,
+        economy_svc: EconomyService,
+        teiai_svc: TeiaiService,
         guild_repo: IGuildRepo,
         sessions: ISessionGuard,
     ):
         self.bot = bot
         self._config = config
         self._market_svc = market_svc
-        self._market = market_data
-        self._market_events = market_events_repo
-        self._earnings = earnings_repo
-        self._crypto = crypto
-        self._margin = margin
-        self._bonds = bonds_repo
-        self._options = options_repo
-        self._wallet = wallet
-        self._debt = debt
+        self._economy_svc = economy_svc
+        self._teiai = teiai_svc
         self._guild_repo = guild_repo
         self._sessions = sessions
         self._earnings_results = []  # 発表した決算（チャンネルへの投稿待ち）
@@ -113,13 +90,11 @@ class MarketCog(commands.Cog):
     async def tick(self):
         try:
             prices, _event = self.step_prices()
-            self._margin.margin_interest(time.time())
-            for guild_id, user_id, symbol, side, loss in self._margin.margin_losscut(prices):
+            for guild_id, user_id, symbol, side, loss in self._market_svc.accrue_and_losscut(time.time(), prices):
                 _log.info(
                     f"{market.SIDE_NAME[side]}をロスカット: guild={guild_id} user={user_id} {symbol} 損失={loss:,}"
                 )
-            self._market.market_prune(time.time() - KEEP_DAYS * 86400)
-            self._market.prune_chart_posts(time.time() - KEEP_DAYS * 86400)
+            self._market_svc.prune(time.time() - KEEP_DAYS * 86400)
         except Exception as exc:
             _log.warning(f"価格の更新に失敗: {exc!r}")
             return
@@ -128,9 +103,9 @@ class MarketCog(commands.Cog):
         except Exception as exc:
             _log.warning(f"決算の告知に失敗: {exc!r}")
         now, cache = time.time(), {}
-        for post in self._market.live_chart_posts():
+        for post in self._market_svc.live_chart_posts():
             try:
-                await feed.refresh_post(self.bot, self._market, self, post, now, cache)
+                await feed.refresh_post(self.bot, self._market_svc, self, post, now, cache)
             except Exception as exc:
                 _log.warning(f"チャートの更新に失敗: {post}: {exc!r}")
 
@@ -138,8 +113,7 @@ class MarketCog(commands.Cog):
         await feed.earnings_posts(
             self.bot,
             self._config,
-            self._earnings,
-            self._market,
+            self._market_svc,
             self._guild_repo,
             self._earnings_results,
             announce_fn=announce_channel,
@@ -149,7 +123,7 @@ class MarketCog(commands.Cog):
     async def _before_tick(self):
         await self.bot.wait_until_ready()
         try:
-            await feed.retire_old_boards(self.bot, self._market)
+            await feed.retire_old_boards(self.bot, self._market_svc)
         except Exception as exc:
             _log.warning(f"古いチャート掲示の後始末に失敗: {exc!r}")
 
@@ -165,11 +139,11 @@ class MarketCog(commands.Cog):
     ) -> discord.Embed:
         now = time.time()
         _label, seconds = market.PERIODS[period]
-        hist = self._market.market_history(now - seconds, symbol)
-        pin = self._market.market_pin(symbol)
+        hist = self._market_svc.market_history(now - seconds, symbol)
+        pin = self._market_svc.market_pin(symbol)
         hist_24h = self._market_svc.histories(CORRELATION_MINUTES, now)
-        holders = self._crypto.for_guild(guild_id).crypto_holders(HOLDER_ROWS, symbol) if guild_id is not None else ()
-        shorts = self._margin.for_guild(guild_id).short_holders(HOLDER_ROWS, symbol) if guild_id is not None else ()
+        holders = self._market_svc.crypto_holders(guild_id, HOLDER_ROWS, symbol) if guild_id is not None else ()
+        shorts = self._market_svc.short_holders(guild_id, HOLDER_ROWS, symbol) if guild_id is not None else ()
         return chart_embed(
             symbol,
             period,
@@ -188,13 +162,13 @@ class MarketCog(commands.Cog):
         now = time.time()
         hist_24h = self._market_svc.histories(CORRELATION_MINUTES, now)
         latest = self._market_svc.latest_prices()
-        upcoming = self._earnings.earnings_upcoming(now)
-        ev_rows = self._market_events.market_events(now)
+        upcoming = self._market_svc.earnings_upcoming(now)
+        ev_rows = self._market_svc.market_events(now)
         since_alert = now - (market_events.ALERT_WINDOW + 5) * 60
         alert_histories = {
-            s.key: [p for _, p, _ in self._market.market_history(since_alert, s.key)] for s in market.SYMBOLS
+            s.key: [p for _, p, _ in self._market_svc.market_history(since_alert, s.key)] for s in market.SYMBOLS
         }
-        cut_rows = self._margin.for_guild(guild_id).margin_cut_map(latest) if guild_id else []
+        cut_rows = self._market_svc.margin_cut_map(guild_id, latest) if guild_id else []
         return summary_embed(hist_24h, latest, upcoming, ev_rows, alert_histories, cut_rows, now)
 
     @group.command(
@@ -226,7 +200,7 @@ class MarketCog(commands.Cog):
         )
         try:
             message = await interaction.original_response()
-            prev = self._market.swap_chart_post(message.channel.id, message.id, gid, key, now, sym)
+            prev = self._market_svc.swap_chart_post(message.channel.id, message.id, gid, key, now, sym)
             if prev is not None and prev != message.id:
                 await ui.partial_message(message.channel, prev).delete()
         except discord.HTTPException as exc:
@@ -234,8 +208,8 @@ class MarketCog(commands.Cog):
 
     # ------------------------------ 売買 ------------------------------ #
     async def _buy_amount_autocomplete(self, interaction: discord.Interaction, current: str):
-        choices = balance_choices(self._wallet, interaction, current, 10, 1_000_000)
-        balance = own_balance(self._wallet, interaction.guild_id, interaction.user.id)
+        choices = balance_choices(self._economy_svc, interaction, current, 10, 1_000_000)
+        balance = own_balance(self._economy_svc, interaction.guild_id, interaction.user.id)
         if balance is not None and typed_amount(current) is None:
             for pct in (25, 50, 75, 100):
                 value = min(10_000_000, balance * pct // 100)
@@ -419,7 +393,7 @@ class MarketCog(commands.Cog):
 
     @commands.Cog.listener()
     async def on_guild_remove(self, guild: discord.Guild):
-        self._market.delete_guild_chart_posts(guild.id)
+        self._market_svc.delete_guild_chart_posts(guild.id)
 
 
 async def setup(bot: "CasinoBot"):
@@ -428,15 +402,8 @@ async def setup(bot: "CasinoBot"):
             bot,
             config=bot.config,
             market_svc=bot.services.market,
-            market_data=bot.repos.market,
-            market_events_repo=bot.repos.market_events,
-            earnings_repo=bot.repos.earnings,
-            crypto=bot.repos.crypto,
-            margin=bot.repos.margin,
-            bonds_repo=bot.repos.bonds,
-            options_repo=bot.repos.options,
-            wallet=bot.repos.wallet,
-            debt=bot.repos.debt,
+            economy_svc=bot.services.economy,
+            teiai_svc=bot.services.teiai,
             guild_repo=bot.repos.guild,
             sessions=bot.sessions,
         )

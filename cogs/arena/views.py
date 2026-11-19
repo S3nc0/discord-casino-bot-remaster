@@ -78,15 +78,13 @@ class BetPanel(discord.ui.View):
             self.add_item(FighterSelect(self))
 
     def embed(self) -> discord.Embed:
-        breakdown = self.arena_svc.arena.for_guild(self.tournament["guild_id"]).arena_bets_breakdown(
-            self.tournament["id"]
-        )
+        breakdown = self.arena_svc.bets_breakdown(self.tournament["guild_id"], self.tournament["id"])
         return tournament_embed(self.tournament, arena_mod.SEMI_HOUR, arena_mod.FINAL_HOUR, breakdown)
 
     async def refresh(self) -> None:
         """最新のDB状態を読み直し、掲示メッセージを書き換える（賭けが入るたび・段が進むたび）。"""
-        fresh = self.arena_svc.arena.for_guild(self.tournament["guild_id"]).arena_tournament_get_by_day(
-            self.tournament["day"], self.tournament["format"]
+        fresh = self.arena_svc.tournament_by_day(
+            self.tournament["guild_id"], self.tournament["day"], self.tournament["format"]
         )
         if fresh is not None:
             self.tournament = fresh

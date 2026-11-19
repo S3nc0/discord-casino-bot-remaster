@@ -7,14 +7,14 @@ from typing import Optional
 import discord
 
 from cogs.shared import logthrottle, ranking, ui
-from cogs.shared.ranking import RankingRepos
 from domain.ports.repos import IGuildRepo
+from services.ranking import RankingService
 
 
 class RankingView(ui.OwnerView):
     """ランキングの切り替え（純資産 / 総資産）と、自分の資産の内訳。押せるのは、開いた本人だけ。"""
 
-    def __init__(self, ranking_repos: RankingRepos, user_id: int, guild_id: int):
+    def __init__(self, ranking_repos: RankingService, user_id: int, guild_id: int):
         super().__init__(
             user_id,
             timeout=300,
@@ -64,7 +64,7 @@ class RankingView(ui.OwnerView):
         await interaction.response.send_message(embed=e, ephemeral=True)
 
 
-def board_embed(ranking_repos: RankingRepos, guild_id: int, interval_minutes: int) -> discord.Embed:
+def board_embed(ranking_repos: RankingService, guild_id: int, interval_minutes: int) -> discord.Embed:
     ts = int(datetime.datetime.now().timestamp())
     return ranking.build_embed(
         ranking_repos.for_guild(guild_id),
@@ -77,7 +77,7 @@ def board_embed(ranking_repos: RankingRepos, guild_id: int, interval_minutes: in
 
 async def refresh_board(
     bot: discord.Client,
-    ranking_repos: RankingRepos,
+    ranking_repos: RankingService,
     guild_repo: IGuildRepo,
     board: dict,
     interval_minutes: int,
@@ -118,7 +118,7 @@ async def delete_board_message(guild: discord.Guild, board: Optional[dict]) -> N
 
 
 async def board_set(
-    ranking_repos: RankingRepos,
+    ranking_repos: RankingService,
     guild_repo: IGuildRepo,
     interaction: discord.Interaction,
     channel: Optional[discord.TextChannel],

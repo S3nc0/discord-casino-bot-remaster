@@ -1,6 +1,7 @@
 """/会社 の Cog と画面: 設立の告知・状況パネルのボタン・倒産の告知。"""
 
 import asyncio
+import datetime
 from types import SimpleNamespace
 
 import pytest
@@ -8,6 +9,8 @@ import pytest
 from cogs.company import cog as company_cog
 from cogs.company import views
 from domain import company as co
+from domain.ports.clock import IClock
+from services.company import CompanyService
 from tests.support import make_test_bot
 
 U = 1
@@ -58,11 +61,23 @@ def setup(tmp_path, monkeypatch):
     bot.guilds = [guild]
     monkeypatch.setattr("domain.approval.is_allowed", lambda *a: True)
     now = [NOON]
-    monkeypatch.setattr(company_cog.time, "time", lambda: now[0])
-    monkeypatch.setattr(views.time, "time", lambda: now[0])
-    cog = company_cog.CompanyCog(bot, bot.config, bot.repos.company, bot.repos.guild)
+    svc = CompanyService(bot.repos.company, _Clock(now))
+    cog = company_cog.CompanyCog(bot, bot.config, svc, bot.repos.guild)
     bot.repos.wallet.credit(U, 5_000_000, "テスト")
     return bot.repos, chan, guild, cog, now
+
+
+class _Clock(IClock):
+    """テストが進める時刻（now[0]）を返す。"""
+
+    def __init__(self, now):
+        self._now = now
+
+    def now(self):
+        return datetime.datetime.fromtimestamp(self._now[0], datetime.timezone(datetime.timedelta(hours=9)))
+
+    def now_ts(self):
+        return self._now[0]
 
 
 def button(panel, label):
@@ -91,7 +106,7 @@ def test_panel_buttons_ship_invest_upgrade_and_change_kind(setup):
     repos, chan, guild, cog, now = setup
     repos.company.company_found(U, "帝愛商事", "mine", now[0])
     now[0] += DAY / 4
-    panel = views.CompanyPanel(repos.company, U, 0)
+    panel = views.CompanyPanel(cog._company, U, 0)
     assert "帝愛商事" in panel.embed().title
 
     it = _It(U)
@@ -127,7 +142,7 @@ def test_panel_buttons_ship_invest_upgrade_and_change_kind(setup):
 def test_panel_rejects_other_users_and_reports_failures(setup):
     repos, chan, guild, cog, now = setup
     repos.company.company_found(U, "帝愛商事", "mine", now[0])
-    panel = views.CompanyPanel(repos.company, U, 0)
+    panel = views.CompanyPanel(cog._company, U, 0)
     stranger = _It(2)
     assert asyncio.run(panel.interaction_check(stranger)) is False
     assert "他の人の会社" in stranger.sent[0]["content"]

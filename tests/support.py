@@ -58,16 +58,8 @@ def make_economy_cog(bot: Any):
         bot,
         config=bot.config,
         economy_svc=bot.services.economy,
-        wallet=bot.repos.wallet,
-        records=bot.repos.records,
-        bank=bot.repos.bank,
-        debt=bot.repos.debt,
-        loans=bot.repos.loans,
-        shop_repo=bot.repos.shop,
-        notices=bot.repos.notices,
-        crypto=bot.repos.crypto,
-        bonds_repo=bot.repos.bonds,
-        assets=bot.repos.assets,
+        teiai_svc=bot.services.teiai,
+        ranking_svc=bot.services.ranking,
         guild_repo=bot.repos.guild,
         sessions=bot.sessions,
         clock=bot.services.clock,
@@ -81,15 +73,8 @@ def make_market_cog(bot: Any):
         bot,
         config=bot.config,
         market_svc=bot.services.market,
-        market_data=bot.repos.market,
-        market_events_repo=bot.repos.market_events,
-        earnings_repo=bot.repos.earnings,
-        crypto=bot.repos.crypto,
-        margin=bot.repos.margin,
-        bonds_repo=bot.repos.bonds,
-        options_repo=bot.repos.options,
-        wallet=bot.repos.wallet,
-        debt=bot.repos.debt,
+        economy_svc=bot.services.economy,
+        teiai_svc=bot.services.teiai,
         guild_repo=bot.repos.guild,
         sessions=bot.sessions,
     )
@@ -102,9 +87,8 @@ def make_bond_cog(bot: Any):
         bot,
         config=bot.config,
         guild_repo=bot.repos.guild,
-        bonds_repo=bot.repos.bonds,
-        options_repo=bot.repos.options,
-        bank_repo=bot.repos.bank,
+        market_svc=bot.services.market,
+        teiai_svc=bot.services.teiai,
     )
 
 
@@ -194,9 +178,9 @@ def make_approval_cog(bot: Any):
 
 
 def make_ranking_repos(repos: RepositoryBundle):
-    from cogs.shared.ranking import RankingRepos
+    from services.ranking import RankingService
 
-    return RankingRepos(
+    return RankingService(
         wallet=repos.wallet,
         crypto=repos.crypto,
         bonds=repos.bonds,
@@ -209,8 +193,7 @@ def make_casino_deps(bot: Any):
 
     return CasinoDeps(
         casino=bot.services.casino,
-        debt=bot.repos.debt,
-        pachinko=bot.repos.pachinko,
+        teiai=bot.services.teiai,
         guild_repo=bot.repos.guild,
         config=bot.config,
     )
@@ -219,7 +202,7 @@ def make_casino_deps(bot: Any):
 def make_loan_cog(bot: Any):
     from cogs.loan.cog import LoanCog
 
-    cog = LoanCog(bot, bot.config, bot.services.loan, bot.repos.wallet, bot.repos.guild)
+    cog = LoanCog(bot, bot.config, bot.services.loan, bot.services.economy, bot.repos.guild)
     bot.bridges.register(ILoanButtonBridge, cog)
     return cog
 
