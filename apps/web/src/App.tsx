@@ -1,15 +1,17 @@
-import { resolveLocale, t, type Locale } from '@casino/shared/i18n';
-import { Surface } from '@casino/ui';
+import { RuntimeContext, type ShellRuntime } from './shell/runtime.ts';
+import { Shell } from './shell/Shell.tsx';
+import { ErrorScreen } from './shell/StatusScreens.tsx';
 
 export interface AppProps {
-  locale?: Locale;
+  /** null when the page was not opened inside Discord and mock mode is off. */
+  runtime: ShellRuntime | null;
 }
 
-/** Skeleton root. The Activity shell (auth, routing, socket) replaces this. */
-export function App({ locale = resolveLocale({}) }: AppProps) {
+export function App({ runtime }: AppProps) {
+  if (!runtime) return <ErrorScreen error="not_in_discord" />;
   return (
-    <Surface label={t(locale, 'app.name')}>
-      <h1>{t(locale, 'app.name')}</h1>
-    </Surface>
+    <RuntimeContext.Provider value={runtime}>
+      <Shell />
+    </RuntimeContext.Provider>
   );
 }

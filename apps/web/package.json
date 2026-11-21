@@ -6,10 +6,11 @@
   "description": "Discord Activity front end.",
   "scripts": {
     "dev": "vite",
-    "build": "tsc -p tsconfig.json && vite build",
+    "build": "tsc -p tsconfig.json && vite build && node scripts/check-bundle.js",
     "typecheck": "tsc -p tsconfig.json",
     "test": "vitest run",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "dev:mock": "VITE_MOCK_DISCORD=1 vite"
   },
   "dependencies": {
     "@casino/shared": "workspace:*",
@@ -24,6 +25,7 @@
     "@types/react": "19.3.0",
     "@types/react-dom": "19.3.0",
     "@vitejs/plugin-react": "6.2.1",
+    "happy-dom": "21.0.4",
     "vite": "8.3.6"
   }
 }
