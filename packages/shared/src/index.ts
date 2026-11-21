@@ -11,3 +11,5 @@ export * from './rooms.ts';
 export * from './socket.ts';
 export * from './rng.ts';
 export * from './clock.ts';
+export * from './config.ts';
+export * from './proxy.ts';
