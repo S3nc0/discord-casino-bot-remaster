@@ -76,6 +76,50 @@ has its own tables). All money, rates, prices and quantities are integers (Pelic
 point). The change, its game state and its idempotency record commit together; events are
 published after commit. See [DB_SCHEMA.md](DB_SCHEMA.md).
 
+### Ledger reasons
+
+`LEDGER_REASONS` (`packages/shared/src/ledger.ts`) is append-only: values are added through an
+A1 task and never renamed or removed. Each reason has one flow class in `LEDGER_REASON_FLOW` and
+one direction in `LEDGER_REASON_SIGN`; a test fails if a reason lacks either. Classes are seen
+from player balances, which are the only ledger accounts:
+
+- `faucet` (credit): the Pelica does not come from another player's balance in the same
+  transaction: system grants, Teiai bank or house account, company funds, escrows, positions,
+  pots.
+- `sink` (debit): the Pelica does not go to another player's balance in the same transaction.
+  Escrow holds and positions are sinks too; their release or close is a faucet.
+- `transfer` (either direction, fixed per reason): one leg of a player-to-player move. The
+  transfer rows of one transaction sum to zero. A fee on top is its own sink row, never netted
+  into a leg.
+
+Rules for callers:
+
+- `isDeltaAllowed(reason, delta)` must hold for every row. When a legacy flow had one string
+  for both directions there are two reasons (`horse_retirement` / `horse_retirement_fee`,
+  `quiz_author_reward` / `quiz_author_clawback`, `admin_grant` / `admin_revoke`).
+- Gross then deduction: credit the gross amount, then debit the cut as its own sink row
+  (`teiai_skim` on daily and labor income, `capital_gains_tax` on profitable sells and margin
+  closes, `marketplace_fee` / `kyosai_fee` on sale proceeds, `debt_withholding` on income).
+  Legacy wrote 0-delta lines for skims; the ledger rejects 0-delta rows.
+- The stock market and the `cs` crypto ticker share one spot book: both use `stock_buy`,
+  `stock_sell` and `trade_fee`, with the ticker in `ref_id`. Teiai trust deposits are
+  `bank_deposit` / `bank_withdraw` / `bank_interest`. Chat-only and screen-only variants of a
+  movement use the same reason; `ref_type` / `ref_id` tell them apart.
+- Fixed-price market sales are `marketplace_buy` → `marketplace_sale` in one transaction. Auction
+  bids are `marketplace_hold` / `marketplace_release`, and the seller of a won auction gets
+  `marketplace_auction_sale`. P2P loans: `p2p_lend` → `p2p_borrow`, and `p2p_repay` or
+  `p2p_garnishment` → `p2p_collect`; lenders paid from a bankruptcy pool get
+  `p2p_bankruptcy_payout`.
+- Not ledger movements (no reason, recorded in their own tables): changes to debt alone (Toichi
+  interest, the overseas-escape fine, P2P late penalties, unpaid shortfalls), moves inside Teiai
+  bank, house account or company funds (arena pool subsidy, company upkeep and shipment skim,
+  kyosai auction proceeds), and trust haircuts. When such a step takes player cash it uses the
+  matching sink (`debt_seizure` for forced execution, `bankruptcy_writeoff` for cash seized into
+  a bankruptcy pool).
+
+Wave 3 supply check: per guild, `SUM(delta)` over faucet rows plus over sink rows equals the
+change in total balances, and transfer rows sum to zero per transaction.
+
 ## HTTP API
 
 Routes are `API_ROUTES` (`packages/shared/src/api.ts`); bodies and responses are TypeBox
