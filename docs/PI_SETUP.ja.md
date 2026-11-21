@@ -52,17 +52,21 @@ sudo bash /tmp/discord-casino/ops/pi/install.sh
 
 ## 3. Mac からのデータ移行（任意）
 
-Pi で起動する前に、**必ず Mac 側のサーバーを停止**してください（同一 Bot トークンでの二重起動や DB 同時書き込みを防ぐため）。Mac 上で安全な SQLite スナップショットを作成し、Pi へ転送します。
+新サーバーが参照する本番データベースは `/opt/discord-casino/data/casino.sqlite`（`DATABASE_PATH`、既定値 `./data/casino.sqlite`）です。`data/casino.db` はレガシー Python Bot 用のインポート元ファイル（`apps/server/scripts/import-legacy.ts` の入力専用）であり、本番サーバーが直接開くことはありません。
+
+Pi で起動する前に、**必ず Mac 側のサーバーを停止**してください（同一 Bot トークンでの二重起動や DB 同時書き込みを防ぐため）。Mac 上で `casino.sqlite` の安全な SQLite スナップショットを作成し、Pi へ転送します。
 
 ```sh
 # Mac 側（サーバー停止後）:
-sqlite3 data/casino.db ".backup 'casino-migration.db'"
-scp casino-migration.db <pi-user>@<pi-host>:/tmp/casino.db
+sqlite3 data/casino.sqlite ".backup 'casino-migration.sqlite'"
+scp casino-migration.sqlite <pi-user>@<pi-host>:/tmp/casino.sqlite
 
 # Pi 側:
-sudo install -o casino -g casino -m 0640 /tmp/casino.db /opt/discord-casino/data/casino.db
-rm -f /tmp/casino.db
+sudo install -o casino -g casino -m 0640 /tmp/casino.sqlite /opt/discord-casino/data/casino.sqlite
+rm -f /tmp/casino.sqlite
 ```
+
+（レガシー Python Bot の `data/casino.db` から移行する場合は、Python Bot を停止した状態で `apps/server/scripts/import-legacy.ts` を実行して `casino.sqlite` へ取り込んでください。）
 
 ## 4. サービスの起動と確認
 
@@ -84,7 +88,7 @@ ls -lh /var/backups/discord-casino/
 
 ```sh
 sudo systemctl stop discord-casino.service
-sudo -u casino cp /var/backups/discord-casino/casino-YYYYMMDD-HHMMSS.db /opt/discord-casino/data/casino.db
+sudo -u casino cp /var/backups/discord-casino/casino-YYYYMMDD-HHMMSS.sqlite /opt/discord-casino/data/casino.sqlite
 sudo systemctl start discord-casino.service
 ```
 

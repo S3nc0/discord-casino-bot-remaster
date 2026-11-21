@@ -49,9 +49,11 @@ cp .env.example .env
 | `UTC_OFFSET_HOURS` | いいえ | 日次リセットのタイムゾーン差（日本時間は `9`） |
 | `PUBLIC_API_ORIGIN` | いいえ | `https://API_DOMAIN`（末尾スラッシュなし） |
 | `ANNOUNCE_CHANNEL_ID` | いいえ | デフォルトの通知先チャンネル ID |
-| `NODE_ENV` | いいえ | Discord プロキシ / Cloudflare Tunnel 経由の本番運用時は `production`（Ed25519 署名検証を有効化）。プロキシなしのローカルブラウザ確認時のみ `development` |
-| `PORT` | いいえ | テンプレート用プレースホルダー（既定 `3001`、サーバー設定対応時に参照） |
-| `DATABASE_PATH` | いいえ | テンプレート用プレースホルダー（既定 `./data/casino.db`、サーバー設定対応時に参照） |
+| `NODE_ENV` | いいえ | 任意（既定 `production`）。Discord プロキシ / Cloudflare Tunnel 経由の本番運用時は `production`（Ed25519 署名検証を有効化）。プロキシなしのローカルブラウザ確認時のみ `development` |
+| `HOST` | いいえ | 任意（既定 `127.0.0.1`）。待機アドレス。トンネルはローカル接続で `trustProxy` が有効なためループバック固定（`0.0.0.0` は `pi-sim` 等のコンテナ専用） |
+| `PORT` | いいえ | 任意（既定 `3001`）。HTTP / Socket.io の待機ポート |
+| `DATABASE_PATH` | いいえ | 任意（既定 `./data/casino.sqlite`、作業ディレクトリ基準）。新サーバーの SQLite ファイル（レガシーの `data/casino.db` はインポーター入力専用で直接指定しない） |
+| `LOG_LEVEL` | いいえ | 任意（既定 `info`）。Pino ログレベル: `fatal` \| `error` \| `warn` \| `info` \| `debug` \| `trace` \| `silent` |
 
 ## 3. `apps/web` 用 Cloudflare Pages プロジェクトの作成
 

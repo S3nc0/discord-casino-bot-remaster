@@ -52,17 +52,21 @@ What `ops/pi/install.sh` does (and safely re-runs when updating):
 
 ## 3. Migrate Data from Mac (Optional)
 
-Before starting the Pi service, stop the server on your Mac so no two instances share the same bot token or write to the database concurrently. Create a clean SQLite snapshot on your Mac and copy it to the Pi:
+The live server opens `./data/casino.sqlite` (configured via `DATABASE_PATH`, default `./data/casino.sqlite` under `/opt/discord-casino`). `data/casino.db` is **only** the legacy Python bot file read by `apps/server/scripts/import-legacy.ts` — it is never opened by the live server.
+
+Before starting the Pi service, stop the server on your Mac so no two instances share the same bot token or write to the database concurrently. Create a clean SQLite snapshot of your Mac's `casino.sqlite` and copy it to the Pi:
 
 ```sh
 # On Mac (server stopped):
-sqlite3 data/casino.db ".backup 'casino-migration.db'"
-scp casino-migration.db <pi-user>@<pi-host>:/tmp/casino.db
+sqlite3 data/casino.sqlite ".backup 'casino-migration.sqlite'"
+scp casino-migration.sqlite <pi-user>@<pi-host>:/tmp/casino.sqlite
 
 # On Pi:
-sudo install -o casino -g casino -m 0640 /tmp/casino.db /opt/discord-casino/data/casino.db
-rm -f /tmp/casino.db
+sudo install -o casino -g casino -m 0640 /tmp/casino.sqlite /opt/discord-casino/data/casino.sqlite
+rm -f /tmp/casino.sqlite
 ```
+
+(If you are migrating from the legacy Python bot's `data/casino.db`, run `apps/server/scripts/import-legacy.ts` with the Python bot stopped so it writes into `casino.sqlite`.)
 
 ## 4. Start and Verify Services
 
@@ -84,7 +88,7 @@ ls -lh /var/backups/discord-casino/
 
 ```sh
 sudo systemctl stop discord-casino.service
-sudo -u casino cp /var/backups/discord-casino/casino-YYYYMMDD-HHMMSS.db /opt/discord-casino/data/casino.db
+sudo -u casino cp /var/backups/discord-casino/casino-YYYYMMDD-HHMMSS.sqlite /opt/discord-casino/data/casino.sqlite
 sudo systemctl start discord-casino.service
 ```
 
