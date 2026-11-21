@@ -1,11 +1,6 @@
 import { PRICE_SCALE, QUANTITY_SCALE } from '@casino/shared';
 import { BPS_SCALE, microsToPrice, roundHalfEven, truncInt } from '../math.ts';
-import {
-  MARKET_CONSTANTS,
-  MARKET_SYMBOLS,
-  type MarginSide,
-  type SymbolKey,
-} from './constants.ts';
+import { MARKET_CONSTANTS, MARKET_SYMBOLS, type MarginSide, type SymbolKey } from './constants.ts';
 import { COVARIANCE_MATRIX } from './market.ts';
 
 /**
@@ -93,7 +88,8 @@ export function accrueMarginInterest(input: {
       debtOverflow: 0,
     };
   }
-  const base = marginInterestBaseMicros(input.side, input.entryValueMicros, input.marginPelica) / PRICE_SCALE;
+  const base =
+    marginInterestBaseMicros(input.side, input.entryValueMicros, input.marginPelica) / PRICE_SCALE;
   const ratePerDay = MARKET_CONSTANTS.borrowRatePerDayBps[input.side] / BPS_SCALE;
   const added = base * ratePerDay * (input.elapsedSeconds / 86_400);
   const total = input.accruedMicros / PRICE_SCALE + added;
@@ -151,7 +147,8 @@ export function computePortfolioMarginStatus(input: {
     const notional = (pos.unitsMilli * microsToPrice(priceMicros)) / QUANTITY_SCALE;
     const signed = pos.side === 'long' ? notional : -notional;
     exposures[pos.symbol] = (exposures[pos.symbol] ?? 0) + signed;
-    posEquity += pos.margin + marginPnl(pos.side, pos.unitsMilli, pos.entryValueMicros, priceMicros);
+    posEquity +=
+      pos.margin + marginPnl(pos.side, pos.unitsMilli, pos.entryValueMicros, priceMicros);
   }
 
   const req = requiredMargin(exposures);
@@ -185,7 +182,11 @@ export function quoteMarginOpen(
   collateralPelica: number,
   leverage: number,
   priceMicros: number,
-): { readonly unitsMilli: number; readonly entryValueMicros: number; readonly margin: number } | null {
+): {
+  readonly unitsMilli: number;
+  readonly entryValueMicros: number;
+  readonly margin: number;
+} | null {
   if (
     !MARKET_CONSTANTS.allowedLeverages.includes(leverage) ||
     collateralPelica < MARKET_CONSTANTS.minMargin ||

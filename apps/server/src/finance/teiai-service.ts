@@ -1,8 +1,4 @@
-import {
-  PRICE_SCALE,
-  type LedgerReason,
-  type Rng,
-} from '@casino/shared';
+import { PRICE_SCALE, type LedgerReason, type Rng } from '@casino/shared';
 import {
   absorbInflow,
   absorbShock,
@@ -130,8 +126,7 @@ export interface EscapeAttemptReport {
 }
 
 export type ServiceResult<T> =
-  | { readonly ok: true; readonly data: T }
-  | { readonly ok: false; readonly reason: string };
+  { readonly ok: true; readonly data: T } | { readonly ok: false; readonly reason: string };
 
 export class TeiaiService {
   private readonly deps: FinanceDeps;
@@ -417,7 +412,11 @@ export class TeiaiService {
   bankOutflow(
     guildId: string,
     amountPelica: number,
-    options: { readonly useTrust?: boolean; readonly thermo?: boolean; readonly nowMs?: number } = {},
+    options: {
+      readonly useTrust?: boolean;
+      readonly thermo?: boolean;
+      readonly nowMs?: number;
+    } = {},
   ): void {
     if (amountPelica <= 0) return;
     const nowMs = options.nowMs ?? this.deps.clock.now();
@@ -492,15 +491,7 @@ export class TeiaiService {
                thermo_bailed_micros = ?, excess_unpaid_micros = excess_unpaid_micros + ?, thermo_at = ?
            WHERE guild_id = ?`,
         )
-        .run(
-          nextCashMicros,
-          nextLoad,
-          nextCap,
-          nextBailed,
-          unpaidHouseMicros,
-          nowMs,
-          guildId,
-        );
+        .run(nextCashMicros, nextLoad, nextCap, nextBailed, unpaidHouseMicros, nowMs, guildId);
     });
   }
 
@@ -689,7 +680,10 @@ export class TeiaiService {
   // Teiai House Account (separate from Bank Reserve; funds company buyouts)
   // -------------------------------------------------------------------------
 
-  private ensureHouseInTx(guildId: string, nowMs: number): {
+  private ensureHouseInTx(
+    guildId: string,
+    nowMs: number,
+  ): {
     balance: number;
     skimmed: number;
     grant_day: string;
@@ -698,8 +692,7 @@ export class TeiaiService {
     const existing = this.deps.store
       .stmt('SELECT balance, skimmed, grant_day, grant_used FROM house_account WHERE guild_id = ?')
       .get(guildId) as
-      | { balance: number; skimmed: number; grant_day: string; grant_used: number }
-      | undefined;
+      { balance: number; skimmed: number; grant_day: string; grant_used: number } | undefined;
     const today = localDateString(nowMs, this.utcOffsetHours());
     if (!existing) {
       this.deps.store
@@ -797,7 +790,11 @@ export class TeiaiService {
     return this.ensureAccount(guildId, userId).grace_until !== null;
   }
 
-  isBlacklistedFromP2pLoans(guildId: string, userId: string, nowMs = this.deps.clock.now()): boolean {
+  isBlacklistedFromP2pLoans(
+    guildId: string,
+    userId: string,
+    nowMs = this.deps.clock.now(),
+  ): boolean {
     const acc = this.ensureAccount(guildId, userId);
     return acc.blacklist_until !== null && acc.blacklist_until > nowMs;
   }
@@ -841,7 +838,14 @@ export class TeiaiService {
          SET grace_until = ?, bankrupt_at = ?, blacklist_until = ?, debt_interest_at = ?
          WHERE guild_id = ? AND user_id = ?`,
       )
-      .run(grace.nextGraceUntilMs, nextBankruptAt, nextBlacklistUntil, nextInterestAt, guildId, userId);
+      .run(
+        grace.nextGraceUntilMs,
+        nextBankruptAt,
+        nextBlacklistUntil,
+        nextInterestAt,
+        guildId,
+        userId,
+      );
 
     if (grace.enteredGrace && grace.nextGraceUntilMs !== null) {
       // Pull back open bids/listings on entering grace
@@ -936,7 +940,12 @@ export class TeiaiService {
   }
 
   /** Direct debt increase from Kyosai excess-loss shortfall (bypasses forced execution). */
-  addDebtFromExcess(guildId: string, userId: string, amount: number, nowMs = this.deps.clock.now()): void {
+  addDebtFromExcess(
+    guildId: string,
+    userId: string,
+    amount: number,
+    nowMs = this.deps.clock.now(),
+  ): void {
     if (amount <= 0) return;
     this.deps.store.transaction(() => {
       this.ensureAccount(guildId, userId);
@@ -1268,7 +1277,9 @@ export class TeiaiService {
       const dep = this.getDeposit(guildId, userId);
       if (dep > 0) {
         this.deps.store
-          .stmt('UPDATE bank_deposits SET amount = 0, updated_at = ? WHERE guild_id = ? AND user_id = ?')
+          .stmt(
+            'UPDATE bank_deposits SET amount = 0, updated_at = ? WHERE guild_id = ? AND user_id = ?',
+          )
           .run(nowMs, guildId, userId);
         this.deps.store
           .stmt('UPDATE bank_reserve SET cash_micros = cash_micros - ? WHERE guild_id = ?')
@@ -1414,9 +1425,15 @@ export class TeiaiService {
   }
 
   /** Expire overdue CDS contracts and force-bankrupt any users whose 24h grace period has elapsed. */
-  settleExpiredGraceAndCds(guildId: string, nowMs = this.deps.clock.now()): {
+  settleExpiredGraceAndCds(
+    guildId: string,
+    nowMs = this.deps.clock.now(),
+  ): {
     readonly expiredCds: number;
-    readonly forcedBankruptcies: readonly { readonly userId: string; readonly report: BankruptcyReport }[];
+    readonly forcedBankruptcies: readonly {
+      readonly userId: string;
+      readonly report: BankruptcyReport;
+    }[];
   } {
     return this.deps.store.transaction(() => {
       const expRes = this.deps.store
@@ -1470,7 +1487,11 @@ export class TeiaiService {
     stake: number,
     nowMs = this.deps.clock.now(),
     idempotencyKey?: string,
-  ): ServiceResult<{ readonly contractId: number; readonly odds: number; readonly oddsTenths: number }> {
+  ): ServiceResult<{
+    readonly contractId: number;
+    readonly odds: number;
+    readonly oddsTenths: number;
+  }> {
     if (!Number.isInteger(stake) || stake < TEIAI_CONSTANTS.cdsMinStake) {
       return { ok: false, reason: 'cds_min_stake' };
     }

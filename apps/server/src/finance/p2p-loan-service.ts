@@ -48,9 +48,8 @@ export class P2pLoanService {
   }
 
   getLoan(loanId: number): LoanRow | null {
-    const row = this.deps.store
-      .stmt('SELECT * FROM loans WHERE id = ?')
-      .get(loanId) as LoanRow | undefined;
+    const row = this.deps.store.stmt('SELECT * FROM loans WHERE id = ?').get(loanId) as
+      LoanRow | undefined;
     return row ?? null;
   }
 
@@ -362,7 +361,8 @@ export class P2pLoanService {
   cancelPending(guildId: string, loanId: number, actorId: string): ServiceResult<void> {
     return this.deps.store.transaction(() => {
       const loan = this.getLoan(loanId);
-      if (!loan || loan.guild_id !== guildId) return { ok: false, reason: 'loan_not_found_or_closed' };
+      if (!loan || loan.guild_id !== guildId)
+        return { ok: false, reason: 'loan_not_found_or_closed' };
       if (loan.status === 'offer' && loan.lender_id === actorId) {
         this.deps.store.stmt("UPDATE loans SET status = 'cancelled' WHERE id = ?").run(loanId);
         return { ok: true, data: undefined };

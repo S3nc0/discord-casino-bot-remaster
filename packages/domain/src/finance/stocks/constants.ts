@@ -8,12 +8,7 @@ export type BondKindKey = 'normal' | 'junk';
 export type PinState = -1 | 0 | 1;
 
 export type PinnableAction =
-  | 'sell_spot'
-  | 'close_long'
-  | 'sell_call'
-  | 'buy_spot'
-  | 'open_long'
-  | 'cover_short';
+  'sell_spot' | 'close_long' | 'sell_call' | 'buy_spot' | 'open_long' | 'cover_short';
 
 export interface MarketSymbolDef {
   readonly key: SymbolKey;

@@ -27,7 +27,10 @@ export interface MarketMinuteTickReport {
   readonly marginInterestCharged: Record<string, number>;
   readonly lossCutUsers: Record<string, string[]>;
   readonly settledOptions: Record<string, OptionRow[]>;
-  readonly settledBonds: Record<string, { readonly matured: BondRow[]; readonly defaulted: BondRow[] }>;
+  readonly settledBonds: Record<
+    string,
+    { readonly matured: BondRow[]; readonly defaulted: BondRow[] }
+  >;
 }
 
 /**
@@ -44,7 +47,10 @@ export function runMarketMinuteTick(
   const marginInterestCharged: Record<string, number> = {};
   const lossCutUsers: Record<string, string[]> = {};
   const settledOptions: Record<string, OptionRow[]> = {};
-  const settledBonds: Record<string, { readonly matured: BondRow[]; readonly defaulted: BondRow[] }> = {};
+  const settledBonds: Record<
+    string,
+    { readonly matured: BondRow[]; readonly defaulted: BondRow[] }
+  > = {};
 
   for (const guildId of guilds) {
     marginInterestCharged[guildId] = services.stocks.accrueAllMarginInterest(guildId, nowMs);
@@ -113,10 +119,7 @@ export interface LoanMinuteTickReport {
  * - emits `LoanDue` reminders within 24h of maturity;
  * - expires pending offers/requests past 24h.
  */
-export function runLoanMinuteTick(
-  services: FinanceServices,
-  nowMs?: number,
-): LoanMinuteTickReport {
+export function runLoanMinuteTick(services: FinanceServices, nowMs?: number): LoanMinuteTickReport {
   const guilds = listKnownGuildIds(services.store);
   const collected: Record<string, MaturityCollectionEntry[]> = {};
   const reminded: Record<string, LoanRow[]> = {};

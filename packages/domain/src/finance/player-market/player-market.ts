@@ -89,7 +89,10 @@ export function isValidAuctionHours(hours: number): boolean {
 }
 
 /** Check rolling 24h unordered pair volume cap (`used + amount <= 100_000`). */
-export function checkPairDailyLimit(usedIn24h: number, amount: number): {
+export function checkPairDailyLimit(
+  usedIn24h: number,
+  amount: number,
+): {
   readonly ok: boolean;
   readonly limit: number;
   readonly remaining: number;

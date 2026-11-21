@@ -1,9 +1,5 @@
 import { BPS_SCALE, truncInt } from '../math.ts';
-import {
-  endAfterBidMs,
-  marketplaceFee,
-  minNextBid,
-} from '../player-market/player-market.ts';
+import { endAfterBidMs, marketplaceFee, minNextBid } from '../player-market/player-market.ts';
 import { KYOSAI_CONSTANTS } from './constants.ts';
 
 export interface KyosaiHolding {
@@ -78,8 +74,7 @@ export function hamiltonSplit(
  */
 export function kyosaiDividendPool(availableCashPelica: number, liabilitiesPelica: number): number {
   const surplus =
-    availableCashPelica -
-    (liabilitiesPelica * KYOSAI_CONSTANTS.targetRatioBps) / BPS_SCALE;
+    availableCashPelica - (liabilitiesPelica * KYOSAI_CONSTANTS.targetRatioBps) / BPS_SCALE;
   if (surplus <= 0) return 0;
   return Math.min(
     KYOSAI_CONSTANTS.dividendCap,
@@ -115,7 +110,11 @@ export function doesMotionPass(
 
 /** Validate proposed trust premium in integer nano-units (`0 < premiumNano <= 1e9`, i.e., `0..100%/day`). */
 export function isPremiumNanoValid(premiumNano: number): boolean {
-  return Number.isInteger(premiumNano) && premiumNano > 0 && premiumNano <= KYOSAI_CONSTANTS.premiumLimitNano;
+  return (
+    Number.isInteger(premiumNano) &&
+    premiumNano > 0 &&
+    premiumNano <= KYOSAI_CONSTANTS.premiumLimitNano
+  );
 }
 
 /** Validate proposed trust premium given as daily decimal rate (`0 < rate <= 1.0`). */

@@ -25,11 +25,7 @@ export interface EarningsPlan {
  * Picks `teio` or `numa`, direction ∈ {+1, -1} (50/50), 15% surprise (`0.35..0.60`),
  * else normal (`0.08..0.22`), rounded to 3 decimal places.
  */
-export function planWeeklyEarnings(
-  nowMs: number,
-  utcOffsetHours: number,
-  rng: Rng,
-): EarningsPlan {
+export function planWeeklyEarnings(nowMs: number, utcOffsetHours: number, rng: Rng): EarningsPlan {
   const parts = localDateParts(nowMs, utcOffsetHours);
   // Start of current local week (Monday 00:00)
   const mondayStartMs = parts.dayStartMs - parts.weekday * MS_PER_DAY;

@@ -13,11 +13,7 @@ import {
   type MarketplaceStatus,
 } from '@casino/domain/finance';
 import type { ServiceResult, TeiaiService } from './teiai-service.ts';
-import {
-  getSharedPairVolume24h,
-  type FinanceDeps,
-  type MarketplaceAssetAdapter,
-} from './types.ts';
+import { getSharedPairVolume24h, type FinanceDeps, type MarketplaceAssetAdapter } from './types.ts';
 
 export interface MarketplaceListingRow {
   id: number;
@@ -153,13 +149,16 @@ export class PlayerMarketService {
       return { ok: false, reason: 'marketplace_item_not_tradable' };
     }
     const range = listingPriceRange(input.kind, input.kind === 'item' ? input.ref : undefined, qty);
-    if (!range || !Number.isInteger(input.price) || input.price < range[0] || input.price > range[1]) {
+    if (
+      !range ||
+      !Number.isInteger(input.price) ||
+      input.price < range[0] ||
+      input.price > range[1]
+    ) {
       return { ok: false, reason: 'marketplace_price_out_of_range' };
     }
     const durationHours =
-      input.mode === 'fixed'
-        ? PLAYER_MARKET_CONSTANTS.fixedDays * 24
-        : (input.hours ?? 24);
+      input.mode === 'fixed' ? PLAYER_MARKET_CONSTANTS.fixedDays * 24 : (input.hours ?? 24);
     if (input.mode === 'auction' && !isValidAuctionHours(durationHours)) {
       return { ok: false, reason: 'marketplace_invalid_duration' };
     }
@@ -367,9 +366,7 @@ export class PlayerMarketService {
 
       const nextEndAt = endAfterBidMs(listing.end_at, nowMs);
       this.deps.store
-        .stmt(
-          'UPDATE marketplace_listings SET bid = ?, bidder_id = ?, end_at = ? WHERE id = ?',
-        )
+        .stmt('UPDATE marketplace_listings SET bid = ?, bidder_id = ?, end_at = ? WHERE id = ?')
         .run(amount, bidderId, nextEndAt, listingId);
 
       const bus = this.deps.bus;
@@ -458,13 +455,25 @@ export class PlayerMarketService {
                WHERE id = ?`,
             )
             .run(listing.bidder_id, listing.bid, fee, nowMs, listing.id);
-          this.assets.deliverAsset(guildId, listing.bidder_id, listing.kind, listing.ref, listing.qty);
+          this.assets.deliverAsset(
+            guildId,
+            listing.bidder_id,
+            listing.kind,
+            listing.ref,
+            listing.qty,
+          );
           settled.push({ listing, outcome: 'sold' });
         } else {
           this.deps.store
             .stmt("UPDATE marketplace_listings SET status = 'expired', closed_at = ? WHERE id = ?")
             .run(nowMs, listing.id);
-          this.assets.deliverAsset(guildId, listing.seller_id, listing.kind, listing.ref, listing.qty);
+          this.assets.deliverAsset(
+            guildId,
+            listing.seller_id,
+            listing.kind,
+            listing.ref,
+            listing.qty,
+          );
           settled.push({ listing, outcome: 'expired' });
         }
       }

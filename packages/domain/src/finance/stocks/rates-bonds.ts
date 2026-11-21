@@ -89,7 +89,10 @@ export function bondMaturityPayout(principal: number, rateBps: number): number {
  * - Normal bond (`defaultPct === 0`): always `0`.
  * - Junk bond (`defaultPct === 20`, 24h): `lambda = -ln(0.8) / 24`, `p = 1 - exp(-lambda * hours)`.
  */
-export function bondDefaultProbability(kind: BondKindKey | BondKindDef, elapsedHours: number): number {
+export function bondDefaultProbability(
+  kind: BondKindKey | BondKindDef,
+  elapsedHours: number,
+): number {
   const def = typeof kind === 'string' ? BOND_CONSTANTS.kinds[kind] : kind;
   if (def.defaultPct <= 0 || elapsedHours <= 0) return 0;
   const pFull = def.defaultPct / 100;

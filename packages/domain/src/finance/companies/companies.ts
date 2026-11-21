@@ -140,7 +140,11 @@ export function produceCompanyStock(input: {
   readonly fromMs: number;
   readonly toMs: number;
   readonly utcOffsetHours?: number;
-  readonly resolveDayState?: (kind: CompanyKindKey, guildId: string, dayStr: string) => CompanyDayState;
+  readonly resolveDayState?: (
+    kind: CompanyKindKey,
+    guildId: string,
+    dayStr: string,
+  ) => CompanyDayState;
 }): number {
   const cap = companyStorageCapMilli(input.kind, input.level);
   if (input.toMs <= input.fromMs) {

@@ -140,9 +140,7 @@ export class CompaniesService {
       resolveDayState: this.resolveDayState,
     });
     this.deps.store
-      .stmt(
-        'UPDATE companies SET stock_milli = ?, stock_at = ? WHERE guild_id = ? AND user_id = ?',
-      )
+      .stmt('UPDATE companies SET stock_milli = ?, stock_at = ? WHERE guild_id = ? AND user_id = ?')
       .run(nextStockMilli, nowMs, row.guild_id, row.user_id);
     return { ...row, stock_milli: nextStockMilli, stock_at: nowMs };
   }
@@ -367,16 +365,8 @@ export class CompaniesService {
   }
 
   /** Set CEO investor dividend rate in basis points (`0..5000`, i.e., `0%..50%`). */
-  setDividendRate(
-    guildId: string,
-    ownerId: string,
-    rateBps: number,
-  ): ServiceResult<number> {
-    if (
-      !Number.isInteger(rateBps) ||
-      rateBps < 0 ||
-      rateBps > COMPANY_CONSTANTS.dividendMaxBps
-    ) {
+  setDividendRate(guildId: string, ownerId: string, rateBps: number): ServiceResult<number> {
+    if (!Number.isInteger(rateBps) || rateBps < 0 || rateBps > COMPANY_CONSTANTS.dividendMaxBps) {
       return { ok: false, reason: 'company_invalid_dividend_rate' };
     }
     return this.deps.store.transaction(() => {
@@ -461,7 +451,9 @@ export class CompaniesService {
 
       const nextLevel = row.level + 1;
       this.deps.store
-        .stmt('UPDATE companies SET level = ?, funds = funds - ? WHERE guild_id = ? AND user_id = ?')
+        .stmt(
+          'UPDATE companies SET level = ?, funds = funds - ? WHERE guild_id = ? AND user_id = ?',
+        )
         .run(nextLevel, cost, guildId, ownerId);
       this.teiai.houseReceive(guildId, cost, { nowMs });
       return { ok: true, data: nextLevel };

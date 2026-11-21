@@ -147,7 +147,10 @@ export class KyosaiService {
       .run(guildId, toKey, toUserId, toIsHouse ? 1 : 0, units);
   }
 
-  private isGateLockedInTx(guildId: string, nowMs: number): {
+  private isGateLockedInTx(
+    guildId: string,
+    nowMs: number,
+  ): {
     readonly locked: boolean;
     readonly theta: number | null;
   } {
@@ -221,7 +224,9 @@ export class KyosaiService {
     return this.deps.store.transaction(() => {
       this.ensureSupply(guildId);
       const rows = this.deps.store
-        .stmt('SELECT holder_key, user_id, is_house, units FROM kyosai_units WHERE guild_id = ? AND units > 0')
+        .stmt(
+          'SELECT holder_key, user_id, is_house, units FROM kyosai_units WHERE guild_id = ? AND units > 0',
+        )
         .all(guildId) as {
         holder_key: string;
         user_id: string | null;
@@ -267,7 +272,10 @@ export class KyosaiService {
    * Daily dormant unit recovery (30d) + surplus dividend distribution (`kyosai_daily`).
    * First call initializes `kyosai_div_at = nowMs` and returns 0.
    */
-  runDailyDividend(guildId: string, nowMs = this.deps.clock.now()): {
+  runDailyDividend(
+    guildId: string,
+    nowMs = this.deps.clock.now(),
+  ): {
     readonly recoveredUsers: readonly string[];
     readonly dividendPaid: number;
   } {
@@ -324,7 +332,9 @@ export class KyosaiService {
 
       if (pool > 0) {
         const allHolders = this.deps.store
-          .stmt('SELECT holder_key, user_id, is_house, units FROM kyosai_units WHERE guild_id = ? AND units > 0')
+          .stmt(
+            'SELECT holder_key, user_id, is_house, units FROM kyosai_units WHERE guild_id = ? AND units > 0',
+          )
           .all(guildId) as {
           holder_key: string;
           user_id: string | null;
@@ -334,7 +344,10 @@ export class KyosaiService {
 
         const shares = hamiltonSplit(
           pool,
-          allHolders.map((r) => ({ holderId: r.is_house === 1 ? '0' : r.holder_key, units: r.units })),
+          allHolders.map((r) => ({
+            holderId: r.is_house === 1 ? '0' : r.holder_key,
+            units: r.units,
+          })),
         );
 
         let playerTotal = 0;
@@ -580,11 +593,7 @@ export class KyosaiService {
   ): ServiceResult<number> {
     if (sellerId === buyerId) return { ok: false, reason: 'kyosai_self_offer' };
     if (!Number.isInteger(units) || units < 1) return { ok: false, reason: 'invalid_units' };
-    if (
-      !Number.isInteger(price) ||
-      price < 0 ||
-      price > PLAYER_MARKET_CONSTANTS.pairDailyLimit
-    ) {
+    if (!Number.isInteger(price) || price < 0 || price > PLAYER_MARKET_CONSTANTS.pairDailyLimit) {
       return { ok: false, reason: 'kyosai_price_out_of_range' };
     }
 

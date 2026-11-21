@@ -1,12 +1,5 @@
 import { QUANTITY_SCALE } from '@casino/shared';
-import {
-  BPS_SCALE,
-  microsToPrice,
-  normalCdf,
-  priceToMicros,
-  roundTo,
-  truncInt,
-} from '../math.ts';
+import { BPS_SCALE, microsToPrice, normalCdf, priceToMicros, roundTo, truncInt } from '../math.ts';
 import {
   MARKET_CONSTANTS,
   MARKET_SYMBOLS,
@@ -36,7 +29,10 @@ const PANIC_SIZE_SECOND_MOMENT =
 const PANIC_PROB_PER_TICK = 1 / MARKET_CONSTANTS.eventIntervalMinutes;
 
 function panicScale(sym: SymbolKey): number {
-  return Math.min(MARKET_CONSTANTS.eventScaleMax, SYMBOL_BY_KEY[sym].sigma / SYMBOL_BY_KEY.cs.sigma);
+  return Math.min(
+    MARKET_CONSTANTS.eventScaleMax,
+    SYMBOL_BY_KEY[sym].sigma / SYMBOL_BY_KEY.cs.sigma,
+  );
 }
 
 /** Per-tick panic jump variance for a single ticker. */
@@ -148,11 +144,13 @@ export function pairOptionVariance(
   const expTicks = expectedEventTicks(horizonSeconds, OPTION_CONSTANTS.tickSeconds);
   if (!hasVol[symA]) {
     variance +=
-      expTicks * (sigmaAA * (defaultFactor * defaultFactor - 1) - 2 * sigmaAB * (defaultFactor - 1));
+      expTicks *
+      (sigmaAA * (defaultFactor * defaultFactor - 1) - 2 * sigmaAB * (defaultFactor - 1));
   }
   if (!hasVol[symB]) {
     variance +=
-      expTicks * (sigmaBB * (defaultFactor * defaultFactor - 1) - 2 * sigmaAB * (defaultFactor - 1));
+      expTicks *
+      (sigmaBB * (defaultFactor * defaultFactor - 1) - 2 * sigmaAB * (defaultFactor - 1));
   }
 
   return Math.max(0, variance);
@@ -213,7 +211,12 @@ export function optionAskPerUnit(
   events: readonly MarketPricingEvent[] = [],
 ): number {
   const v = optionTotalVariance(symbol, horizonSeconds, nowMs, events);
-  const fair = blackScholesFairPrice(kind, microsToPrice(spotMicros), microsToPrice(strikeMicros), v);
+  const fair = blackScholesFairPrice(
+    kind,
+    microsToPrice(spotMicros),
+    microsToPrice(strikeMicros),
+    v,
+  );
   return (fair * (1 + OPTION_CONSTANTS.spreadBps / BPS_SCALE)) / QUANTITY_SCALE;
 }
 
@@ -228,7 +231,12 @@ export function optionBidPerUnit(
   events: readonly MarketPricingEvent[] = [],
 ): number {
   const v = optionTotalVariance(symbol, horizonSeconds, nowMs, events);
-  const fair = blackScholesFairPrice(kind, microsToPrice(spotMicros), microsToPrice(strikeMicros), v);
+  const fair = blackScholesFairPrice(
+    kind,
+    microsToPrice(spotMicros),
+    microsToPrice(strikeMicros),
+    v,
+  );
   return (fair * (1 - OPTION_CONSTANTS.spreadBps / BPS_SCALE)) / QUANTITY_SCALE;
 }
 
@@ -301,5 +309,7 @@ export function pairIntrinsic(
 /** Naked short option margin required: `ceil(0.20 * strike * units / 1000)` (rounds UP). */
 export function shortOptionMarginRequired(strikeMicros: number, unitsMilli: number): number {
   const strike = microsToPrice(strikeMicros);
-  return Math.ceil(((OPTION_CONSTANTS.marginRateBps / BPS_SCALE) * strike * unitsMilli) / QUANTITY_SCALE);
+  return Math.ceil(
+    ((OPTION_CONSTANTS.marginRateBps / BPS_SCALE) * strike * unitsMilli) / QUANTITY_SCALE,
+  );
 }

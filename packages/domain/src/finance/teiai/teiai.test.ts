@@ -116,9 +116,9 @@ describe('teiai domain parity', () => {
 
     const decayed = decayThermostat(shRes.state, 2.0);
     // Stored in integer micro-Pelica (1e-6 Pelica quantization between steps)
-    expect(Math.abs(decayed.loadMicros / PRICE_SCALE - fixture.thermostat.after_decay_2d.load)).toBeLessThanOrEqual(
-      1e-6,
-    );
+    expect(
+      Math.abs(decayed.loadMicros / PRICE_SCALE - fixture.thermostat.after_decay_2d.load),
+    ).toBeLessThanOrEqual(1e-6);
     expect(
       Math.abs(decayed.capacityMicros / PRICE_SCALE - fixture.thermostat.after_decay_2d.capacity),
     ).toBeLessThanOrEqual(1e-6);

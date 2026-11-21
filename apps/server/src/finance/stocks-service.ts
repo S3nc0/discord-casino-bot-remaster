@@ -167,7 +167,9 @@ export class StocksService {
             .run(sym.key, sym.startMicros, nowMs);
         }
         const priceRow = this.deps.store
-          .stmt('SELECT price_micros FROM market_prices WHERE symbol = ? ORDER BY recorded_at DESC, id DESC LIMIT 1')
+          .stmt(
+            'SELECT price_micros FROM market_prices WHERE symbol = ? ORDER BY recorded_at DESC, id DESC LIMIT 1',
+          )
           .get(sym.key) as { price_micros: number } | undefined;
         if (!priceRow) {
           this.deps.store
@@ -261,7 +263,9 @@ export class StocksService {
 
   private getPricingEvents(nowMs: number): MarketPricingEvent[] {
     const volRows = this.deps.store
-      .stmt('SELECT symbol, factor_bps, announce_at, start_at, end_at FROM market_events WHERE end_at > ?')
+      .stmt(
+        'SELECT symbol, factor_bps, announce_at, start_at, end_at FROM market_events WHERE end_at > ?',
+      )
       .all(nowMs) as {
       symbol: SymbolKey;
       factor_bps: number;
@@ -305,7 +309,9 @@ export class StocksService {
 
       // 1. Weekly earnings lifecycle
       let upcoming = this.deps.store
-        .stmt("SELECT * FROM earnings WHERE status IN ('planned', 'announced') ORDER BY release_at ASC LIMIT 1")
+        .stmt(
+          "SELECT * FROM earnings WHERE status IN ('planned', 'announced') ORDER BY release_at ASC LIMIT 1",
+        )
         .get() as
         | {
             id: number;
@@ -337,8 +343,14 @@ export class StocksService {
         };
       }
 
-      if (upcoming.status === 'planned' && nowMs >= upcoming.announce_at && nowMs < upcoming.release_at) {
-        this.deps.store.stmt("UPDATE earnings SET status = 'announced' WHERE id = ?").run(upcoming.id);
+      if (
+        upcoming.status === 'planned' &&
+        nowMs >= upcoming.announce_at &&
+        nowMs < upcoming.release_at
+      ) {
+        this.deps.store
+          .stmt("UPDATE earnings SET status = 'announced' WHERE id = ?")
+          .run(upcoming.id);
         upcoming = { ...upcoming, status: 'announced' };
       }
 
@@ -354,13 +366,17 @@ export class StocksService {
           2,
         );
         fair[upcoming.symbol] = priceToMicros(jumped);
-        this.deps.store.stmt("UPDATE earnings SET status = 'released' WHERE id = ?").run(upcoming.id);
+        this.deps.store
+          .stmt("UPDATE earnings SET status = 'released' WHERE id = ?")
+          .run(upcoming.id);
         earningsReleased = upcoming.symbol;
       }
 
       // 2. Volatility events
       const activeVolRows = this.deps.store
-        .stmt('SELECT symbol, factor_bps, announce_at, start_at, end_at FROM market_events WHERE end_at > ?')
+        .stmt(
+          'SELECT symbol, factor_bps, announce_at, start_at, end_at FROM market_events WHERE end_at > ?',
+        )
         .all(nowMs) as {
         symbol: SymbolKey;
         factor_bps: number;
@@ -378,7 +394,12 @@ export class StocksService {
       const lastEndRow = this.deps.store
         .stmt('SELECT MAX(end_at) AS last_end FROM market_events')
         .get() as { last_end: number | null };
-      const newEvent = maybeRollVolatilityEvent(nowMs, activeVols, lastEndRow?.last_end ?? null, rng);
+      const newEvent = maybeRollVolatilityEvent(
+        nowMs,
+        activeVols,
+        lastEndRow?.last_end ?? null,
+        rng,
+      );
       if (newEvent) {
         this.deps.store
           .stmt(
@@ -841,7 +862,8 @@ export class StocksService {
       const simStatus = computePortfolioMarginStatus({
         positions: simulated,
         pricesMicros: prices,
-        spotValuePelica: spotAndBondCollateral / (MARKET_CONSTANTS.collateralHaircutBps.spot / 10_000),
+        spotValuePelica:
+          spotAndBondCollateral / (MARKET_CONSTANTS.collateralHaircutBps.spot / 10_000),
         normalBondPrincipal: 0,
         junkBondPrincipal: 0,
       });
@@ -901,7 +923,12 @@ export class StocksService {
     symbol: SymbolKey,
     nowMs = this.deps.clock.now(),
     options: { readonly bypassPin?: boolean; readonly idempotencyKey?: string } = {},
-  ): ServiceResult<{ readonly pnl: number; readonly returned: number; readonly tax: number; readonly owed: number }> {
+  ): ServiceResult<{
+    readonly pnl: number;
+    readonly returned: number;
+    readonly tax: number;
+    readonly owed: number;
+  }> {
     return this.deps.store.transaction(() => {
       if (!options.bypassPin) {
         const pins = this.getPinStates(nowMs);
@@ -1062,13 +1089,17 @@ export class StocksService {
         if (!status.needsLossCut) continue;
 
         const longs = this.deps.store
-          .stmt('SELECT symbol FROM positions_long WHERE guild_id = ? AND user_id = ? AND units_milli > 0')
+          .stmt(
+            'SELECT symbol FROM positions_long WHERE guild_id = ? AND user_id = ? AND units_milli > 0',
+          )
           .all(guildId, userId) as { symbol: SymbolKey }[];
         for (const r of longs) {
           this.closeMargin(guildId, userId, 'long', r.symbol, nowMs, { bypassPin: true });
         }
         const shorts = this.deps.store
-          .stmt('SELECT symbol FROM positions_short WHERE guild_id = ? AND user_id = ? AND units_milli > 0')
+          .stmt(
+            'SELECT symbol FROM positions_short WHERE guild_id = ? AND user_id = ? AND units_milli > 0',
+          )
           .all(guildId, userId) as { symbol: SymbolKey }[];
         for (const r of shorts) {
           this.closeMargin(guildId, userId, 'short', r.symbol, nowMs, { bypassPin: true });
@@ -1136,7 +1167,12 @@ export class StocksService {
         entryBMicros = prices[symB];
       } else {
         const spotMicros = prices[input.symbol];
-        strikeMicros = optionStrikeMicros(input.kind, spotMicros, input.symbol, input.customTargetPct);
+        strikeMicros = optionStrikeMicros(
+          input.kind,
+          spotMicros,
+          input.symbol,
+          input.customTargetPct,
+        );
         const askPerUnit = optionAskPerUnit(
           input.kind,
           input.symbol,
@@ -1299,9 +1335,8 @@ export class StocksService {
     idempotencyKey?: string,
   ): ServiceResult<number> {
     return this.deps.store.transaction(() => {
-      const opt = this.deps.store
-        .stmt('SELECT * FROM options WHERE id = ?')
-        .get(optionId) as OptionRow | undefined;
+      const opt = this.deps.store.stmt('SELECT * FROM options WHERE id = ?').get(optionId) as
+        OptionRow | undefined;
       if (
         !opt ||
         opt.guild_id !== guildId ||
@@ -1342,9 +1377,8 @@ export class StocksService {
     idempotencyKey?: string,
   ): ServiceResult<{ readonly cost: number; readonly marginReturned: number }> {
     return this.deps.store.transaction(() => {
-      const opt = this.deps.store
-        .stmt('SELECT * FROM options WHERE id = ?')
-        .get(optionId) as OptionRow | undefined;
+      const opt = this.deps.store.stmt('SELECT * FROM options WHERE id = ?').get(optionId) as
+        OptionRow | undefined;
       if (
         !opt ||
         opt.guild_id !== guildId ||
@@ -1424,7 +1458,12 @@ export class StocksService {
         return optionBuyerPayout(raw, opt.premium);
       }
       if (opt.kind === 'call' || opt.kind === 'put') {
-        const raw = optionIntrinsic(opt.kind, opt.units_milli, prices[opt.symbol], opt.strike_micros);
+        const raw = optionIntrinsic(
+          opt.kind,
+          opt.units_milli,
+          prices[opt.symbol],
+          opt.strike_micros,
+        );
         return optionBuyerPayout(raw, opt.premium);
       }
       return 0;
@@ -1523,7 +1562,9 @@ export class StocksService {
 
   getActiveBondPrincipal(guildId: string): number {
     const row = this.deps.store
-      .stmt("SELECT COALESCE(SUM(principal), 0) AS total FROM bonds WHERE guild_id = ? AND status = 'active'")
+      .stmt(
+        "SELECT COALESCE(SUM(principal), 0) AS total FROM bonds WHERE guild_id = ? AND status = 'active'",
+      )
       .get(guildId) as { total: number };
     return row?.total ?? 0;
   }
@@ -1585,10 +1626,14 @@ export class StocksService {
     idempotencyKey?: string,
   ): ServiceResult<number> {
     return this.deps.store.transaction(() => {
-      const bond = this.deps.store
-        .stmt('SELECT * FROM bonds WHERE id = ?')
-        .get(bondId) as BondRow | undefined;
-      if (!bond || bond.guild_id !== guildId || bond.user_id !== userId || bond.status !== 'active') {
+      const bond = this.deps.store.stmt('SELECT * FROM bonds WHERE id = ?').get(bondId) as
+        BondRow | undefined;
+      if (
+        !bond ||
+        bond.guild_id !== guildId ||
+        bond.user_id !== userId ||
+        bond.status !== 'active'
+      ) {
         return { ok: false, reason: 'bond_not_found' };
       }
       if (!BOND_CONSTANTS.kinds[bond.kind].sellable) {
@@ -1599,7 +1644,8 @@ export class StocksService {
       const marginStatus = this.getPortfolioMarginStatus(guildId, userId, nowMs);
       if (marginStatus.required > 0) {
         const nextEquity =
-          marginStatus.equity - (bond.principal * MARKET_CONSTANTS.collateralHaircutBps.normal) / 10_000;
+          marginStatus.equity -
+          (bond.principal * MARKET_CONSTANTS.collateralHaircutBps.normal) / 10_000;
         if (nextEquity / marginStatus.required < MARKET_CONSTANTS.losscutRatioBps / 10_000) {
           return { ok: false, reason: 'market_collateral_locked' };
         }
@@ -1641,7 +1687,9 @@ export class StocksService {
   ): { readonly matured: BondRow[]; readonly defaulted: BondRow[] } {
     return this.deps.store.transaction(() => {
       const active = this.deps.store
-        .stmt("SELECT * FROM bonds WHERE guild_id = ? AND status = 'active' ORDER BY due_at ASC, id ASC")
+        .stmt(
+          "SELECT * FROM bonds WHERE guild_id = ? AND status = 'active' ORDER BY due_at ASC, id ASC",
+        )
         .all(guildId) as BondRow[];
 
       const matured: BondRow[] = [];
@@ -1656,7 +1704,9 @@ export class StocksService {
           const pDefault = bondDefaultProbability(def, elapsedHours);
           if (rng.float() < pDefault) {
             this.deps.store
-              .stmt("UPDATE bonds SET status = 'defaulted', payout = 0, checked_at = ?, settled_at = ? WHERE id = ?")
+              .stmt(
+                "UPDATE bonds SET status = 'defaulted', payout = 0, checked_at = ?, settled_at = ? WHERE id = ?",
+              )
               .run(nowMs, nowMs, bond.id);
             defaulted.push(
               this.deps.store.stmt('SELECT * FROM bonds WHERE id = ?').get(bond.id) as BondRow,
@@ -1685,15 +1735,15 @@ export class StocksService {
             });
           }
           this.deps.store
-            .stmt("UPDATE bonds SET status = 'matured', payout = ?, checked_at = ?, settled_at = ? WHERE id = ?")
+            .stmt(
+              "UPDATE bonds SET status = 'matured', payout = ?, checked_at = ?, settled_at = ? WHERE id = ?",
+            )
             .run(total, nowMs, nowMs, bond.id);
           matured.push(
             this.deps.store.stmt('SELECT * FROM bonds WHERE id = ?').get(bond.id) as BondRow,
           );
         } else {
-          this.deps.store
-            .stmt('UPDATE bonds SET checked_at = ? WHERE id = ?')
-            .run(nowMs, bond.id);
+          this.deps.store.stmt('UPDATE bonds SET checked_at = ? WHERE id = ?').run(nowMs, bond.id);
         }
       }
 
@@ -1711,13 +1761,18 @@ export class StocksService {
     nowMs = this.deps.clock.now(),
     rng: Rng = this.deps.rng,
     idempotencyKey?: string,
-  ): ServiceResult<{ readonly symbol: SymbolKey; readonly hint: -1 | 1; readonly releaseAtMs: number }> {
+  ): ServiceResult<{
+    readonly symbol: SymbolKey;
+    readonly hint: -1 | 1;
+    readonly releaseAtMs: number;
+  }> {
     return this.deps.store.transaction(() => {
       const earn = this.deps.store
-        .stmt("SELECT * FROM earnings WHERE status = 'announced' AND release_at > ? ORDER BY release_at ASC LIMIT 1")
+        .stmt(
+          "SELECT * FROM earnings WHERE status = 'announced' AND release_at > ? ORDER BY release_at ASC LIMIT 1",
+        )
         .get(nowMs) as
-        | { id: number; symbol: SymbolKey; direction: -1 | 1; release_at: number }
-        | undefined;
+        { id: number; symbol: SymbolKey; direction: -1 | 1; release_at: number } | undefined;
       if (!earn) return { ok: false, reason: 'earnings_no_announced_event' };
 
       const existing = this.deps.store
@@ -1768,7 +1823,10 @@ export class StocksService {
         )
         .run(guildId, earn.id);
 
-      return { ok: true, data: { symbol: earn.symbol, hint: memo.hint, releaseAtMs: earn.release_at } };
+      return {
+        ok: true,
+        data: { symbol: earn.symbol, hint: memo.hint, releaseAtMs: earn.release_at },
+      };
     });
   }
 
@@ -1780,7 +1838,12 @@ export class StocksService {
    * Forced execution Steps 4..7 (`owe_for`): Margin -> Spot (taxable=false) -> Options -> Normal Bonds.
    * Returns total Pelica recovered directly toward the debt need (up to `need`).
    */
-  seizeSecurities(guildId: string, userId: string, need: number, nowMs = this.deps.clock.now()): number {
+  seizeSecurities(
+    guildId: string,
+    userId: string,
+    need: number,
+    nowMs = this.deps.clock.now(),
+  ): number {
     if (need <= 0) return 0;
     return this.deps.store.transaction(() => {
       let rem = need;
@@ -1847,7 +1910,9 @@ export class StocksService {
       // Step 6: Long options
       if (rem > 0) {
         const opts = this.deps.store
-          .stmt("SELECT * FROM options WHERE guild_id = ? AND user_id = ? AND side = 'long' AND status = 'open'")
+          .stmt(
+            "SELECT * FROM options WHERE guild_id = ? AND user_id = ? AND side = 'long' AND status = 'open'",
+          )
           .all(guildId, userId) as OptionRow[];
         for (const opt of opts) {
           if (rem <= 0) break;

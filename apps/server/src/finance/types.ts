@@ -65,12 +65,20 @@ export interface TeiaiCrossHooks {
   liquidateCompanyForBankruptcy?: (guildId: string, userId: string, nowMs: number) => number;
   recoverKyosaiOnBankruptcy?: (guildId: string, userId: string, nowMs: number) => void;
   /** Optional external liquidation hook (e.g. B2-B shop items / horses) returning Pelica added to pool. */
-  liquidateExternalAssets?: (guildId: string, userId: string, nowMs: number) => {
+  liquidateExternalAssets?: (
+    guildId: string,
+    userId: string,
+    nowMs: number,
+  ) => {
     readonly recovered: number;
     readonly shopValue: number;
   };
   /** List active/overdue junior P2P loans owed by `userId` oldest-first, for bankruptcy waterfall. */
-  listJuniorLoansForBankruptcy?: (guildId: string, userId: string, nowMs: number) => JuniorLoanClaim[];
+  listJuniorLoansForBankruptcy?: (
+    guildId: string,
+    userId: string,
+    nowMs: number,
+  ) => JuniorLoanClaim[];
   /** Persist junior P2P loan bankruptcy settlements and credit lenders via `p2p_bankruptcy_payout`. */
   applyJuniorLoanSettlements?: (
     guildId: string,

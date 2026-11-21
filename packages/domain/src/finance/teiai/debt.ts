@@ -117,7 +117,8 @@ export function manualSeedLoanQuote(input: {
   readonly balance: number;
   readonly status: PlayerDebtStatus;
   readonly inGrace: boolean;
-}): { readonly ok: true; readonly amount: number } | { readonly ok: false; readonly reason: string } {
+}):
+  { readonly ok: true; readonly amount: number } | { readonly ok: false; readonly reason: string } {
   if (input.status === 'bankrupt') return { ok: false, reason: 'seed_bankrupt' };
   if (input.inGrace) return { ok: false, reason: 'seed_in_grace' };
   if (input.balance >= TEIAI_CONSTANTS.seedLoanCap) {
@@ -146,11 +147,7 @@ export function dailyTopupSeed(balance: number, debt: number): number {
  *   odds = round(min(15.0, max(1.2, 0.85 / r)), 1)
  * Rounding: half-to-even to 1 decimal place (stored as integer tenths).
  */
-export function cdsOddsTenths(
-  status: string,
-  debt: number,
-  marginRatio: number | null,
-): number {
+export function cdsOddsTenths(status: string, debt: number, marginRatio: number | null): number {
   let r =
     status === 'katagi'
       ? 0.04

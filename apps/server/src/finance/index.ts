@@ -2,10 +2,7 @@ import { CompaniesService, type DayStateResolver } from './companies-service.ts'
 import type { FinanceServices } from './jobs.ts';
 import { KyosaiService } from './kyosai-service.ts';
 import { P2pLoanService } from './p2p-loan-service.ts';
-import {
-  InMemoryMarketplaceAssetAdapter,
-  PlayerMarketService,
-} from './player-market-service.ts';
+import { InMemoryMarketplaceAssetAdapter, PlayerMarketService } from './player-market-service.ts';
 import { StocksService } from './stocks-service.ts';
 import { TeiaiService } from './teiai-service.ts';
 import type { FinanceDeps, MarketplaceAssetAdapter, TeiaiCrossHooks } from './types.ts';

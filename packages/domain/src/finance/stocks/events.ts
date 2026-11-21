@@ -156,7 +156,9 @@ export function detectSpreadAlerts(
       const sigmaAA = symA.sigma * symA.sigma;
       const sigmaBB = symB.sigma * symB.sigma;
       const sigmaAB = symA.sigma * symB.sigma * rho;
-      const denom = Math.sqrt(Math.max(1e-18, (sigmaAA + sigmaBB - 2 * sign * sigmaAB) * sampleCount));
+      const denom = Math.sqrt(
+        Math.max(1e-18, (sigmaAA + sigmaBB - 2 * sign * sigmaAB) * sampleCount),
+      );
       const zScore = (rA - sign * rB) / denom;
       if (Math.abs(zScore) >= VOLATILITY_EVENT_CONSTANTS.zAlertThreshold) {
         alerts.push({ symbolA: symA.key, symbolB: symB.key, corr: rho, zScore });

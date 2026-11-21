@@ -46,11 +46,7 @@ const U3 = '200000000000000003';
 const BASE_SEC = 1_736_121_600; // 2025-01-06T00:00:00Z (09:00 JST)
 const BASE_MS = BASE_SEC * 1_000;
 
-function makeTestEnv(
-  startMs = BASE_MS,
-  seed = 12345,
-  options: CreateFinanceServicesOptions = {},
-) {
+function makeTestEnv(startMs = BASE_MS, seed = 12345, options: CreateFinanceServicesOptions = {}) {
   const store = memoryStore();
   const clock = manualClock(startMs);
   const bus = new EventBus();
@@ -201,12 +197,7 @@ describe('legacy db_flow parity', () => {
     );
 
     // Failed escape attempt (roll = 0.99 >= 0.05) -> 10% fine (1,900) -> debt 20,900
-    const esc = services.teiai.escapeAttempt(
-      GUILD,
-      U2,
-      BASE_MS + 4 * MS_PER_DAY,
-      fixedRng(0.99),
-    );
+    const esc = services.teiai.escapeAttempt(GUILD, U2, BASE_MS + 4 * MS_PER_DAY, fixedRng(0.99));
     expect(esc.ok).toBe(fx.escape_attempt[0]);
     if (esc.ok) {
       expect(esc.data.escaped).toBe(fx.escape_attempt[1].escaped);
@@ -935,4 +926,3 @@ describe('cross-system services, scheduled jobs, and guild isolation', () => {
     expect(services.loans.getLoan(loanId)!.status).toBe('discharged');
   });
 });
-
