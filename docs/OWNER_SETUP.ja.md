@@ -226,7 +226,7 @@ Discord Activity（デスクトップ / モバイル）
    | `ALLOWED_GUILD_IDS` | 必須 | いいえ | テストサーバー ID（複数ある場合はカンマ区切り） |
    | `OWNER_IDS` | 必須 | いいえ | 自分の Discord ユーザー ID（複数ある場合はカンマ区切り） |
    | `TEST_GUILD_ID` | 必須 | いいえ | テストサーバー ID |
-   | `REQUIRE_APPROVAL` | 必須 | いいえ | `1` = 新規サーバーはオーナー承認待ち / `0` = 自動承認 |
+   | `REQUIRE_APPROVAL` | 必須 | いいえ | `1` / `0`。`ALLOWED_GUILD_IDS` に載せたサーバーは常に承認済みで、この設定では変わりません |
    | `UTC_OFFSET_HOURS` | 必須 | いいえ | 日次リセットの時差（日本時間は `9`） |
    | `SESSION_SECRET` | 必須 | **はい** | `openssl rand -hex 32` の出力（32 文字以上） |
    | `PUBLIC_API_ORIGIN` | 必須 | いいえ | 当面は `https://localhost` で構いません（起動時に形式チェックされますが現在は未使用。独自ドメイン取得後は `https://api.example.com`） |
@@ -400,7 +400,7 @@ URL Mappings を直前に変更した場合は、**先に Discord を再読み�
 | `code_exchange_failed:401` | `DISCORD_CLIENT_SECRET` が間違っている（**Bot Token** を誤って貼っていることが多い） | **Developer Portal → OAuth2 → Client Secret** をコピーまたはリセットして `.env` を更新し、サーバーを再起動 |
 | `code_exchange_failed:400` | `.env` の `DISCORD_CLIENT_ID` と Cloudflare Pages の `VITE_DISCORD_CLIENT_ID` が一致していない、または認証コードの期限切れ | 両方が同じ `APP_ID` か確認し（Pages 変更時は再デプロイ、`.env` 変更時はサーバー再起動）、Activity を開き直す |
 | `guild_not_allowed`（または `guild_denied`） | そのサーバーの ID が `ALLOWED_GUILD_IDS` に入っていない | サーバー ID をコピーして `.env` の `ALLOWED_GUILD_IDS` に追加し、サーバーを再起動 |
-| `guild_pending` | `REQUIRE_APPROVAL=1` でサーバーが未承認 | `.env` で `REQUIRE_APPROVAL=0` にする（またはサーバーを承認する）→ サーバーを再起動 |
+| `guild_pending` | `ALLOWED_GUILD_IDS` に無いサーバーのみ（先に `guild_not_allowed` で拒否されます）。ここに載せたサーバーは自動承認されます | サーバー ID を `ALLOWED_GUILD_IDS` に追加 → サーバーを再起動 |
 | `proxy_signature_invalid` | `.env` の `DISCORD_PUBLIC_KEY` が間違っている | **Developer Portal → General Information** から 64 文字の **Public Key** をコピーして `.env` を更新し、サーバーを再起動 |
 | `proxy_signature_missing` *（続けて不足ヘッダー名が表示）* | Discord のプロキシ署名ヘッダーが付いていない（`/api/token` では発生しません。ほかのルートでも `REQUIRE_PROXY_SIGNATURE=1` のときだけ出ます） | `.env` で `REQUIRE_PROXY_SIGNATURE=0` に戻してサーバーを再起動し、報告してください |
 | `timestamp_skew` / `proxy_expired` | Mac の時計がずれている、または通信の期限が切れた | macOS の **システム設定 → 一般 → 日付と時刻** で自動設定をオンにし、Activity を開き直す |

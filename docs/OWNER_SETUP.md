@@ -226,7 +226,7 @@ A **`.env` file** is a local text file in your project folder that stores settin
    | `ALLOWED_GUILD_IDS` | Yes | No | Your test server ID (comma-separated if more than one) |
    | `OWNER_IDS` | Yes | No | Your Discord User ID (comma-separated if more than one) |
    | `TEST_GUILD_ID` | Yes | No | Your test server ID |
-   | `REQUIRE_APPROVAL` | Yes | No | `1` = new servers wait for owner approval; `0` = auto-approved |
+   | `REQUIRE_APPROVAL` | Yes | No | `1` / `0`. Servers listed in `ALLOWED_GUILD_IDS` are always approved; this setting does not change that |
    | `UTC_OFFSET_HOURS` | Yes | No | Daily reset timezone offset (`9` for JST) |
    | `SESSION_SECRET` | Yes | **Yes** | Output of `openssl rand -hex 32` (at least 32 characters) |
    | `PUBLIC_API_ORIGIN` | Yes | No | Use `https://localhost` for now (checked at startup, not yet used; with a custom domain later, use `https://api.example.com`) |
@@ -400,7 +400,7 @@ If you just changed any URL Mappings, **reload Discord first** (`Cmd+R` on macOS
 | `code_exchange_failed:401` | Wrong `DISCORD_CLIENT_SECRET` (often the **Bot Token** was pasted by mistake) | Go to **Developer Portal → OAuth2 → Client Secret**, copy or reset it, update `.env`, and restart the server |
 | `code_exchange_failed:400` | `DISCORD_CLIENT_ID` mismatch between `.env` and Cloudflare Pages (`VITE_DISCORD_CLIENT_ID`), or an expired auth code | Verify both match `APP_ID` (redeploy Pages if edited), restart the server if `.env` changed, and reopen the Activity |
 | `guild_not_allowed` (or `guild_denied`) | This server ID is not in `ALLOWED_GUILD_IDS` | Copy the server ID, add it to `ALLOWED_GUILD_IDS` in `.env`, and restart the server |
-| `guild_pending` | `REQUIRE_APPROVAL=1` and the server has not been approved yet | Set `REQUIRE_APPROVAL=0` in `.env` (or approve the server), then restart the server |
+| `guild_pending` | Only for a server that is not in `ALLOWED_GUILD_IDS`, which is refused as `guild_not_allowed` first; servers you list there are approved automatically | Add the server ID to `ALLOWED_GUILD_IDS`, then restart the server |
 | `proxy_signature_invalid` | Wrong `DISCORD_PUBLIC_KEY` in `.env` | Copy the 64-character **Public Key** from **Developer Portal → General Information**, update `.env`, and restart the server |
 | `proxy_signature_missing` *(followed by missing header names)* | Request arrived without Discord's proxy headers (cannot happen on `/api/token`; on other routes it only appears when `REQUIRE_PROXY_SIGNATURE=1`) | Set `REQUIRE_PROXY_SIGNATURE=0` in `.env`, restart the server, and report it |
 | `timestamp_skew` / `proxy_expired` | Your Mac's clock is off or the request expired | Turn on automatic date and time in macOS **System Settings → General → Date & Time**, then reopen the Activity |

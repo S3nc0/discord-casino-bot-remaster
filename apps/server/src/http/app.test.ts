@@ -207,6 +207,16 @@ describe('POST /api/token', () => {
     expect(server.economy.hasAccount(OTHER_GUILD, USER)).toBe(false);
   });
 
+  it('REQUIRE_APPROVAL=1 still answers guild_not_allowed outside ALLOWED_GUILD_IDS', async () => {
+    server = createTestServer({
+      env: { REQUIRE_APPROVAL: '1' },
+      discord: { guilds: [{ id: OTHER_GUILD, name: 'Elsewhere' }] },
+    });
+    const res = await token({ guildId: OTHER_GUILD });
+    expect(res.json()).toEqual({ error: 'guild_not_allowed' });
+    expect(server.identity.getGuildStatus(OTHER_GUILD)).toBeNull();
+  });
+
   it('403 when the instance is not live, belongs to another guild, or does not include the user', async () => {
     for (const instance of [
       null,
@@ -224,18 +234,23 @@ describe('POST /api/token', () => {
     server = createTestServer();
   });
 
-  it('REQUIRE_APPROVAL=1 holds a new guild as pending until it is approved', async () => {
+  it('REQUIRE_APPROVAL=1 does not hold an allowlisted guild: it is approved on sight', async () => {
     server = createTestServer({ env: { REQUIRE_APPROVAL: '1' } });
-    const pending = await token();
-    expect(pending.statusCode).toBe(403);
-    expect(pending.json()).toEqual({ error: 'guild_pending' });
-    expect(server.identity.getGuildStatus(GUILD)).toBe('pending');
-    expect(server.economy.hasAccount(GUILD, USER)).toBe(false);
-
-    server.identity.setGuildStatus(GUILD, 'approved', USER);
     expect((await token()).statusCode).toBe(200);
+    expect(server.identity.getGuildStatus(GUILD)).toBe('approved');
+    expect(server.economy.hasAccount(GUILD, USER)).toBe(true);
+  });
 
-    server.identity.setGuildStatus(GUILD, 'denied', USER);
+  it('REQUIRE_APPROVAL=1 turns a leftover pending row of an allowlisted guild into approved', async () => {
+    server = createTestServer({ env: { REQUIRE_APPROVAL: '1' } });
+    server.identity.ensureGuild(GUILD, 'pending');
+    expect((await token()).statusCode).toBe(200);
+    expect(server.identity.getGuildStatus(GUILD)).toBe('approved');
+  });
+
+  it('an explicit denial of an allowlisted guild still refuses it', async () => {
+    server = createTestServer({ env: { REQUIRE_APPROVAL: '1' } });
+    server.identity.ensureGuild(GUILD, 'denied');
     const denied = await token();
     expect(denied.statusCode).toBe(403);
     expect(denied.json()).toEqual({ error: 'guild_not_allowed' });
