@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { SERVER_ENV_DEFAULTS } from '@casino/shared';
 import { ConfigError, loadConfig } from './config.ts';
 
 const valid = {
@@ -25,6 +26,43 @@ describe('loadConfig', () => {
     expect(config.enforceProxySignatures).toBe(true);
     expect(config.port).toBe(3001);
     expect(config.host).toBe('127.0.0.1');
+  });
+
+  it('takes the optional keys from the shared defaults', () => {
+    const config = loadConfig(valid);
+    expect(config).toMatchObject({
+      nodeEnv: SERVER_ENV_DEFAULTS.NODE_ENV,
+      port: Number(SERVER_ENV_DEFAULTS.PORT),
+      host: SERVER_ENV_DEFAULTS.HOST,
+      databasePath: SERVER_ENV_DEFAULTS.DATABASE_PATH,
+      logLevel: SERVER_ENV_DEFAULTS.LOG_LEVEL,
+    });
+    expect(config.databasePath).not.toContain('casino.db');
+  });
+
+  it('reads PORT, HOST, DATABASE_PATH and LOG_LEVEL when set, and validates them', () => {
+    const config = loadConfig({
+      ...valid,
+      PORT: '4000',
+      HOST: '0.0.0.0',
+      DATABASE_PATH: '/var/lib/casino.sqlite',
+      LOG_LEVEL: 'debug',
+    });
+    expect(config).toMatchObject({
+      port: 4000,
+      host: '0.0.0.0',
+      databasePath: '/var/lib/casino.sqlite',
+      logLevel: 'debug',
+    });
+    for (const bad of [
+      { PORT: '70000' },
+      { PORT: 'x' },
+      { HOST: 'a b' },
+      { LOG_LEVEL: 'loud' },
+      { DATABASE_PATH: '' },
+    ]) {
+      expect(() => loadConfig({ ...valid, ...bad })).toThrow(ConfigError);
+    }
   });
 
   it('only NODE_ENV=development switches proxy signatures off', () => {
