@@ -97,7 +97,8 @@ guild, balance and locale together at start and after a reconnect, and `balance:
 the balance fresh afterwards. One call, one schema.
 
 **Decision: settings are global per user.** `UserSettings` (language `auto|en|ja`, theme
-`discord|light|dark`, sound on/off with SFX and music volume 0–100, default 30, motion on/off)
+`discord|light|dark`, sound on/off with SFX and music volume 0–100, default 30, motion
+`system|full|reduced`, where `system` follows `prefers-reduced-motion`)
 describes the person and their device, not an account in one guild's economy; a player in two
 guilds expects the same app. Audio stays muted until the first user gesture even when sound is
 on. After a change the client re-runs `resolveLocale` with `localeHints`; the token's `loc`
@@ -137,8 +138,9 @@ DB_SCHEMA.md and fails on any Pelica difference. Never run both bots on one toke
 
 `.env` lives only on the owner's machine; `.env.example` holds placeholders and must satisfy
 `ServerEnv` (tested). The server validates env at start-up. Optional keys have
-`SERVER_ENV_DEFAULTS`: `PORT` 3001, `HOST` `127.0.0.1`, `DATABASE_PATH` `./data/casino.db`,
-`LOG_LEVEL` `info`, `NODE_ENV` `production`. `HOST` stays on loopback: the tunnel connects
+`SERVER_ENV_DEFAULTS`: `PORT` 3001, `HOST` `127.0.0.1`, `DATABASE_PATH` `./data/casino.sqlite`
+(never the legacy `data/casino.db`, which only the importer reads), `LOG_LEVEL` `info`,
+`NODE_ENV` `production`. `HOST` stays on loopback: the tunnel connects
 locally and `trustProxy` is on, so a directly reachable server would accept forged
 `X-Forwarded-For` (a container is the only reason to bind elsewhere). Pino `redact.paths`:
 `req.headers.authorization`, `req.headers.cookie`, `req.headers["x-discord-proxy-payload"]`,
