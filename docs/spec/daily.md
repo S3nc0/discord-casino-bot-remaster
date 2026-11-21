@@ -51,13 +51,13 @@ Planned owner: `B2-B` | Screen ID: `daily` (`packages/shared/src/ids.ts`) | Feat
    - `amount = round(amount * (1 + relic_buffs.get("daily", 0.0)))` (Python `round()`, banker's rounding; applies AFTER `daily_double`).
 4. Teiai debt skim (`infra/db/wallet.py:164-175`):
    - Calls `debt_before = account.debt(gid, user_id)` (accrues daily debt interest first!).
-   - If `debt_before > 0`: `skimmed = teiai.skim(amount)` (see `docs/spec/teiai.md` — 50% skim on daily while in debt, does NOT reduce debt principal).
+   - If `debt_before > 0`: `skimmed = teiai.skim(amount)` (see `docs/spec/teiai.md` — 20% skim (`skim_rate = 0.20`) on daily while in debt, does NOT reduce debt principal).
    - If `skimmed > 0`: logs a 0-delta ledger row `"帝愛のピンハネ（デイリー {skimmed:,}ペリカ）"` and credits `skimmed` to the Teiai house account (`house_income_for`).
 5. Net credit & Teiai debt repayment withholding (`infra/db/wallet.py:175-183`):
    - `credit = amount - skimmed`.
    - Calls `account.apply(gid, user_id, credit, reason, income=credit)`.
    - Ledger reason: `f"デイリー（{streak}日連続{'・2倍券' if boosted else ''}{'・連続守り券' + str(guarded) + '枚' if guarded else ''}）"`.
-   - Because `income=credit`, `withhold_income` automatically withholds 50% of `credit` toward Teiai debt if in debt (`repaid = debt_before - account.debt(gid, user_id)`).
+   - Because `income=credit`, `withhold_income` automatically withholds 30% (`repay_rate = 0.30`) of `credit` toward Teiai debt if in debt (`repaid = debt_before - account.debt(gid, user_id)`).
 6. Seed loan top-up (`infra/db/wallet.py:184`):
    - `seed = debt.topup_seed_for(gid, user_id)`: if in debt and cash balance is below the seed threshold, Teiai automatically lends seed money up to the cap (adds to debt).
 7. Persistence (`infra/db/wallet.py:185-188`):

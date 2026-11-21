@@ -45,7 +45,7 @@ Covers: **per-guild economy**, **3,000 initial balance**, `AccountCore` ledger &
 - `apply(guild_id, user_id, delta, reason, income=0)` (`infra/db/account.py:58-67`):
   - Floor clamp: `after = max(0, before + delta)` (cash balance never goes negative).
   - Writes a ledger row ONLY if `after != before`, recording `actual_delta = after - before`.
-  - If `delta > 0 and income > 0`: calls `debt_hook.withhold_income(guild_id, user_id, min(income, delta))` (automatically withholds 50% toward Teiai debt if in debt; see `docs/spec/teiai.md`).
+  - If `delta > 0 and income > 0`: calls `debt_hook.withhold_income(guild_id, user_id, min(income, delta))` (automatically withholds 30% (`repay_rate = 0.30`) toward Teiai debt if in debt; see `docs/spec/teiai.md`).
   - Returns final net balance change `raw_balance - before` (i.e. after withholding).
 - Admin `set_balance(user_id, amount, reason)` (`infra/db/wallet.py:71-99`):
   - `amount >= 0`: sets cash balance to `amount` (`income=0`, no withholding, debt untouched).

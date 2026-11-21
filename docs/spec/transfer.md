@@ -44,7 +44,7 @@ Planned owner: `B2-B` | Screen ID: `transfer` (`packages/shared/src/ids.ts`) | F
 ### Ledger Execution (`infra/db/wallet.py:349-355`)
 1. `account.apply(gid, sender, -amount, f"送金（送）→{receiver}")` (no `income`)
 2. If `fee > 0`: `account.apply(gid, sender, -fee, "送金手数料")` (separate row so `sent_today` sums principal only; `domain/history.py:62-64` folds this row back into the transfer line for display)
-3. `account.apply(gid, receiver, amount, f"送金（受）←{sender}", income=amount)` — note `income=amount` means if the receiver has Teiai debt, 50% of the received amount is automatically withheld for debt repayment!
+3. `account.apply(gid, receiver, amount, f"送金（受）←{sender}", income=amount)` — note `income=amount` means if the receiver has Teiai debt, 30% (`repay_rate = 0.30`) of the received amount is automatically withheld for debt repayment!
 
 ## State Machine
 - `IDLE` --(`/ペリカ 送金`)--> `LOCKED` (user session acquired)
@@ -54,9 +54,9 @@ Planned owner: `B2-B` | Screen ID: `transfer` (`packages/shared/src/ids.ts`) | F
 
 ## Edge Cases
 - Sending to an unregistered user triggers `account.ensure(gid, receiver)` BEFORE checking `games_played`/`daily_limit`/`debt`/`balance` (`infra/db/wallet.py:325-326`), which creates the receiver's account with `3,000` even if the transfer subsequently fails on validation! (Important legacy quirk.)
-- Receivers in debt CAN receive transfers; the received amount triggers `withhold_income` (50% debt repayment) because `income=amount`.
+- Receivers in debt CAN receive transfers; the received amount triggers `withhold_income` (30% debt repayment, `repay_rate = 0.30`) because `income=amount`.
 - Senders in debt CANNOT send transfers (`debt_blocks`).
-- Senders are NOT blocked by bankruptcy grace directly via `grace_lock`, because anyone in bankruptcy grace has `debt >= 100,000 > 0` and is already blocked by `debt_blocks`.
+- Senders are NOT blocked by bankruptcy grace directly via `grace_lock`, because anyone in bankruptcy grace has `debt >= 15,000` (`grace_debt = 15,000`) `> 0` and is already blocked by `debt_blocks`.
 - Pre-check in Cog calls `balance_of` (which calls `ensure`), so an unregistered sender gets their 3,000 account created before `transfer()` runs.
 
 ## User-Facing Japanese Strings (Verbatim)
