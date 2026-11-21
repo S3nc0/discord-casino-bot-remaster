@@ -18,12 +18,14 @@ Current wave: 1 — Groundwork
 
 | Task | Scope | Owner | State |
 | --- | --- | --- | --- |
-| 1.1 | Spec extraction + legacy fixtures | S1 | in progress |
-| 1.2 | Server core (Fastify, auth, sessions, Socket.io rooms, SQLite, EconomyService, importer skeleton) | B1 | in progress |
-| 1.3 | UI kit + ui-cheatsheet | F1 | in progress |
-| 1.4 | Activity shell | F4 | in progress |
-| 1.5 | Ops (pi-sim, pi kit, tunnel template, dev runner, backups, arm64 CI) | O1 | in progress |
-| Checkpoint 1 | Owner checkpoint (Developer Portal, .env, Pages project, tunnel) | Owner | todo (after O1's OWNER_SETUP.md) |
+| 1.1 | Spec extraction + legacy fixtures | S1 | done (PR #14) |
+| 1.2 | Server core (Fastify, auth, sessions, Socket.io rooms, SQLite, EconomyService, importer skeleton) | B1 | done (PR #9, #12) |
+| 1.3 | UI kit + ui-cheatsheet | F1 | done (PR #6) |
+| 1.4 | Activity shell | F4 | done (PR #8, #13) |
+| 1.5 | Ops (pi-sim, pi kit, tunnel template, dev runner, backups, arm64 CI) | O1 | done (PR #5, #7, #11) |
+| 1.A1 | Contract update | A1 | done (PR #10) |
+| 1.A1b | Ledger reasons + ids from spec | A1 | in progress |
+| Checkpoint 1 | Owner checkpoint (Developer Portal, .env, Pages project, tunnel) | Owner | waiting on owner |
 | Gate 1 | Wave 1 gate | Leader | todo |
 
 ## Wave 2 — Features
@@ -62,4 +64,4 @@ Current wave: 1 — Groundwork
 
 ## Blockers
 
-None.
+Gate 1 waits on owner setup (docs/OWNER_SETUP.md). Open decision: horse breeding (not in legacy).
