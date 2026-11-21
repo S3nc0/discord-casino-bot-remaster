@@ -53,8 +53,7 @@ class HorseRepo(ScopedRepo, IHorseRepo):
 
     def horse_get_for(self, guild_id: int, horse_id: int) -> Optional[dict[str, Any]]:
         with self._lock:
-            r = self._conn.execute("SELECT * FROM horses WHERE id=? AND guild_id=?", (horse_id, guild_id)).fetchone()
-            return dict(r) if r else None
+            return self._one("SELECT * FROM horses WHERE id=? AND guild_id=?", (horse_id, guild_id))
 
     def horse_worth(self, races: int, wins: int, places: int) -> int:
         """馬1頭の評価額: 購入価格に、いま引退したときの引退金（成績が悪ければ引退費用）を足す。0 未満にはしない。"""
@@ -83,7 +82,7 @@ class HorseRepo(ScopedRepo, IHorseRepo):
             )
             return True, cur.lastrowid
 
-    def horse_list(self, user_id: int) -> list[Any]:
+    def horse_list(self, user_id: int) -> list[dict[str, Any]]:
         with self._lock:
             return [
                 dict(r)
@@ -205,7 +204,7 @@ class HorseRepo(ScopedRepo, IHorseRepo):
     def horse_auction_price(self, listed_at: float, now: float) -> int:
         return max(1, round(self.HORSE_PRICE * teiai.auction_rate(listed_at, now)))
 
-    def auction_horses(self, now: float) -> list[Any]:
+    def auction_horses(self, now: float) -> list[dict[str, Any]]:
         """帝愛の競売に出ている馬。[{馬の行, price, rate}]（出品の早い順）。"""
         with self._lock:
             rows = self._conn.execute(

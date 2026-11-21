@@ -6,7 +6,7 @@
 
 import json
 import random
-from typing import Any, Optional
+from typing import Any, Optional, cast
 
 from domain import labor as labor_mod
 from domain import relics as relics_mod
@@ -82,7 +82,9 @@ class LaborRepo(ScopedRepo, ILaborRepo):
         )
         return bool(cur.rowcount)
 
-    def _labor_row(self, guild_id: int, user_id: int, now: float, day: str, rng: Any = None) -> dict[str, Any]:
+    def _labor_row(
+        self, guild_id: int, user_id: int, now: float, day: str, rng: Optional[random.Random] = None
+    ) -> dict[str, Any]:
         """行を読む（無ければ作る）。日が変わっていたら、今日の稼ぎを 0 に戻し、疲労は時間で回復させる。呼び出し側のトランザクション内で使う。
 
         作業員の稼ぎと契約も、ここで決算する（稼ぎは pot に足し、契約が切れた人は、更新か退職）。
@@ -121,7 +123,7 @@ class LaborRepo(ScopedRepo, ILaborRepo):
             (guild_id, user_id, guild_id, user_id, self.FINDS_KEEP),
         )
 
-    def labor_finds(self, user_id: int, limit: int = 6) -> list[Any]:
+    def labor_finds(self, user_id: int, limit: int = 6) -> list[dict[str, Any]]:
         """最近の掘り出し（石炭は除く）。すでにペリカ等を受け取り済みのものは出さない。新しい順。[{at, kind, ore}]。"""
         with self._lock:
             return [
@@ -143,7 +145,13 @@ class LaborRepo(ScopedRepo, ILaborRepo):
         ]
 
     def _idle_settle(
-        self, guild_id: int, user_id: int, row: dict[str, Any], now: float, buffs: dict[str, float], rng: Any = None
+        self,
+        guild_id: int,
+        user_id: int,
+        row: dict[str, Any],
+        now: float,
+        buffs: dict[str, float],
+        rng: Optional[random.Random] = None,
     ) -> None:
         """作業員の稼ぎを pot に足し、切れた契約を決算する（更新なら契約料を払い、払えなければ退職）。"""
         workers = self._workers_of(guild_id, user_id)
@@ -350,9 +358,11 @@ class LaborRepo(ScopedRepo, ILaborRepo):
         )
         return {"rows": rows, "me": me}
 
-    def labor_click(self, user_id: int, now: float, day: str = "", rng: Any = None) -> dict[str, Any]:
+    def labor_click(
+        self, user_id: int, now: float, day: str = "", rng: Optional[random.Random] = None
+    ) -> dict[str, Any]:
         """「働く」を1回押す。{ok, reason, pay, crit（鉱脈ヒットか）, ore（手掘りの鉱石。無ければ None）, combo（コンボ達成か）, terrain（今日の地層）}。"""
-        rng = rng or random
+        rng = rng or cast("random.Random", random)
         with self._db.tx():
             gid = self._g()
             self._account.ensure(gid, user_id)
@@ -432,7 +442,7 @@ class LaborRepo(ScopedRepo, ILaborRepo):
         if hour % 24 == 0:  # 古い記録は、1日1回ほど掃除する
             self._conn.execute("DELETE FROM labor_click_hours WHERE hour<?", (hour - self.CLICK_LOG_DAYS * 24,))
 
-    def labor_click_hours(self, user_id: int, since: float) -> list[Any]:
+    def labor_click_hours(self, user_id: int, since: float) -> list[dict[str, Any]]:
         """since 以降の、1時間ごとの押した記録（古い順）。"""
         with self._lock:
             return [
@@ -444,7 +454,7 @@ class LaborRepo(ScopedRepo, ILaborRepo):
                 )
             ]
 
-    def labor_collect(self, user_id: int, now: float, day: str = "", detail: bool = False) -> Any:
+    def labor_collect(self, user_id: int, now: float, day: str = "", detail: bool = False) -> int | dict[str, Any]:
         """受け取る前の稼ぎから、帝愛のピンハネを引いて、残高に移す。移した額（借金の天引きの前）を返す。
 
         detail=True なら {amount（移した額）, skimmed（帝愛のピンハネ）, donated（これまでの寄付の合計）, ores（掘った鉱石）, relics（見つけた発掘品）}。

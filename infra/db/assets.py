@@ -6,28 +6,30 @@
 
 import json
 from collections.abc import Callable
-from typing import Any, Optional
+from typing import Optional
 
 from domain import horse as horse_mod
 from domain import labor as labor_mod
 from domain import shop
 from domain.ports.bridges import (
     AddAssetPart,
-    CompositeAssetCollector,  # noqa: F401
     IAssetCollector,
     IOverdueLoanCollector,
     IValuationSource,
 )
+from domain.ports.bridges import (
+    CompositeAssetCollector as CompositeAssetCollector,
+)
 from domain.ports.contracts import RankEntry
 from domain.ports.repos import IAssetRepo
 from domain.types import (
-    FIXED_KEYS as FIXED_KEYS,  # noqa: F401
+    FIXED_KEYS as FIXED_KEYS,
 )
 from domain.types import (
-    LIABILITY_KEYS as LIABILITY_KEYS,  # noqa: F401
+    LIABILITY_KEYS as LIABILITY_KEYS,
 )
 from domain.types import (
-    LIQUID_KEYS as LIQUID_KEYS,  # noqa: F401
+    LIQUID_KEYS as LIQUID_KEYS,
 )
 from domain.types import PART_KEYS
 from infra.db.base import EcoDb, ScopedRepo
@@ -191,7 +193,9 @@ class AssetRepo(ScopedRepo, IAssetRepo):
             self._collector.collect(g, add, now)
         return parts
 
-    def final_assets(self, user_ids: Optional[set[Any]] = None, now: Optional[float] = None) -> list[Any]:
+    def final_assets(
+        self, user_ids: Optional[set[int]] = None, now: Optional[float] = None
+    ) -> list[tuple[int, int, dict[str, int]]]:
         """[(ユーザーID, ファイナル総資産, 内訳)] を多い順に（同額はユーザーID順）。user_ids を渡すと、その人たちだけ。"""
         out = [
             (uid, sum(p.values()), p)
@@ -200,11 +204,11 @@ class AssetRepo(ScopedRepo, IAssetRepo):
         ]
         return sorted(out, key=lambda t: (-t[1], t[0]))
 
-    def final_top(self, limit: int = 10, user_ids: Optional[set[Any]] = None) -> list[Any]:
+    def final_top(self, limit: int = 10, user_ids: Optional[set[int]] = None) -> list[RankEntry]:
         """[(順位, ユーザーID, ファイナル総資産), ...]。"""
         return [(i + 1, uid, total) for i, (uid, total, _p) in enumerate(self.final_assets(user_ids)[:limit])]
 
-    def final_rank_of(self, user_id: int, user_ids: Optional[set[Any]] = None) -> Optional[RankEntry]:
+    def final_rank_of(self, user_id: int, user_ids: Optional[set[int]] = None) -> Optional[RankEntry]:
         """(順位, ファイナル総資産, 対象人数)。登録がなければ None。"""
         ranked = self.final_assets(user_ids)
         for i, (uid, total, _p) in enumerate(ranked):

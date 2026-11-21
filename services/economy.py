@@ -4,6 +4,7 @@ import datetime
 from dataclasses import dataclass
 from typing import Any, Optional
 
+from domain import missions as missions_mod
 from domain.earnings import MemoInfo
 from domain.ports.clock import IClock
 from domain.ports.repos import (
@@ -37,7 +38,7 @@ class BalanceCard:
 class MissionBoard:
     """`/ペリカ ミッション` に出す値。"""
 
-    status: list[Any]
+    status: list[tuple[missions_mod.Mission, int, bool]]
     win_streak: int
     best_streak: int
     next_reset: datetime.datetime
@@ -81,7 +82,7 @@ class EconomyService:
         stats = self._wallet.for_guild(guild_id).peek_stats(user_id)
         return stats["balance"] if stats else INITIAL_BALANCE
 
-    def history(self, guild_id: int, user_id: int, limit: int) -> list[Any]:
+    def history(self, guild_id: int, user_id: int, limit: int) -> list[dict[str, Any]]:
         return self._wallet.for_guild(guild_id).history(user_id, limit)
 
     def balance_card(self, guild_id: int, viewer_id: int, target_id: int) -> Optional[BalanceCard]:

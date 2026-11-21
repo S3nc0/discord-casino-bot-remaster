@@ -31,7 +31,9 @@ class EarningsRepo(ScopedRepo, IEarningsRepo):
         self._account = account
         self._bank = bank
 
-    def earnings_ensure(self, now: float, tz_hours: float, rng: Any = None) -> Optional[dict[str, Any]]:
+    def earnings_ensure(
+        self, now: float, tz_hours: float, rng: Optional[random.Random] = None
+    ) -> Optional[dict[str, Any]]:
         """発表前の決算が無ければ、次の決算を決めて登録する。登録したら、その行を返す。"""
         rng = rng or random.SystemRandom()
         with self._db.tx():
@@ -45,7 +47,7 @@ class EarningsRepo(ScopedRepo, IEarningsRepo):
             self._conn.execute("DELETE FROM earnings WHERE released=1 AND release_at<?", (now - 30 * 86400,))
             return {**p, "id": cur.lastrowid}
 
-    def earnings_jumps(self, now: float, seconds: float) -> list[Any]:
+    def earnings_jumps(self, now: float, seconds: float) -> list[dict[str, Any]]:
         """now から seconds 秒の間に発表がある決算を、オプションの値付け用の形にする（対象・発表の時刻・分散）。方向は入れない。"""
         with self._lock:
             return [
@@ -59,14 +61,13 @@ class EarningsRepo(ScopedRepo, IEarningsRepo):
     def earnings_upcoming(self, now: float) -> Optional[dict[str, Any]]:
         """みんなに告知ずみの、発表前の決算（対象と時刻だけ。方向と大きさは入れない）。月曜 9:00 までは None。"""
         with self._lock:
-            r = self._conn.execute(
+            return self._one(
                 "SELECT id, symbol, announce_at, release_at FROM earnings WHERE released=0 AND announce_at<=? "
                 "ORDER BY release_at LIMIT 1",
                 (now,),
-            ).fetchone()
-            return dict(r) if r else None
+            )
 
-    def earnings_to_announce(self, now: float) -> list[Any]:
+    def earnings_to_announce(self, now: float) -> list[dict[str, Any]]:
         """告知の時刻を過ぎて、まだ告知していない決算。呼ぶと、告知ずみにする。"""
         with self._db.tx():
             rows = [
@@ -80,7 +81,7 @@ class EarningsRepo(ScopedRepo, IEarningsRepo):
                 self._conn.execute("UPDATE earnings SET announced=1 WHERE id=?", (r["id"],))
             return rows
 
-    def earnings_release_due(self, now: float) -> list[Any]:
+    def earnings_release_due(self, now: float) -> list[dict[str, Any]]:
         """発表の時刻を過ぎた決算（まだ発表していないもの）を、発表ずみにして返す。理論価格に反映するのは、呼び出し側。"""
         with self._db.tx():
             rows = [
@@ -93,7 +94,7 @@ class EarningsRepo(ScopedRepo, IEarningsRepo):
                 self._conn.execute("UPDATE earnings SET released=1 WHERE id=?", (r["id"],))
             return rows
 
-    def earnings_memo(self, user_id: int, now: float, rng: Any = None) -> Optional[ea.MemoInfo]:
+    def earnings_memo(self, user_id: int, now: float, rng: Optional[random.Random] = None) -> Optional[ea.MemoInfo]:
         """デイリーのあとに、確率で届く、裏情報メモ。発表前の決算が無い・発表まで MEMO_LEAD_HOURS より先・
         この決算のメモをもう受け取っている・抽選に外れたら None。"""
         rng = rng or random.SystemRandom()
@@ -134,7 +135,7 @@ class EarningsRepo(ScopedRepo, IEarningsRepo):
             ).fetchone()[0]
             return {"left": max(0, ea.SHOP_STOCK - sold), "total": ea.SHOP_STOCK}
 
-    def insider_buy(self, user_id: int, now: float, rng: Any = None) -> tuple[Any, ...]:
+    def insider_buy(self, user_id: int, now: float, rng: Optional[random.Random] = None) -> tuple[Any, ...]:
         """帝愛市で、裏情報メモを買う。(成功か, 理由かメモの文)。決算ごとに1人1枚、サーバーで SHOP_STOCK 枚まで。"""
         rng = rng or random.SystemRandom()
         price = shop_mod.BY_ID[shop_mod.INSIDER_MEMO].price

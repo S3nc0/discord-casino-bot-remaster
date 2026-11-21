@@ -25,7 +25,7 @@ class RecordRepo(ScopedRepo, IRecordRepo):
         self._account = account
 
     def record_play(
-        self, user_id: int, game: str, bet: int, net: int, day: datetime.date, tags: Iterable[Any] = ()
+        self, user_id: int, game: str, bet: int, net: int, day: datetime.date, tags: Iterable[str] = ()
     ) -> dict[str, Any]:
         """1回遊んだ結果を記録する。連勝を更新し、デイリーミッションを進めて、達成した分の報酬を渡す。"""
         with self._db.tx():
@@ -114,7 +114,7 @@ class RecordRepo(ScopedRepo, IRecordRepo):
                 out.append((m, r["progress"] if r else 0, bool(r and r["done"])))
             return out
 
-    def weekly_top(self, week: str, limit: int = 10) -> list[Any]:
+    def weekly_top(self, week: str, limit: int = 10) -> list[tuple[int, int, int]]:
         """[(ユーザーID, 稼ぎ, ゲーム数), ...]。その週の稼ぎが多い順（同じなら、ゲーム数が少ない順）。"""
         with self._lock:
             return [

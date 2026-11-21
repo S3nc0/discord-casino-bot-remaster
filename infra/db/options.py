@@ -10,7 +10,7 @@ from typing import Any, Optional
 from domain import market as market_mod
 from domain import options as opt
 from domain.errors import fail
-from domain.options import name_of as name_of  # noqa: F401
+from domain.options import name_of as name_of
 from domain.ports.bridges import IBankCashFlow, IDebtOps, IOptionHoldings, NoOpDebtOps
 from domain.ports.contracts import HoldingBook
 from domain.ports.repos import IOptionRepo
@@ -211,7 +211,7 @@ class OptionRepo(ScopedRepo, IOptionRepo, IOptionHoldings):
                 "spot": spot,
             }
 
-    def option_close_cost(self, row: Any, now: float, prices: dict[str, Any]) -> int:
+    def option_close_cost(self, row: dict[str, Any], now: float, prices: dict[str, Any]) -> int:
         """裸売りを、いま買い戻すのにかかる額（買値。満期を過ぎていれば、満期の配当そのもの）。"""
         spot = prices.get(row["symbol"])
         if spot is None:
@@ -223,7 +223,7 @@ class OptionRepo(ScopedRepo, IOptionRepo, IOptionHoldings):
         )
         return math.ceil(round(ask * row["units"], 6))
 
-    def option_value(self, row: Any, now: float, prices: dict[str, Any]) -> int:
+    def option_value(self, row: dict[str, Any], now: float, prices: dict[str, Any]) -> int:
         """いま手放したときの価値。買いは売値の手取り（満期を過ぎていれば、満期の価格での配当）。裸売りは、証拠金 − 買い戻しの費用（マイナスもある）。"""
         if row["side"] == "short":
             return row["margin"] - self.option_close_cost(row, now, prices)

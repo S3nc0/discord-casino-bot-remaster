@@ -253,7 +253,7 @@ def _mult(r: Runner, p: float, track: Track, luck: float, spurt: float, style: s
     return m * FORM_MULT[r.form] * (1 + luck)
 
 
-def simulate(runners: list, track: Track, rng: random.Random, keep_frames: bool = False) -> dict[str, Any]:
+def simulate(runners: list[Runner], track: Track, rng: random.Random, keep_frames: bool = False) -> dict[str, Any]:
     """1レース走らせる。{"order": 着順（lane の並び）, "times": 着順ごとのゴール時刻, "frames": ティックごとの進み（keep_frames のとき）}。"""
     n = len(runners)
     pos = [0.0] * n
@@ -329,7 +329,7 @@ FORM_ODDS = {f.value: f.odds_mult for f in _CFG.forms}
 PLACE_CAP = _CFG.place_cap
 
 
-def npc_record(rng: random.Random) -> tuple:
+def npc_record(rng: random.Random) -> tuple[int, int, int]:
     """帝愛の馬の、作りものの戦績 (出走数, 勝ち数, 3着以内の数)。強さとは関係なく、平均的な成績のまわりでばらつく。"""
     races = rng.randint(0, 12)
     wins = sum(rng.random() < 1 / FIELD_SIZE for _ in range(races))
@@ -408,7 +408,7 @@ def _blended_probs(runners: list, track: Optional[Track]) -> tuple:
     )
 
 
-def make_all_odds(runners: list, track: Optional[Track] = None) -> dict:
+def make_all_odds(runners: list[Runner], track: Optional[Track] = None) -> dict[str, dict[str, float]]:
     """全部の馬券のオッズ。{"win": {枠: オッズ}, "place": {枠: オッズ}, "quinella": {キー: オッズ}, …}。
 
     単勝は勝つ確率の見積もり、複勝は3着以内率の見積もり（戦績と、track があればそのコースでの試走を混ぜる）。
@@ -455,7 +455,7 @@ def make_all_odds(runners: list, track: Optional[Track] = None) -> dict:
     return out
 
 
-def make_odds(runners: list) -> list:
+def make_odds(runners: list[Runner]) -> list[tuple[float, float]]:
     """[(単勝のオッズ, 複勝のオッズ)] を、出走馬の並びで返す。"""
     odds = make_all_odds(runners)
     return [(odds["win"][str(r.lane)], odds["place"][str(r.lane)]) for r in runners]

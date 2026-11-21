@@ -1,6 +1,7 @@
 """ゲーム共通の流れ: 賭け金の検証と預かり、精算、ボタンの持ち主確認、結果の表示。"""
 
 import logging
+from collections.abc import Iterable
 from dataclasses import dataclass
 from typing import Any
 
@@ -10,7 +11,7 @@ from cogs.casino.texts import JACKPOT_ART, big_win_line, streak_line
 from cogs.shared import approval_guard, ui
 from cogs.shared.messages import format_notices
 from domain import features, missions, teiai
-from domain.games.rtplevel import MIN_BET as MIN_BET  # noqa: F401
+from domain.games.rtplevel import MIN_BET as MIN_BET
 from domain.ports.repos import IGuildRepo
 from services.casino import CasinoService
 from services.teiai import TeiaiService
@@ -71,7 +72,7 @@ class GameContext:
         payout: int,
         penalty: int = 0,
         keep_session: bool = False,
-        tags: Any = (),
+        tags: Iterable[str] = (),
         rtp_kind: str | None = None,
         rtp_done: bool = False,
     ) -> int:
