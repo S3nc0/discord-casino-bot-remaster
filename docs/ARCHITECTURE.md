@@ -55,6 +55,15 @@ does not verify with `DISCORD_PUBLIC_KEY` (`node:crypto`). It runs as a Fastify 
 for `/api/*` and in Socket.io `allowRequest` for the upgrade. It fails closed (401) unless
 `NODE_ENV=development`.
 
+Every 401/403 on the auth path logs one warn line `auth rejected: <reason>` with a stable
+`reason` and no secrets: `proxy_signature_missing:<absent headers>`, `proxy_signature_invalid`,
+`proxy_payload_invalid`, `timestamp_skew`, `proxy_expired`, `bearer_missing`, `session_invalid`,
+`session_revoked`, `session_expired`, `socket_auth_failed` (with `detail`), `scope_missing`,
+`user_not_in_guild`, `guild_not_allowed`, `guild_pending`, `instance_mismatch` and
+`code_exchange_failed:<status>` / `user_fetch_failed:<status>` / `guilds_fetch_failed:<status>` /
+`instance_fetch_failed:<status>` (Discord's HTTP status, or `network`). The response body carries
+`reason` only when `NODE_ENV` is not `production`.
+
 ## Server authority and idempotency
 
 All randomness is server-side (`cryptoRng`, `crypto.randomInt`). Clients send intents

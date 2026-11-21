@@ -26,6 +26,7 @@ import {
   type TableSnapshot,
 } from '@casino/shared';
 import type { Logger } from 'pino';
+import { REASONS, missingProxyHeaders, proxyReason } from '../auth/reasons.ts';
 import type { SessionService } from '../auth/sessions.ts';
 import type { IdentityRepo } from '../db/identity.ts';
 import type { InboxService } from '../db/inbox.ts';
@@ -174,15 +175,20 @@ export function attachSocketServer(options: SocketServerOptions): SocketServer {
         const value = request.headers[name];
         return typeof value === 'string' ? value : undefined;
       };
-      const result = verifier.verify(
-        {
-          signature: pick(PROXY_HEADERS.signature),
-          timestamp: pick(PROXY_HEADERS.timestamp),
-          payload: pick(PROXY_HEADERS.payload),
-        },
-        Math.floor(clock.now() / 1000),
-      );
-      if (!result.ok) logger.warn({ reason: result.reason }, 'socket proxy signature rejected');
+      const proxyHeaders = {
+        signature: pick(PROXY_HEADERS.signature),
+        timestamp: pick(PROXY_HEADERS.timestamp),
+        payload: pick(PROXY_HEADERS.payload),
+      };
+      const result = verifier.verify(proxyHeaders, Math.floor(clock.now() / 1000));
+      if (!result.ok) {
+        const reason = proxyReason(result.reason);
+        const absent = missingProxyHeaders(proxyHeaders);
+        logger.warn(
+          { reason, absentHeaders: absent, transport: 'socket' },
+          `auth rejected: ${reason}`,
+        );
+      }
       return callback(null, result.ok);
     },
   });
@@ -192,9 +198,26 @@ export function attachSocketServer(options: SocketServerOptions): SocketServer {
     const auth: unknown = socket.handshake.auth;
     const token =
       typeof auth === 'object' && auth !== null ? (auth as { token?: unknown }).token : undefined;
-    if (typeof token !== 'string' || token.length === 0) return next(rejection('unauthorized'));
+    if (typeof token !== 'string' || token.length === 0) {
+      logger.warn(
+        { reason: REASONS.socketAuthFailed, detail: REASONS.bearerMissing, transport: 'socket' },
+        `auth rejected: ${REASONS.socketAuthFailed}`,
+      );
+      return next(rejection('unauthorized'));
+    }
     const check = sessions.verify(token);
-    if (!check.ok) return next(rejection(check.reason === 'expired' ? 'expired' : 'unauthorized'));
+    if (!check.ok) {
+      const detail = {
+        expired: REASONS.sessionExpired,
+        revoked: REASONS.sessionRevoked,
+        invalid: REASONS.sessionInvalid,
+      }[check.reason];
+      logger.warn(
+        { reason: REASONS.socketAuthFailed, detail, transport: 'socket' },
+        `auth rejected: ${REASONS.socketAuthFailed}`,
+      );
+      return next(rejection(check.reason === 'expired' ? 'expired' : 'unauthorized'));
+    }
     const claims = check.claims;
     socket.data.userId = claims.sub;
     socket.data.guildId = claims.gid;
@@ -206,6 +229,10 @@ export function attachSocketServer(options: SocketServerOptions): SocketServer {
   });
 
   const expire = (socket: CasinoSocket): void => {
+    logger.warn(
+      { reason: REASONS.sessionExpired, transport: 'socket' },
+      `auth rejected: ${REASONS.sessionExpired}`,
+    );
     socket.emit('session:error', { error: 'expired' });
     socket.disconnect(true);
   };

@@ -23,10 +23,21 @@ export class AppError extends Error {
   readonly code: ErrorCode;
   readonly status: number;
   readonly retryAfterMs: number | undefined;
+  /**
+   * Stable, secret-free reason code for why an auth check said no (see `auth/reasons.ts`).
+   * Logged on every 401/403; in the response body only outside production.
+   */
+  readonly authReason: string | undefined;
 
   constructor(
     code: ErrorCode,
-    options: { message?: string; status?: number; retryAfterMs?: number; cause?: unknown } = {},
+    options: {
+      message?: string;
+      status?: number;
+      retryAfterMs?: number;
+      reason?: string;
+      cause?: unknown;
+    } = {},
   ) {
     super(
       options.message ?? code,
@@ -36,5 +47,6 @@ export class AppError extends Error {
     this.code = code;
     this.status = options.status ?? ERROR_STATUS[code];
     this.retryAfterMs = options.retryAfterMs;
+    this.authReason = options.reason;
   }
 }

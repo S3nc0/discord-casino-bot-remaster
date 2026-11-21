@@ -21,11 +21,14 @@ export interface HttpClient {
   request(request: HttpRequest): Promise<HttpResponse>;
 }
 
+const USER_AGENT = 'DiscordBot (casino-activity, 1.0)';
+
 /** Production client on the global `fetch`, with a timeout. */
 export function createFetchClient(timeoutMs = 8000): HttpClient {
   return {
     async request(request) {
-      const headers = { ...request.headers };
+      // Discord's edge expects a descriptive User-Agent on API calls.
+      const headers: Record<string, string> = { 'user-agent': USER_AGENT, ...request.headers };
       let body: string | undefined;
       if (request.form) {
         headers['content-type'] = 'application/x-www-form-urlencoded';

@@ -13,6 +13,7 @@ import type { Store } from '../db/store.ts';
 import type { EconomyService } from '../economy/economy-service.ts';
 import { AppError } from '../runtime/errors.ts';
 import { DiscordApiError, type DiscordApi } from './discord.ts';
+import { REASONS, discordStepReason } from './reasons.ts';
 import type { SessionService } from './sessions.ts';
 
 export interface TokenFlowOptions {
@@ -43,36 +44,37 @@ export class TokenFlow {
   async exchange(request: TokenRequest): Promise<TokenResponse> {
     const { discord, identity, store } = this.o;
 
-    let accessToken: string;
-    let user;
-    let guilds;
-    let instance;
-    try {
-      const grant = await discord.exchangeCode(request.code);
-      accessToken = grant.accessToken;
-      // Extra scopes (such as rpc.activities.write for rich presence) are fine; the ones this
-      // flow reads with must be there.
-      if (grant.scopes && !REQUIRED_SERVER_SCOPES.every((scope) => grant.scopes?.includes(scope))) {
-        throw new AppError('forbidden', { message: 'authorization is missing a required scope' });
-      }
-      user = await discord.getUser(accessToken);
-      guilds = await discord.getUserGuilds(accessToken);
-    } catch (error) {
-      throw this.fromDiscord(error);
+    const grant = await this.step('code_exchange', () => discord.exchangeCode(request.code));
+    const accessToken = grant.accessToken;
+    // Extra scopes (such as rpc.activities.write for rich presence) are fine; the ones this
+    // flow reads with must be there.
+    if (grant.scopes && !REQUIRED_SERVER_SCOPES.every((scope) => grant.scopes?.includes(scope))) {
+      throw new AppError('forbidden', {
+        message: 'authorization is missing a required scope',
+        reason: REASONS.scopeMissing,
+      });
     }
+    const user = await this.step('user_fetch', () => discord.getUser(accessToken));
+    const guilds = await this.step('guilds_fetch', () => discord.getUserGuilds(accessToken));
 
     const guild = guilds.find((g) => g.id === request.guildId);
-    if (!guild) throw new AppError('forbidden', { message: 'user is not in this guild' });
-    if (!this.o.allowedGuildIds.has(request.guildId)) throw new AppError('guild_not_allowed');
-
-    try {
-      instance = await discord.getActivityInstance(request.instanceId);
-    } catch (error) {
-      throw this.fromDiscord(error);
+    if (!guild) {
+      throw new AppError('forbidden', {
+        message: 'user is not in this guild',
+        reason: REASONS.userNotInGuild,
+      });
     }
+    if (!this.o.allowedGuildIds.has(request.guildId)) {
+      throw new AppError('guild_not_allowed', { reason: REASONS.guildNotAllowed });
+    }
+
+    const instance = await this.step('instance_fetch', () =>
+      discord.getActivityInstance(request.instanceId),
+    );
     if (!instance || instance.guildId !== request.guildId || !instance.userIds.includes(user.id)) {
       throw new AppError('forbidden', {
         message: 'not a live instance of this guild with this user',
+        reason: REASONS.instanceMismatch,
       });
     }
 
@@ -88,8 +90,9 @@ export class TokenFlow {
       identity.setGuildStatus(request.guildId, 'approved');
       status = 'approved';
     }
-    if (status === 'denied') throw new AppError('guild_not_allowed');
-    if (status !== 'approved') throw new AppError('guild_pending');
+    if (status === 'denied') throw new AppError('guild_not_allowed', { reason: 'guild_denied' });
+    if (status !== 'approved')
+      throw new AppError('guild_pending', { reason: REASONS.guildPending });
 
     // Everything below commits together: the member and its start balance, and the intent.
     const result = store.transaction(() => {
@@ -132,13 +135,21 @@ export class TokenFlow {
     };
   }
 
-  private fromDiscord(error: unknown): AppError {
-    if (error instanceof DiscordApiError) {
-      this.o.logger.warn({ kind: error.kind, status: error.status }, 'discord call failed');
-      return error.kind === 'rejected'
-        ? new AppError('unauthorized', { message: 'discord rejected the code' })
-        : new AppError('internal', { status: 502, message: 'discord unavailable' });
+  /** Runs one Discord call; a failure becomes an AppError that names the step and status. */
+  private async step<T>(name: string, run: () => Promise<T>): Promise<T> {
+    try {
+      return await run();
+    } catch (error) {
+      if (!(error instanceof DiscordApiError)) throw error;
+      const reason = discordStepReason(name, error.status);
+      this.o.logger.warn(
+        { reason, kind: error.kind, status: error.status },
+        `discord call failed: ${reason}`,
+      );
+      if (error.kind === 'rejected') {
+        throw new AppError('unauthorized', { message: 'discord rejected the request', reason });
+      }
+      throw new AppError('internal', { status: 502, message: 'discord unavailable', reason });
     }
-    throw error;
   }
 }
