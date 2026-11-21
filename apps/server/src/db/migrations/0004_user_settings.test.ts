@@ -32,7 +32,12 @@ describe('0004_user_settings', () => {
     insert.run(U2, null, 1, 70, 'system', 'system', 1, 222);
     insert.run(U3, 'en', 1, 0, 'full', 'light', 1, 333);
 
-    expect(runMigrations(db, migrations)).toEqual([4]);
+    expect(
+      runMigrations(
+        db,
+        migrations.filter((m) => m.version <= 4),
+      ),
+    ).toEqual([4]);
 
     const rows = db.prepare('SELECT * FROM user_settings ORDER BY updated_at').all();
     expect(rows).toEqual([
