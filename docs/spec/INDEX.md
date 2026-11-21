@@ -22,6 +22,7 @@ Master index mapping every legacy module to its behaviour specification, determi
 | Blackjack | [blackjack.md](blackjack.md) | `tests/fixtures/legacy/blackjack/` | B2-A | Standard 21 with hit, stand, and double down. |
 | Roulette | [roulette.md](roulette.md) | `tests/fixtures/legacy/roulette/` | B2-A | Single-zero European wheel (`0`–`36`). |
 | Horse Racing (betting, retirement, 4 races/day) | [horse.md](horse.md) | `tests/fixtures/legacy/horse/` | B2-B | Covers ownership, stat carrots, 7 bet types, retirement, and 4 daily JST races. **Note**: Horse breeding does not exist in legacy Python. |
+| Horse Breeding (new, no legacy) | [horse-breeding.md](horse-breeding.md) | *(none — new feature; property tests instead)* | B2-B | Approved 2026-11-21: own × own pairing, `15,000` breeding fee sink, foal stats regress to the mean with a `210` total cap, 48 h maturity, 72 h cooldown. |
 | Arena (daily NPC tournaments) | [arena.md](arena.md) | `tests/fixtures/legacy/arena/` | B2-B | Daily `duel` and `royale` NPC brackets with weapon bonuses and pool subsidies. |
 | Labor (clicker / worker) | [labor.md](labor.md) | `tests/fixtures/legacy/labor/` | B2-B | Manual mining, fatigue, tool/dorm upgrades, idle workers, anti-bot checks, `3%` Teiai skim. |
 | Relics | [relics.md](relics.md) | `tests/fixtures/legacy/relics/` | B2-B | Excavation drops, 10-to-1 star merges (`★1`–`★5`), and passive buff stacking. |
