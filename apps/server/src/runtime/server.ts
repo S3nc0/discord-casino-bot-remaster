@@ -1,6 +1,6 @@
 import type { FastifyInstance } from 'fastify';
 import type { Logger } from 'pino';
-import type { Clock, LaunchIntentService } from '@casino/shared';
+import type { Clock, LaunchIntentService, Rng } from '@casino/shared';
 import { createFetchClient, DiscordApi, type HttpClient } from '../auth/discord.ts';
 import { SqliteLaunchIntentService } from '../auth/launch-intents.ts';
 import { createProxySignatureVerifier } from '../auth/proxy-verifier.ts';
@@ -12,12 +12,29 @@ import { SettingsRepo } from '../db/settings.ts';
 import { migrations } from '../db/migrations/index.ts';
 import { openStore, type Store } from '../db/store.ts';
 import { EconomyService } from '../economy/economy-service.ts';
+import { createFinanceServices, type FinanceServices } from '../finance/index.ts';
+import {
+  createCasinoGames,
+  type CasinoGames,
+  type Scheduler as CasinoTimers,
+} from '../games/index.ts';
+import { Inventory } from '../games/shop/inventory.ts';
+import { createNonCasinoGames, type NonCasinoGames } from '../games/progression/index.ts';
 import { buildApp, type RateLimits } from '../http/app.ts';
 import { attachSocketServer, type CasinoServer, type SocketHandlers } from '../socket/server.ts';
+import {
+  createCasinoPorts,
+  createExternalLiquidation,
+  createMarketplaceAssets,
+  createTeiaiPort,
+} from './adapters/index.ts';
 import { EventBus } from './bus.ts';
 import { systemClock } from './clock.ts';
 import type { Config } from './config.ts';
+import { buildJobManifest } from './jobs.ts';
 import { createLogger } from './logger.ts';
+import { cryptoRng } from './rng.ts';
+import { Scheduler, type CronDriver } from './scheduler.ts';
 
 export interface CreateServerOptions {
   config: Config;
@@ -32,6 +49,12 @@ export interface CreateServerOptions {
   rateLimits?: RateLimits;
   sessionTtlSeconds?: number;
   trustProxy?: boolean;
+  /** Defaults to the crypto RNG. Tests pass a seeded one. */
+  rng?: Rng;
+  /** Defaults to croner. Tests pass a driver they fire by hand. */
+  cronDriver?: CronDriver;
+  /** Timers of the casino rounds (betting windows, turn timeouts). Defaults to real timers. */
+  casinoTimers?: CasinoTimers;
 }
 
 /** Everything one process shares. The bot and the scheduler plug into the same instances. */
@@ -47,7 +70,14 @@ export interface CasinoServices {
   launchIntents: LaunchIntentService;
   bus: EventBus;
   logger: Logger;
+  finance: FinanceServices;
+  games: NonCasinoGames;
+  casino: CasinoGames;
+  scheduler: Scheduler;
+  /** Start HTTP and sockets, then the scheduler. */
   listen(): Promise<string>;
+  /** Stop the scheduler and wait for the jobs in flight. Idempotent; `close()` does it too. */
+  stopJobs(): Promise<void>;
   close(): Promise<void>;
 }
 
@@ -113,6 +143,44 @@ export function createServer(options: CreateServerOptions): CasinoServices {
     requireProxySignature: config.requireProxySignature,
     ...(options.rateLimits === undefined ? {} : { rateLimits: options.rateLimits }),
   });
+
+  // Game and finance services. The money modules and the games reach each other through the
+  // adapters: the games' Teiai port runs on the finance services, the player market and
+  // bankruptcy liquidation run on the shop inventory and the horses.
+  const rng = options.rng ?? cryptoRng;
+  const utcOffsetHours = config.utcOffsetHours;
+  // The finance services are built first; bankruptcy liquidation reaches the shop through here.
+  const lazy: { games?: NonCasinoGames } = {};
+  const finance = createFinanceServices(
+    { store, economy, identity, clock, rng, bus, utcOffsetHours },
+    {
+      marketplaceAssets: createMarketplaceAssets(store, new Inventory(store)),
+      liquidateExternalAssets: createExternalLiquidation(() => (lazy.games as NonCasinoGames).shop),
+    },
+  );
+  const teiaiPort = createTeiaiPort({ store, teiai: finance.teiai, clock });
+  const games = createNonCasinoGames({
+    store,
+    economy,
+    bus,
+    clock,
+    rng,
+    teiai: teiaiPort,
+    offsetHours: utcOffsetHours,
+  });
+  lazy.games = games;
+  const casino = createCasinoGames({
+    store,
+    economy,
+    bus,
+    clock,
+    rng,
+    logger,
+    ports: createCasinoPorts({ store, economy, teiai: finance.teiai, teiaiPort, shop: games.shop }),
+    ...(options.casinoTimers === undefined ? {} : { scheduler: options.casinoTimers }),
+  });
+  const stopGames = games.start();
+
   const sockets = attachSocketServer({
     httpServer: app.server,
     sessions,
@@ -123,17 +191,30 @@ export function createServer(options: CreateServerOptions): CasinoServices {
     logger,
     proxyVerifier,
     requireProxySignature: config.requireProxySignature,
-    ...(options.socketHandlers === undefined ? {} : { handlers: options.socketHandlers }),
+    handlers: options.socketHandlers ?? casino.handlers,
   });
+  casino.attach(sockets.io);
+  // A crash can leave rounds open with their stakes held: give every stake back before play.
+  const refunded = casino.recover();
+  if (refunded > 0) logger.warn({ refunded }, 'refunded casino rounds left open by a crash');
 
-  const purge = setInterval(() => {
-    try {
-      (launchIntents as SqliteLaunchIntentService).purge();
-    } catch (error) {
-      logger.error({ err: error }, 'launch intent purge failed');
-    }
-  }, 60_000);
-  purge.unref();
+  const scheduler = new Scheduler({
+    clock,
+    logger,
+    utcOffsetHours,
+    jobs: buildJobManifest({
+      store,
+      logger,
+      finance,
+      games,
+      purgeLaunchIntents: () => (launchIntents as SqliteLaunchIntentService).purge(),
+    }),
+    ...(options.cronDriver === undefined ? {} : { driver: options.cronDriver }),
+  });
+  const stopJobs = async (): Promise<void> => {
+    scheduler.stop();
+    await scheduler.drain();
+  };
 
   let closed = false;
   return {
@@ -148,11 +229,21 @@ export function createServer(options: CreateServerOptions): CasinoServices {
     launchIntents,
     bus,
     logger,
-    listen: () => app.listen({ port: config.port, host: config.host }),
+    finance,
+    games,
+    casino,
+    scheduler,
+    async listen() {
+      const address = await app.listen({ port: config.port, host: config.host });
+      scheduler.start();
+      return address;
+    },
+    stopJobs,
     async close() {
       if (closed) return;
       closed = true;
-      clearInterval(purge);
+      await stopJobs();
+      stopGames();
       await sockets.close();
       await app.close();
       if (!options.store) store.close();
