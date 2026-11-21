@@ -161,6 +161,16 @@ queue (opt-in, retry, digest), inbox, presence, and stats/missions/ranking. Room
 Payloads on `user:{id}` carry `guildId` so a client in two guilds can filter. Market ticks once
 a minute; races as a timeline.
 
+The union (`DOMAIN_EVENT_TYPES`, `packages/shared/src/events.ts`): `GameSettled`, `BigWin`,
+`Jackpot`, `RaceScheduled`, `RaceFinished`, `HorseRetired`, `MarketTick`, `MarketMove`,
+`LoanDue`, `BankruptcyGraceStarted`, `BankruptcyDeclared`, `MissionCompleted`, `TitleAwarded`,
+`OrderFilled`, `MarketplaceOutbid`, `DailyReady`, `CompanyBankrupt`, `LotteryDrawn`. Every event
+carries `guildId` and `at`. **Decision: bankruptcy is two events.** `BankruptcyGraceStarted`
+opens the 24 h window and can end without a bankruptcy (debt repaid below the threshold);
+`BankruptcyDeclared` (`cause`: `voluntary`, `forced`, `escape`) is the bankruptcy itself, with
+debt before and after compression. A phase field on one event would make its other fields
+optional and its consumers branch.
+
 Launch intents are created in-process only (`LaunchIntentService`); there is no HTTP route to
 create one. The bot calls `create({ userId, guildId, screen })` (expires in 2 min) and answers
 with `LAUNCH_ACTIVITY`; `POST /api/token` calls `consume` for the session's own user and guild.
