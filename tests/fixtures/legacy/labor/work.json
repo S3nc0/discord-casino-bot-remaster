@@ -1,0 +1,159 @@
+{
+  "anti_bot": {
+    "mechanical_suspected": true,
+    "normal_suspected": false
+  },
+  "click_outcomes": [
+    {
+      "fatigue": 0.0,
+      "glove": 0,
+      "outcome": {
+        "fatigue": 3.0,
+        "pay": 10
+      },
+      "pick": 0
+    },
+    {
+      "fatigue": 25.0,
+      "glove": 3,
+      "outcome": {
+        "fatigue": 26.8,
+        "pay": 24
+      },
+      "pick": 5
+    },
+    {
+      "fatigue": 80.0,
+      "glove": 10,
+      "outcome": {
+        "fatigue": 80.5,
+        "pay": 18
+      },
+      "pick": 10
+    },
+    {
+      "fatigue": 100.0,
+      "glove": 10,
+      "outcome": {
+        "fatigue": 100.0,
+        "pay": 10
+      },
+      "pick": 10
+    }
+  ],
+  "crit_chance_p5_w3": 0.106,
+  "db_flow": {
+    "balance_after": 49720,
+    "click1": {
+      "combo": false,
+      "crit": false,
+      "ok": true,
+      "ore": null,
+      "pay": 10,
+      "terrain": "silver"
+    },
+    "collect_4h": {
+      "amount": 20,
+      "donated": 0,
+      "donated_all": 0,
+      "ores": {
+        "coal": 1
+      },
+      "relics": {},
+      "skimmed": 0
+    },
+    "hire_apprentice": [
+      true,
+      ""
+    ],
+    "upgrade_pick": [
+      true,
+      ""
+    ]
+  },
+  "dorm_costs": {
+    "0": 2000,
+    "1": 6000,
+    "2": 15000,
+    "3": 40000,
+    "4": 100000,
+    "5": null,
+    "6": null
+  },
+  "fatigue_decay": {
+    "after_10m_base": 0.0,
+    "after_30m_recovery_0_5": 0.0
+  },
+  "idle_rate_sample": 13.65,
+  "module": "labor",
+  "seeds": {
+    "db_click": 2011,
+    "db_collect": 20110,
+    "settle": 2010
+  },
+  "settle_plan_6h": {
+    "balance_spent": 0,
+    "finds": [
+      [
+        1736128800.0,
+        "apprentice",
+        "coal",
+        1
+      ],
+      [
+        1736143200.0,
+        "apprentice",
+        "coal",
+        1
+      ],
+      [
+        1736128800.0,
+        "miner",
+        "coal",
+        1
+      ],
+      [
+        1736136000.0,
+        "miner",
+        "copper",
+        1
+      ]
+    ],
+    "gain": 147,
+    "ores": {
+      "coal": 3,
+      "copper": 1
+    },
+    "pot_spent": 0,
+    "relics": {},
+    "removed": [],
+    "renewed": []
+  },
+  "slots_by_dorm": {
+    "0": 5,
+    "1": 6,
+    "2": 7,
+    "3": 8,
+    "4": 9,
+    "5": 10,
+    "6": 10
+  },
+  "terrain_2025_01_06": {
+    "kind": "silver",
+    "label": "⚪ 銀が2倍出やすい（手掘り）"
+  },
+  "upgrade_costs": {
+    "0": 150,
+    "1": 400,
+    "10": null,
+    "11": null,
+    "2": 900,
+    "3": 1800,
+    "4": 3500,
+    "5": 7000,
+    "6": 14000,
+    "7": 28000,
+    "8": 56000,
+    "9": 112000
+  }
+}

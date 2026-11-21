@@ -1,0 +1,150 @@
+{
+  "db_flow": {
+    "before_close": {
+      "adj_no": -2,
+      "adj_yes": 2,
+      "channel_id": 777,
+      "closes": 1736122200.0,
+      "creator": 200000000000000001,
+      "guild_id": 100000000000000001,
+      "id": 1,
+      "message_id": 0,
+      "no": 0,
+      "rigs": 1,
+      "status": "open",
+      "title": "ペリカ増額に賛成？",
+      "voters": 3,
+      "yes": 3
+    },
+    "closed": [
+      {
+        "adj_no": -2,
+        "adj_yes": 2,
+        "channel_id": 777,
+        "closes": 1736122200.0,
+        "creator": 200000000000000001,
+        "guild_id": 100000000000000001,
+        "id": 1,
+        "message_id": 0,
+        "no": 0,
+        "rigs": 1,
+        "status": "closed",
+        "title": "ペリカ増額に賛成？",
+        "voters": 3,
+        "yes": 3
+      }
+    ],
+    "created": [
+      true,
+      1
+    ],
+    "rig": [
+      true,
+      {
+        "before": [
+          1,
+          2
+        ],
+        "poll": {
+          "adj_no": -2,
+          "adj_yes": 2,
+          "channel_id": 777,
+          "closes": 1736122200.0,
+          "creator": 200000000000000001,
+          "guild_id": 100000000000000001,
+          "id": 1,
+          "message_id": 0,
+          "no": 0,
+          "rigs": 1,
+          "status": "open",
+          "title": "ペリカ増額に賛成？",
+          "voters": 3,
+          "yes": 3
+        }
+      }
+    ],
+    "u1_balance_after": 9500,
+    "votes": [
+      [
+        true,
+        {
+          "adj_no": 0,
+          "adj_yes": 0,
+          "channel_id": 777,
+          "closes": 1736122200.0,
+          "creator": 200000000000000001,
+          "guild_id": 100000000000000001,
+          "id": 1,
+          "message_id": 0,
+          "no": 0,
+          "rigs": 0,
+          "status": "open",
+          "title": "ペリカ増額に賛成？",
+          "voters": 1,
+          "yes": 1
+        }
+      ],
+      [
+        true,
+        {
+          "adj_no": 0,
+          "adj_yes": 0,
+          "channel_id": 777,
+          "closes": 1736122200.0,
+          "creator": 200000000000000001,
+          "guild_id": 100000000000000001,
+          "id": 1,
+          "message_id": 0,
+          "no": 1,
+          "rigs": 0,
+          "status": "open",
+          "title": "ペリカ増額に賛成？",
+          "voters": 2,
+          "yes": 1
+        }
+      ],
+      [
+        true,
+        {
+          "adj_no": 0,
+          "adj_yes": 0,
+          "channel_id": 777,
+          "closes": 1736122200.0,
+          "creator": 200000000000000001,
+          "guild_id": 100000000000000001,
+          "id": 1,
+          "message_id": 0,
+          "no": 2,
+          "rigs": 0,
+          "status": "open",
+          "title": "ペリカ増額に賛成？",
+          "voters": 3,
+          "yes": 1
+        }
+      ]
+    ]
+  },
+  "module": "polls",
+  "shown_cases": [
+    {
+      "adj": 0,
+      "real": 3,
+      "shown": 3
+    },
+    {
+      "adj": 2,
+      "real": 3,
+      "shown": 5
+    },
+    {
+      "adj": -5,
+      "real": 2,
+      "shown": 0
+    },
+    {
+      "adj": 4,
+      "real": 0,
+      "shown": 4
+    }
+  ]
+}

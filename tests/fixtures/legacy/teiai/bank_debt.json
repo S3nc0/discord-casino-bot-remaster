@@ -1,0 +1,115 @@
+{
+  "db_flow": {
+    "bank_status_initial": {
+      "available": 8000.0,
+      "bonds": 0,
+      "cash": 8000.0,
+      "deposits": 40000,
+      "excess_unpaid": 0.0,
+      "level": "safe",
+      "loaned": 32000.0,
+      "locks": 0.0,
+      "ratio": 0.2,
+      "rf_target": 0.0138064318,
+      "risk_free": 0.0130735711,
+      "thermostat": {
+        "bailed": 0.0,
+        "burned": 0.0,
+        "capacity": 20000.0,
+        "enforce": false,
+        "load": 0.0,
+        "room": 20000.0
+      },
+      "trust_paid": 0.0,
+      "trust_rate": 0.0140735711
+    },
+    "borrow_seed": [
+      true,
+      3000
+    ],
+    "cds_buy": [
+      true,
+      1.5
+    ],
+    "cds_quote": {
+      "debt": 10000,
+      "grace": false,
+      "odds": 1.5,
+      "status": "underground"
+    },
+    "debt_before_interest": 19000,
+    "deposit_40k": [
+      true,
+      40000
+    ],
+    "escape_attempt": [
+      true,
+      {
+        "bankrupt": null,
+        "debt": 20900,
+        "escaped": false,
+        "fine": 1900
+      }
+    ],
+    "forced_bankruptcy": [
+      true,
+      {
+        "cds_paid": 7500,
+        "compressed": 7900,
+        "debt": 13000,
+        "forced": true,
+        "forgiven": 0,
+        "junior_paid": 0,
+        "seed": 3000,
+        "seized": 3000,
+        "senior_paid": 3000,
+        "shop_value": 0
+      }
+    ],
+    "interest_3d": 0,
+    "trust_accrue_24h": 0,
+    "user1_deposit_after": 30000,
+    "user2_balance_after": 3000,
+    "user2_debt_after": 13000,
+    "user3_balance_after_cds": 52500,
+    "withdraw_10k": [
+      true,
+      10000
+    ]
+  },
+  "domain_math": {
+    "cds_odds": {
+      "katagi_0": 3.4,
+      "laborer_20000": 1.2,
+      "laborer_8000": 1.6,
+      "wealthy_0": 3.4
+    },
+    "labor_skim_1000": 30,
+    "skim_1000": 200,
+    "withhold_1000": 300
+  },
+  "module": "teiai",
+  "seed": 3004,
+  "thermostat": {
+    "after_decay_2d": {
+      "capacity": 84168.5516846849,
+      "load": -5798.5838933934
+    },
+    "after_inflow_20k": {
+      "absorbed": 1873.0753077982,
+      "net": 18126.9246922018,
+      "state": {
+        "capacity": 100000.0,
+        "load": 18126.9246922018
+      }
+    },
+    "after_shock_30k": {
+      "absorbed": 677.7625540846,
+      "net": 29322.2374459154,
+      "state": {
+        "capacity": 100000.0,
+        "load": -11195.3127537136
+      }
+    }
+  }
+}

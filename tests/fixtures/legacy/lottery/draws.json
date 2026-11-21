@@ -1,0 +1,84 @@
+{
+  "cancel_refund": {
+    "cancelled": {
+      "channel_id": 555,
+      "closes": 1736122800.0,
+      "entries": [
+        200000000000000002
+      ],
+      "fee": 500,
+      "guild_id": 100000000000000001,
+      "host_id": 200000000000000002,
+      "id": 2,
+      "message_id": 0,
+      "prize": 0,
+      "refunded": true,
+      "status": "open",
+      "winner": null
+    },
+    "join": [
+      true,
+      ""
+    ],
+    "opened": [
+      true,
+      ""
+    ],
+    "u2_balance_after": 12000
+  },
+  "module": "lottery",
+  "normal_draw": {
+    "balances_after": {
+      "u1": 9000,
+      "u2": 12000,
+      "u3": 9000
+    },
+    "closed": {
+      "channel_id": 555,
+      "closes": 1736122200.0,
+      "entries": [
+        200000000000000001,
+        200000000000000002,
+        200000000000000003
+      ],
+      "fee": 1000,
+      "guild_id": 100000000000000001,
+      "host_id": 200000000000000001,
+      "id": 1,
+      "message_id": 0,
+      "prize": 3000,
+      "refunded": false,
+      "status": "open",
+      "winner": 200000000000000002
+    },
+    "joins": [
+      [
+        true,
+        ""
+      ],
+      [
+        true,
+        ""
+      ],
+      [
+        true,
+        ""
+      ],
+      [
+        false,
+        {
+          "code": "raffle_already_joined",
+          "params": {}
+        }
+      ]
+    ],
+    "opened": [
+      true,
+      ""
+    ]
+  },
+  "seeds": {
+    "cancel": 2014,
+    "draw": 2013
+  }
+}

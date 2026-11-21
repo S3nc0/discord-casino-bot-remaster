@@ -1,0 +1,80 @@
+{
+  "auction_rate_by_hour": {
+    "0": 0.9,
+    "12": 0.9,
+    "24": 0.8,
+    "48": 0.7,
+    "6": 0.9,
+    "72": 0.7
+  },
+  "db_flow": {
+    "auction_buy": {
+      "balance": 94300,
+      "ok": true,
+      "reason": ""
+    },
+    "auction_price_12h": 2700,
+    "balance_after": 94300,
+    "collection_value": [
+      [],
+      0
+    ],
+    "inventory_after": {
+      "daily_double": 2
+    },
+    "shop_buy_daily_double": {
+      "balance": 97000,
+      "ok": true,
+      "reason": ""
+    }
+  },
+  "module": "shop",
+  "seed": 2015,
+  "stock_math": {
+    "after_10h_capped": 5.0,
+    "after_1h_from_2": 2.5,
+    "next_refill_from_2": 8200.0,
+    "next_refill_when_full": null
+  },
+  "teiai_market": {
+    "day_start": 1736121600.0,
+    "planned_count": 3,
+    "planned_listings": [
+      {
+        "black": false,
+        "end_price": 5388218,
+        "expires_at": 1736173504.4872565,
+        "item_id": "title_100oku",
+        "listed_at": 1736158922.0018663,
+        "mode": "auction",
+        "qty": 1,
+        "start_price": 8980364
+      },
+      {
+        "black": false,
+        "end_price": 2414,
+        "expires_at": 1736198515.1932845,
+        "item_id": "title_broke",
+        "listed_at": 1736176915.1932845,
+        "mode": "fixed",
+        "qty": 1,
+        "start_price": 2414
+      },
+      {
+        "black": true,
+        "end_price": 3940,
+        "expires_at": 1736212101.4312422,
+        "item_id": "title_broke",
+        "listed_at": 1736190501.4312422,
+        "mode": "fixed",
+        "qty": 1,
+        "start_price": 3940
+      }
+    ],
+    "price_decay": {
+      "end": 4000,
+      "mid": 7000,
+      "start": 10000
+    }
+  }
+}

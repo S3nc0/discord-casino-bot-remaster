@@ -1,0 +1,113 @@
+{
+  "bulk_import_sample": [
+    [
+      {
+        "choices": [],
+        "explanation": "",
+        "minutes": null,
+        "question": "",
+        "reward": 100
+      }
+    ],
+    [
+      "1問目: 1行目: 「問題:」「正解:」などの見出しで始めてください。",
+      "1問目: 2行目: 「問題:」「正解:」などの見出しで始めてください。",
+      "1問目: 「問題:」がありません。",
+      "1問目: 「正解:」がありません。",
+      "1問目: 「不正解:」は3つ必要です（いま0つ）。"
+    ]
+  ],
+  "module": "quiz",
+  "reward_cases": [
+    {
+      "author_payout": [
+        0,
+        0,
+        0
+      ],
+      "base_reward": 100,
+      "bonus": 0,
+      "correct": 1,
+      "factor": 0.0,
+      "participants": 1,
+      "participation": 0,
+      "reward": 100,
+      "scale": 1.0
+    },
+    {
+      "author_payout": [
+        100,
+        0,
+        0
+      ],
+      "base_reward": 100,
+      "bonus": 0,
+      "correct": 5,
+      "factor": 0.0,
+      "participants": 5,
+      "participation": 0,
+      "reward": 100,
+      "scale": 1.0
+    },
+    {
+      "author_payout": [
+        100,
+        200,
+        500
+      ],
+      "base_reward": 100,
+      "bonus": 200,
+      "correct": 2,
+      "factor": 1.0,
+      "participants": 5,
+      "participation": 500,
+      "reward": 100,
+      "scale": 1.0
+    },
+    {
+      "author_payout": [
+        173,
+        260,
+        2250
+      ],
+      "base_reward": 173,
+      "bonus": 260,
+      "correct": 5,
+      "factor": 0.75,
+      "participants": 10,
+      "participation": 2250,
+      "reward": 300,
+      "scale": 1.7320508076
+    },
+    {
+      "author_payout": [
+        224,
+        0,
+        0
+      ],
+      "base_reward": 224,
+      "bonus": 0,
+      "correct": 0,
+      "factor": 0.0,
+      "participants": 10,
+      "participation": 0,
+      "reward": 500,
+      "scale": 2.2360679775
+    },
+    {
+      "author_payout": [
+        316,
+        474,
+        15000
+      ],
+      "base_reward": 316,
+      "bonus": 474,
+      "correct": 10,
+      "factor": 0.75,
+      "participants": 20,
+      "participation": 15000,
+      "reward": 1000,
+      "scale": 3.1622776602
+    }
+  ]
+}

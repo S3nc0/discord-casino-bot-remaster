@@ -1,0 +1,74 @@
+{
+  "db_flow": {
+    "balances_after": {
+      "u1": 100175,
+      "u2": 97000,
+      "u3": 96500
+    },
+    "bid_u2": [
+      true,
+      1736143200.0
+    ],
+    "bid_u3": [
+      true,
+      1736143200.0
+    ],
+    "buy_fixed": [
+      true,
+      3000
+    ],
+    "list_auction": [
+      true,
+      2
+    ],
+    "list_fixed": [
+      true,
+      1
+    ],
+    "settled": [
+      [
+        {
+          "bid": 3500,
+          "bidder_id": 200000000000000003,
+          "buyer_id": 0,
+          "channel_id": 0,
+          "closed_at": null,
+          "created": 1736121600.0,
+          "end_at": 1736143200.0,
+          "guild_id": 100000000000000001,
+          "id": 2,
+          "kind": "item",
+          "message_id": 0,
+          "mode": "auction",
+          "post_done": 0,
+          "price": 3000,
+          "qty": 1,
+          "ref": "daily_double",
+          "seller_id": 200000000000000001,
+          "sold_price": 0,
+          "status": "active"
+        },
+        "sold"
+      ]
+    ]
+  },
+  "domain_math": {
+    "end_after_bid_normal": 1736125200.0,
+    "end_after_bid_snipe": 1736121900.0,
+    "fee_of_1000": 50,
+    "fee_of_1005": 50,
+    "min_next_bid_after_1000": 1100,
+    "min_next_bid_first": 1000,
+    "price_range_horse": [
+      3000,
+      300000
+    ],
+    "price_range_item": [
+      300,
+      15000
+    ],
+    "tradable_daily_double": true,
+    "tradable_horse_voucher": true
+  },
+  "module": "player-market"
+}

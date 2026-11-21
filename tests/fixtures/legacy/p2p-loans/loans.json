@@ -1,0 +1,52 @@
+{
+  "db_flow": {
+    "accept": [
+      true,
+      ""
+    ],
+    "borrower_balance_after": 4250,
+    "collect_due_day6": [
+      {
+        "accepted_at": 1736121660.0,
+        "borrower_id": 200000000000000002,
+        "channel_id": 111,
+        "collected": 7750,
+        "created": 1736121600.0,
+        "due": 1736553660.0,
+        "guild_id": 100000000000000001,
+        "id": 1,
+        "left": 0,
+        "lender_id": 200000000000000001,
+        "message_id": 0,
+        "offer_expires": 1736208000.0,
+        "paid": 10750,
+        "principal": 10000,
+        "rate_tenths": 15,
+        "reminded": 0,
+        "status": "repaid",
+        "term_days": 5
+      }
+    ],
+    "lender_balance_after": 50750,
+    "offer": [
+      true,
+      1
+    ],
+    "remaining_after_partial": 7300,
+    "repay_partial_3000": [
+      true,
+      3000
+    ]
+  },
+  "domain_math": {
+    "full_term_total": 10750,
+    "late_rate_tenths_10": 20,
+    "late_rate_tenths_15": 22,
+    "rate_text_15": "1.5%",
+    "total_day_100_capped": 30750,
+    "total_day_10_overdue": 11850,
+    "total_day_2": 10300,
+    "total_day_5_due": 10750
+  },
+  "module": "p2p-loans"
+}

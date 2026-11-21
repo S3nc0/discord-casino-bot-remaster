@@ -1,0 +1,59 @@
+{
+  "blocked_min_games": {
+    "fee": 0,
+    "ok": false,
+    "reason": {
+      "code": "transfer_min_games",
+      "params": {
+        "min_games": 3
+      }
+    },
+    "received": 0,
+    "sender_balance": 0
+  },
+  "debtor_sender_blocked": {
+    "fee": 0,
+    "ok": false,
+    "reason": {
+      "code": "debt_blocks",
+      "params": {
+        "debt": 6400,
+        "verb": "送金はできません"
+      }
+    },
+    "received": 0,
+    "sender_balance": 0
+  },
+  "module": "transfer",
+  "ok_1005_ceiling_fee": {
+    "fee": 101,
+    "ok": true,
+    "reason": "",
+    "received": 1005,
+    "sender_balance": 99194
+  },
+  "ok_2000_to_debtor": {
+    "receiver_balance_after": 4400,
+    "receiver_debt_after": 6400,
+    "result": {
+      "fee": 200,
+      "ok": true,
+      "reason": "",
+      "received": 2000,
+      "sender_balance": 96994
+    }
+  },
+  "over_daily_cap": {
+    "fee": 0,
+    "ok": false,
+    "reason": {
+      "code": "transfer_daily_limit",
+      "params": {
+        "daily_limit": 20000,
+        "sent_today": 3005
+      }
+    },
+    "received": 0,
+    "sender_balance": 0
+  }
+}

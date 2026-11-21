@@ -1,0 +1,74 @@
+{
+  "date": "2025-01-06",
+  "debtor_claim": {
+    "balance_after": 3560,
+    "debt_after": 7760,
+    "result": {
+      "amount": 1000,
+      "balance": 3560,
+      "boosted": false,
+      "guarded": 0,
+      "ok": true,
+      "repaid": 240,
+      "seed": 0,
+      "skimmed": 200,
+      "streak": 1
+    }
+  },
+  "duplicate_slot0": {
+    "amount": 0,
+    "balance": 4000,
+    "boosted": false,
+    "guarded": 0,
+    "ok": false,
+    "repaid": 0,
+    "seed": 0,
+    "skimmed": 0,
+    "streak": 1
+  },
+  "module": "daily",
+  "streak_slot0": {
+    "amount": 1000,
+    "balance": 4000,
+    "boosted": false,
+    "guarded": 0,
+    "ok": true,
+    "repaid": 0,
+    "seed": 0,
+    "skimmed": 0,
+    "streak": 1
+  },
+  "streak_slot1": {
+    "amount": 1000,
+    "balance": 5000,
+    "boosted": false,
+    "guarded": 0,
+    "ok": true,
+    "repaid": 0,
+    "seed": 0,
+    "skimmed": 0,
+    "streak": 1
+  },
+  "streak_slot2": {
+    "amount": 1000,
+    "balance": 6000,
+    "boosted": false,
+    "guarded": 0,
+    "ok": true,
+    "repaid": 0,
+    "seed": 0,
+    "skimmed": 0,
+    "streak": 1
+  },
+  "with_daily_double": {
+    "amount": 2000,
+    "balance": 19000,
+    "boosted": true,
+    "guarded": 0,
+    "ok": true,
+    "repaid": 0,
+    "seed": 0,
+    "skimmed": 0,
+    "streak": 1
+  }
+}

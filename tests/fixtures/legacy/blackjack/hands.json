@@ -1,0 +1,708 @@
+{
+  "double_down_case": {
+    "bet": 2000,
+    "doubled": true,
+    "final_dealer": [
+      [
+        "2",
+        "♥"
+      ],
+      [
+        "3",
+        "♦"
+      ],
+      [
+        "A",
+        "♥"
+      ],
+      [
+        "J",
+        "♦"
+      ],
+      [
+        "8",
+        "♥"
+      ]
+    ],
+    "final_player": [
+      [
+        "10",
+        "♥"
+      ],
+      [
+        "4",
+        "♠"
+      ],
+      [
+        "A",
+        "♠"
+      ]
+    ],
+    "initial_player": [
+      [
+        "10",
+        "♥"
+      ],
+      [
+        "4",
+        "♠"
+      ]
+    ],
+    "payout": 4000,
+    "result": "win",
+    "seed": 1006
+  },
+  "hand_evaluations": [
+    {
+      "cards": [
+        [
+          1,
+          "♠"
+        ],
+        [
+          13,
+          "♥"
+        ]
+      ],
+      "is_blackjack": false,
+      "text": "`♠1` `♥13`",
+      "value": 14
+    },
+    {
+      "cards": [
+        [
+          1,
+          "♠"
+        ],
+        [
+          1,
+          "♥"
+        ],
+        [
+          9,
+          "♦"
+        ]
+      ],
+      "is_blackjack": false,
+      "text": "`♠1` `♥1` `♦9`",
+      "value": 11
+    },
+    {
+      "cards": [
+        [
+          1,
+          "♠"
+        ],
+        [
+          6,
+          "♣"
+        ],
+        [
+          10,
+          "♦"
+        ]
+      ],
+      "is_blackjack": false,
+      "text": "`♠1` `♣6` `♦10`",
+      "value": 17
+    },
+    {
+      "cards": [
+        [
+          10,
+          "♠"
+        ],
+        [
+          7,
+          "♥"
+        ],
+        [
+          6,
+          "♣"
+        ]
+      ],
+      "is_blackjack": false,
+      "text": "`♠10` `♥7` `♣6`",
+      "value": 23
+    },
+    {
+      "cards": [
+        [
+          5,
+          "♠"
+        ],
+        [
+          5,
+          "♦"
+        ],
+        [
+          1,
+          "♣"
+        ]
+      ],
+      "is_blackjack": false,
+      "text": "`♠5` `♦5` `♣1`",
+      "value": 11
+    }
+  ],
+  "module": "blackjack",
+  "payout_table_bet_1000": {
+    "blackjack": 2500,
+    "bust": 0,
+    "lose": 0,
+    "push": 1000,
+    "surrender": 0,
+    "win": 2000
+  },
+  "seed": 1005,
+  "seeded_games": [
+    {
+      "actions": [
+        "stand"
+      ],
+      "bet": 1000,
+      "dealer_value": 19,
+      "final_dealer": [
+        [
+          "K",
+          "♥"
+        ],
+        [
+          "9",
+          "♦"
+        ]
+      ],
+      "final_player": [
+        [
+          "5",
+          "♦"
+        ],
+        [
+          "Q",
+          "♣"
+        ]
+      ],
+      "game": 0,
+      "initial_dealer": [
+        [
+          "K",
+          "♥"
+        ],
+        [
+          "9",
+          "♦"
+        ]
+      ],
+      "initial_player": [
+        [
+          "5",
+          "♦"
+        ],
+        [
+          "Q",
+          "♣"
+        ]
+      ],
+      "payout": 0,
+      "player_value": 15,
+      "result": "lose"
+    },
+    {
+      "actions": [],
+      "bet": 1000,
+      "dealer_value": 21,
+      "final_dealer": [
+        [
+          "A",
+          "♣"
+        ],
+        [
+          "K",
+          "♥"
+        ]
+      ],
+      "final_player": [
+        [
+          "2",
+          "♠"
+        ],
+        [
+          "J",
+          "♥"
+        ]
+      ],
+      "game": 1,
+      "initial_dealer": [
+        [
+          "A",
+          "♣"
+        ],
+        [
+          "K",
+          "♥"
+        ]
+      ],
+      "initial_player": [
+        [
+          "2",
+          "♠"
+        ],
+        [
+          "J",
+          "♥"
+        ]
+      ],
+      "payout": 0,
+      "player_value": 12,
+      "result": "lose"
+    },
+    {
+      "actions": [
+        "stand"
+      ],
+      "bet": 1000,
+      "dealer_value": 20,
+      "final_dealer": [
+        [
+          "J",
+          "♦"
+        ],
+        [
+          "Q",
+          "♥"
+        ]
+      ],
+      "final_player": [
+        [
+          "5",
+          "♣"
+        ],
+        [
+          "Q",
+          "♦"
+        ]
+      ],
+      "game": 2,
+      "initial_dealer": [
+        [
+          "J",
+          "♦"
+        ],
+        [
+          "Q",
+          "♥"
+        ]
+      ],
+      "initial_player": [
+        [
+          "5",
+          "♣"
+        ],
+        [
+          "Q",
+          "♦"
+        ]
+      ],
+      "payout": 0,
+      "player_value": 15,
+      "result": "lose"
+    },
+    {
+      "actions": [
+        "stand"
+      ],
+      "bet": 1000,
+      "dealer_value": 24,
+      "final_dealer": [
+        [
+          "4",
+          "♥"
+        ],
+        [
+          "4",
+          "♦"
+        ],
+        [
+          "6",
+          "♣"
+        ],
+        [
+          "K",
+          "♥"
+        ]
+      ],
+      "final_player": [
+        [
+          "6",
+          "♠"
+        ],
+        [
+          "10",
+          "♠"
+        ]
+      ],
+      "game": 3,
+      "initial_dealer": [
+        [
+          "4",
+          "♥"
+        ],
+        [
+          "4",
+          "♦"
+        ]
+      ],
+      "initial_player": [
+        [
+          "6",
+          "♠"
+        ],
+        [
+          "10",
+          "♠"
+        ]
+      ],
+      "payout": 2000,
+      "player_value": 16,
+      "result": "win"
+    },
+    {
+      "actions": [
+        "hit",
+        "stand"
+      ],
+      "bet": 1000,
+      "dealer_value": 20,
+      "final_dealer": [
+        [
+          "K",
+          "♠"
+        ],
+        [
+          "Q",
+          "♠"
+        ]
+      ],
+      "final_player": [
+        [
+          "2",
+          "♦"
+        ],
+        [
+          "7",
+          "♦"
+        ],
+        [
+          "K",
+          "♥"
+        ]
+      ],
+      "game": 4,
+      "initial_dealer": [
+        [
+          "K",
+          "♠"
+        ],
+        [
+          "Q",
+          "♠"
+        ]
+      ],
+      "initial_player": [
+        [
+          "2",
+          "♦"
+        ],
+        [
+          "7",
+          "♦"
+        ]
+      ],
+      "payout": 0,
+      "player_value": 19,
+      "result": "lose"
+    },
+    {
+      "actions": [
+        "hit"
+      ],
+      "bet": 1000,
+      "dealer_value": 13,
+      "final_dealer": [
+        [
+          "K",
+          "♦"
+        ],
+        [
+          "3",
+          "♥"
+        ]
+      ],
+      "final_player": [
+        [
+          "6",
+          "♣"
+        ],
+        [
+          "7",
+          "♦"
+        ],
+        [
+          "9",
+          "♦"
+        ]
+      ],
+      "game": 5,
+      "initial_dealer": [
+        [
+          "K",
+          "♦"
+        ],
+        [
+          "3",
+          "♥"
+        ]
+      ],
+      "initial_player": [
+        [
+          "6",
+          "♣"
+        ],
+        [
+          "7",
+          "♦"
+        ]
+      ],
+      "payout": 0,
+      "player_value": 22,
+      "result": "bust"
+    },
+    {
+      "actions": [
+        "stand"
+      ],
+      "bet": 1000,
+      "dealer_value": 23,
+      "final_dealer": [
+        [
+          "9",
+          "♣"
+        ],
+        [
+          "4",
+          "♥"
+        ],
+        [
+          "2",
+          "♠"
+        ],
+        [
+          "8",
+          "♥"
+        ]
+      ],
+      "final_player": [
+        [
+          "J",
+          "♦"
+        ],
+        [
+          "6",
+          "♥"
+        ]
+      ],
+      "game": 6,
+      "initial_dealer": [
+        [
+          "9",
+          "♣"
+        ],
+        [
+          "4",
+          "♥"
+        ]
+      ],
+      "initial_player": [
+        [
+          "J",
+          "♦"
+        ],
+        [
+          "6",
+          "♥"
+        ]
+      ],
+      "payout": 2000,
+      "player_value": 16,
+      "result": "win"
+    },
+    {
+      "actions": [
+        "hit"
+      ],
+      "bet": 1000,
+      "dealer_value": 16,
+      "final_dealer": [
+        [
+          "10",
+          "♣"
+        ],
+        [
+          "6",
+          "♣"
+        ]
+      ],
+      "final_player": [
+        [
+          "K",
+          "♠"
+        ],
+        [
+          "3",
+          "♥"
+        ],
+        [
+          "Q",
+          "♠"
+        ]
+      ],
+      "game": 7,
+      "initial_dealer": [
+        [
+          "10",
+          "♣"
+        ],
+        [
+          "6",
+          "♣"
+        ]
+      ],
+      "initial_player": [
+        [
+          "K",
+          "♠"
+        ],
+        [
+          "3",
+          "♥"
+        ]
+      ],
+      "payout": 0,
+      "player_value": 23,
+      "result": "bust"
+    },
+    {
+      "actions": [],
+      "bet": 1000,
+      "dealer_value": 21,
+      "final_dealer": [
+        [
+          "Q",
+          "♦"
+        ],
+        [
+          "A",
+          "♣"
+        ]
+      ],
+      "final_player": [
+        [
+          "8",
+          "♠"
+        ],
+        [
+          "2",
+          "♥"
+        ]
+      ],
+      "game": 8,
+      "initial_dealer": [
+        [
+          "Q",
+          "♦"
+        ],
+        [
+          "A",
+          "♣"
+        ]
+      ],
+      "initial_player": [
+        [
+          "8",
+          "♠"
+        ],
+        [
+          "2",
+          "♥"
+        ]
+      ],
+      "payout": 0,
+      "player_value": 10,
+      "result": "lose"
+    },
+    {
+      "actions": [
+        "hit",
+        "stand"
+      ],
+      "bet": 1000,
+      "dealer_value": 22,
+      "final_dealer": [
+        [
+          "4",
+          "♥"
+        ],
+        [
+          "2",
+          "♠"
+        ],
+        [
+          "8",
+          "♥"
+        ],
+        [
+          "8",
+          "♠"
+        ]
+      ],
+      "final_player": [
+        [
+          "4",
+          "♦"
+        ],
+        [
+          "5",
+          "♣"
+        ],
+        [
+          "6",
+          "♣"
+        ]
+      ],
+      "game": 9,
+      "initial_dealer": [
+        [
+          "4",
+          "♥"
+        ],
+        [
+          "2",
+          "♠"
+        ]
+      ],
+      "initial_player": [
+        [
+          "4",
+          "♦"
+        ],
+        [
+          "5",
+          "♣"
+        ]
+      ],
+      "payout": 2000,
+      "player_value": 15,
+      "result": "win"
+    }
+  ]
+}

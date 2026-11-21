@@ -1,0 +1,178 @@
+{
+  "assets": {
+    "final_assets": [
+      [
+        200000000000000002,
+        11500,
+        {
+          "bonds": 0,
+          "cash": 11500,
+          "company": 0,
+          "crypto": 0,
+          "debt": 0,
+          "deposit": 0,
+          "escrow": 0,
+          "horses": 0,
+          "items": 0,
+          "loans_lent": 0,
+          "loans_owed": 0,
+          "options": 0,
+          "pot": 0,
+          "relics": 0,
+          "tools": 0
+        }
+      ],
+      [
+        200000000000000001,
+        0,
+        {
+          "bonds": 0,
+          "cash": 0,
+          "company": 0,
+          "crypto": 0,
+          "debt": 0,
+          "deposit": 0,
+          "escrow": 0,
+          "horses": 0,
+          "items": 0,
+          "loans_lent": 0,
+          "loans_owed": 0,
+          "options": 0,
+          "pot": 0,
+          "relics": 0,
+          "tools": 0
+        }
+      ]
+    ],
+    "groups": {
+      "200000000000000001": {
+        "fixed": 0,
+        "gross": 0,
+        "liabilities": 0,
+        "liquid": 0,
+        "net": 0
+      },
+      "200000000000000002": {
+        "fixed": 0,
+        "gross": 11500,
+        "liabilities": 0,
+        "liquid": 11500,
+        "net": 11500
+      }
+    },
+    "parts": {
+      "200000000000000001": {
+        "bonds": 0,
+        "cash": 0,
+        "company": 0,
+        "crypto": 0,
+        "debt": 0,
+        "deposit": 0,
+        "escrow": 0,
+        "horses": 0,
+        "items": 0,
+        "loans_lent": 0,
+        "loans_owed": 0,
+        "options": 0,
+        "pot": 0,
+        "relics": 0,
+        "tools": 0
+      },
+      "200000000000000002": {
+        "bonds": 0,
+        "cash": 11500,
+        "company": 0,
+        "crypto": 0,
+        "debt": 0,
+        "deposit": 0,
+        "escrow": 0,
+        "horses": 0,
+        "items": 0,
+        "loans_lent": 0,
+        "loans_owed": 0,
+        "options": 0,
+        "pot": 0,
+        "relics": 0,
+        "tools": 0
+      }
+    }
+  },
+  "history": {
+    "game_results": [],
+    "summarized": [
+      {
+        "balance_after": 11500,
+        "bet": 0,
+        "delta": 1000,
+        "direction": "",
+        "game": null,
+        "kind": "other",
+        "reason": "daily",
+        "target_user_id": null,
+        "ts": 1736121600.0
+      },
+      {
+        "balance_after": 10500,
+        "bet": 0,
+        "delta": -500,
+        "direction": "",
+        "game": null,
+        "kind": "other",
+        "reason": "slot:bet",
+        "target_user_id": null,
+        "ts": 1736121600.0
+      },
+      {
+        "balance_after": 11000,
+        "bet": 0,
+        "delta": 2000,
+        "direction": "",
+        "game": null,
+        "kind": "other",
+        "reason": "chinchiro:win",
+        "target_user_id": null,
+        "ts": 1736121600.0
+      },
+      {
+        "balance_after": 9000,
+        "bet": 0,
+        "delta": -1000,
+        "direction": "",
+        "game": null,
+        "kind": "other",
+        "reason": "chinchiro:bet",
+        "target_user_id": null,
+        "ts": 1736121600.0
+      },
+      {
+        "balance_after": 10000,
+        "bet": 0,
+        "delta": 7000,
+        "direction": "",
+        "game": null,
+        "kind": "other",
+        "reason": "fixture_seed",
+        "target_user_id": null,
+        "ts": 1736121600.0
+      },
+      {
+        "balance_after": 3000,
+        "bet": 0,
+        "delta": 3000,
+        "direction": "",
+        "game": null,
+        "kind": "other",
+        "reason": "初期支給",
+        "target_user_id": null,
+        "ts": 1736121600.0
+      }
+    ]
+  },
+  "module": "economy-core",
+  "per_guild_isolation": {
+    "after_floor_clamp_guild_a": 0,
+    "initial_guild_a": 3000,
+    "initial_guild_b": 3000,
+    "untouched_guild_b": 3000
+  }
+}

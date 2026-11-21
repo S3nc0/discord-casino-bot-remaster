@@ -1,0 +1,509 @@
+{
+  "bet_checks": [
+    {
+      "bets": {
+        "black": {
+          "payout_1000": 0,
+          "wins": false
+        },
+        "dozen1": {
+          "payout_1000": 0,
+          "wins": false
+        },
+        "dozen2": {
+          "payout_1000": 0,
+          "wins": false
+        },
+        "dozen3": {
+          "payout_1000": 0,
+          "wins": false
+        },
+        "even": {
+          "payout_1000": 0,
+          "wins": false
+        },
+        "high": {
+          "payout_1000": 0,
+          "wins": false
+        },
+        "low": {
+          "payout_1000": 0,
+          "wins": false
+        },
+        "number:0": {
+          "payout_1000": 36000,
+          "wins": true
+        },
+        "number:17": {
+          "payout_1000": 0,
+          "wins": false
+        },
+        "odd": {
+          "payout_1000": 0,
+          "wins": false
+        },
+        "red": {
+          "payout_1000": 0,
+          "wins": false
+        }
+      },
+      "color": "緑",
+      "result": 0
+    },
+    {
+      "bets": {
+        "black": {
+          "payout_1000": 0,
+          "wins": false
+        },
+        "dozen1": {
+          "payout_1000": 3000,
+          "wins": true
+        },
+        "dozen2": {
+          "payout_1000": 0,
+          "wins": false
+        },
+        "dozen3": {
+          "payout_1000": 0,
+          "wins": false
+        },
+        "even": {
+          "payout_1000": 0,
+          "wins": false
+        },
+        "high": {
+          "payout_1000": 0,
+          "wins": false
+        },
+        "low": {
+          "payout_1000": 2000,
+          "wins": true
+        },
+        "number:0": {
+          "payout_1000": 0,
+          "wins": false
+        },
+        "number:17": {
+          "payout_1000": 0,
+          "wins": false
+        },
+        "odd": {
+          "payout_1000": 2000,
+          "wins": true
+        },
+        "red": {
+          "payout_1000": 2000,
+          "wins": true
+        }
+      },
+      "color": "赤",
+      "result": 1
+    },
+    {
+      "bets": {
+        "black": {
+          "payout_1000": 2000,
+          "wins": true
+        },
+        "dozen1": {
+          "payout_1000": 3000,
+          "wins": true
+        },
+        "dozen2": {
+          "payout_1000": 0,
+          "wins": false
+        },
+        "dozen3": {
+          "payout_1000": 0,
+          "wins": false
+        },
+        "even": {
+          "payout_1000": 2000,
+          "wins": true
+        },
+        "high": {
+          "payout_1000": 0,
+          "wins": false
+        },
+        "low": {
+          "payout_1000": 2000,
+          "wins": true
+        },
+        "number:0": {
+          "payout_1000": 0,
+          "wins": false
+        },
+        "number:17": {
+          "payout_1000": 0,
+          "wins": false
+        },
+        "odd": {
+          "payout_1000": 0,
+          "wins": false
+        },
+        "red": {
+          "payout_1000": 0,
+          "wins": false
+        }
+      },
+      "color": "黒",
+      "result": 2
+    },
+    {
+      "bets": {
+        "black": {
+          "payout_1000": 2000,
+          "wins": true
+        },
+        "dozen1": {
+          "payout_1000": 0,
+          "wins": false
+        },
+        "dozen2": {
+          "payout_1000": 3000,
+          "wins": true
+        },
+        "dozen3": {
+          "payout_1000": 0,
+          "wins": false
+        },
+        "even": {
+          "payout_1000": 0,
+          "wins": false
+        },
+        "high": {
+          "payout_1000": 0,
+          "wins": false
+        },
+        "low": {
+          "payout_1000": 2000,
+          "wins": true
+        },
+        "number:0": {
+          "payout_1000": 0,
+          "wins": false
+        },
+        "number:17": {
+          "payout_1000": 36000,
+          "wins": true
+        },
+        "odd": {
+          "payout_1000": 2000,
+          "wins": true
+        },
+        "red": {
+          "payout_1000": 0,
+          "wins": false
+        }
+      },
+      "color": "黒",
+      "result": 17
+    },
+    {
+      "bets": {
+        "black": {
+          "payout_1000": 0,
+          "wins": false
+        },
+        "dozen1": {
+          "payout_1000": 0,
+          "wins": false
+        },
+        "dozen2": {
+          "payout_1000": 0,
+          "wins": false
+        },
+        "dozen3": {
+          "payout_1000": 3000,
+          "wins": true
+        },
+        "even": {
+          "payout_1000": 0,
+          "wins": false
+        },
+        "high": {
+          "payout_1000": 2000,
+          "wins": true
+        },
+        "low": {
+          "payout_1000": 0,
+          "wins": false
+        },
+        "number:0": {
+          "payout_1000": 0,
+          "wins": false
+        },
+        "number:17": {
+          "payout_1000": 0,
+          "wins": false
+        },
+        "odd": {
+          "payout_1000": 2000,
+          "wins": true
+        },
+        "red": {
+          "payout_1000": 2000,
+          "wins": true
+        }
+      },
+      "color": "赤",
+      "result": 25
+    },
+    {
+      "bets": {
+        "black": {
+          "payout_1000": 0,
+          "wins": false
+        },
+        "dozen1": {
+          "payout_1000": 0,
+          "wins": false
+        },
+        "dozen2": {
+          "payout_1000": 0,
+          "wins": false
+        },
+        "dozen3": {
+          "payout_1000": 3000,
+          "wins": true
+        },
+        "even": {
+          "payout_1000": 2000,
+          "wins": true
+        },
+        "high": {
+          "payout_1000": 2000,
+          "wins": true
+        },
+        "low": {
+          "payout_1000": 0,
+          "wins": false
+        },
+        "number:0": {
+          "payout_1000": 0,
+          "wins": false
+        },
+        "number:17": {
+          "payout_1000": 0,
+          "wins": false
+        },
+        "odd": {
+          "payout_1000": 0,
+          "wins": false
+        },
+        "red": {
+          "payout_1000": 2000,
+          "wins": true
+        }
+      },
+      "color": "赤",
+      "result": 36
+    }
+  ],
+  "colors": {
+    "0": "緑",
+    "1": "赤",
+    "10": "黒",
+    "11": "黒",
+    "12": "赤",
+    "13": "黒",
+    "14": "赤",
+    "15": "黒",
+    "16": "赤",
+    "17": "黒",
+    "18": "赤",
+    "19": "赤",
+    "2": "黒",
+    "20": "黒",
+    "21": "赤",
+    "22": "黒",
+    "23": "赤",
+    "24": "黒",
+    "25": "赤",
+    "26": "黒",
+    "27": "赤",
+    "28": "黒",
+    "29": "黒",
+    "3": "赤",
+    "30": "赤",
+    "31": "黒",
+    "32": "赤",
+    "33": "黒",
+    "34": "赤",
+    "35": "黒",
+    "36": "赤",
+    "4": "黒",
+    "5": "赤",
+    "6": "黒",
+    "7": "赤",
+    "8": "黒",
+    "9": "赤"
+  },
+  "module": "roulette",
+  "rtps": {
+    "black": 0.972972973,
+    "dozen1": 0.972972973,
+    "dozen2": 0.972972973,
+    "dozen3": 0.972972973,
+    "even": 0.972972973,
+    "high": 0.972972973,
+    "low": 0.972972973,
+    "number": 0.972972973,
+    "odd": 0.972972973,
+    "red": 0.972972973
+  },
+  "seed": 1007,
+  "seeded_spins": [
+    {
+      "color": "黒",
+      "number": 2,
+      "spin": 0
+    },
+    {
+      "color": "黒",
+      "number": 11,
+      "spin": 1
+    },
+    {
+      "color": "赤",
+      "number": 19,
+      "spin": 2
+    },
+    {
+      "color": "黒",
+      "number": 11,
+      "spin": 3
+    },
+    {
+      "color": "赤",
+      "number": 14,
+      "spin": 4
+    },
+    {
+      "color": "黒",
+      "number": 33,
+      "spin": 5
+    },
+    {
+      "color": "赤",
+      "number": 3,
+      "spin": 6
+    },
+    {
+      "color": "赤",
+      "number": 12,
+      "spin": 7
+    },
+    {
+      "color": "黒",
+      "number": 35,
+      "spin": 8
+    },
+    {
+      "color": "赤",
+      "number": 3,
+      "spin": 9
+    },
+    {
+      "color": "黒",
+      "number": 28,
+      "spin": 10
+    },
+    {
+      "color": "赤",
+      "number": 18,
+      "spin": 11
+    },
+    {
+      "color": "黒",
+      "number": 2,
+      "spin": 12
+    },
+    {
+      "color": "黒",
+      "number": 2,
+      "spin": 13
+    },
+    {
+      "color": "赤",
+      "number": 27,
+      "spin": 14
+    },
+    {
+      "color": "赤",
+      "number": 12,
+      "spin": 15
+    },
+    {
+      "color": "黒",
+      "number": 15,
+      "spin": 16
+    },
+    {
+      "color": "黒",
+      "number": 4,
+      "spin": 17
+    },
+    {
+      "color": "赤",
+      "number": 7,
+      "spin": 18
+    },
+    {
+      "color": "赤",
+      "number": 3,
+      "spin": 19
+    },
+    {
+      "color": "黒",
+      "number": 17,
+      "spin": 20
+    },
+    {
+      "color": "赤",
+      "number": 27,
+      "spin": 21
+    },
+    {
+      "color": "赤",
+      "number": 18,
+      "spin": 22
+    },
+    {
+      "color": "赤",
+      "number": 18,
+      "spin": 23
+    },
+    {
+      "color": "赤",
+      "number": 14,
+      "spin": 24
+    },
+    {
+      "color": "赤",
+      "number": 1,
+      "spin": 25
+    },
+    {
+      "color": "赤",
+      "number": 21,
+      "spin": 26
+    },
+    {
+      "color": "赤",
+      "number": 36,
+      "spin": 27
+    },
+    {
+      "color": "黒",
+      "number": 20,
+      "spin": 28
+    },
+    {
+      "color": "赤",
+      "number": 5,
+      "spin": 29
+    }
+  ]
+}
