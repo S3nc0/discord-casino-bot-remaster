@@ -123,6 +123,15 @@ export function buildApp(deps: AppDeps): FastifyInstance {
   });
   app.decorateRequest('session', null);
 
+  // Browsers and the SDK fetch wrapper send an empty body with or without a JSON content type.
+  // An empty body parses as "no body" (routes treat that as {} where the contract allows);
+  // anything else goes through the default parser, which also guards against prototype poisoning.
+  const parseJson = app.getDefaultJsonParser('error', 'error');
+  app.addContentTypeParser('application/json', { parseAs: 'string' }, (request, body, done) => {
+    if (body === '' || body === undefined) return done(null, undefined);
+    return parseJson(request, body as string, done);
+  });
+
   app.setErrorHandler((error: FastifyError | AppError, request, reply) => {
     if (error instanceof AppError) return sendError(reply, error);
     const status = (error as FastifyError).statusCode;

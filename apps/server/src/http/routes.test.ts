@@ -50,6 +50,7 @@ async function session(
   const { sessionToken } = res.json<TokenResponse>();
   const headers = () => ({ ...server.signed(), authorization: `Bearer ${sessionToken}` });
   return {
+    authorization: () => `Bearer ${sessionToken}`,
     get: (url: string) => server.app.inject({ url, headers: headers() }),
     send: (method: 'PUT' | 'POST', url: string, payload?: object) =>
       server.app.inject({
@@ -314,6 +315,60 @@ describe('POST /api/inbox/read', () => {
     ]) {
       const res = await me.send('POST', '/api/inbox/read', payload);
       expect(res.statusCode, JSON.stringify(payload)).toBe(400);
+      expect(res.json()).toEqual({ error: 'invalid_payload' });
+    }
+  });
+});
+
+describe('empty-body routes', () => {
+  const JSON_HEADER = { 'content-type': 'application/json' };
+
+  it('consume accepts no body, an empty body with a JSON content type, and {}', async () => {
+    server = createTestServer();
+    const me = await session();
+    const call = (extra: Record<string, unknown>) =>
+      server.app.inject({
+        method: 'POST',
+        url: '/api/launch-intent/consume',
+        headers: { ...server.signed(), authorization: me.authorization(), ...JSON_HEADER },
+        ...extra,
+      });
+    const plain = () =>
+      server.app.inject({
+        method: 'POST',
+        url: '/api/launch-intent/consume',
+        headers: { ...server.signed(), authorization: me.authorization() },
+      });
+    for (const send of [plain, () => call({ payload: '' }), () => call({ payload: '{}' })]) {
+      server.launchIntents.create({ userId: USER, guildId: GUILD, screen: 'daily' });
+      const res = await send();
+      expect(res.statusCode).toBe(200);
+      expect(res.json()).toMatchObject({ launchIntent: { screen: 'daily' } });
+    }
+  });
+
+  it('still rejects fields that are present, malformed JSON and plain text', async () => {
+    server = createTestServer();
+    const me = await session();
+    const headers = { ...server.signed(), authorization: me.authorization(), ...JSON_HEADER };
+    const post = (payload: string, h = headers) =>
+      server.app.inject({ method: 'POST', url: '/api/launch-intent/consume', headers: h, payload });
+    expect((await post('{"userId":"1"}')).statusCode).toBe(400);
+    expect((await post('{nope')).statusCode).toBe(400);
+    expect((await post('{"__proto__":{"x":1}}')).statusCode).toBe(400);
+    expect((await post('{}', { ...headers, 'content-type': 'text/plain' })).statusCode).toBe(400);
+  });
+
+  it('routes that need a body still answer 400 to an empty one', async () => {
+    server = createTestServer();
+    const me = await session();
+    const headers = { ...server.signed(), authorization: me.authorization(), ...JSON_HEADER };
+    for (const [method, url] of [
+      ['PUT', '/api/settings'],
+      ['POST', '/api/inbox/read'],
+    ] as const) {
+      const res = await server.app.inject({ method, url, headers, payload: '' });
+      expect(res.statusCode, url).toBe(400);
       expect(res.json()).toEqual({ error: 'invalid_payload' });
     }
   });
