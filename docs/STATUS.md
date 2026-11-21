@@ -2,28 +2,28 @@
 
 Hard fork of fatcorn753/discord-casino-bot, rewritten in TypeScript as a Discord Activity plus chat bot. Updated by the Scribe from task reports.
 
-Current wave: 0 — Foundation
+Current wave: 1 — Groundwork
 
 ## Wave 0 — Foundation
 
 | Task | Scope | Owner | State |
 | --- | --- | --- | --- |
 | 0.1 | Rename fork, local clone, hooks, legacy move, design copy | O1 | done (PR #1) |
-| 0.S1 | Status board | SC | in progress |
-| 0.2 | Monorepo skeleton, shared contracts, DB schema plan, .env.example, CI, ARCHITECTURE.md | A1 | todo (waiting on owner prerequisites) |
-| 0.3 | Review of 0.2 contracts | R1 | todo |
-| Gate 0 | pnpm i && pnpm -r build && pnpm -r test green on a clean clone | Leader | todo |
+| 0.S1 | Status board | SC | done (PR #2) |
+| 0.2 | Monorepo skeleton, shared contracts, DB schema plan, .env.example, CI, ARCHITECTURE.md | A1 | done (PR #3, review fixes in the same PR) |
+| 0.3 | Review of 0.2 contracts | R1 | done (14 findings, all fixed) |
+| Gate 0 | pnpm i && pnpm -r build && pnpm -r test green on a clean clone | Leader | passed (60 tests, clean clone) |
 
 ## Wave 1 — Groundwork
 
 | Task | Scope | Owner | State |
 | --- | --- | --- | --- |
-| 1.1 | Spec extraction + legacy fixtures | S1 | todo |
-| 1.2 | Server core (Fastify, auth, sessions, Socket.io rooms, SQLite, EconomyService, importer skeleton) | B1 | todo |
-| 1.3 | UI kit + ui-cheatsheet | F1 | todo |
-| 1.4 | Activity shell | F4 | todo |
-| 1.5 | Ops (pi-sim, pi kit, tunnel template, dev runner, backups, arm64 CI) | O1 | todo |
-| Checkpoint 1 | Owner checkpoint (Developer Portal, .env, Pages project, tunnel) | Owner | todo |
+| 1.1 | Spec extraction + legacy fixtures | S1 | in progress |
+| 1.2 | Server core (Fastify, auth, sessions, Socket.io rooms, SQLite, EconomyService, importer skeleton) | B1 | in progress |
+| 1.3 | UI kit + ui-cheatsheet | F1 | in progress |
+| 1.4 | Activity shell | F4 | in progress |
+| 1.5 | Ops (pi-sim, pi kit, tunnel template, dev runner, backups, arm64 CI) | O1 | in progress |
+| Checkpoint 1 | Owner checkpoint (Developer Portal, .env, Pages project, tunnel) | Owner | todo (after O1's OWNER_SETUP.md) |
 | Gate 1 | Wave 1 gate | Leader | todo |
 
 ## Wave 2 — Features
@@ -62,4 +62,4 @@ Current wave: 0 — Foundation
 
 ## Blockers
 
-- 0.2 waits on: owner turns off commit/PR co-author trailers in local tool settings; pnpm and Node 24 installed.
+None.
