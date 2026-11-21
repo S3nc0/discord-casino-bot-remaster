@@ -51,7 +51,7 @@ function handName(locale: Locale, hand: chin.ChinchiroHand): string {
 
 function rollLine(locale: Locale, rolls: readonly chin.ChinchiroRoll[]): string {
   return rolls
-    .map((r) => `${diceText(r.dice)}　**${handName(locale, r.hand)}**`)
+    .map((r) => `${diceText(r.dice)}\u3000**${handName(locale, r.hand)}**`)
     .join(`\n${t(locale, 'bot.casino.chinchiro.reroll')}\n`);
 }
 
@@ -195,8 +195,8 @@ function blackjackMessage(ctx: ChatCtx, view: BlackjackView, stake: number) {
     view.dealerValue === null ? '' : `（${view.dealerValue}）`
   }`;
   const lines = [
-    `**${t(locale, 'bot.casino.dealer')}**　${dealerLine}`,
-    `**${t(locale, 'bot.casino.you')}**　${seat.cards.map(cardText).join(' ')}（${seat.value}）${
+    `**${t(locale, 'bot.casino.dealer')}**\u3000${dealerLine}`,
+    `**${t(locale, 'bot.casino.you')}**\u3000${seat.cards.map(cardText).join(' ')}（${seat.value}）${
       seat.doubled ? t(locale, 'bot.casino.blackjack.doubledLabel') : ''
     }`,
   ];

@@ -39,6 +39,7 @@ import {
   formatNumber,
   idemKeyOf,
   isOwner,
+  nowOf,
   reply,
   updateMessage,
   type ChatCtx,
@@ -441,7 +442,7 @@ async function eventStart(ctx: ChatCtx, interaction: ChatInputCommandInteraction
   const channelRaw = interaction.options.getString('channel_id');
   needGuildForChannel(guildRaw, channelRaw);
   if (!isCasinoGame(gameRaw)) throw new AppError('invalid_payload');
-  const nowMs = Date.now();
+  const nowMs = nowOf(ctx.deps);
   const event = makeManualEvent({
     game: gameRaw,
     boostPct: interaction.options.getInteger('boost') ?? MANUAL_BOOST_PCT.default,
@@ -590,7 +591,7 @@ function featureTable(ctx: ChatCtx, guildId: string): string {
   );
   return FEATURES.map(
     (f) =>
-      `${off.has(featureKey(f)) ? '⏸️' : '▶️'} ${t(ctx.locale, `bot.admin.feature.${f}`)}　${t(
+      `${off.has(featureKey(f)) ? '⏸️' : '▶️'} ${t(ctx.locale, `bot.admin.feature.${f}`)}\u3000${t(
         ctx.locale,
         off.has(featureKey(f)) ? 'bot.admin.feature.paused' : 'bot.admin.feature.running',
       )}`,
@@ -656,7 +657,7 @@ async function pachinkoStats(
   const store = requireStore(ctx);
   const guilds = targetGuilds(ctx, interaction.options.getString('guild_id'));
   const days = interaction.options.getInteger('days');
-  const since = days === null ? 0 : Date.now() - days * 86_400_000;
+  const since = days === null ? 0 : nowOf(ctx.deps) - days * 86_400_000;
   const marks = guilds.map(() => '?').join(', ');
   if (guilds.length === 0) {
     await reply(interaction, {
@@ -745,7 +746,7 @@ async function clickHistory(ctx: ChatCtx, interaction: ChatInputCommandInteracti
   const lines = rows.slice(0, 24).map((r) => {
     const when = `<t:${r.hour * 3600}:f>`;
     const cv = r.cv === null ? '–' : r.cv.toFixed(2);
-    return `${when}　${t(locale, 'bot.admin.clicks.line', {
+    return `${when}\u3000${t(locale, 'bot.admin.clicks.line', {
       clicks: r.clicks,
       pay: formatNumber(locale, r.pay),
       cv,
@@ -1182,7 +1183,7 @@ async function quizBulk(ctx: ChatCtx, interaction: ChatInputCommandInteraction):
   }
   let text: string;
   try {
-    text = (await hooks.fetchText(file.url, BULK_MAX_BYTES)).replace(/^﻿/, '');
+    text = (await hooks.fetchText(file.url, BULK_MAX_BYTES)).replace(/^\uFEFF/, '');
   } catch (error) {
     if (error instanceof AdminRefusal || error instanceof AppError) throw error;
     throw new AdminRefusal('bot.admin.err.bulkBadEncoding', 'bot.admin.err.bulkBadEncodingBody');

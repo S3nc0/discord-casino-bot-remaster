@@ -13,7 +13,7 @@ import {
   type User,
 } from 'discord.js';
 import type { Logger } from 'pino';
-import type { LanguageSetting, LaunchIntentService, ScreenId } from '@casino/shared';
+import type { Clock, LanguageSetting, LaunchIntentService, ScreenId } from '@casino/shared';
 import { errorMessageKey, formatPelica, t, type Locale } from '@casino/shared/i18n';
 import type { IdentityRepo } from '../db/identity.ts';
 import type { SettingsRepo } from '../db/settings.ts';
@@ -58,6 +58,8 @@ export interface BotRouterDeps {
   casino?: CasinoGames;
   finance?: FinanceServices;
   games?: NonCasinoGames;
+  /** Game clock (the real one when absent). Owner tools and boards stamp times with it. */
+  clock?: Clock;
 }
 
 /** Build an "Open in Activity" button row targeting a specific Activity screen. */

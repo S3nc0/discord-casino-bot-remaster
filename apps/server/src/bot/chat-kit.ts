@@ -165,3 +165,8 @@ export function ruleMessage(locale: Locale, error: unknown): string | null {
   if (!Object.hasOwn(dictionaries[locale], key)) return null;
   return t(locale, key as MessageKey, error.params);
 }
+
+/** Now on the game clock. */
+export function nowOf(deps: Pick<BotRouterDeps, 'clock'>): number {
+  return deps.clock ? deps.clock.now() : Date.now();
+}

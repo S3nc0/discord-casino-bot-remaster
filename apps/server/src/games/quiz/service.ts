@@ -233,7 +233,9 @@ export class QuizService {
           shown.indexOf((input.choices[0] as string).trim()),
           input.explanation ?? '',
           reward,
-          input.minutes == null ? null : now + input.minutes * 60_000,
+          input.minutes === null || input.minutes === undefined
+            ? null
+            : now + input.minutes * 60_000,
           now,
         );
       return this.view(this.row(Number(info.lastInsertRowid)));

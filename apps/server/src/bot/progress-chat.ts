@@ -42,6 +42,7 @@ import {
   embed,
   formatNumber,
   idemKeyOf,
+  nowOf,
   reply,
   requireGuild,
   updateMessage,
@@ -102,7 +103,7 @@ async function leaderboard(ctx: ChatCtx, interaction: ChatInputCommandInteractio
   const store = ctx.deps.store;
   if (!store) throw new AppError('internal');
   const guildId = requireGuild(interaction);
-  const now = Date.now();
+  const now = nowOf(ctx.deps);
 
   if (interaction.options.getBoolean('stop') === true) {
     const board = getBoard(store, guildId);
@@ -353,7 +354,6 @@ export async function quizPostSubmit(
   ctx: ChatCtx,
   interaction: ModalSubmitInteraction,
 ): Promise<void> {
-  const { locale } = ctx;
   const games = requireGames(ctx);
   const guildId = requireGuild(interaction);
   const field = (name: string): string => {

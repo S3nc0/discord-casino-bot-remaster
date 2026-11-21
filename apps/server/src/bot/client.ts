@@ -181,6 +181,7 @@ export async function startBot(
     ownerIds: config.ownerIds,
     allowedGuildIds: config.allowedGuildIds,
     requireApproval: config.requireApproval,
+    clock: options.clock ?? systemClock,
     ...(services.launchIntents ? { launchIntents: services.launchIntents } : {}),
     ...(notifyConfig ? { notifyConfig } : {}),
     ...(services.store ? { store: services.store } : {}),
