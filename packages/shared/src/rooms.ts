@@ -39,3 +39,29 @@ export function parseRoom(name: string): ParsedRoom | null {
   }
   return null;
 }
+
+/** What a session is bound to (from the verified token; see `SocketData`). */
+export interface RoomScope {
+  userId: string;
+  guildId: string;
+  instanceId: string;
+}
+
+/**
+ * Whether a session may join a room. The instance id in the token was verified at
+ * `POST /api/token` to belong to the token's guild, so instance and table rooms are allowed
+ * only for that one instance; guild and user rooms only for the token's own guild and user.
+ */
+export function canJoinRoom(scope: RoomScope, name: string): boolean {
+  const room = parseRoom(name);
+  if (!room) return false;
+  switch (room.kind) {
+    case 'guild':
+      return room.guildId === scope.guildId;
+    case 'user':
+      return room.userId === scope.userId;
+    case 'instance':
+    case 'table':
+      return room.instanceId === scope.instanceId;
+  }
+}

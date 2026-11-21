@@ -9,7 +9,7 @@ import {
   ScreenId,
   Snowflake,
 } from './ids.ts';
-import { ActionIntent, BetIntent, type IntentAck } from './intents.ts';
+import { ActionIntent, BetIntent, RoundId, type IntentAck } from './intents.ts';
 import type { DomainEvent } from './events.ts';
 import type { InboxItem, Toast } from './notify.ts';
 import { LedgerReason } from './ledger.ts';
@@ -26,12 +26,25 @@ export interface SocketAuth {
   token: string;
 }
 
-/** Stored on `socket.data` after the handshake token is verified. */
+/**
+ * Stored on `socket.data` after the handshake token is verified. The server checks
+ * `isSessionExpired` on every incoming event and disconnects at `expiresAt`, emitting
+ * `session:error` `{ error: 'expired' }` first so the client re-authenticates silently and
+ * reconnects with a fresh token.
+ */
 export interface SocketData {
   userId: string;
   guildId: string;
   instanceId: string;
   locale: Locale;
+  /** Token expiry (`exp` claim) in epoch ms. */
+  expiresAt: number;
+  /** Token id (`jti` claim), so a session can be revoked. */
+  jti: string;
+}
+
+export function isSessionExpired(data: Pick<SocketData, 'expiresAt'>, nowMs: number): boolean {
+  return nowMs >= data.expiresAt;
 }
 
 export type Ack<T> = (response: AckResult<T>) => void;
@@ -39,18 +52,21 @@ export type AckResult<T> = { ok: true; data: T } | { ok: false; error: ErrorCode
 
 // ---- payloads (client → server payloads have schemas: the server validates every one) ----
 
-export const TableJoin = Type.Object({ game: GameId });
+const closed = { additionalProperties: false } as const;
+
+export const TableJoin = Type.Object({ game: GameId }, closed);
 export type TableJoin = Static<typeof TableJoin>;
 
-export const TableLeave = Type.Object({ game: GameId });
+export const TableLeave = Type.Object({ game: GameId }, closed);
 export type TableLeave = Static<typeof TableLeave>;
 
-export const PresenceScreen = Type.Object({ screen: ScreenId });
+export const PresenceScreen = Type.Object({ screen: ScreenId }, closed);
 export type PresenceScreen = Static<typeof PresenceScreen>;
 
-export const InboxRead = Type.Object({
-  ids: Type.Array(Type.Integer({ minimum: 1 }), { minItems: 1, maxItems: 100 }),
-});
+export const InboxRead = Type.Object(
+  { ids: Type.Array(Type.Integer({ minimum: 1 }), { minItems: 1, maxItems: 100 }) },
+  closed,
+);
 export type InboxRead = Static<typeof InboxRead>;
 
 export const Seat = Type.Object({
@@ -60,9 +76,11 @@ export const Seat = Type.Object({
 
 /** Full state of a shared table. `seq` grows with every change; clients drop older snapshots. */
 export const TableSnapshot = Type.Object({
+  guildId: Snowflake,
   instanceId: InstanceId,
   game: GameId,
   seq: Type.Integer({ minimum: 0 }),
+  roundId: Type.Union([RoundId, Type.Null()]),
   phase: Type.String({ maxLength: 32 }),
   seats: Type.Array(Seat),
   /** Game-specific public state (never hidden information such as the dealer's hole card). */
@@ -81,6 +99,7 @@ export const BalanceUpdate = Type.Object({
 export type BalanceUpdate = Static<typeof BalanceUpdate>;
 
 export const Participants = Type.Object({
+  guildId: Snowflake,
   instanceId: InstanceId,
   users: Type.Array(PublicUser),
 });

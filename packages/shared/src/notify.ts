@@ -39,9 +39,11 @@ export const InboxItem = Type.Object({
 export type InboxItem = Static<typeof InboxItem>;
 
 export const Toast = Type.Object({
+  /** Toasts go to `user:{id}`; the client drops ones for a guild other than its session's. */
+  guildId: Snowflake,
   tone: Type.Enum(['info', 'success', 'warning', 'error']),
   /** An i18n message key; the client renders it in the viewer's locale. */
   messageKey: Type.String({ maxLength: 96 }),
-  params: Type.Optional(Type.Record(Type.String(), Type.Union([Type.String(), Type.Number()]))),
+  params: Type.Optional(Type.Record(Type.String(), Type.Union([Type.String(), Type.Integer()]))),
 });
 export type Toast = Static<typeof Toast>;
