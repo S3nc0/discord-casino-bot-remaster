@@ -2,7 +2,7 @@
 
 Hard fork of fatcorn753/discord-casino-bot, rewritten in TypeScript as a Discord Activity plus chat bot. Updated by the Scribe from task reports.
 
-Current wave: 1 — Groundwork
+Current wave: 2 — Features
 
 ## Wave 0 — Foundation
 
@@ -24,14 +24,24 @@ Current wave: 1 — Groundwork
 | 1.4 | Activity shell | F4 | done (PR #8, #13) |
 | 1.5 | Ops (pi-sim, pi kit, tunnel template, dev runner, backups, arm64 CI) | O1 | done (PR #5, #7, #11) |
 | 1.A1 | Contract update | A1 | done (PR #10) |
-| 1.A1b | Ledger reasons + ids from spec | A1 | in progress |
-| Checkpoint 1 | Owner checkpoint (Developer Portal, .env, Pages project, tunnel) | Owner | waiting on owner |
-| Gate 1 | Wave 1 gate | Leader | todo |
+| 1.A1b | Ledger reasons + ids from spec | A1 | done (PR #16) |
+| 1.A1c | Domain events | A1 | done (PR #17) |
+| 1.B1c | Ledger reason signs | B1 | done (PR #18) |
+| 1.D1 | Auth rejection logging | D1 | done (PR #20) |
+| 1.D1b | Proxy signature policy | D1 | done (PR #21) |
+| 1.B1d | Allowlist approval | B1 | done (PR #24) |
+| 1.F4d | Mobile readability | F4 | done (PR #26) |
+| 1.F1b | Token contrast | F1 | done (PR #27) |
+| 1.SC | Owner docs (setup + testing guides) | SC | done (PR #19, #22, #23, #25, #28) |
+| Checkpoint 1 | Owner checkpoint (Developer Portal, .env, Pages project, tunnel) | Owner | done |
+| Gate 1 | Wave 1 gate | Leader | passed (desktop + mobile launch, auth, DB balance, socket, light/dark, EN/JA) |
 
 ## Wave 2 — Features
 
 | Task | Scope | Owner | State |
 | --- | --- | --- | --- |
+| 2.D0 | Theme re-tune proposal | F2 | in progress (waiting on owner approval) |
+| 2.A0 | Horse breeding design | A1 | in progress (waiting on owner approval) |
 | 2.1 | Casino games | B2-A | todo |
 | 2.2 | Races/arena/work/quiz/lottery/polls/missions/ranking/daily | B2-B | todo |
 | 2.3 | Finance | B3 | todo |
@@ -64,4 +74,8 @@ Current wave: 1 — Groundwork
 
 ## Blockers
 
-Gate 1 waits on owner setup (docs/OWNER_SETUP.md). Open decision: horse breeding (not in legacy).
+Game screens (F2) wait on the theme approval; breeding build waits on the design approval.
+
+## Notes
+
+Discord sends no proxy signature headers on Activity traffic; `REQUIRE_PROXY_SIGNATURE` stays `0`.
