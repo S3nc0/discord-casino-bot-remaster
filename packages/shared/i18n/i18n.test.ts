@@ -1,6 +1,18 @@
 import { describe, expect, it } from 'vitest';
 import { ERROR_CODES } from '../src/errors.ts';
-import { checkParity, en, errorMessageKey, formatPelica, ja, resolveLocale, t } from './index.ts';
+import { SCREEN_IDS } from '../src/ids.ts';
+import { NOTIFICATION_KINDS } from '../src/notify.ts';
+import {
+  checkParity,
+  en,
+  errorMessageKey,
+  formatPelica,
+  inboxKindMessageKey,
+  ja,
+  resolveLocale,
+  screenMessageKey,
+  t,
+} from './index.ts';
 
 describe('resolveLocale', () => {
   it('follows user setting → client locale → guild locale → en', () => {
@@ -43,5 +55,19 @@ describe('messages', () => {
   it('reports placeholder drift', () => {
     const broken = { ...ja, 'currency.amount': '{count}ペリカ' };
     expect(checkParity({ en, ja: broken })[0]?.problem).toBe('placeholders');
+  });
+});
+
+describe('shell labels', () => {
+  it('labels every screen and inbox kind in both languages', () => {
+    for (const screen of SCREEN_IDS) {
+      expect(t('en', screenMessageKey(screen))).not.toBe('');
+      expect(t('ja', screenMessageKey(screen))).not.toBe('');
+    }
+    for (const kind of NOTIFICATION_KINDS) {
+      expect(t('en', inboxKindMessageKey(kind))).not.toBe('');
+      expect(t('ja', inboxKindMessageKey(kind))).not.toBe('');
+    }
+    expect(t('ja', 'presence.playing', { screen: 'スロット' })).toBe('スロット中');
   });
 });

@@ -2,6 +2,9 @@ import { en, type MessageKey, type Messages } from './en.ts';
 import { ja } from './ja.ts';
 import type { Locale } from './locale.ts';
 import type { ErrorCode } from '../src/errors.ts';
+import type { ScreenId } from '../src/ids.ts';
+import type { NotificationKind } from '../src/notify.ts';
+import type { LanguageSetting, ThemeSetting } from '../src/settings.ts';
 
 export { en, ja };
 export type { MessageKey, Messages };
@@ -14,6 +17,24 @@ export type { Dictionary, ParityProblem } from './parity.ts';
 type ErrorMessageKey = `error.${ErrorCode}`;
 const _everyErrorHasAMessage: Readonly<Record<ErrorMessageKey, string>> = en;
 void _everyErrorHasAMessage;
+
+/** Compile-time guards: every screen, inbox kind, language and theme option has a label. */
+type ScreenMessageKey = `screen.${ScreenId}`;
+type InboxKindMessageKey = `inbox.kind.${NotificationKind}`;
+type LanguageMessageKey = `settings.language.${LanguageSetting}`;
+type ThemeMessageKey = `settings.theme.${ThemeSetting}`;
+const _everyLabelExists: Readonly<
+  Record<ScreenMessageKey | InboxKindMessageKey | LanguageMessageKey | ThemeMessageKey, string>
+> = en;
+void _everyLabelExists;
+
+export function screenMessageKey(screen: ScreenId): ScreenMessageKey & MessageKey {
+  return `screen.${screen}`;
+}
+
+export function inboxKindMessageKey(kind: NotificationKind): InboxKindMessageKey & MessageKey {
+  return `inbox.kind.${kind}`;
+}
 
 export function errorMessageKey(code: ErrorCode): ErrorMessageKey & MessageKey {
   return `error.${code}`;
