@@ -82,8 +82,19 @@ export default defineConfig([
         {
           patterns: [
             {
-              group: [...IO_MODULES, 'react', 'react-dom', '@casino/ui', '@casino/server'],
+              group: [
+                ...IO_MODULES,
+                'react',
+                'react-dom',
+                '@casino/ui',
+                '@casino/server',
+                '@casino/web',
+              ],
               message: 'packages/domain is pure: no I/O.',
+            },
+            {
+              regex: '(^|/)(apps|packages)/',
+              message: 'Do not reach into other workspaces by path; import @casino/shared.',
             },
           ],
         },
@@ -102,12 +113,21 @@ export default defineConfig([
         { name: 'setInterval', message: 'Scheduling belongs to the server.' },
         { name: 'fetch', message: 'No I/O in domain code.' },
         { name: 'require', message: 'No I/O in domain code.' },
+        { name: 'globalThis', message: 'No ambient globals in domain code.' },
+        { name: 'setImmediate', message: 'Scheduling belongs to the server.' },
+        { name: 'queueMicrotask', message: 'Scheduling belongs to the server.' },
+        { name: 'WebSocket', message: 'No I/O in domain code.' },
+        { name: 'XMLHttpRequest', message: 'No I/O in domain code.' },
       ],
       'no-restricted-syntax': [
         'error',
         {
           selector: "NewExpression[callee.name='Date'][arguments.length=0]",
           message: 'Use new Date(ctx.clock.now()).',
+        },
+        {
+          selector: "CallExpression[callee.name='Date']",
+          message: 'Date() reads the wall clock. Use ctx.clock.now().',
         },
         { selector: 'ImportExpression', message: 'No dynamic imports in domain code.' },
       ],
