@@ -17,10 +17,10 @@ Simulates the target Raspberry Pi runtime environment:
 docker compose -f ops/pi-sim/compose.yaml up --build
 ```
 
-To override the port or database path used inside the container:
+To override the port, bind address, or database path used inside the container (`compose.yaml` defaults `HOST=0.0.0.0` only for container port forwarding; host installs keep `127.0.0.1`):
 
 ```sh
-PORT=3001 DATABASE_PATH=/app/data/casino.db docker compose -f ops/pi-sim/compose.yaml up --build
+PORT=3001 HOST=0.0.0.0 DATABASE_PATH=/app/data/casino.sqlite docker compose -f ops/pi-sim/compose.yaml up --build
 ```
 
 ## CI Validation

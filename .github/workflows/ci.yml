@@ -94,8 +94,9 @@ jobs:
           set -euo pipefail
           cid="$(docker run -d --memory=512m --cpus=2 -p 127.0.0.1:3001:3001 \
             -e NODE_ENV=test \
+            -e HOST=0.0.0.0 \
             -e PORT=3001 \
-            -e DATABASE_PATH=/app/data/casino.db \
+            -e DATABASE_PATH=/app/data/casino.sqlite \
             -e DISCORD_TOKEN=ci-placeholder-token \
             -e DISCORD_CLIENT_ID=000000000000000000 \
             -e DISCORD_CLIENT_SECRET=ci-placeholder-secret \
