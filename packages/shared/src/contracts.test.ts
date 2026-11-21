@@ -126,6 +126,43 @@ describe('domain events', () => {
     expect(Value.Check(DomainEvent, { ...e, guildId: undefined })).toBe(false);
     expectTypeOf(e.game).toEqualTypeOf<GameId>();
   });
+
+  it('validates the bankruptcy, company and lottery events', () => {
+    const base = { guildId: GUILD, at: 1 };
+    const bankrupt: DomainEventOf<'BankruptcyDeclared'> = {
+      ...base,
+      type: 'BankruptcyDeclared',
+      userId: USER,
+      cause: 'forced',
+      debtBefore: 25_000,
+      debtAfter: 10_000,
+    };
+    const company: DomainEventOf<'CompanyBankrupt'> = {
+      ...base,
+      type: 'CompanyBankrupt',
+      ownerId: USER,
+      companyName: 'Pelica Mining',
+      cause: 'upkeep',
+      investorIds: [GUILD],
+    };
+    const won: DomainEventOf<'LotteryDrawn'> = {
+      ...base,
+      type: 'LotteryDrawn',
+      lotteryId: 3,
+      outcome: 'won',
+      winnerId: USER,
+      prize: 3000,
+      fee: 1000,
+      entrantIds: [USER, GUILD, '345678901234567890'],
+    };
+    for (const e of [bankrupt, company, won]) expect(Value.Check(DomainEvent, e)).toBe(true);
+    expect(
+      Value.Check(DomainEvent, { ...won, outcome: 'refunded', winnerId: undefined, prize: 0 }),
+    ).toBe(true);
+    expect(Value.Check(DomainEvent, { ...bankrupt, cause: 'fled' })).toBe(false);
+    expect(Value.Check(DomainEvent, { ...company, companyName: '' })).toBe(false);
+    expect(Value.Check(DomainEvent, { ...won, prize: -1 })).toBe(false);
+  });
 });
 
 describe('ledger reasons', () => {
