@@ -8,6 +8,8 @@ import {
   type ServerToClientEvents,
   type TokenResponse,
 } from '@casino/shared';
+import { suddenEventOn } from '@casino/domain/casino';
+import { dayStartMs, localDayNumber } from '@casino/domain/progression';
 import { FINANCE_JOBS } from '../finance/jobs.ts';
 import { startRuntime, type RuntimeHandle } from './lifecycle.ts';
 import type { CronDriver } from './scheduler.ts';
@@ -141,6 +143,23 @@ describe('boot', () => {
     await runtime.stop();
     expect(order).toEqual(['scheduler', 'server']);
     expect(() => server.store.stmt('SELECT 1').get()).toThrow();
+  });
+});
+
+describe('wave 2 casino additions', () => {
+  it('serves the chinchiro table and the daily event boost on the booted casino', () => {
+    const { server } = bootServer();
+    expect(server.casino.chinchiroTable.snapshot(GUILD, INSTANCE)).toMatchObject({
+      game: 'chinchiro',
+    });
+    const day = localDayNumber(server.clock.now(), server.config.utcOffsetHours);
+    const event = suddenEventOn(GUILD, day);
+    const inside = dayStartMs(day, server.config.utcOffsetHours) + (event.startMin + 1) * 60_000;
+    const { eventBoost } = server.casino.core.ports;
+    expect(eventBoost(GUILD, event.game, inside)).toBe(0.5);
+    const other = event.game === 'slots' ? 'roulette' : 'slots';
+    expect(eventBoost(GUILD, other, inside)).toBe(0);
+    expect(eventBoost(GUILD, event.game, inside + 31 * 60_000)).toBe(0);
   });
 });
 
