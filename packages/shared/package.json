@@ -1,0 +1,20 @@
+{
+  "name": "@casino/shared",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Contracts shared by server and web: TypeBox schemas, socket events, domain events, i18n.",
+  "exports": {
+    ".": "./src/index.ts",
+    "./i18n": "./i18n/index.ts"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json && tsc -p scripts/tsconfig.json",
+    "test": "vitest run",
+    "i18n:check": "node scripts/check-i18n.ts"
+  },
+  "dependencies": {
+    "typebox": "1.4.5"
+  }
+}
