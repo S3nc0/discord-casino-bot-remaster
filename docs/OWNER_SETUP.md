@@ -188,8 +188,12 @@ A **URL mapping** tells Discord's built-in proxy where to send web and API reque
 1. Go to **Developer Portal → your app → Activities → Settings**.
 2. Turn on **Enable Activities** and click **Save Changes**.
    - The Discord-managed **Entry Point** launch command is created automatically when you enable Activities.
+3. Still on **Activities → Settings**, scroll to **Supported Platforms**:
+   - Tick **iOS** and **Android** (otherwise phones say the Activity is not available on this OS).
+   - Leave orientation unlocked.
+   - Click **Save Changes**, then **fully restart Discord** on your phone.
 
-✅ **Check:** Your app is installed in your test server, `/` and `/discord-cdn` are saved under **Activities → URL Mappings**, and **Enable Activities** is **On**.
+✅ **Check:** Your app is installed in your test server, `/` and `/discord-cdn` are saved under **Activities → URL Mappings**, **Enable Activities** is **On**, and **iOS** and **Android** are ticked under **Supported Platforms**.
 
 ---
 
@@ -226,7 +230,7 @@ A **`.env` file** is a local text file in your project folder that stores settin
    | `ALLOWED_GUILD_IDS` | Yes | No | Your test server ID (comma-separated if more than one) |
    | `OWNER_IDS` | Yes | No | Your Discord User ID (comma-separated if more than one) |
    | `TEST_GUILD_ID` | Yes | No | Your test server ID |
-   | `REQUIRE_APPROVAL` | Yes | No | `1` / `0`. Servers listed in `ALLOWED_GUILD_IDS` are always approved; this setting does not change that |
+   | `REQUIRE_APPROVAL` | Yes | No | Keep `0` for now. Servers listed in `ALLOWED_GUILD_IDS` always count as approved, so this setting is unused until the bot can admit other servers |
    | `UTC_OFFSET_HOURS` | Yes | No | Daily reset timezone offset (`9` for JST) |
    | `SESSION_SECRET` | Yes | **Yes** | Output of `openssl rand -hex 32` (at least 32 characters) |
    | `PUBLIC_API_ORIGIN` | Yes | No | Use `https://localhost` for now (checked at startup, not yet used; with a custom domain later, use `https://api.example.com`) |
@@ -391,6 +395,7 @@ If you just changed any URL Mappings, **reload Discord first** (`Cmd+R` on macOS
 | `<APP_ID>.discordsays.com refused to connect` | Wrong `/` mapping target (typo in the host, extra `https://`, or trailing `/`) | Copy the exact `*.pages.dev` host from Cloudflare Pages, update `/` in **URL Mappings**, click **Save Changes**, and reload Discord (`Cmd+R` / `Ctrl+R`) |
 | Stuck on loading | Server or tunnel is not running, or `/api` still points to an old quick tunnel host | Make sure Terminal 1 and Terminal 2 are running, update `/api` if the quick tunnel restarted, re-run the three `curl` checks in Step 7, and reload Discord (`Cmd+R` / `Ctrl+R`) |
 | App is not in the Activities list | Activities not enabled, app not installed in this server, or Discord needs a refresh | Check **Activities → Settings → Enable Activities** is On, confirm the app is installed in your test server (Step 4), and restart/reload Discord (`Cmd+R` / `Ctrl+R`) |
+| Phone says the Activity is not available on this OS | **iOS** / **Android** is not enabled under **Supported Platforms** | Go to **Activities → Settings → Supported Platforms**, tick **iOS** and **Android** (leave orientation unlocked), click **Save Changes**, and fully restart Discord on your phone |
 | `"Your session ended. Please open the app again."` | The server rejected login | Look at **Terminal 1** for a line saying `auth rejected: <reason>` and check the table below |
 
 ### `auth rejected: <reason>` codes (Terminal 1)
@@ -400,7 +405,7 @@ If you just changed any URL Mappings, **reload Discord first** (`Cmd+R` on macOS
 | `code_exchange_failed:401` | Wrong `DISCORD_CLIENT_SECRET` (often the **Bot Token** was pasted by mistake) | Go to **Developer Portal → OAuth2 → Client Secret**, copy or reset it, update `.env`, and restart the server |
 | `code_exchange_failed:400` | `DISCORD_CLIENT_ID` mismatch between `.env` and Cloudflare Pages (`VITE_DISCORD_CLIENT_ID`), or an expired auth code | Verify both match `APP_ID` (redeploy Pages if edited), restart the server if `.env` changed, and reopen the Activity |
 | `guild_not_allowed` (or `guild_denied`) | This server ID is not in `ALLOWED_GUILD_IDS` | Copy the server ID, add it to `ALLOWED_GUILD_IDS` in `.env`, and restart the server |
-| `guild_pending` | Only for a server that is not in `ALLOWED_GUILD_IDS`, which is refused as `guild_not_allowed` first; servers you list there are approved automatically | Add the server ID to `ALLOWED_GUILD_IDS`, then restart the server |
+| `guild_pending` | The server is not approved (servers in `ALLOWED_GUILD_IDS` are approved automatically) | Add the server ID to `ALLOWED_GUILD_IDS` in `.env`, then restart the server |
 | `proxy_signature_invalid` | Wrong `DISCORD_PUBLIC_KEY` in `.env` | Copy the 64-character **Public Key** from **Developer Portal → General Information**, update `.env`, and restart the server |
 | `proxy_signature_missing` *(followed by missing header names)* | Request arrived without Discord's proxy headers (cannot happen on `/api/token`; on other routes it only appears when `REQUIRE_PROXY_SIGNATURE=1`) | Set `REQUIRE_PROXY_SIGNATURE=0` in `.env`, restart the server, and report it |
 | `timestamp_skew` / `proxy_expired` | Your Mac's clock is off or the request expired | Turn on automatic date and time in macOS **System Settings → General → Date & Time**, then reopen the Activity |
