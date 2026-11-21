@@ -23,8 +23,10 @@ export const LEDGER_REASONS = [
   'race_bet',
   'race_payout',
   'race_prize',
+  'race_refund',
   'arena_bet',
   'arena_payout',
+  'arena_refund',
   // transfers
   'transfer_out',
   'transfer_in',
@@ -32,11 +34,13 @@ export const LEDGER_REASONS = [
   // shop, items, horses
   'shop_buy',
   'shop_sell',
+  'shop_refund',
   'horse_buy',
   'horse_sell',
   'horse_upkeep',
   'horse_retirement',
   // player market
+  'marketplace_buy',
   'marketplace_hold',
   'marketplace_release',
   'marketplace_sale',
@@ -71,7 +75,21 @@ export const LEDGER_REASONS = [
   'p2p_repay',
   'cds_premium',
   'cds_payout',
+  'debt_withholding',
   'bankruptcy_writeoff',
+  // Teiai kyosai (mutual fund units, auctions, dividends, loss charges)
+  'kyosai_buy',
+  'kyosai_sell',
+  'kyosai_bid_hold',
+  'kyosai_bid_release',
+  'kyosai_dividend',
+  'kyosai_charge',
+  // companies (company funds are separate; these move Pelica between a player and a company)
+  'company_create',
+  'company_upgrade',
+  'company_invest',
+  'company_dividend',
+  'company_payout',
 ] as const;
 
 export const LedgerReason = Type.Enum(LEDGER_REASONS);

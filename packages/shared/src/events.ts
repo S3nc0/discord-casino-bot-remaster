@@ -1,5 +1,15 @@
 import { Type, type Static, type TSchema } from 'typebox';
-import { EpochMs, GameId, InstanceId, Pelica, PelicaDelta, Snowflake } from './ids.ts';
+import {
+  BasisPoints,
+  EpochMs,
+  GameId,
+  InstanceId,
+  Pelica,
+  PelicaDelta,
+  PriceMicros,
+  QuantityMilli,
+  Snowflake,
+} from './ids.ts';
 
 /**
  * Domain events. Produced by server services after a state change has been committed,
@@ -35,8 +45,8 @@ export const BigWin = event('BigWin', {
   game: GameId,
   roundId: Type.String({ maxLength: 64 }),
   payout: Pelica,
-  /** payout / stake, for display. */
-  multiplier: Type.Number({ minimum: 0 }),
+  /** payout / stake in basis points (25_000 = x2.5), for display. */
+  multiplierBps: BasisPoints,
 });
 
 export const Jackpot = event('Jackpot', {
@@ -68,16 +78,16 @@ export const HorseRetired = event('HorseRetired', {
 });
 
 export const MarketTick = event('MarketTick', {
-  /** Ticker → price. Sent once per minute. */
-  prices: Type.Record(Type.String({ maxLength: 16 }), Type.Number({ minimum: 0 })),
+  /** Ticker → price in micro-Pelica. Sent once per minute. */
+  prices: Type.Record(Type.String({ maxLength: 16 }), PriceMicros),
 });
 
 export const MarketMove = event('MarketMove', {
   ticker: Type.String({ maxLength: 16 }),
   direction: Type.Enum(['spike', 'crash']),
-  /** Signed change in percent over the detection window. */
-  changePct: Type.Number(),
-  price: Type.Number({ minimum: 0 }),
+  /** Signed change over the detection window in basis points. */
+  changeBps: BasisPoints,
+  price: PriceMicros,
 });
 
 export const LoanDue = event('LoanDue', {
@@ -111,8 +121,8 @@ export const OrderFilled = event('OrderFilled', {
   orderId: Type.Integer({ minimum: 1 }),
   ticker: Type.String({ maxLength: 16 }),
   side: Type.Enum(['buy', 'sell']),
-  quantity: Type.Number({ exclusiveMinimum: 0 }),
-  price: Type.Number({ minimum: 0 }),
+  quantity: QuantityMilli,
+  price: PriceMicros,
 });
 
 export const MarketplaceOutbid = event('MarketplaceOutbid', {
