@@ -188,8 +188,12 @@ Discord Activity（デスクトップ / モバイル）
 1. **Developer Portal → 対象アプリ → Activities → Settings**（設定）を開きます。
 2. **Enable Activities**（アクティビティを有効化）をオンにし、**Save Changes**（変更を保存）を押します。
    - これを有効にすると、Discord 管理の **Entry Point**（起動用コマンド）が自動で追加されます。
+3. そのまま **Activities → Settings** の **Supported Platforms**（対応プラットフォーム）へ進みます。
+   - **iOS** と **Android** にチェックを入れます（チェックしないとスマホ側で「この OS では利用できません」と表示されます）。
+   - 画面の向き（orientation）はロックせずそのままにします。
+   - **Save Changes**（変更を保存）を押し、スマホ側の Discord アプリを **完全に再起動** します。
 
-✅ **確認:** テストサーバーにアプリが追加されており、**Activities → URL Mappings** に `/` と `/discord-cdn` が保存され、**Enable Activities** がオンになっています。
+✅ **確認:** テストサーバーにアプリが追加されており、**Activities → URL Mappings** に `/` と `/discord-cdn` が保存され、**Enable Activities** がオン、**Supported Platforms** で **iOS** と **Android** にチェックが入っています。
 
 ---
 
@@ -226,7 +230,7 @@ Discord Activity（デスクトップ / モバイル）
    | `ALLOWED_GUILD_IDS` | 必須 | いいえ | テストサーバー ID（複数ある場合はカンマ区切り） |
    | `OWNER_IDS` | 必須 | いいえ | 自分の Discord ユーザー ID（複数ある場合はカンマ区切り） |
    | `TEST_GUILD_ID` | 必須 | いいえ | テストサーバー ID |
-   | `REQUIRE_APPROVAL` | 必須 | いいえ | `1` / `0`。`ALLOWED_GUILD_IDS` に載せたサーバーは常に承認済みで、この設定では変わりません |
+   | `REQUIRE_APPROVAL` | 必須 | いいえ | いまは `0` のままにします。`ALLOWED_GUILD_IDS` に載せたサーバーは常に承認済み扱いになるため、Bot がほかのサーバーを受け入れられるようになるまでこの設定は使われません |
    | `UTC_OFFSET_HOURS` | 必須 | いいえ | 日次リセットの時差（日本時間は `9`） |
    | `SESSION_SECRET` | 必須 | **はい** | `openssl rand -hex 32` の出力（32 文字以上） |
    | `PUBLIC_API_ORIGIN` | 必須 | いいえ | 当面は `https://localhost` で構いません（起動時に形式チェックされますが現在は未使用。独自ドメイン取得後は `https://api.example.com`） |
@@ -391,6 +395,7 @@ URL Mappings を直前に変更した場合は、**先に Discord を再読み�
 | `<APP_ID>.discordsays.com refused to connect` と表示される | `/` のターゲット指定ミス（ホスト名の打ち間違い、`https://` や末尾 `/` の混入） | Cloudflare Pages の正確な `*.pages.dev` ホスト名をコピーして `/` を修正・保存し、Discord を再読み込み（`Cmd+R` / `Ctrl+R`） |
 | 読み込み画面のまま止まる | サーバーまたはトンネルが止まっている、あるいはクイックトンネル再起動後に `/api` を更新していない | ターミナル 1 と 2 が動いているか確認し、クイックトンネル再起動時は `/api` を更新、手順 7 の `curl` 3 つを確認して Discord を再読み込み（`Cmd+R` / `Ctrl+R`） |
 | Activities 一覧にアプリが出てこない | Activities が有効になっていない、テストサーバーに未インストール、または Discord の表示が古い | **Activities → Settings → Enable Activities** がオンか、手順 4 でサーバーにインストール済みかを確認し、Discord を再起動または再読み込み（`Cmd+R` / `Ctrl+R`） |
+| スマホで「この OS では利用できません」と表示される | **Supported Platforms** で **iOS** / **Android** が有効になっていない | **Activities → Settings → Supported Platforms** で **iOS** と **Android** にチェック（画面の向きはロックしない）を入れて **Save Changes** を押し、スマホの Discord を完全に再起動する |
 | `"Your session ended. Please open the app again."` と表示される | サーバー側で認証が拒否された | **ターミナル 1** のログから `auth rejected: <reason>` の行を探し、下の表で原因を確認する |
 
 ### ターミナル 1 の `auth rejected: <reason>` 一覧
@@ -400,7 +405,7 @@ URL Mappings を直前に変更した場合は、**先に Discord を再読み�
 | `code_exchange_failed:401` | `DISCORD_CLIENT_SECRET` が間違っている（**Bot Token** を誤って貼っていることが多い） | **Developer Portal → OAuth2 → Client Secret** をコピーまたはリセットして `.env` を更新し、サーバーを再起動 |
 | `code_exchange_failed:400` | `.env` の `DISCORD_CLIENT_ID` と Cloudflare Pages の `VITE_DISCORD_CLIENT_ID` が一致していない、または認証コードの期限切れ | 両方が同じ `APP_ID` か確認し（Pages 変更時は再デプロイ、`.env` 変更時はサーバー再起動）、Activity を開き直す |
 | `guild_not_allowed`（または `guild_denied`） | そのサーバーの ID が `ALLOWED_GUILD_IDS` に入っていない | サーバー ID をコピーして `.env` の `ALLOWED_GUILD_IDS` に追加し、サーバーを再起動 |
-| `guild_pending` | `ALLOWED_GUILD_IDS` に無いサーバーのみ（先に `guild_not_allowed` で拒否されます）。ここに載せたサーバーは自動承認されます | サーバー ID を `ALLOWED_GUILD_IDS` に追加 → サーバーを再起動 |
+| `guild_pending` | そのサーバーが未承認（`ALLOWED_GUILD_IDS` に載せたサーバーは自動承認されます） | サーバー ID を `.env` の `ALLOWED_GUILD_IDS` に追加し、サーバーを再起動 |
 | `proxy_signature_invalid` | `.env` の `DISCORD_PUBLIC_KEY` が間違っている | **Developer Portal → General Information** から 64 文字の **Public Key** をコピーして `.env` を更新し、サーバーを再起動 |
 | `proxy_signature_missing` *（続けて不足ヘッダー名が表示）* | Discord のプロキシ署名ヘッダーが付いていない（`/api/token` では発生しません。ほかのルートでも `REQUIRE_PROXY_SIGNATURE=1` のときだけ出ます） | `.env` で `REQUIRE_PROXY_SIGNATURE=0` に戻してサーバーを再起動し、報告してください |
 | `timestamp_skew` / `proxy_expired` | Mac の時計がずれている、または通信の期限が切れた | macOS の **システム設定 → 一般 → 日付と時刻** で自動設定をオンにし、Activity を開き直す |
