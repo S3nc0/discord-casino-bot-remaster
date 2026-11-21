@@ -14,15 +14,15 @@
    - **Bot** → **Token** を発行・コピー → `DISCORD_TOKEN` に設定（**機密情報**）。
    - **OAuth2** → **Client Secret** をコピー → `DISCORD_CLIENT_SECRET` に設定（**機密情報**）。
 3. **OAuth2 Redirect のプレースホルダー登録**
-   - **OAuth2 → Redirects** に Pages のオリジン（例: `https://PAGES_DOMAIN`、ローカルブラウザ確認用に必要なら `http://localhost:5173`）を登録します。
+   - **OAuth2 → Redirects** にプレースホルダーとして `https://127.0.0.1` を 1 件登録します（Discord の仕様上 1 件以上必要ですが、Activity の認証フローでは実際には使用されません）。
 4. **Activities の有効化と Entry Point コマンド**
    - **Activities → Settings** で **Enable Activities** を有効にします。
    - **Installation / App Commands** で Discord 管理の **Entry Point** コマンドが有効になっていることを確認します。
 5. **URL Mappings の設定**
    - **Activities → URL Mappings** に次の 2 つを設定します。
      - `/` → `PAGES_DOMAIN`（Cloudflare Pages のホスト名、例: `your-app.pages.dev`）
-     - `/api` → `API_DOMAIN`（Cloudflare Tunnel のホスト名、例: `api.example.com`）
-   - `/api` マッピングではパス先頭の `/api` を削除せずそのまま転送してください（ローカル開発時の Vite プロキシと一致させるため）。
+     - `/api` → `API_DOMAIN/api`（Cloudflare Tunnel のホスト名に `/api` を付けたもの、例: `api.example.com/api`）
+   - Discord のプロキシはマッピング元のプレフィックスをターゲットに置換するため、サーバーが `/api` 配下で待ち受けるルートに合わせるには `/api` のターゲットを `API_DOMAIN/api` に指定する必要があります。
 
 ## 2. Mac 上に `.env` を作成する
 
@@ -129,6 +129,6 @@ Cloudflare Pages でこのリポジトリを連携し、以下を設定します
 
 3. **Pages と Discord Activity の疎通確認:**
    - ブラウザで `https://PAGES_DOMAIN` を開き、フロントエンドが読み込まれることを確認します。
-   - `TEST_GUILD_ID` の Discord サーバーから Activity を起動し、認証および `/api` 通信が Mac 上のサーバーと疎通することを確認します。
+   - `TEST_GUILD_ID` の Discord サーバーから Activity を起動し、Activity 内からの `/.proxy/api/health` へのリクエストが HTTP `200` を返し、認証および `/api` 通信が Mac 上のサーバーと疎通することを確認します。
 
 Mac から Raspberry Pi へ移行する準備ができたら、[PI_SETUP.ja.md](PI_SETUP.ja.md) の手順でコード変更なしに移行できます。
