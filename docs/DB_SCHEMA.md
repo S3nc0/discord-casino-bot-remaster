@@ -11,7 +11,10 @@ written by their owners (see [Planned tables](#planned-tables-wave-2)).
 | Thing | Rule |
 | --- | --- |
 | Discord ids | `TEXT` snowflakes. JS numbers lose precision above 2^53. |
-| Pelica | `INTEGER`. Never `REAL`. |
+| Pelica | `INTEGER`. No `REAL` column holds money or a rate, anywhere. |
+| Rates | `INTEGER` basis points (`_bps`, 1 bp = 0.01 %). |
+| Prices, quantities | Fixed-point `INTEGER`: prices in micro-Pelica (`_micros`, ×1,000,000), quantities in milli-units (`_milli`, ×1,000). `REAL` is not used for money, rates, prices or quantities. |
+| Rounding | One rule, applied where an amount becomes Pelica: amounts paid to a player round down, amounts charged to a player round up. The ledger only ever sees integers. |
 | Time | `INTEGER` epoch milliseconds, UTC. Game days use `UTC_OFFSET_HOURS` (JST = 9) in code. |
 | Booleans | `INTEGER` 0/1 with a `CHECK`. |
 | JSON | `TEXT` with `CHECK (json_valid(...))`. |
@@ -20,7 +23,7 @@ written by their owners (see [Planned tables](#planned-tables-wave-2)).
 
 ## Connection pragmas
 
-Set by the connection code on every open (they are per connection, so they are not in a migration):
+Set by `applyPragmas` (`apps/server/src/db/pragmas.ts`) on every open (they are per connection, so they are not in a migration):
 
 | Pragma | Value | Why |
 | --- | --- | --- |
@@ -28,6 +31,7 @@ Set by the connection code on every open (they are per connection, so they are n
 | `synchronous` | `NORMAL` | Safe with WAL, far fewer fsyncs (SD cards on a Pi). |
 | `busy_timeout` | `5000` | Wait instead of failing when the backup or a CLI holds a lock. |
 | `foreign_keys` | `ON` | Off by default in SQLite. |
+| `recursive_triggers` | `ON` | Makes the implicit delete of `INSERT OR REPLACE` fire DELETE triggers. The ledger triggers hold without it too (tested both ways). |
 | `temp_store` | `MEMORY` | No temp files. |
 | `cache_size` | `-8000` (8 MB) | Fits the 150 MB idle RSS target. |
 
@@ -55,39 +59,57 @@ and reused. Nightly backups use the online backup API (`sqlite3 .backup`), never
 
 ### Ledger invariants (enforced by triggers)
 
-- `ledger` rejects `UPDATE` and `DELETE`.
+- `ledger` rejects `UPDATE` and `DELETE`, and an insert whose explicit `id` already exists, so
+  `INSERT OR REPLACE` and upserts cannot overwrite history.
 - An insert must satisfy `balance_after = previous balance (0 if none) + delta`.
 - After each insert, `balances` is upserted from the new row.
-- `balances` rejects any insert, update or delete that does not mirror the newest ledger row of
-  that account, so a direct write cannot move money.
+- `balances` rejects any insert (including `INSERT OR REPLACE`), update or delete that does not
+  mirror the newest ledger row of that account, so a direct write cannot move money.
+- `CHECK (balance_after >= 0)` and `CHECK (balance >= 0)`: a balance never goes below zero.
+
+### Decision: balances are never negative
+
+The original keeps debt out of the wallet: `users.debt` is Teiai debt repaid by withholding from
+income, and player-to-player loans live in `loans`. Nothing in the old schema lets `balance` go
+below zero. We keep that: debt and loans live in their own per-guild tables (`bank_accounts`,
+`loans`), the wire schemas use non-negative `Pelica`, and SQL enforces it. Interest and
+repayment never push a balance below zero: a repayment or withholding debits at most the current
+balance (`loan_repay`, `debt_withholding`), and what is left stays on the debt row. The importer
+reports any negative legacy balance as an error instead of importing it.
 
 So `balances.balance = SUM(ledger.delta)` per account always holds. `EconomyService` is the only
-code that inserts ledger rows; it also checks business rules (no negative balance, caps, fees)
-that the triggers do not know about. The test `0001_init.test.ts` covers the triggers.
+code that inserts ledger rows; it also checks business rules (caps, fees, transfer limits) that
+the triggers do not know about. The test `0001_init.test.ts` covers the triggers.
 
 ## Planned tables (Wave 2)
 
 Owners create these in their own migrations (`0002_...` onward), following the conventions.
 Names are a starting point; owners may refine them.
 
-| Area | Tables | Owner |
+**Every table that holds Pelica, a stake, a position or a claim is per guild** (`guild_id`, and
+`guild_members` for player rows). That includes securities: holdings, margin, options and bonds
+are per guild. Only the read-only feeds below are shared by all guilds, as in the original.
+
+| Area | Per-guild tables | Owner |
 | --- | --- | --- |
-| Stats | `player_stats` (plays, wins, wagered, won, biggest win, streaks, net) | B1 (written by the `GameSettled` subscriber) |
-| Casino games | `game_rounds` (open rounds and held stakes), `jackpots`, `rtp_levels`, `pachinko_spins`, `pachinko_sets` | B2 |
-| Daily, missions, ranking | `daily_claims`, `missions`, `weekly_stats`, `weekly_champions`, `weekly_state`, `titles`, `nick_prefs` | B2 |
-| Events | `event_state`, `manual_events` | B2 |
-| Races | `horses`, `horse_races`, `horse_entries`, `horse_bets`, `horse_odds` | B2 |
-| Arena | `arena_tournaments`, `arena_fighters`, `arena_bets` | B2 |
-| Work | `work_state`, `work_finds`, `work_click_hours`, `work_workers` | B2 |
-| Quiz, lottery, polls | `quiz_questions`, `quiz_answers`, `raffles`, `raffle_entries`, `polls`, `poll_votes` | B2 |
-| Securities | `market_prices`, `market_fair`, `market_events`, `earnings`, `earnings_memos`, `earnings_shop`, `positions_spot`, `positions_short`, `positions_long`, `options`, `bonds` | B3 |
+| Stats | `player_stats` | B1 (the `GameSettled` subscriber) |
+| Casino games | `game_rounds` (open rounds, held stakes), `jackpots`, `rtp_levels`, `pachinko_spins`, `pachinko_sets` | B2-A |
+| Daily, missions, ranking | `daily_claims`, `missions`, `weekly_stats`, `weekly_champions`, `weekly_state`, `titles`, `nick_prefs` | B2-B |
+| Events | `event_state`, `manual_events` | B2-B |
+| Races, arena | `horses`, `horse_races`, `horse_entries`, `horse_bets`, `horse_odds`, `arena_tournaments`, `arena_fighters`, `arena_bets` | B2-B |
+| Work, quiz, lottery, polls | `work_state`, `work_finds`, `work_click_hours`, `work_workers`, `quiz_answers`, `raffles`, `raffle_entries`, `polls`, `poll_votes` | B2-B |
+| Shop and items | `inventory`, `shop_stock`, `profiles`, `seized_items`, `teiai_market`, `teiai_market_days` | B2-B |
+| Player market | `marketplace_listings` | B3 |
+| Securities | `positions_spot`, `positions_short`, `positions_long`, `options`, `bonds`, `earnings_memos`, `earnings_shop` | B3 |
 | Teiai bank | `bank_accounts` (debt, bankrupt_at, blacklist_until), `bank_reserve`, `house_account`, `bank_deposits`, `loans`, `cds` | B3 |
 | Kyosai, companies | `kyosai_units`, `kyosai_auctions`, `kyosai_offers`, `kyosai_motions`, `kyosai_votes`, `companies`, `company_stakes` | B3 |
-| Shop, items, player market | `inventory`, `shop_stock`, `profiles`, `marketplace_listings`, `seized_items`, `teiai_market`, `teiai_market_days` | to be assigned by the Leader |
-| Bot | `bot_messages` (leaderboard, chart and listing posts), `guild_webhooks` (personas) | B4 |
-| Import | `legacy_ledger` (read-only copy of the old history), `legacy_import_runs` | B1 |
+| Bot | `bot_messages`, `guild_webhooks` (personas) | B4 |
+| Import | `legacy_ledger` (read-only old history), `legacy_import_runs` | B1 |
 
-Market tables are global (no `guild_id`), as in the original.
+| Shared feed (no `guild_id`, no money) | Owner |
+| --- | --- |
+| `market_prices` (`price_micros`), `market_fair`, `market_events`, `earnings` | B3 |
+| `quiz_questions` | B2-B |
 
 ## Legacy table mapping
 
@@ -116,14 +138,15 @@ B1) runs with the Python bot stopped.
 | `arena_tournaments`, `arena_fighters`, `arena_bets` | same names | NPC bettors use negative user ids: store them as `NULL` user plus an NPC column. |
 | `labor`, `labor_finds`, `labor_click_hours`, `labor_workers` | `work_state`, `work_finds`, `work_click_hours`, `work_workers` | Unclaimed `pot` is held Pelica. |
 | `market_listings` | `marketplace_listings` | Highest bids are held Pelica. |
-| `seized_items`, `teiai_market`, `teiai_market_days` | same names | 1:1. |
+| `seized_items`, `teiai_market`, `teiai_market_days` | same names | `day` (REAL) becomes a date or ms. |
 | `quiz_questions`, `quiz_answers` | same names | Questions are global. |
 | `raffle`, `raffle_entries` | `raffles`, `raffle_entries` | Entry fees of open raffles are held Pelica. |
 | `polls`, `poll_votes` | same names | 1:1. |
-| `market_prices`, `market_fair`, `market_events`, `earnings`, `earnings_memos`, `earnings_shop` | same names | Global. |
-| `crypto`, `crypto_short`, `crypto_long` | `positions_spot`, `positions_short`, `positions_long` | Margin is held Pelica. |
-| `options`, `bonds`, `loans`, `cds` | same names | Premiums, principal and margin as in the original. |
-| `teiai_bank`, `teiai_house`, `teiai_deposits` | `bank_reserve`, `house_account`, `bank_deposits` | Bank-side money is not a player balance. |
+| `market_prices`, `market_fair`, `market_events`, `earnings` | same names | Shared feed. Prices and factors to fixed-point integers. |
+| `earnings_memos`, `earnings_shop` | same names | Per guild (they are bought with Pelica). |
+| `crypto`, `crypto_short`, `crypto_long` | `positions_spot`, `positions_short`, `positions_long` | Per guild. Quantities to `_milli`, prices to `_micros`. Margin is held Pelica. |
+| `options`, `bonds`, `loans`, `cds` | same names | Per guild. Strike and spot to `_micros`; `loans.rate_tenths` (0.1 %/day) to `rate_bps` (×10). |
+| `teiai_bank`, `teiai_house`, `teiai_deposits` | `bank_reserve`, `house_account`, `bank_deposits` | Per guild. Legacy `REAL` cash, loaned and thermostat amounts become `INTEGER` Pelica (rounded with the rule above; the importer reports the total rounding residue). Rates to bps. |
 | `kyosai_units`, `kyosai_auctions`, `kyosai_offers`, `kyosai_motions`, `kyosai_votes` | same names | `user_id = 0` (house units) becomes `NULL` user plus a house flag. |
 | `companies`, `company_stakes` | same names | Company funds are separate from player balances. |
 | `leaderboards`, `chart_posts`, `chart_boards` | `bot_messages` | Message pointers; safe to drop if the channel is gone. |
@@ -133,8 +156,11 @@ B1) runs with the Python bot stopped.
 - Ids: legacy `INTEGER` ids are read with `safeIntegers(true)` (BigInt) and written as decimal
   strings. Never go through a JS number.
 - Time: legacy `REAL` epoch seconds become `Math.round(ts * 1000)` ms. Text dates stay text.
-- Money: legacy `INTEGER` Pelica is copied as is. Legacy `REAL` amounts (bank internals,
-  fractional stock) stay `REAL` in their finance tables; owners decide where rounding happens.
+- Money: legacy `INTEGER` Pelica is copied as is. Legacy `REAL` money (bank internals) is
+  rounded once at import with the rounding rule; player balances are always `INTEGER` already, so
+  the per-player proof below is exact.
+- Rates, prices, quantities: converted to bps, micro-Pelica and milli-units (no `REAL` left).
+- Negative legacy balances, if any, stop the import with a report (see the decision above).
 
 ### Proof that no Pelica moved
 

@@ -2,136 +2,119 @@
 
 ## Process and packages
 
-One Node 24 process runs everything: Fastify (HTTP API), Socket.io (same HTTP server),
-discord.js (chat bot, `Guilds` intent only), and a cron scheduler. Services talk through a typed
-in-process `EventEmitter` bus (`DomainEventMap`). No Redis, no broker, no ORM. The server is
-bundled by tsup into `dist/main.js` (workspace code inlined, npm dependencies external) and runs
-with `node --max-old-space-size=192`. The web app is a Vite + React build served from Cloudflare
-Pages.
+One Node 24 process: Fastify (HTTP API), Socket.io (same server), discord.js (chat bot, `Guilds`
+intent only) and a cron scheduler, talking through a typed in-process `EventEmitter` bus
+(`DomainEventMap`). No Redis, broker or ORM. tsup bundles the server into `dist/main.js`
+(workspace code inlined, npm deps external); it runs with `--max-old-space-size=192`. The web app
+is a Vite + React build on Cloudflare Pages.
 
-| Package | Role |
-| --- | --- |
-| `packages/shared` | Contracts: TypeBox schemas, socket events, rooms, domain events, ledger reasons, ids, RNG/clock interfaces, i18n. |
-| `packages/domain` | Pure rules. Imports only `@casino/shared`. |
-| `packages/ui` | Bitbloom React components and assets. |
-| `apps/server` | The single process above. |
-| `apps/web` | The Activity. |
-
-Workspace packages are consumed as TypeScript source. Code uses erasable TypeScript only and
-`.ts` relative imports, so Node, Vite, Vitest and tsup read the same files.
+`packages/shared` holds the contracts (TypeBox schemas, socket events, rooms, domain events,
+ledger reasons, ids, env contract, proxy verifier and RNG/clock interfaces, i18n).
+`packages/domain` holds pure rules, `packages/ui` the Bitbloom components. Workspace packages are
+consumed as TypeScript source: erasable syntax only, `.ts` relative imports.
 
 ## Auth flow
 
 1. Activity: `discordSdk.ready()`, then `commands.authorize({ client_id, response_type: 'code',
    prompt: 'none', scope: ['identify', 'guilds'] })`.
-2. `POST /api/token` with `TokenRequest` (`code`, `guildId`, `instanceId`, `clientLocale`).
-3. Server exchanges the code with `DISCORD_CLIENT_SECRET`, calls `/users/@me` and
-   `/users/@me/guilds`, checks the guild is in `ALLOWED_GUILD_IDS` (and approved when
-   `REQUIRE_APPROVAL=1`), upserts `users` and `guild_members`, resolves the locale, consumes any
-   launch intent, and returns `TokenResponse` with our session token (HS256 JWS over
-   `SessionClaims`, `SESSION_SECRET`, 1 hour).
-4. Activity: `commands.authenticate({ access_token })`, then connects Socket.io with
-   `auth: { token }`. HTTP calls send `Authorization: Bearer <token>`. On expiry the Activity
-   repeats the flow silently.
+2. `POST /api/token` with `TokenRequest`. Nothing in it is trusted as given.
+3. The server exchanges the code (`DISCORD_CLIENT_SECRET`), reads `/users/@me` and
+   `/users/@me/guilds`, and requires: `guildId` is in the user's guild list **and** in
+   `ALLOWED_GUILD_IDS` (and approved if `REQUIRE_APPROVAL=1`); `instanceId` is a live instance
+   per `GET /applications/{app}/activity-instances/{instanceId}`, its location's guild is
+   `guildId`, and the user is in its user list. Then it upserts `users`/`guild_members`,
+   resolves the locale, consumes this user's launch intent for this guild, and returns
+   `TokenResponse` with an HS256 session token over `SessionClaims` (`SESSION_SECRET`, 1 h).
+4. Activity: `commands.authenticate({ access_token })`, connects Socket.io with
+   `auth: { token }`; HTTP uses `Authorization: Bearer`. On expiry it repeats the flow silently.
 
-## URL mappings and the proxy
+**Socket sessions.** `SocketData` carries `expiresAt` and `jti`. The server checks
+`isSessionExpired` on every incoming event and disconnects at `expiresAt`, emitting
+`session:error` `{ error: 'expired' }` first. Every room join, automatic or via `table:join`,
+passes `canJoinRoom`: guild and user rooms only for the token's guild and user, instance and table
+rooms only for the token's instance (verified above to belong to that guild).
 
-Developer Portal mappings: `/` → Pages domain, `/api` → API domain with the `/api` path kept, so
-routes are identical in dev (Vite proxies `/api` to `localhost:3001`) and inside Discord.
-Socket.io uses path `/api/socket.io` and `transports: ['websocket']`. Libraries that build their
-own URLs go through `patchUrlMappings`. Fonts and all other assets are bundled; the iframe can
-reach only mapped URLs. The server verifies the request-signature headers that Discord's proxy
-adds, as described in Discord's Activity security guide, and rejects unsigned requests in
-production.
+## URL mappings and proxy signatures
+
+Developer Portal: `/` → Pages domain, `/api` → API domain with `/api` kept, so routes match dev
+(Vite proxies `/api` to `localhost:3001`). Socket.io: path `/api/socket.io`, websocket only.
+Libraries that build URLs use `patchUrlMappings`. All assets are bundled.
+
+Every request through the Discord proxy carries `X-Signature-Ed25519`, `X-Signature-Timestamp`
+and `X-Discord-Proxy-Payload` (base64 JSON with `created_at`, `expires_at`, Unix seconds).
+`ProxySignatureVerifier` (shared) rejects, in order: missing headers; a payload that is not
+`ProxyPayload`; `String(created_at) !== timestamp`; `created_at` more than 60 s in the future;
+`expires_at <= now`; an Ed25519 signature (hex or base64) over the decoded payload bytes that
+does not verify with `DISCORD_PUBLIC_KEY` (`node:crypto`). It runs as a Fastify `onRequest` hook
+for `/api/*` and in Socket.io `allowRequest` for the upgrade. It fails closed (401) unless
+`NODE_ENV=development`.
 
 ## Server authority and idempotency
 
-All randomness is on the server (`cryptoRng`, built on `crypto.randomInt`). Clients send intents
-(`BetIntent`, `ActionIntent`), never results. Every intent carries an `idempotencyKey`; the
-server stores the first response in `idempotency_keys` per (guild, user, key) inside the same
-transaction as the money change, and replays it (`replayed: true`) for repeats. A reused key
-with a different body is a `conflict`. Every client payload is validated with its schema from
-`CLIENT_PAYLOADS`. Rate limits apply per user and per socket. Chat commands call the same
-services in-process, so both surfaces share one economy.
+All randomness is server-side (`cryptoRng`, `crypto.randomInt`). Clients send intents
+(`BetIntent`, `ActionIntent` with `roundId`), never results. Inbound schemas reject unknown
+properties. Each intent's `idempotencyKey` is stored with its first response in
+`idempotency_keys` in the same transaction as the money change and replayed on repeats; a reused
+key with a different body is `conflict`; a stale `roundId` is `conflict`. Rate limits per user
+and per socket. Chat commands call the same services in-process.
 
-## Domain purity
+## Domain purity and economy
 
-`packages/domain` functions take state, inputs and a `DomainContext` (`rng`, `clock`) and return
-`Outcome<S>`: the next state plus domain events. No DB, no Discord, no network, no
-`Date.now`, `new Date()` or `Math.random`. ESLint blocks these imports and globals, and
-`purity.test.ts` fails CI on its own if they appear. Tests use `createSeededRng` and
-`manualClock`, which makes parity tests against the original behaviour possible.
+`packages/domain` functions take state, inputs and `DomainContext` (`rng`, `clock`) and return
+`Outcome<S>` (state + events). No I/O, wall clock, ambient RNG or path imports out of the
+package: ESLint blocks them and `purity.test.ts` fails CI on its own.
 
-## Economy
+`EconomyService` is the only writer of balances: one `ledger` row per change, triggers keep
+`balances` in step and reject edits, replaces and upserts; balances never go below zero (debt
+has its own tables). All money, rates, prices and quantities are integers (Pelica, bps, fixed
+point). The change, its game state and its idempotency record commit together; events are
+published after commit. See [DB_SCHEMA.md](DB_SCHEMA.md).
 
-`EconomyService` (server) is the only writer of balances. Each change inserts one `ledger` row
-with a `LedgerReason`; triggers keep `balances` in step and reject edits (see
-[DB_SCHEMA.md](DB_SCHEMA.md)). Balances are per guild. A change, its game state and its
-idempotency record commit in one transaction; events are published after commit.
+## Events, rooms, launch intents
 
-## Events and subscribers
+After commit, per-guild `DomainEvent`s go to subscribers: socket rooms (`domain:event`,
+`balance:update`, `table:state`), chat announcer (rate-limited, batched), webhook personas, DM
+queue (opt-in, retry, digest), inbox, presence, and stats/missions/ranking. Rooms: `guild:{id}`,
+`instance:{instanceId}`, `user:{id}` on connect; `table:{instanceId}:{game}` via `table:join`.
+Payloads on `user:{id}` carry `guildId` so a client in two guilds can filter. Market ticks once
+a minute; races as a timeline.
 
-Services publish `DomainEvent`s (per guild) on the bus after commit. Subscribers:
+Launch intents are in-process only (`LaunchIntentService`); there is no HTTP route. The bot calls
+`create({ userId, guildId, screen })` (expires in 2 min) and answers with `LAUNCH_ACTIVITY`;
+`POST /api/token` calls `consume` for the session's own user and guild.
 
-| Subscriber | Does |
-| --- | --- |
-| Socket rooms | Emits `domain:event`, `balance:update`, `table:state` to the right rooms. |
-| Chat announcer | Posts selected events to the guild announce channel, rate-limited and batched. |
-| Webhook personas | Posts race, market and bank news with their own name and avatar. |
-| DM queue | Opt-in DMs per `NotificationKind`, with retry and per-user digest. |
-| Inbox | Stores the same notifications for the Activity inbox (`inbox:new`). |
-| Presence | Updates rich presence (screen and balance). |
-| Stats, missions, ranking | Count `GameSettled` from both surfaces. |
+## i18n, legacy import, secrets
 
-## Rooms
+Dictionaries `packages/shared/i18n/{en,ja}.ts`, flat keys; `ja` is typed against `en`, every
+`ErrorCode` has `error.<code>`, and `pnpm i18n:check` fails CI on drift. Locale: user setting,
+client locale, guild locale, `en`.
 
-`guild:{id}`, `instance:{instanceId}` and `user:{id}` are joined on connect from the verified
-token. `table:{instanceId}:{game}` is joined with `table:join` for shared tables (roulette
-wheel, blackjack seats, watch-together race). Names come from `rooms.*` in `packages/shared`.
-Market ticks go out once per minute; races are sent as a timeline.
+`apps/server/scripts/import-legacy.ts` imports `data/casino.db` (Python bot stopped) per
+DB_SCHEMA.md and fails on any Pelica difference. Never run both bots on one token.
 
-## Launch intents
-
-A chat button answers with `LAUNCH_ACTIVITY` after the bot stores `LaunchIntent`
-(`userId`, `guildId`, `screen`, `expires` = now + 2 min) through the in-process
-`POST /api/launch-intent` handler. `POST /api/token` consumes it and returns it, and the Activity
-opens on that screen.
-
-## i18n
-
-Typed dictionaries in `packages/shared/i18n/{en,ja}.ts` with flat dotted keys. `ja` is typed
-against the `en` key set, and `pnpm i18n:check` fails CI on a missing or empty key or on
-placeholder drift. Locale order: user setting, Discord client locale, guild preferred locale,
-`en`.
-
-## Legacy import
-
-`apps/server/scripts/import-legacy.ts` reads the Python bot's `data/casino.db` (bot stopped) and
-writes the new schema using the mapping in [DB_SCHEMA.md](DB_SCHEMA.md). Each balance starts with
-one `legacy_import` ledger row. The run prints per-guild and per-user totals for every Pelica
-bucket and fails on any difference. Never run the Python bot and the new bot on the same token at
-the same time.
-
-## Secrets and config
-
-`.env` is created by the owner on their machine and never committed; `.env.example` holds
-placeholders only. Config is validated at start-up. Logs redact anything that looks like a token. Times use `UTC_OFFSET_HOURS` (JST = 9). `ANNOUNCE_CHANNEL_ID` is the default;
-`guild_config` overrides it per guild.
+`.env` lives only on the owner's machine; `.env.example` holds placeholders and must satisfy
+`ServerEnv` (tested). The server validates env at start-up. Pino `redact.paths`:
+`req.headers.authorization`, `req.headers.cookie`, `req.headers["x-discord-proxy-payload"]`,
+`*.code`, `*.accessToken`, `*.access_token`, `*.sessionToken`, `*.token`, `*.secret`; a
+serializer also masks `Bearer …`, JWS-shaped strings and bot-token-shaped strings in messages.
 
 ## Directory ownership
 
 | Path | Owner |
 | --- | --- |
-| `packages/shared/`, root config, `docs/ARCHITECTURE.md`, `docs/DB_SCHEMA.md` | A1 (shared is frozen; changes need an A1 task) |
-| `packages/domain/{casino,race,arena,work,quiz,lottery,poll}/` | B2 |
-| `packages/domain/finance/` | B3 |
+| `packages/shared/`, root config, these two docs | A1 (shared frozen; changes need an A1 task) |
+| `packages/domain/casino/` | B2-A |
+| `packages/domain/{race,arena,work,quiz,lottery,poll,shop}/` | B2-B |
+| `packages/domain/finance/` (incl. player market) | B3 |
 | `apps/server/src/{http,socket,db,auth}/`, `apps/server/scripts/` | B1 |
-| `apps/server/src/bot/`, `apps/server/src/notify/` | B4 |
-| `packages/ui/` | F1; `packages/ui/src/{audio,fx}` F3 |
-| `apps/web/src/shell/` | F4 |
-| `apps/web/src/screens/` | F2 |
-| `**/*.test.ts` next to code | T1 |
-| `tests/e2e/`, `tests/invariants/` | T2 |
+| `apps/server/src/{bot,notify}/` | B4 |
+| `packages/ui/` (`src/{audio,fx}`: F3) | F1 |
+| `apps/web/src/shell/` / `apps/web/src/screens/` | F4 / F2 |
+| `**/*.test.ts` next to code / `tests/e2e/`, `tests/invariants/` | T1 / T2 |
 | `ops/`, `.github/workflows/` | O1 |
-| `docs/spec/` | S1 |
-| `docs/STATUS.md`, READMEs | SC |
+| `docs/spec/` / `docs/STATUS.md`, READMEs | S1 / SC |
+
+## Known follow-ups
+
+- arm64 CI job on `ubuntu-24.04-arm` (O1, task 1.5).
+- Proxy verifier, socket expiry and room checks are contracts here; B1 implements them in Wave 1.
