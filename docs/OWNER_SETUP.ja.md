@@ -236,7 +236,7 @@ Discord Activity（デスクトップ / モバイル）
    | `PUBLIC_API_ORIGIN` | 必須 | いいえ | 当面は `https://localhost` で構いません（起動時に形式チェックされますが現在は未使用。独自ドメイン取得後は `https://api.example.com`） |
    | `ANNOUNCE_CHANNEL_ID` | 必須 | いいえ | テストサーバー内の通知用テキストチャンネル ID |
    | `NODE_ENV` | 任意 | いいえ | 既定 `production`。Discord / トンネル経由で動かすときは未設定または `production` のままにします |
-   | `REQUIRE_PROXY_SIGNATURE` | 任意 | いいえ | 既定 `0`。いまは `0` のままにします（ログイン後の通信に Discord の署名が付くことを確認できたら有効にする予定です） |
+   | `REQUIRE_PROXY_SIGNATURE` | 任意 | いいえ | 既定 `0`。`0` のままにしてください。Discord は Activity の通信（ログイン時・ログイン後とも）に署名ヘッダーを送らないことが確認されているため、`1` にするとすべてのリクエストが拒否されます |
    | `HOST` | 任意 | いいえ | 既定 `127.0.0.1`。トンネルがローカル接続するため既定のままにします |
    | `PORT` | 任意 | いいえ | 既定 `3001`。サーバーの待機ポート |
    | `DATABASE_PATH` | 任意 | いいえ | 既定 `./data/casino.sqlite`。新しいデータベースファイルです（旧版の `data/casino.db` はインポーターの入力専用） |
@@ -384,6 +384,8 @@ URL Mappings を直前に変更した場合は、**先に Discord を再読み�
 
 ✅ **確認:** Discord 内でカジノのホーム画面が開き、残高 **3,000 Pelica** が表示されます。
 
+続いて [オーナー向け動作確認チェックリスト](OWNER_TESTING.ja.md) に沿ってデスクトップ・スマホ・テーマ・言語・設定保存を確認してください（アップデート後も毎回このチェックリストを使います）。
+
 ---
 
 ## 9. トラブルシューティング
@@ -407,7 +409,7 @@ URL Mappings を直前に変更した場合は、**先に Discord を再読み�
 | `guild_not_allowed`（または `guild_denied`） | そのサーバーの ID が `ALLOWED_GUILD_IDS` に入っていない | サーバー ID をコピーして `.env` の `ALLOWED_GUILD_IDS` に追加し、サーバーを再起動 |
 | `guild_pending` | そのサーバーが未承認（`ALLOWED_GUILD_IDS` に載せたサーバーは自動承認されます） | サーバー ID を `.env` の `ALLOWED_GUILD_IDS` に追加し、サーバーを再起動 |
 | `proxy_signature_invalid` | `.env` の `DISCORD_PUBLIC_KEY` が間違っている | **Developer Portal → General Information** から 64 文字の **Public Key** をコピーして `.env` を更新し、サーバーを再起動 |
-| `proxy_signature_missing` *（続けて不足ヘッダー名が表示）* | Discord のプロキシ署名ヘッダーが付いていない（`/api/token` では発生しません。ほかのルートでも `REQUIRE_PROXY_SIGNATURE=1` のときだけ出ます） | `.env` で `REQUIRE_PROXY_SIGNATURE=0` に戻してサーバーを再起動し、報告してください |
+| `proxy_signature_missing` *（続けて不足ヘッダー名が表示）* | `REQUIRE_PROXY_SIGNATURE=1` になっている。Discord は Activity の通信（ログイン時・ログイン後とも）に署名ヘッダーを送らないことが確認されているため、`1` にするとすべてのリクエストが拒否されます | `.env` で `REQUIRE_PROXY_SIGNATURE=0` に戻してサーバーを再起動 |
 | `timestamp_skew` / `proxy_expired` | Mac の時計がずれている、または通信の期限が切れた | macOS の **システム設定 → 一般 → 日付と時刻** で自動設定をオンにし、Activity を開き直す |
 | `session_expired` / `session_invalid` / `session_revoked` / `socket_auth_failed` | セッション切れ、またはリアルタイム通信の認証失敗 | Activity を閉じて開き直す。すぐ再発する場合は報告してください |
 | `user_not_in_guild` / `instance_mismatch` / `scope_missing` | Discord 側でユーザー・サーバー・権限の一致を確認できなかった | Activity を閉じ、Discord を再読み込み（`Cmd+R` / `Ctrl+R`）してから起動し直す |

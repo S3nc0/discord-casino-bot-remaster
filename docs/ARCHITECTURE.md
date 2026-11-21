@@ -51,9 +51,11 @@ Developer Portal: `/` → Pages domain, `/api` → API domain with `/api` kept, 
 
 Discord's docs describe `X-Signature-Ed25519`, `X-Signature-Timestamp` and
 `X-Discord-Proxy-Payload` (base64 JSON with `created_at`, `expires_at`, Unix seconds) as
-optional. **Observed on real traffic: `POST /api/token`, the call made before
-`sdk.authenticate`, arrives with none of the three.** Whether later calls and the socket upgrade
-are signed is logged (see below), not assumed.
+optional. **Observed on 2026-11-21 on real Activity traffic: none of the three signature headers
+arrive either before or after `sdk.authenticate` (neither on HTTP routes nor on the socket
+upgrade).** The policy stays **verify-if-present** with `REQUIRE_PROXY_SIGNATURE` kept `false`
+(`0`), and our signed session tokens (plus `POST /api/token`'s Discord code exchange and live
+instance check) are the real auth boundary.
 
 `ProxySignatureVerifier` (shared) rejects, in order: missing headers; a payload that is not
 `ProxyPayload`; `String(created_at) !== timestamp`; `created_at` more than 60 s in the future;
