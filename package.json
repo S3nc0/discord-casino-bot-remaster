@@ -16,7 +16,10 @@
     "i18n:check": "pnpm --filter @casino/shared i18n:check",
     "dev:server": "pnpm --filter @casino/server exec tsup --watch src --watch ../../packages/shared/src --watch ../../packages/shared/i18n --watch ../../packages/domain/src --onSuccess \"(cd ../.. && exec node --env-file-if-exists=.env --max-old-space-size=192 --enable-source-maps apps/server/dist/main.js)\"",
     "dev:tunnel": "cloudflared tunnel --config \"${CLOUDFLARED_CONFIG:-ops/cloudflared/config.example.yml}\" run",
-    "dev:tunnel:quick": "cloudflared tunnel --url http://localhost:3001"
+    "dev:tunnel:quick": "cloudflared tunnel --url http://localhost:3001",
+    "commands:deploy:guild": "node --env-file=.env apps/server/src/bot/deploy-guild.ts",
+    "commands:deploy:global": "node --env-file=.env apps/server/src/bot/deploy-global.ts",
+    "commands:dry-run": "node apps/server/src/bot/deploy-guild.ts --dry-run"
   },
   "devDependencies": {
     "@eslint/js": "10.0.1",
