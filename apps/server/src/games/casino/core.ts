@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import type { RtpProfile } from '@casino/domain/casino';
-import { MIN_BET, isRtpLevel, scheduledBoost, settle, winTier } from '@casino/domain/casino';
+import { MIN_BET, eventBoostFor, isRtpLevel, settle, winTier } from '@casino/domain/casino';
+import type { ManualEvent } from '@casino/domain/casino';
 import type { LedgerReason } from '@casino/shared';
 import type { Logger } from 'pino';
 import { AppError } from '../../runtime/errors.ts';
@@ -71,7 +72,18 @@ const defaultPorts = (store: Store): CasinoPorts => ({
       .get(guildId, game) as { level: number } | undefined;
     return row?.level ?? 3;
   },
-  eventBoost: (guildId, game, nowMs) => scheduledBoost(guildId, game, nowMs),
+  eventBoost: (guildId, game, nowMs) => {
+    const row = store
+      .stmt(
+        'SELECT game, boost_pct, starts_at, ends_at FROM casino_events WHERE guild_id = ? AND ends_at > ?',
+      )
+      .get(guildId, nowMs) as
+      { game: CasinoGame; boost_pct: number; starts_at: number; ends_at: number } | undefined;
+    const manual: ManualEvent | null = row
+      ? { game: row.game, boostPct: row.boost_pct, startsAt: row.starts_at, endsAt: row.ends_at }
+      : null;
+    return eventBoostFor(guildId, game, nowMs, manual);
+  },
   isEnabled: (guildId, game) =>
     store
       .stmt('SELECT 1 FROM guild_features_off WHERE guild_id = ? AND feature = ?')

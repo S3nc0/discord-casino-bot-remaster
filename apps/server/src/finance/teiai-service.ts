@@ -956,6 +956,21 @@ export class TeiaiService {
     });
   }
 
+  /**
+   * Owner tool (`/admin set-balance` with a negative amount): overwrite the member's Teiai debt.
+   * Not a ledger movement; the cash side is posted by the caller.
+   */
+  adminSetDebt(guildId: string, userId: string, debt: number, nowMs = this.deps.clock.now()): void {
+    if (!Number.isInteger(debt) || debt < 0) return;
+    this.deps.store.transaction(() => {
+      this.ensureAccount(guildId, userId);
+      this.deps.store
+        .stmt('UPDATE bank_accounts SET debt = ? WHERE guild_id = ? AND user_id = ?')
+        .run(debt, guildId, userId);
+      this.afterDebtChangeInTx(guildId, userId, nowMs);
+    });
+  }
+
   /** Voluntary repayment (`/ペリカ 返済`). */
   repayDebt(
     guildId: string,

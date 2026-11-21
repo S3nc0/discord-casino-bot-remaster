@@ -774,6 +774,41 @@ export class StocksService {
     ];
   }
 
+  /** Open margin positions (long and short) of a member, for `/market settle`. */
+  listMarginPositions(
+    guildId: string,
+    userId: string,
+  ): (MarginPositionRow & { side: MarginSide })[] {
+    const out: (MarginPositionRow & { side: MarginSide })[] = [];
+    for (const side of ['long', 'short'] as const) {
+      const rows = this.deps.store
+        .stmt(
+          `SELECT * FROM ${this.marginTable(side)} WHERE guild_id = ? AND user_id = ? AND units_milli > 0 ORDER BY symbol ASC`,
+        )
+        .all(guildId, userId) as MarginPositionRow[];
+      for (const row of rows) out.push({ ...row, side });
+    }
+    return out;
+  }
+
+  /** Open options (bought and written) of a member, for `/market settle`. */
+  listOpenOptions(guildId: string, userId: string): OptionRow[] {
+    return this.deps.store
+      .stmt(
+        "SELECT * FROM options WHERE guild_id = ? AND user_id = ? AND status = 'open' ORDER BY id ASC",
+      )
+      .all(guildId, userId) as OptionRow[];
+  }
+
+  /** Active bonds of a member, for `/market settle`. */
+  listActiveBonds(guildId: string, userId: string): BondRow[] {
+    return this.deps.store
+      .stmt(
+        "SELECT * FROM bonds WHERE guild_id = ? AND user_id = ? AND status = 'active' ORDER BY id ASC",
+      )
+      .all(guildId, userId) as BondRow[];
+  }
+
   getPortfolioMarginStatus(
     guildId: string,
     userId: string,
@@ -922,13 +957,22 @@ export class StocksService {
     side: MarginSide,
     symbol: SymbolKey,
     nowMs = this.deps.clock.now(),
-    options: { readonly bypassPin?: boolean; readonly idempotencyKey?: string } = {},
+    options: {
+      readonly bypassPin?: boolean;
+      readonly idempotencyKey?: string;
+      /** Close only this share of the position (1..100, default 100); pro-rates units, entry and margin. */
+      readonly percent?: number;
+    } = {},
   ): ServiceResult<{
     readonly pnl: number;
     readonly returned: number;
     readonly tax: number;
     readonly owed: number;
   }> {
+    const percent = options.percent ?? 100;
+    if (!Number.isInteger(percent) || percent < 1 || percent > 100) {
+      return { ok: false, reason: 'invalid_percent' };
+    }
     return this.deps.store.transaction(() => {
       if (!options.bypassPin) {
         const pins = this.getPinStates(nowMs);
@@ -947,13 +991,31 @@ export class StocksService {
       }
 
       const priceMicros = this.getPricesMicros(nowMs)[symbol];
-      const pnl = marginPnl(side, pos.units_milli, pos.entry_value_micros, priceMicros);
-      const grossReturn = pos.margin + pnl;
+      const partialUnits = Math.floor((pos.units_milli * percent) / 100);
+      const partial = percent < 100 && partialUnits > 0 && partialUnits < pos.units_milli;
+      if (percent < 100 && partialUnits <= 0) return { ok: false, reason: 'invalid_units' };
+      const share = partial ? partialUnits / pos.units_milli : 1;
+      const closeUnits = partial ? partialUnits : pos.units_milli;
+      const closeEntry = partial
+        ? Math.floor(pos.entry_value_micros * share)
+        : pos.entry_value_micros;
+      const closeMarginAmount = partial ? Math.floor(pos.margin * share) : pos.margin;
+      const pnl = marginPnl(side, closeUnits, closeEntry, priceMicros);
+      const grossReturn = closeMarginAmount + pnl;
       const tax = pnl > 0 ? capitalGainsTax(pnl) : 0;
 
-      this.deps.store
-        .stmt(`DELETE FROM ${table} WHERE guild_id = ? AND user_id = ? AND symbol = ?`)
-        .run(guildId, userId, symbol);
+      if (partial) {
+        this.deps.store
+          .stmt(
+            `UPDATE ${table} SET units_milli = units_milli - ?, entry_value_micros = entry_value_micros - ?, margin = margin - ?
+              WHERE guild_id = ? AND user_id = ? AND symbol = ?`,
+          )
+          .run(closeUnits, closeEntry, closeMarginAmount, guildId, userId, symbol);
+      } else {
+        this.deps.store
+          .stmt(`DELETE FROM ${table} WHERE guild_id = ? AND user_id = ? AND symbol = ?`)
+          .run(guildId, userId, symbol);
+      }
 
       let returned = 0;
       let owed = 0;
@@ -1009,7 +1071,7 @@ export class StocksService {
             orderId,
             ticker: symbol,
             side: side === 'long' ? 'sell' : 'buy',
-            quantity: pos.units_milli,
+            quantity: closeUnits,
             price: priceMicros,
           });
         });

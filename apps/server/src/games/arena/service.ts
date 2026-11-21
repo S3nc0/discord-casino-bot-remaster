@@ -201,6 +201,23 @@ export class ArenaService {
     return reports;
   }
 
+  /**
+   * Owner tool (`/admin host-arena` with "advance"): resolve the open stage of today's tournaments
+   * now instead of waiting for the scheduled hour. `format` limits it to one tournament.
+   */
+  advanceNow(guildId: string, format?: ArenaFormat): MatchReport[] {
+    const open = this.ctx.store
+      .stmt(`SELECT * FROM arena_tournaments WHERE guild_id = ? AND status != 'done'`)
+      .all(guildId) as TournamentRow[];
+    const reports: MatchReport[] = [];
+    for (const t of open) {
+      if (format !== undefined && t.format !== format) continue;
+      if (t.status === 'semi_betting') reports.push(this.resolve(t, 'semi'));
+      else if (t.status === 'final_betting') reports.push(this.resolve(t, 'final'));
+    }
+    return reports;
+  }
+
   private resolve(t: TournamentRow, stage: 'semi' | 'final'): MatchReport {
     const { ctx } = this;
     return ctx.store.transaction(() => {

@@ -53,6 +53,21 @@ export class P2pLoanService {
     return row ?? null;
   }
 
+  /**
+   * `/loan list`: the loans a member is part of, as lender or borrower. Open offers, requests,
+   * active and overdue loans first, then the most recent settled ones (newest first).
+   */
+  listLoansFor(guildId: string, userId: string, limit = 15): LoanRow[] {
+    return this.deps.store
+      .stmt(
+        `SELECT * FROM loans
+         WHERE guild_id = ? AND (lender_id = ? OR borrower_id = ?)
+         ORDER BY CASE WHEN status IN ('offer', 'request', 'active', 'overdue') THEN 0 ELSE 1 END, id DESC
+         LIMIT ?`,
+      )
+      .all(guildId, userId, userId, limit) as LoanRow[];
+  }
+
   hasOverdueLoan(guildId: string, userId: string): boolean {
     const row = this.deps.store
       .stmt(

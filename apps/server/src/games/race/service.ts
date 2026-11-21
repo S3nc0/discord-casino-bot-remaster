@@ -13,6 +13,7 @@ import {
   MAX_RACES,
   moveCarrot,
   regularRaceTimes,
+  specialRaceTimes,
   dailyRaceStarts,
   retireValue,
   settleRace,
@@ -398,6 +399,43 @@ export class RaceService {
       }
     });
     return created;
+  }
+
+  /**
+   * Owner tool (`/admin host-race`): an ad-hoc `special` race. Entries close after `entryMin`,
+   * betting runs `betMin`, the start follows two minutes later.
+   */
+  hostSpecial(guildId: string, entryMin = 5, betMin = 5): number {
+    const { ctx } = this;
+    if (
+      !Number.isInteger(entryMin) ||
+      !Number.isInteger(betMin) ||
+      entryMin < 1 ||
+      entryMin > 120 ||
+      betMin < 1 ||
+      betMin > 120
+    ) {
+      throw new GameRuleError('race_minutes', {}, 'invalid_payload');
+    }
+    const now = ctx.clock.now();
+    const t = specialRaceTimes(now, entryMin, betMin);
+    return ctx.store.transaction(() => {
+      const info = ctx.store
+        .stmt(
+          `INSERT INTO horse_races (guild_id, kind, status, major, start_at, entry_open, entry_close, bet_close) VALUES (?, 'special', 'entry', 0, ?, ?, ?, ?)`,
+        )
+        .run(guildId, t.startAt, t.entryOpen, t.entryClose, t.betClose);
+      const id = Number(info.lastInsertRowid);
+      emit(ctx, {
+        type: 'RaceScheduled',
+        guildId,
+        at: now,
+        raceId: id,
+        startsAt: t.startAt,
+        entrants: 0,
+      });
+      return id;
+    });
   }
 
   /** Job (every 5 s): close entries when due, run races when their time has come. */

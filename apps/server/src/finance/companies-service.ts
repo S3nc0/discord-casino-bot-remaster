@@ -15,6 +15,7 @@ import {
   companyWithdrawable,
   computeCompanySale,
   computeDividendSplit,
+  computeStakeValues,
   localDateString,
   produceCompanyStock,
   truncInt,
@@ -39,6 +40,15 @@ export interface CompanyRow {
   upkeep_day: string;
   sold_total: number;
   created_at: number;
+}
+
+export interface CompanyHoldingView {
+  readonly ownerId: string;
+  readonly name: string;
+  readonly level: number;
+  readonly amount: number;
+  readonly value: number;
+  readonly dividendRate: number;
 }
 
 export interface CompanyStateView {
@@ -189,6 +199,42 @@ export class CompaniesService {
         withdrawable: companyWithdrawable(row.funds, stakesTotal),
         soldTotal: row.sold_total,
         createdAtMs: row.created_at,
+      };
+    });
+  }
+
+  /**
+   * `/company holdings`: the companies this member holds a stake in, with what each stake is
+   * worth now (`computeStakeValues`: capped by the company's funds plus facility value).
+   */
+  listStakesOf(guildId: string, investorId: string): CompanyHoldingView[] {
+    const rows = this.deps.store
+      .stmt(
+        `SELECT s.owner_id AS owner_id, s.amount AS amount, c.name AS name, c.level AS level, c.funds AS funds
+           FROM company_stakes s
+           JOIN companies c ON c.guild_id = s.guild_id AND c.user_id = s.owner_id
+          WHERE s.guild_id = ? AND s.investor_id = ?
+          ORDER BY s.owner_id ASC`,
+      )
+      .all(guildId, investorId) as {
+      owner_id: string;
+      amount: number;
+      name: string;
+      level: number;
+      funds: number;
+    }[];
+    return rows.map((r) => {
+      const value = computeStakeValues(
+        r.funds + companyInvested(r.level),
+        this.getStakesMap(guildId, r.owner_id),
+      ).investorValues[investorId];
+      return {
+        ownerId: r.owner_id,
+        name: r.name,
+        level: r.level,
+        amount: r.amount,
+        value: value ?? 0,
+        dividendRate: (this.getRow(guildId, r.owner_id)?.dividend_rate_bps ?? 0) / 10_000,
       };
     });
   }

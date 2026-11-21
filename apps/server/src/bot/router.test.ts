@@ -41,6 +41,9 @@ function createMockCommandInteraction(params: {
   const interaction = {
     isChatInputCommand: () => true,
     isButton: () => false,
+    isStringSelectMenu: () => false,
+    isModalSubmit: () => false,
+    isAutocomplete: () => false,
     commandName: params.commandName,
     guildId: params.guildId === undefined ? GUILD : params.guildId,
     guild:
@@ -82,6 +85,9 @@ function createMockButtonInteraction(params: {
   const interaction = {
     isChatInputCommand: () => false,
     isButton: () => true,
+    isStringSelectMenu: () => false,
+    isModalSubmit: () => false,
+    isAutocomplete: () => false,
     customId: params.customId,
     guildId: params.guildId === undefined ? GUILD : params.guildId,
     guild:
@@ -337,7 +343,7 @@ describe('interaction router', () => {
     ).toJSON();
     expect(guildAdminEmbed.description).toBe('Use this command in DMs with the bot.');
 
-    // Owner invoking /admin in DM -> passes gate (currently hits coming soon).
+    // Owner invoking /admin in DM -> passes the gate and reaches the tool (no target server given).
     const ownerAdmin = createMockCommandInteraction({
       commandName: 'admin',
       subcommand: 'grant',
@@ -348,7 +354,7 @@ describe('interaction router', () => {
     const ownerAdminEmbed = (
       ownerAdmin.replies[0]!.options.embeds![0] as { toJSON(): Record<string, unknown> }
     ).toJSON();
-    expect(ownerAdminEmbed.title).toBe('Coming Soon');
+    expect(ownerAdminEmbed.title).toBe('Server not found');
 
     // Non-owner invoking guild command in DM -> rejected as guild-only.
     const dmPelica = createMockCommandInteraction({

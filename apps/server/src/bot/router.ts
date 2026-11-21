@@ -8,10 +8,12 @@ import {
   type ChatInputCommandInteraction,
   type Interaction,
   type InteractionReplyOptions,
+  type ModalSubmitInteraction,
+  type StringSelectMenuInteraction,
   type User,
 } from 'discord.js';
 import type { Logger } from 'pino';
-import type { LanguageSetting, LaunchIntentService, ScreenId } from '@casino/shared';
+import type { Clock, LanguageSetting, LaunchIntentService, ScreenId } from '@casino/shared';
 import { errorMessageKey, formatPelica, t, type Locale } from '@casino/shared/i18n';
 import type { IdentityRepo } from '../db/identity.ts';
 import type { SettingsRepo } from '../db/settings.ts';
@@ -31,6 +33,13 @@ import { AppError } from '../runtime/errors.ts';
 import { handleAdminNotifications } from './admin-notifications.ts';
 import { getCommandMeta, getCommandPath, type ResolvedCommandMeta } from './commands.ts';
 import { resolveBotLocale } from './locale.ts';
+import {
+  dispatchChatAutocomplete,
+  dispatchChatCommand,
+  dispatchChatComponent,
+  dispatchChatModal,
+} from './chat-dispatch.ts';
+import { ruleMessage } from './chat-kit.ts';
 import { dispatchWiredCommand } from './wired-commands.ts';
 
 export const OPEN_ACTIVITY_BUTTON_ID = buildLaunchButtonId('home');
@@ -49,6 +58,8 @@ export interface BotRouterDeps {
   casino?: CasinoGames;
   finance?: FinanceServices;
   games?: NonCasinoGames;
+  /** Game clock (the real one when absent). Owner tools and boards stamp times with it. */
+  clock?: Clock;
 }
 
 /** Build an "Open in Activity" button row targeting a specific Activity screen. */
@@ -58,22 +69,6 @@ export function buildOpenActivityRow(
 ): ActionRowBuilder<ButtonBuilder> {
   return buildLaunchActivityRow(locale, screen);
 }
-
-const COMING_SOON_SCREEN: Readonly<Record<string, ScreenId>> = {
-  'casino chinchiro': 'chinchiro',
-  'casino chinchiro-table': 'chinchiro',
-  'casino blackjack': 'blackjack',
-  'pelica bankrupt': 'bank',
-  'pelica leaderboard': 'ranking',
-  'labor ranking': 'work',
-  'quiz play': 'quiz',
-  'quiz post': 'quiz',
-  shop: 'shop',
-  'market settle': 'market',
-  'market order write': 'market',
-  'loan list': 'loans',
-  'company holdings': 'companies',
-};
 
 function displayNameOf(user: Pick<User, 'globalName' | 'username'>): string {
   return user.globalName ?? user.username;
@@ -162,8 +157,10 @@ function checkCommandAccess(
   }
 }
 
+type ComponentOrModal = ButtonInteraction | StringSelectMenuInteraction | ModalSubmitInteraction;
+
 async function sendReply(
-  interaction: ChatInputCommandInteraction | ButtonInteraction,
+  interaction: ChatInputCommandInteraction | ComponentOrModal,
   options: InteractionReplyOptions,
 ): Promise<void> {
   if (interaction.replied || interaction.deferred) {
@@ -298,24 +295,21 @@ async function replyComingSoon(
     .setTitle(t(locale, 'bot.comingSoon.title'))
     .setDescription(t(locale, 'bot.comingSoon.body', { command: commandPath }));
 
-  const screen = COMING_SOON_SCREEN[commandPath];
-  await sendReply(interaction, {
-    embeds: [embed],
-    ...(screen ? { components: [buildOpenActivityRow(locale, screen)] } : {}),
-    flags: MessageFlags.Ephemeral,
-  });
+  await sendReply(interaction, { embeds: [embed], flags: MessageFlags.Ephemeral });
 }
 
 function localizedErrorMessage(locale: Locale, error: AppError): string {
   if (error.authReason === 'owner_only') return t(locale, 'bot.guard.ownerOnly');
   if (error.authReason === 'dm_only') return t(locale, 'bot.guard.dmOnly');
   if (error.authReason === 'guild_only') return t(locale, 'bot.guard.guildOnly');
+  const rule = ruleMessage(locale, error);
+  if (rule !== null) return rule;
   return t(locale, errorMessageKey(error.code));
 }
 
 async function replyError(
   deps: BotRouterDeps,
-  interaction: ChatInputCommandInteraction | ButtonInteraction,
+  interaction: ChatInputCommandInteraction | ComponentOrModal,
   locale: Locale,
   error: unknown,
   context: { commandPath?: string; customId?: string },
@@ -378,7 +372,9 @@ async function dispatchChatInput(
       return;
     default: {
       syncCallerProfile(deps.identity, interaction.user);
-      const handled = await dispatchWiredCommand(deps, meta.path, interaction, locale, sendReply);
+      const handled =
+        (await dispatchChatCommand({ deps, locale }, meta.path, interaction)) ||
+        (await dispatchWiredCommand(deps, meta.path, interaction, locale, sendReply));
       if (!handled) {
         await replyComingSoon(interaction, locale, meta.path);
       }
@@ -391,6 +387,7 @@ async function dispatchButton(
   interaction: ButtonInteraction,
   locale: Locale,
 ): Promise<void> {
+  if (await dispatchChatComponent({ deps, locale }, interaction)) return;
   const screen = parseLaunchButtonId(interaction.customId);
   if (!screen) return;
 
@@ -419,7 +416,15 @@ export function createInteractionHandler(
   deps: BotRouterDeps,
 ): (interaction: Interaction) => Promise<void> {
   return async (interaction: Interaction): Promise<void> => {
-    if (!interaction.isChatInputCommand() && !interaction.isButton()) return;
+    if (
+      !interaction.isChatInputCommand() &&
+      !interaction.isButton() &&
+      !interaction.isStringSelectMenu() &&
+      !interaction.isModalSubmit() &&
+      !interaction.isAutocomplete()
+    ) {
+      return;
+    }
 
     const locale = resolveBotLocale({
       identity: deps.identity,
@@ -439,8 +444,24 @@ export function createInteractionHandler(
       return;
     }
 
+    if (interaction.isAutocomplete()) {
+      try {
+        await dispatchChatAutocomplete({ deps, locale }, interaction);
+      } catch (error) {
+        deps.logger.warn({ err: error }, 'autocomplete failed');
+        await interaction.respond([]).catch(() => undefined);
+      }
+      return;
+    }
+
     try {
-      await dispatchButton(deps, interaction, locale);
+      if (interaction.isModalSubmit()) {
+        await dispatchChatModal({ deps, locale }, interaction);
+      } else if (interaction.isStringSelectMenu()) {
+        await dispatchChatComponent({ deps, locale }, interaction);
+      } else {
+        await dispatchButton(deps, interaction, locale);
+      }
     } catch (error) {
       await replyError(deps, interaction, locale, error, { customId: interaction.customId });
     }
