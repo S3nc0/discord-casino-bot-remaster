@@ -1,8 +1,9 @@
 -- 0001_init: core tables shared by every feature.
 -- Conventions: Discord ids are TEXT snowflakes; Pelica amounts are INTEGER; times are INTEGER
 -- epoch milliseconds (UTC); booleans are INTEGER 0/1; JSON is TEXT checked with json_valid.
--- Connection pragmas (WAL, synchronous=NORMAL, busy_timeout, foreign_keys) are set by the
--- connection code, not here. See docs/DB_SCHEMA.md.
+-- Connection pragmas (WAL, synchronous=NORMAL, busy_timeout, foreign_keys, recursive_triggers)
+-- are set by the connection code (src/db/pragmas.ts), not here. See docs/DB_SCHEMA.md.
+-- Balances are never negative (CHECK below). Debt lives in its own tables, as in the original.
 
 -- ---------------------------------------------------------------- identities
 
@@ -72,7 +73,7 @@ CREATE TABLE ledger (
   guild_id        TEXT NOT NULL,
   user_id         TEXT NOT NULL,
   delta           INTEGER NOT NULL,
-  balance_after   INTEGER NOT NULL,
+  balance_after   INTEGER NOT NULL CHECK (balance_after >= 0),
   reason          TEXT NOT NULL,                                  -- LedgerReason in packages/shared
   ref_type        TEXT,                                           -- e.g. 'round', 'race', 'transfer'
   ref_id          TEXT,
@@ -89,7 +90,7 @@ CREATE INDEX ledger_ref ON ledger (ref_type, ref_id) WHERE ref_id IS NOT NULL;
 CREATE TABLE balances (
   guild_id       TEXT NOT NULL,
   user_id        TEXT NOT NULL,
-  balance        INTEGER NOT NULL,
+  balance        INTEGER NOT NULL CHECK (balance >= 0),
   last_ledger_id INTEGER NOT NULL REFERENCES ledger (id),
   updated_at     INTEGER NOT NULL,
   PRIMARY KEY (guild_id, user_id),
@@ -102,6 +103,15 @@ BEGIN
 END;
 
 CREATE TRIGGER ledger_no_delete BEFORE DELETE ON ledger
+BEGIN
+  SELECT RAISE(ABORT, 'ledger is append-only');
+END;
+
+-- An explicit id may never collide with an existing row. Without this, INSERT OR REPLACE
+-- (or an upsert) on ledger could overwrite history, because with recursive_triggers OFF the
+-- implicit REPLACE delete does not fire ledger_no_delete.
+CREATE TRIGGER ledger_no_reuse_id BEFORE INSERT ON ledger
+WHEN NEW.id IS NOT NULL AND EXISTS (SELECT 1 FROM ledger WHERE id = NEW.id)
 BEGIN
   SELECT RAISE(ABORT, 'ledger is append-only');
 END;
@@ -125,9 +135,12 @@ BEGIN
     updated_at     = excluded.updated_at;
 END;
 
--- A balances row must always mirror the ledger row it points at.
+-- A balances row must always mirror the newest ledger row of its account. Checked on insert
+-- too, so INSERT OR REPLACE with an older ledger row cannot roll a balance back.
 CREATE TRIGGER balances_check_insert BEFORE INSERT ON balances
-WHEN NEW.balance IS NOT (SELECT balance_after FROM ledger
+WHEN NEW.last_ledger_id IS NOT (SELECT MAX(id) FROM ledger
+                                WHERE guild_id = NEW.guild_id AND user_id = NEW.user_id)
+  OR NEW.balance IS NOT (SELECT balance_after FROM ledger
                          WHERE id = NEW.last_ledger_id
                            AND guild_id = NEW.guild_id AND user_id = NEW.user_id)
 BEGIN
