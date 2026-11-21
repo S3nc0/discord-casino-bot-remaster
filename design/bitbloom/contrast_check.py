@@ -1,10 +1,12 @@
 #!/usr/bin/env python3
-"""Contrast gate for the proposed Bitbloom theme.
+"""Contrast gate for the shipped Bitbloom theme (tokens.json, dark and light).
 
-    python3 design/bitbloom/proposal/contrast_check.py            # prints every rule, exits 1 on failure
-    python3 design/bitbloom/proposal/contrast_check.py --table    # prints the role table used in the doc
+    python3 design/bitbloom/contrast_check.py     # prints the failing pairs, exits 1 on failure
 
-Rules (WCAG 2.x relative-luminance ratio, same formula as packages/ui/src/styles/contrast.test.ts):
+CI runs the same rules as a vitest port against the CSS the app loads:
+packages/ui/src/styles/contrast.test.ts.
+
+Rules (WCAG 2.x relative-luminance ratio, same formula as the vitest port):
   text       >= 4.5   body, supporting text, text on fills, coloured text/icons on every surface
   meaningful >= 3.0   --outline (control borders), focus ring, primary fills against surfaces
   decorative  none    --outline-variant is a tonal step; it must stay visible as a step (>= 1.3:1
@@ -19,7 +21,6 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent
 SURFACES = ["surface-container-lowest", "surface", "surface-container-low", "surface-container", "surface-container-high", "surface-container-highest"]
 HUES = ["red", "orange", "amber", "yellow", "lime", "green", "emerald", "teal", "cyan", "sky", "blue", "indigo", "violet", "magenta", "pink", "brown"]
-RARITY = {"common": "neutral", "uncommon": "green", "rare": "blue", "epic": "violet", "legendary": "yellow"}
 FILLS = ["primary", "secondary", "tertiary", "error", "success", "warning"]
 
 
@@ -100,69 +101,14 @@ def run(path, label):
     return total, failures
 
 
-def table(proposal, is_r1):
-    """Compact before/after table for the doc: role colour old -> new, and the pair ratio old -> new."""
-    old, new = load(HERE.parent / "tokens.json"), load(proposal)
-    rows = [  # (label, role, role it is read against; None = swatch only)
-        ("Page background", "surface", None),
-        ("Card fill", "surface-container-low", None),
-        ("Field / chip fill", "surface-container-highest", None),
-        ("Body text", "on-surface", "surface"),
-        ("Supporting text", "on-surface-variant", "surface-container-highest"),
-        ("Primary (text/icon)", "primary", "surface"),
-        ("Text on primary", "on-primary", "primary"),
-        ("Tonal fill, text on it", "on-secondary-container", "secondary-container"),
-        ("Accent: old `secondary` (orange), new `tertiary`", None, "surface"),
-        ("Control border (`outline`)", "outline", "surface-container-highest"),
-        ("Card / list / nav edge (`outline-variant`)", "outline-variant", "surface"),
-        ("Focus ring", "focus-ring", "surface"),
-        ("Snackbar text", "inverse-on-surface", "inverse-surface"),
-        ("Disabled text", "on-disabled", "disabled-container"),
-    ]
-    print("| Role | Dark: old → new | Light: old → new | Ratio dark | Ratio light |")
-    print("| --- | --- | --- | --- | --- |")
-    for label, fg, bg in rows:
-        cells, ratios = [], []
-        for theme in ("dark", "light"):
-            ofg, nfg = (old("secondary", theme), new("tertiary", theme)) if fg is None else (old(fg, theme), new(fg, theme))
-            cells.append(f"`{ofg}` → `{nfg}`")
-            if bg:
-                ratios.append(f"{ratio(ofg, old(bg, theme)):.1f} → {ratio(nfg, new(bg, theme)):.1f}")
-            else:
-                ratios.append("")
-        print(f"| {label} | {cells[0]} | {cells[1]} | {ratios[0]} | {ratios[1]} |")
-    print()
-    print("| Rarity | Dark tag: old → new | Light tag: old → new |")
-    print("| --- | --- | --- |")
-    for r, h in RARITY.items():
-        cells = []
-        for theme in ("dark", "light"):
-            def tag(gt):
-                if h == "neutral":
-                    return ratio(gt("on-surface", theme), gt("surface-container-highest", theme)), ratio(gt("on-surface-variant", theme), gt("surface", theme))
-                return ratio(gt(f"on-{h}-container", theme), gt(f"{h}-container", theme)), ratio(gt(f"{h}-accent", theme), gt("surface", theme))
-            (a1, a2), (b1, b2) = tag(old), tag(new)
-            cells.append(f"text {a1:.1f} → {b1:.1f}, accent {a2:.1f} → {b2:.1f}")
-        print(f"| {r} ({h}) | {cells[0]} | {cells[1]} |")
-
-
 def check_all():
-    status = 0
-    for path, label in ((HERE / "tokens.proposal.json", "round 2"), (HERE / "tokens.proposal-r1.json", "round 1")):
-        total, fails = run(path, label)
-        print(f"{label} ({path.name}): {total} checks, {len(fails)} failing")
-        for f in fails:
-            print("  FAIL", f)
-        status |= bool(fails)
-    ototal, ofails = run(HERE.parent / "tokens.json", "current")
-    print(f"current (for reference, same rules): {ototal} checks, {len(ofails)} failing")
-    for f in ofails[:12]:
-        print("  note", f)
-    return status
+    path = HERE / "tokens.json"
+    total, fails = run(path, "bitbloom")
+    print(f"{path.name}: {total} checks, {len(fails)} failing")
+    for f in fails:
+        print("  FAIL", f)
+    return 1 if fails else 0
 
 
 if __name__ == "__main__":
-    if "--table" in sys.argv:
-        table(HERE / ("tokens.proposal-r1.json" if "--r1" in sys.argv else "tokens.proposal.json"), "r1" in "".join(sys.argv))
-        sys.exit(0)
-    sys.exit(1 if check_all() else 0)
+    sys.exit(check_all())

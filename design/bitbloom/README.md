@@ -16,7 +16,7 @@ There are two themes, Light and Dark. The color system has 16 hues in 11 tones e
 
 ### The palette
 
-16 hues, each in tones 10, 20, 30, 40, 50, 60, 70, 80, 90, 95 and 99: red, orange, amber, yellow, lime, green, emerald, teal, cyan, sky, blue, indigo, violet, magenta, pink and brown. On top of that there's a `neutral` palette (24 tones, from 0 to 100) and a `neutral-variant` palette for borders and supporting text.
+16 hues, each in tones 10, 20, 30, 40, 50, 60, 70, 80, 90, 95 and 99: red, orange, amber, yellow, lime, green, emerald, teal, cyan, sky, blue, indigo, violet, magenta, pink and brown. On top of that there's a `neutral` palette (24 tones, from 0 to 100) and a `neutral-variant` palette for borders and supporting text, in navy for dark. Light surfaces use the warm `paper` and `paper-variant` palettes.
 
 Tones follow M3's rule: the number is lightness from 0 (black) to 100 (white), and it holds across hues. That makes contrast predictable:
 
@@ -29,14 +29,15 @@ Build UI with roles, not raw tones, so both themes work automatically. Every rol
 
 | Role | Light | Dark | Use |
 | --- | --- | --- | --- |
-| `primary` | teal-40 | teal-80 | Main actions, selection, active indicators |
-| `secondary` | orange-40 | orange-80 | Warm accents, tonal buttons (via `secondary-container`) |
-| `tertiary` | violet-40 | violet-80 | Rare items, decoration |
-| `error` / `success` / `warning` | red / green / amber 40 | 80 | Status |
-| `surface` … `surface-container-highest` | neutral 98 → 90 | neutral 6 → 22 | Backgrounds, in layers |
-| `on-surface`, `on-surface-variant` | neutral-10, nv-30 | neutral-90, nv-80 | Text |
-| `outline`, `outline-variant` | nv-50, nv-80 | nv-60, nv-30 | Control borders, decorative borders |
-| `focus-ring` | indigo-40 | amber-80 | Keyboard focus, always 3px |
+| `primary` | green-40 | green-70 | Main actions, success. Fresh green, the one primary colour |
+| `secondary` | sky-40 | sky-70 | Info, links, selection. Tonal buttons, chips, nav indicator and slider track via `secondary-container` |
+| `tertiary` | yellow-40 | yellow-80 | Pelica, rewards, highlights, the coin. Sparingly |
+| `error` / `success` / `warning` | red / green / orange 40 | red 70 / green 80 / orange 80 | Status. Orange, so warning is never mistaken for the yellow accent |
+| `surface` … `surface-container-highest` | paper 96 → 87 | neutral 10 → 24 (navy) | Backgrounds, in layers. Warm paper in light, deep navy in dark |
+| `on-surface`, `on-surface-variant` | neutral-15, nv-35 | neutral-95, nv-80 | Text. Never dimmed |
+| `outline` | nv-50 | nv-65 | Borders that carry meaning: fields, buttons, switches, sliders (3:1 or more) |
+| `outline-variant` | paper-variant-80 | nv-30 | Decorative tonal edge for cards, lists, nav and dividers (about 1.5 to 1.8:1). Never the only cue for a control |
+| `focus-ring` | indigo-40 | yellow-80 | Keyboard focus, always 3px |
 
 Each of `primary`, `secondary`, `tertiary`, `error`, `success` and `warning` comes with `on-*`, `*-container` and `on-*-container`, as in M3.
 
@@ -73,6 +74,8 @@ The base unit is 4px: `space-1` (4) up to `space-12` (48). `pixel` (2px) is for 
 
 ## Iconography and art
 
+Pixel art is drawn in code, as row strings (one character per art pixel), the way the nav icons are. The kit ships nine 16×16 game icons (dice, slots, cards, roulette, horse, stocks, pickaxe, sword, coin), a night and a day skyline strip and a sparkle: `GameIcon`, `Skyline` and `Sparkle` in `packages/ui/src/pixel/`. Each character maps to a palette tone through a `.bb-px-*` or `.bb-sky-*` class, so no colour is inline and the skyline follows the theme. The coin bobs and sparkles twinkle in `steps(2)`; both stop under reduced motion.
+
 - Icons are drawn on a 12×12 grid, shown at 24px (2px per art pixel) and filled with `currentColor`. Keep strokes one art pixel wide and leave a one-pixel margin.
 - Illustrations and avatars are drawn at 8, 16 or 32px and scaled by whole numbers, with `image-rendering: pixelated`.
 - Draw art from the palette's tones so it sits with the UI in both themes. Don't use gradients; use dithering (a checkerboard of two tones) to blend.
@@ -85,6 +88,10 @@ The base unit is 4px: `space-1` (4) up to `space-12` (48). `pixel` (2px) is for 
 - Labels stay visible. Placeholders are examples, never labels.
 - Status is never shown by color alone.
 - Motion respects reduced-motion settings.
+
+## Building and checking the tokens
+
+`python3 design/bitbloom/build_tokens.py` rebuilds `tokens.json` and `tokens.css` from the original palette kept in `proposal/archive/`. `python3 design/bitbloom/contrast_check.py` checks every role pair in both themes (396 checks, exits 1 on any failure). CI runs the same rules as `packages/ui/src/styles/contrast.test.ts` against the CSS the app loads, and checks that it matches `tokens.json`.
 
 ## Using it
 

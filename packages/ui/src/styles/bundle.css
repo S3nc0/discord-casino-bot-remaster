@@ -1052,3 +1052,296 @@ button.bb-card:hover,
 [data-reduced-motion='true'] .bb-fab:active {
   transform: none;
 }
+
+/* Theme deltas. Tonal buttons, chips, list rows and the nav indicator use secondary-container (soft
+   sky). These rules replace the bright text-coloured edges with a tonal edge: the fill nudged toward
+   the text colour. Structure is untouched: no radius, 2px notched pixel border, hard-offset shadow,
+   steps() motion. */
+
+.bb-btn:not(:disabled):not(.bb-btn--outlined):not(.bb-btn--text) {
+  --bc: color-mix(in srgb, var(--primary), var(--on-surface) 24%);
+}
+.bb-btn--tonal:not(:disabled) {
+  --bc: color-mix(in srgb, var(--secondary-container), var(--on-surface) 24%);
+}
+.bb-btn--danger:not(:disabled) {
+  --bc: color-mix(in srgb, var(--error), var(--on-surface) 24%);
+}
+.bb-icon-btn--filled:not(:disabled) {
+  --bc: color-mix(in srgb, var(--primary), var(--on-surface) 24%);
+}
+.bb-icon-btn--tonal:not(:disabled) {
+  --bc: color-mix(in srgb, var(--secondary-container), var(--on-surface) 24%);
+}
+.bb-fab {
+  --bc: color-mix(in srgb, var(--primary-container), var(--on-surface) 22%);
+}
+.bb-fab--secondary {
+  --bc: color-mix(in srgb, var(--secondary-container), var(--on-surface) 24%);
+}
+.bb-fab--tertiary {
+  --bc: color-mix(in srgb, var(--tertiary-container), var(--on-surface) 22%);
+}
+
+/* Selected chips keep the sky fill; only the edge softens. */
+.bb-chip[aria-pressed='true'],
+.bb-chip[aria-checked='true'] {
+  --bc: color-mix(in srgb, var(--secondary-container), var(--on-surface) 24%);
+}
+
+/* Containers separate by fill and a decorative tonal edge. */
+.bb-card,
+.bb-list,
+.bb-navbar,
+.bb-avatar,
+.bb-progress {
+  --bc: var(--outline-variant);
+}
+.bb-card--filled {
+  --bc: var(--surface-container-highest);
+}
+.bb-dialog {
+  --bc: var(--outline-variant);
+}
+.bb-banner {
+  --bc: color-mix(in srgb, currentColor 30%, transparent);
+}
+.bb-tag {
+  --bc: color-mix(in srgb, currentColor 30%, transparent);
+}
+.bb-tag--solid {
+  --bc: transparent;
+}
+.bb-snackbar {
+  --bc: var(--inverse-surface);
+}
+
+/* Active nav item: sky tint with a tonal edge instead of a bright outline. */
+.bb-nav-item[aria-current='page'] .bb-nav-item__ind,
+.bb-nav-item[aria-current='page']:hover .bb-nav-item__ind {
+  box-shadow:
+    0 -2px 0 0 color-mix(in srgb, var(--secondary-container), var(--on-surface) 24%),
+    0 2px 0 0 color-mix(in srgb, var(--secondary-container), var(--on-surface) 24%),
+    -2px 0 0 0 color-mix(in srgb, var(--secondary-container), var(--on-surface) 24%),
+    2px 0 0 0 color-mix(in srgb, var(--secondary-container), var(--on-surface) 24%);
+}
+.bb-dialog__icon {
+  color: var(--tertiary);
+}
+
+.bb-slider input::-webkit-slider-thumb {
+  box-shadow:
+    0 0 0 2px var(--surface),
+    0 0 0 4px color-mix(in srgb, var(--primary), var(--on-surface) 24%);
+}
+.bb-slider input::-moz-range-thumb {
+  box-shadow:
+    0 0 0 2px var(--surface),
+    0 0 0 4px color-mix(in srgb, var(--primary), var(--on-surface) 24%);
+}
+
+/* New, optional: the quiet label above a heading. 14px, never the only carrier of meaning. */
+.bb-eyebrow {
+  font: 700 14px/20px var(--font-body);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--on-surface-variant);
+}
+
+/* New, optional: hover lift on tappable cards, in two steps like a sprite frame. Off under reduced motion. */
+a.bb-card,
+button.bb-card {
+  transition: transform 0.12s steps(2);
+}
+a.bb-card:hover,
+button.bb-card:hover {
+  transform: translateY(-2px);
+}
+@media (prefers-reduced-motion: reduce) {
+  a.bb-card,
+  button.bb-card {
+    transition: none;
+  }
+  a.bb-card:hover,
+  button.bb-card:hover {
+    transform: none;
+  }
+}
+
+/* New, optional: game tile (pixel icon above a 16px label). 48px target or larger. */
+.bb-game {
+  display: grid;
+  justify-items: center;
+  gap: 4px;
+  width: auto;
+  padding: 12px 4px;
+  min-height: 48px;
+  text-align: center;
+  font: 700 16px/24px var(--font-body);
+}
+.bb-game svg {
+  width: 48px;
+  height: 48px;
+  image-rendering: pixelated;
+  shape-rendering: crispEdges;
+}
+
+/* Pixel art. Game icons and the skyline are SVG paths filled from palette tones through these
+   classes; no colour is inline. Icons are 16 by 16 art pixels, shown at 3px per pixel. */
+.bb-px {
+  display: block;
+  flex: none;
+  width: 48px;
+  height: 48px;
+  image-rendering: pixelated;
+  shape-rendering: crispEdges;
+}
+.bb-px-o {
+  fill: var(--neutral-10);
+}
+.bb-px-w {
+  fill: var(--neutral-95);
+}
+.bb-px-g {
+  fill: var(--neutral-70);
+}
+.bb-px-G {
+  fill: var(--neutral-50);
+}
+.bb-px-y {
+  fill: var(--yellow-80);
+}
+.bb-px-Y {
+  fill: var(--yellow-60);
+}
+.bb-px-h {
+  fill: var(--yellow-95);
+}
+.bb-px-r {
+  fill: var(--red-60);
+}
+.bb-px-R {
+  fill: var(--red-40);
+}
+.bb-px-b {
+  fill: var(--sky-70);
+}
+.bb-px-B {
+  fill: var(--sky-50);
+}
+.bb-px-n {
+  fill: var(--green-60);
+}
+.bb-px-N {
+  fill: var(--green-40);
+}
+.bb-px-k {
+  fill: var(--brown-60);
+}
+.bb-px-K {
+  fill: var(--brown-30);
+}
+
+/* Skyline strip: 14 art pixels tall at 4px, as wide as its container. Day tones in light, night in dark. */
+.bb-skyline {
+  --sky-bg: var(--sky-90);
+  --sky-far: var(--sky-80);
+  --sky-near: var(--sky-60);
+  --sky-win: var(--yellow-90);
+  --sky-star: var(--paper-99);
+  --sky-moon: var(--yellow-80);
+  height: 56px;
+  overflow: hidden;
+  background: var(--sky-bg);
+}
+.bb-skyline svg {
+  display: block;
+  shape-rendering: crispEdges;
+}
+.bb-skyline--night {
+  --sky-bg: var(--neutral-16);
+  --sky-far: var(--neutral-10);
+  --sky-near: var(--neutral-7);
+  --sky-win: var(--yellow-80);
+  --sky-star: var(--yellow-90);
+  --sky-moon: var(--yellow-90);
+}
+.bb-skyline--day {
+  --sky-bg: var(--sky-90);
+  --sky-far: var(--sky-80);
+  --sky-near: var(--sky-60);
+  --sky-win: var(--yellow-90);
+  --sky-star: var(--paper-99);
+  --sky-moon: var(--yellow-80);
+}
+[data-theme='dark'] .bb-skyline:not(.bb-skyline--day) {
+  --sky-bg: var(--neutral-16);
+  --sky-far: var(--neutral-10);
+  --sky-near: var(--neutral-7);
+  --sky-win: var(--yellow-80);
+  --sky-star: var(--yellow-90);
+  --sky-moon: var(--yellow-90);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) .bb-skyline:not(.bb-skyline--day) {
+    --sky-bg: var(--neutral-16);
+    --sky-far: var(--neutral-10);
+    --sky-near: var(--neutral-7);
+    --sky-win: var(--yellow-80);
+    --sky-star: var(--yellow-90);
+    --sky-moon: var(--yellow-90);
+  }
+}
+.bb-sky-s {
+  fill: var(--sky-star);
+}
+.bb-sky-m {
+  fill: var(--sky-moon);
+}
+.bb-sky-f {
+  fill: var(--sky-far);
+}
+.bb-sky-n {
+  fill: var(--sky-near);
+}
+.bb-sky-v {
+  fill: var(--sky-win);
+}
+
+/* Sparkle and coin bob: two frames, like a sprite. */
+.bb-spark {
+  display: block;
+  width: 9px;
+  height: 9px;
+  fill: var(--tertiary);
+  shape-rendering: crispEdges;
+}
+.bb-px--bob {
+  animation: bb-bob 1.2s steps(2) infinite;
+}
+.bb-spark--twinkle {
+  animation: bb-twinkle 1.6s steps(2) infinite;
+}
+@keyframes bb-bob {
+  50% {
+    transform: translateY(-4px);
+  }
+}
+@keyframes bb-twinkle {
+  0% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.25;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .bb-px--bob,
+  .bb-spark--twinkle {
+    animation: none;
+  }
+}
+[data-reduced-motion='true'] .bb-px--bob,
+[data-reduced-motion='true'] .bb-spark--twinkle {
+  animation: none;
+}

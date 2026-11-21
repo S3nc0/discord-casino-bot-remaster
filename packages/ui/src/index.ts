@@ -144,3 +144,15 @@ export type { ScreenShakeOptions } from './fx/shake.ts';
 
 export { useFx } from './fx/useFx.ts';
 export type { UseFxOptions, UseFxResult } from './fx/useFx.ts';
+
+export {
+  GAME_ICON_NAMES,
+  GAME_ICON_ROWS,
+  GameIcon,
+  rowsToPaths,
+  SKYLINE_COLUMNS,
+  SKYLINE_ROWS,
+  Skyline,
+  Sparkle,
+} from './pixel/index.ts';
+export type { GameIconName, GameIconProps, SkylineProps, SparkleProps } from './pixel/index.ts';
