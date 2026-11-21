@@ -10,7 +10,8 @@ import {
   type TestServer,
 } from '../runtime/test-kit.ts';
 import { OPEN_ACTIVITY_BUTTON_ID, createInteractionHandler } from './router.ts';
-import { botColor } from './theme.ts';
+import { buildLaunchButtonId } from '../notify/discord-port.ts';
+import { botColor } from '../notify/theme.ts';
 
 interface CapturedReply {
   options: InteractionReplyOptions;
@@ -91,6 +92,7 @@ function createMockButtonInteraction(params: {
     user: params.user ?? makeUser(USER, 'alice', 'Alice'),
     replied: false,
     deferred: false,
+    launchActivity: vi.fn(async () => undefined),
     reply: vi.fn(async (options: InteractionReplyOptions) => {
       interaction.replied = true;
       replies.push({ options });
@@ -228,17 +230,44 @@ describe('interaction router', () => {
     ).toJSON();
     expect(helpEmbed.title).toBe('カジノ案内');
 
+    // Without a launch-intent service the button still launches the Activity; nothing is stored.
     const btn = createMockButtonInteraction({
       customId: OPEN_ACTIVITY_BUTTON_ID,
       locale: 'en-US',
     });
     await handler(btn.interaction as never);
+    expect(btn.interaction.launchActivity).toHaveBeenCalledTimes(1);
+  });
 
-    expect(btn.replies[0]!.options.flags).toBe(MessageFlags.Ephemeral);
-    const btnEmbed = (
-      btn.replies[0]!.options.embeds![0] as { toJSON(): Record<string, unknown> }
-    ).toJSON();
-    expect(btnEmbed.description).toBe('Activity launch is coming in the next update.');
+  it('stores a scoped launch intent before answering the LAUNCH_ACTIVITY button', async () => {
+    server = createTestServer();
+    const handler = createInteractionHandler({
+      identity: server.identity,
+      economy: server.economy,
+      settings: server.settings,
+      logger: server.logger,
+      ownerIds: server.config.ownerIds,
+      allowedGuildIds: server.config.allowedGuildIds,
+      requireApproval: server.config.requireApproval,
+      launchIntents: server.launchIntents,
+    });
+
+    const btn = createMockButtonInteraction({ customId: buildLaunchButtonId('slots') });
+    await handler(btn.interaction as never);
+
+    expect(btn.interaction.launchActivity).toHaveBeenCalledTimes(1);
+    const intent = server.launchIntents.consume(USER, GUILD);
+    expect(intent).toMatchObject({ userId: USER, guildId: GUILD, screen: 'slots' });
+    // Scoped to the exact user + guild: another user or guild gets nothing.
+    expect(server.launchIntents.consume(OTHER_USER, GUILD)).toBeNull();
+
+    const dm = createMockButtonInteraction({
+      customId: buildLaunchButtonId('slots'),
+      guildId: null,
+    });
+    await handler(dm.interaction as never);
+    expect(dm.interaction.launchActivity).not.toHaveBeenCalled();
+    expect(dm.replies[0]!.options.flags).toBe(MessageFlags.Ephemeral);
   });
 
   it('answers unimplemented commands with a localized coming soon message', async () => {

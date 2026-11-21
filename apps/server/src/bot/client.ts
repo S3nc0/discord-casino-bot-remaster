@@ -6,6 +6,9 @@ import {
   type CacheWithLimitsOptions,
   type SweeperOptions,
 } from 'discord.js';
+import type { Clock } from '@casino/shared';
+import { NotifyConfigService } from '../notify/config-service.ts';
+import { systemClock } from '../runtime/clock.ts';
 import type { Config } from '../runtime/config.ts';
 import type { CasinoServices } from '../runtime/server.ts';
 import { PLACEHOLDER_DISCORD_TOKEN } from './deploy.ts';
@@ -118,15 +121,29 @@ export function createDiscordClient(deps: CreateBotClientDeps): Client {
 export interface StartBotOptions {
   env?: Readonly<Record<string, string | undefined>>;
   clientFactory?: (deps: CreateBotClientDeps) => Client;
+  notifyConfig?: NotifyConfigService;
+  clock?: Clock;
 }
+
+export type StartBotServices = Pick<
+  CasinoServices,
+  'identity' | 'economy' | 'settings' | 'logger'
+> &
+  Partial<Pick<CasinoServices, 'store' | 'launchIntents' | 'casino' | 'finance' | 'games'>>;
+
+export type StartBotConfig = Pick<
+  Config,
+  'discord' | 'ownerIds' | 'allowedGuildIds' | 'requireApproval'
+> &
+  Partial<Pick<Config, 'announceChannelId'>>;
 
 /**
  * Start the Discord bot in-process if enabled and configured with a real token.
  * Skips gateway login when `BOT_DISABLED=1` or `DISCORD_TOKEN` is missing/placeholder.
  */
 export async function startBot(
-  services: Pick<CasinoServices, 'identity' | 'economy' | 'settings' | 'logger'>,
-  config: Pick<Config, 'discord' | 'ownerIds' | 'allowedGuildIds' | 'requireApproval'>,
+  services: StartBotServices,
+  config: StartBotConfig,
   options: StartBotOptions = {},
 ): Promise<BotHandle> {
   const reason = getBotDisabledReason(config.discord.token, options.env);
@@ -138,6 +155,16 @@ export async function startBot(
     };
   }
 
+  const notifyConfig =
+    options.notifyConfig ??
+    (services.store
+      ? new NotifyConfigService({
+          store: services.store,
+          clock: options.clock ?? systemClock,
+          defaultAnnounceChannelId: config.announceChannelId ?? '',
+        })
+      : undefined);
+
   const factory = options.clientFactory ?? createDiscordClient;
   const client = factory({
     identity: services.identity,
@@ -147,6 +174,12 @@ export async function startBot(
     ownerIds: config.ownerIds,
     allowedGuildIds: config.allowedGuildIds,
     requireApproval: config.requireApproval,
+    ...(services.launchIntents ? { launchIntents: services.launchIntents } : {}),
+    ...(notifyConfig ? { notifyConfig } : {}),
+    ...(services.store ? { store: services.store } : {}),
+    ...(services.casino ? { casino: services.casino } : {}),
+    ...(services.finance ? { finance: services.finance } : {}),
+    ...(services.games ? { games: services.games } : {}),
   });
 
   let closed = false;
