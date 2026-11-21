@@ -145,7 +145,8 @@ describe('handshake', () => {
   it('checks the Discord proxy signature on the upgrade', async () => {
     const url = await start();
     const { sessionToken } = await login();
-    await failedWith(open(url, { token: sessionToken }, {}));
+    // Without the headers the upgrade is allowed (REQUIRE_PROXY_SIGNATURE is off); with bad ones not.
+    await connected(open(url, { token: sessionToken }, {}));
     await failedWith(
       open(
         url,

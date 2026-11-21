@@ -46,14 +46,31 @@ Developer Portal: `/` → Pages domain, `/api` → API domain with `/api` kept, 
 `/api/socket.io`, websocket only. Libraries that build URLs use `patchUrlMappings` with
 `DISCORD_URL_MAPPINGS`. All other assets are bundled.
 
-Every request through the Discord proxy carries `X-Signature-Ed25519`, `X-Signature-Timestamp`
-and `X-Discord-Proxy-Payload` (base64 JSON with `created_at`, `expires_at`, Unix seconds).
+Discord's docs describe `X-Signature-Ed25519`, `X-Signature-Timestamp` and
+`X-Discord-Proxy-Payload` (base64 JSON with `created_at`, `expires_at`, Unix seconds) as
+optional. **Observed on real traffic: `POST /api/token`, the call made before
+`sdk.authenticate`, arrives with none of the three.** Whether later calls and the socket upgrade
+are signed is logged (see below), not assumed.
+
 `ProxySignatureVerifier` (shared) rejects, in order: missing headers; a payload that is not
 `ProxyPayload`; `String(created_at) !== timestamp`; `created_at` more than 60 s in the future;
 `expires_at <= now`; an Ed25519 signature (hex or base64) over the decoded payload bytes that
-does not verify with `DISCORD_PUBLIC_KEY` (`node:crypto`). It runs as a Fastify `onRequest` hook
-for `/api/*` and in Socket.io `allowRequest` for the upgrade. It fails closed (401) unless
-`NODE_ENV=development`.
+does not verify with `DISCORD_PUBLIC_KEY` (`node:crypto`). Policy (`auth/proxy-policy.ts`), as a
+Fastify `onRequest` hook for `/api/*` and in Socket.io `allowRequest` for the upgrade:
+
+- `GET /api/health` and `POST /api/token` are exempt. `token` stands on its own checks (Discord
+  code exchange with the client secret, `/users/@me`, guild in `ALLOWED_GUILD_IDS`, live
+  instance) and its rate limits.
+- Everywhere else: **verify if present.** If any of the three headers is present, all must be
+  present and valid, else 401. If none is present the request is allowed, because every such
+  route still needs our session token (`me`, `settings`, `inbox`, `inbox/read`,
+  `launch-intent/consume`, and the socket handshake).
+- `REQUIRE_PROXY_SIGNATURE=1` (optional, default `0`) additionally answers 401
+  `proxy_signature_missing` when none is present, on every route except `health` and `token`.
+- `NODE_ENV=development` switches the check off entirely.
+
+The first authenticated request and the first socket connect of each session log one info line,
+`proxy signature: present=valid|absent` (field `transport`), never header values.
 
 Every 401/403 on the auth path logs one warn line `auth rejected: <reason>` with a stable
 `reason` and no secrets: `proxy_signature_missing:<absent headers>`, `proxy_signature_invalid`,

@@ -14,6 +14,8 @@ export interface Config {
   announceChannelId: string;
   /** Proxy signatures are enforced everywhere except `NODE_ENV=development`. */
   enforceProxySignatures: boolean;
+  /** Missing proxy signature headers are refused (health and token excepted). */
+  requireProxySignature: boolean;
   port: number;
   host: string;
   databasePath: string;
@@ -72,6 +74,9 @@ export function loadConfig(env: Record<string, string | undefined> = process.env
     publicApiOrigin: valid.PUBLIC_API_ORIGIN,
     announceChannelId: valid.ANNOUNCE_CHANNEL_ID,
     enforceProxySignatures: nodeEnv !== 'development',
+    requireProxySignature: ['1', 'true'].includes(
+      valid.REQUIRE_PROXY_SIGNATURE ?? SERVER_ENV_DEFAULTS.REQUIRE_PROXY_SIGNATURE,
+    ),
     port: Number(valid.PORT ?? SERVER_ENV_DEFAULTS.PORT),
     host: valid.HOST ?? SERVER_ENV_DEFAULTS.HOST,
     databasePath: valid.DATABASE_PATH ?? SERVER_ENV_DEFAULTS.DATABASE_PATH,

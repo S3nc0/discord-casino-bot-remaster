@@ -46,28 +46,31 @@ const token = (headers: Record<string, string>, payload: object = body) =>
 
 describe('proxy signature reasons', () => {
   it('names missing headers, without a body reason in production', async () => {
-    const { lines, reasons } = start({ env: { NODE_ENV: 'production' } });
-    const res = await server.app.inject({ method: 'POST', url: '/api/token', payload: body });
+    const { lines, reasons } = start({
+      env: { NODE_ENV: 'production', REQUIRE_PROXY_SIGNATURE: '1' },
+    });
+    const res = await server.app.inject({ url: '/api/me' });
     expect(res.statusCode).toBe(401);
     expect(res.json()).toEqual({ error: 'unauthorized' });
     expect(reasons()).toEqual([
       'proxy_signature_missing:x-signature-ed25519,x-signature-timestamp,x-discord-proxy-payload',
     ]);
-    expect(lines[0]).toMatchObject({ level: 40, status: 401, path: '/api/token' });
+    expect(lines[0]).toMatchObject({ level: 40, status: 401, path: '/api/me' });
   });
 
   it('separates an invalid signature, a timestamp mismatch and an expired payload', async () => {
     const { reasons } = start();
-    await token({ ...server.signed(), 'x-signature-ed25519': 'ab'.repeat(64) });
-    await token({ ...server.signed(), 'x-signature-timestamp': '1' });
+    const me = (headers: Record<string, string>) => server.app.inject({ url: '/api/me', headers });
+    await me({ ...server.signed(), 'x-signature-ed25519': 'ab'.repeat(64) });
+    await me({ ...server.signed(), 'x-signature-timestamp': '1' });
     const now = Math.floor(server.clock.now() / 1000);
-    await token(server.keys.headers(now - 1000, 10));
+    await me(server.keys.headers(now - 1000, 10));
     expect(reasons()).toEqual(['proxy_signature_invalid', 'timestamp_skew', 'proxy_expired']);
   });
 
   it('puts the reason in the body only outside production', async () => {
-    start({ env: { NODE_ENV: 'test' } });
-    const res = await server.app.inject({ method: 'POST', url: '/api/token', payload: body });
+    start({ env: { NODE_ENV: 'test', REQUIRE_PROXY_SIGNATURE: '1' } });
+    const res = await server.app.inject({ url: '/api/me' });
     // Outside production the caller sees the reason too.
     expect(res.json()).toMatchObject({
       error: 'unauthorized',
