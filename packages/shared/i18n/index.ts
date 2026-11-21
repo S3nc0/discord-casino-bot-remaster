@@ -1,6 +1,7 @@
 import { en, type MessageKey, type Messages } from './en.ts';
 import { ja } from './ja.ts';
 import type { Locale } from './locale.ts';
+import type { ErrorCode } from '../src/errors.ts';
 
 export { en, ja };
 export type { MessageKey, Messages };
@@ -8,6 +9,15 @@ export { LOCALES, DEFAULT_LOCALE, normalizeLocale, resolveLocale } from './local
 export type { Locale, LocaleSources } from './locale.ts';
 export { checkParity } from './parity.ts';
 export type { Dictionary, ParityProblem } from './parity.ts';
+
+/** Compile-time guard: every ErrorCode has an `error.<code>` message. */
+type ErrorMessageKey = `error.${ErrorCode}`;
+const _everyErrorHasAMessage: Readonly<Record<ErrorMessageKey, string>> = en;
+void _everyErrorHasAMessage;
+
+export function errorMessageKey(code: ErrorCode): ErrorMessageKey & MessageKey {
+  return `error.${code}`;
+}
 
 export const dictionaries: Readonly<Record<Locale, Messages>> = { en, ja };
 

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { checkParity, en, formatPelica, ja, resolveLocale, t } from './index.ts';
+import { ERROR_CODES } from '../src/errors.ts';
+import { checkParity, en, errorMessageKey, formatPelica, ja, resolveLocale, t } from './index.ts';
 
 describe('resolveLocale', () => {
   it('follows user setting → client locale → guild locale → en', () => {
@@ -18,6 +19,13 @@ describe('messages', () => {
     expect(t('ja', 'currency.name')).toBe('ペリカ');
     expect(formatPelica('en', 12400)).toBe('12,400 Pelica');
     expect(formatPelica('ja', 3000)).toBe('3,000ペリカ');
+  });
+
+  it('has a message for every error code in both languages', () => {
+    for (const code of ERROR_CODES) {
+      expect(t('en', errorMessageKey(code))).not.toBe('');
+      expect(t('ja', errorMessageKey(code))).not.toBe('');
+    }
   });
 
   it('en and ja are in parity', () => {
