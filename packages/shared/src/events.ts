@@ -135,6 +135,40 @@ export const DailyReady = event('DailyReady', {
   userId: Snowflake,
 });
 
+/**
+ * A player went bankrupt: voluntary (`/破産`), forced when the grace period ran out, or a
+ * successful overseas escape. Separate from `BankruptcyGraceStarted`, which only opens the
+ * 24 h window and may end without a bankruptcy.
+ */
+export const BankruptcyDeclared = event('BankruptcyDeclared', {
+  userId: Snowflake,
+  cause: Type.Enum(['voluntary', 'forced', 'escape']),
+  /** Teiai debt before the sequence and after compression (0 after an escape). */
+  debtBefore: Pelica,
+  debtAfter: Pelica,
+});
+
+/** A company closed after unpaid upkeep (or its owner's bankruptcy); stakes are wiped. */
+export const CompanyBankrupt = event('CompanyBankrupt', {
+  ownerId: Snowflake,
+  companyName: Type.String({ minLength: 1, maxLength: 64 }),
+  cause: Type.Enum(['upkeep', 'owner_bankrupt']),
+  /** Investors whose stakes were wiped, for the per-investor notice. */
+  investorIds: Type.Array(Snowflake),
+});
+
+/** A guild lottery closed: one winner takes the pot, or every entrant got the fee back. */
+export const LotteryDrawn = event('LotteryDrawn', {
+  lotteryId: Type.Integer({ minimum: 1 }),
+  outcome: Type.Enum(['won', 'refunded']),
+  /** Set when `outcome` is `won`. */
+  winnerId: Type.Optional(Snowflake),
+  /** Pot paid to the winner; 0 when refunded. */
+  prize: Pelica,
+  fee: Pelica,
+  entrantIds: Type.Array(Snowflake),
+});
+
 export const DomainEvent = Type.Union([
   GameSettled,
   BigWin,
@@ -151,6 +185,9 @@ export const DomainEvent = Type.Union([
   OrderFilled,
   MarketplaceOutbid,
   DailyReady,
+  BankruptcyDeclared,
+  CompanyBankrupt,
+  LotteryDrawn,
 ]);
 export type DomainEvent = Static<typeof DomainEvent>;
 export type DomainEventType = DomainEvent['type'];
@@ -175,4 +212,7 @@ export const DOMAIN_EVENT_TYPES = [
   'OrderFilled',
   'MarketplaceOutbid',
   'DailyReady',
+  'BankruptcyDeclared',
+  'CompanyBankrupt',
+  'LotteryDrawn',
 ] as const satisfies readonly DomainEventType[];
