@@ -2,11 +2,13 @@
 
 Status: proposal only. `packages/ui` and `apps/web` are untouched. Open `design/bitbloom/proposal/preview.html` in a browser to compare three columns: current, round 1 and round 2, dark and light (`#dark` / `#light` in the URL show one theme; `#home-dark` shows only the round 2 Home shell).
 
+**Round 2 was approved by the owner on 2026-11-22.**
+
 Round 1 was calm but too grey. Round 2 (below) answers the owner's feedback: closer to the mood reference, and brighter with green, yellow and blue. Round 1 is kept as `tokens.proposal-r1.*` and `components.proposal-r1.css`.
 
 ## Why
 
-The owner finds the UI too harsh. Looking at the phone screenshot, the causes are: neon cyan primary on a green-tinted black, a saturated brown block with a bright outline for the active nav item and tonal buttons, and bright 2px outlines on every container. It reads as many loud colours at once.
+The owner finds the UI too harsh. Looking at the phone screenshot, the causes are: glaring cyan primary on a green-tinted black, a saturated brown block with a bright outline for the active nav item and tonal buttons, and bright 2px outlines on every container. It reads as many loud colours at once.
 
 ## What the mood reference does (codedex.io, home, pricing, community)
 
@@ -35,7 +37,7 @@ Direction from the owner: closer to the reference feel, light and bright colours
 - **Dark (default):** deep navy surfaces in tonal steps (`#0d1625` lowest to `#31394b` highest) instead of grey. Text is near white (`#eff1f6`), not dimmed.
 - **Light:** warm paper cream (`#f9f3e8`) with deep navy text (`#1e2636`), same three hues.
 - **Three hues, each with a job.** Fresh green (`primary`, `success`): actions and wins. Sunny yellow (`tertiary`): Pelica, rewards, the coin, focus ring in dark. Sky blue (`secondary`): info, links, selection, tonal buttons, nav indicator, slider track. Red for errors and orange for warnings stay semantic. No pink.
-- **Bright but not neon.** Mid tones (40 to 80) keep most of their chroma so small accents and pixel art sparkle. Pale tones (90, 95) used for fills are capped, so fills read as soft tints.
+- **Bright but not glaring.** Mid tones (40 to 80) keep most of their chroma so small accents and pixel art sparkle. Pale tones (90, 95) used for fills are capped, so fills read as soft tints.
 - **More pixel art, all drawn here:** nine 16 by 16 game icons (dice, slot machine, cards, roulette wheel, horse, stock bars, pickaxe, sword, coin) used as 4-up tiles on Home; a night skyline strip with lit windows and sparkles (a daytime version in light) across the top of the balance hero; the coin bobs and sparkles twinkle in `steps(2)`, off under reduced motion. Inline SVG, no images. In this preview each icon is about 3 KB and the skyline about 9 KB (627 pixels); shipping them as row strings, the way the nav icons are stored, makes each a few hundred bytes.
 - Light balance: the amount sits on a butter plate with a pixel edge, because yellow text is only 5.8:1 in light.
 
@@ -80,7 +82,7 @@ Round 2 risks, on top of the list below: (a) yellow in light is a deep mustard (
 
 ### Round 1 palette (role: old → new, contrast old → new)
 
-Tones keep their CIE lightness, so only chroma and hue change; luminance maths is unchanged. Dark is a deep ink grey with a blue lean. Light is warm cream and tan. Primary is a sea teal at about 70% of the old chroma. The accent is coin gold and is now the `tertiary` role. `secondary` becomes a quiet slate (dark) or sand (light) for tonal buttons, slider track and selected fills. `warning` becomes orange so it is not mistaken for the gold accent. Rarity hues keep their hue and drop to about 60% chroma, and the pale tones (90, 95) are capped, which removes the neon mint and peach.
+Tones keep their CIE lightness, so only chroma and hue change; luminance maths is unchanged. Dark is a deep ink grey with a blue lean. Light is warm cream and tan. Primary is a sea teal at about 70% of the old chroma. The accent is coin gold and is now the `tertiary` role. `secondary` becomes a quiet slate (dark) or sand (light) for tonal buttons, slider track and selected fills. `warning` becomes orange so it is not mistaken for the gold accent. Rarity hues keep their hue and drop to about 60% chroma, and the pale tones (90, 95) are capped, which removes the glaring mint and peach.
 
 | Role | Dark: old → new | Light: old → new | Ratio dark | Ratio light |
 | --- | --- | --- | --- | --- |
