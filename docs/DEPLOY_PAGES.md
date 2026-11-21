@@ -27,7 +27,7 @@ Cloudflare Pages reads `"packageManager": "pnpm@12.21.0"` from the root `package
 
 - `apps/web/vite.config.ts` sets `base: '/'` and outputs to `apps/web/dist`.
 - All fonts and assets must be bundled into `apps/web/dist`; inside a Discord Activity iframe, external third-party URLs are blocked unless mapped in Developer Portal **URL Mappings**.
-- API and WebSocket requests go to `/api` (which Discord maps to your `API_DOMAIN` Cloudflare Tunnel). Do not add Pages Functions or `_redirects` rules for `/api` unless intentionally fronting the tunnel.
+- API and WebSocket requests go to `/api` (which Discord maps to `API_DOMAIN/api` on your Cloudflare Tunnel). Do not add Pages Functions or `_redirects` rules for `/api` unless intentionally fronting the tunnel.
 
 ## Verification
 

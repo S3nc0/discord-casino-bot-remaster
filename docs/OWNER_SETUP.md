@@ -14,15 +14,15 @@ Open your application in the [Discord Developer Portal](https://discord.com/deve
    - Go to **Bot** → reset/copy **Token** → use for `DISCORD_TOKEN` (**secret**).
    - Go to **OAuth2** → copy **Client Secret** → use for `DISCORD_CLIENT_SECRET` (**secret**).
 3. **OAuth2 Redirect Placeholder**
-   - Go to **OAuth2 → Redirects** and add a placeholder redirect URI pointing to your Pages origin (for example `https://PAGES_DOMAIN`, or `http://localhost:5173` if testing locally in a browser).
+   - Go to **OAuth2 → Redirects** and add `https://127.0.0.1` as a placeholder (Discord requires at least one entry, though the Activity auth flow never uses it).
 4. **Enable Activities and Entry Point Command**
    - Go to **Activities → Settings** and toggle **Enable Activities** on.
    - Verify the Discord-managed **Entry Point** command (under **Installation / App Commands**) is enabled so users can launch the Activity from your server.
 5. **Configure URL Mappings**
    - Go to **Activities → URL Mappings** and add both mappings:
      - `/` → `PAGES_DOMAIN` (your Cloudflare Pages hostname, e.g. `your-app.pages.dev`)
-     - `/api` → `API_DOMAIN` (your Cloudflare Tunnel hostname, e.g. `api.example.com`)
-   - Keep the `/api` prefix on the `/api` mapping (do not rewrite or strip `/api`), so production routing matches Vite's local dev proxy.
+     - `/api` → `API_DOMAIN/api` (your Cloudflare Tunnel hostname plus `/api`, e.g. `api.example.com/api`)
+   - Discord's proxy replaces the mapped prefix with the target, so mapping `/api` to `API_DOMAIN/api` preserves the `/api` prefix that the server expects.
 
 ## 2. Create `.env` on Your Mac
 
@@ -129,6 +129,6 @@ After the first deploy succeeds, note the assigned `*.pages.dev` (or custom) dom
 
 3. **Pages + Discord Activity check:**
    - Open `https://PAGES_DOMAIN` in a browser to verify the Cloudflare Pages bundle loads.
-   - Launch the Activity inside your `TEST_GUILD_ID` server in Discord and verify it authenticates and talks to your Mac via `/api`.
+   - Launch the Activity inside your `TEST_GUILD_ID` server in Discord, confirm a request to `/.proxy/api/health` from inside the Activity returns `200`, and verify it authenticates and talks to your Mac via `/api`.
 
 When you are ready to move from your Mac to a Raspberry Pi, follow [PI_SETUP.md](PI_SETUP.md) — no code changes are required.
