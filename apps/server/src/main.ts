@@ -1,5 +1,6 @@
 import { mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
+import { startBot } from './bot/index.ts';
 import { ConfigError, loadConfig } from './runtime/config.ts';
 import { createServer } from './runtime/server.ts';
 
@@ -25,14 +26,16 @@ async function main(): Promise<void> {
   const server = createServer({ config, trustProxy: true });
   const address = await server.listen();
   server.logger.info({ address, env: config.nodeEnv }, 'casino server listening');
+  const bot = await startBot(server, config);
 
   let stopping = false;
   const stop = (signal: string): void => {
     if (stopping) return;
     stopping = true;
     server.logger.info({ signal }, 'shutting down');
-    server
+    bot
       .close()
+      .then(() => server.close())
       .then(() => process.exit(0))
       .catch((error: unknown) => {
         server.logger.error({ err: error }, 'shutdown failed');
