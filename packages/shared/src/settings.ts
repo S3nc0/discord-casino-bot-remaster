@@ -4,7 +4,8 @@ import { LOCALES } from '../i18n/locale.ts';
 /**
  * User settings. **Global per user, not per guild**: they describe the person and their device
  * (language, theme, audio, motion), not their account in one guild's economy, and a player in
- * two guilds expects the same app in both. Stored in `user_settings` (keyed by `user_id`).
+ * two guilds expects the same app in both. Stored in `user_settings` (keyed by `user_id`; see
+ * DB_SCHEMA.md for the column mapping).
  */
 
 /** `auto` = no explicit choice: the locale resolver falls through to client, guild, `en`. */
@@ -39,14 +40,13 @@ export const SoundSettings = Type.Object(
 );
 export type SoundSettings = Static<typeof SoundSettings>;
 
-export const MotionSettings = Type.Object(
-  {
-    /** `false` turns off non-essential animation. The client also honours the OS reduced-motion setting. */
-    enabled: Type.Boolean(),
-  },
-  closed,
-);
-export type MotionSettings = Static<typeof MotionSettings>;
+/**
+ * `system` follows the OS `prefers-reduced-motion`; the in-app toggle picks `full` or `reduced`
+ * (non-essential animation off).
+ */
+export const MOTION_SETTINGS = ['system', 'full', 'reduced'] as const;
+export const MotionSetting = Type.Enum(MOTION_SETTINGS);
+export type MotionSetting = (typeof MOTION_SETTINGS)[number];
 
 /** The full settings document. `GET /api/settings` returns it; `PUT /api/settings` replaces it. */
 export const UserSettings = Type.Object(
@@ -54,7 +54,7 @@ export const UserSettings = Type.Object(
     language: LanguageSetting,
     theme: ThemeSetting,
     sound: SoundSettings,
-    motion: MotionSettings,
+    motion: MotionSetting,
   },
   closed,
 );
@@ -65,7 +65,7 @@ export const DEFAULT_USER_SETTINGS: Readonly<UserSettings> = Object.freeze({
   language: 'auto',
   theme: 'discord',
   sound: Object.freeze({ enabled: true, sfxVolume: DEFAULT_VOLUME, musicVolume: DEFAULT_VOLUME }),
-  motion: Object.freeze({ enabled: true }),
+  motion: 'system',
 });
 
 /** `GET /api/settings` response. */

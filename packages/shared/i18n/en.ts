@@ -14,6 +14,9 @@ export const en = {
   'settings.language': 'Language',
   'settings.sound': 'Sound',
   'settings.motion': 'Animations',
+  'settings.motion.system': 'Follow system',
+  'settings.motion.full': 'Full',
+  'settings.motion.reduced': 'Reduced',
   // Shell: screens, inbox kinds, status, navigation, settings, inbox, presence.
   'screen.home': 'Home',
   'screen.chinchiro': 'Chinchiro',

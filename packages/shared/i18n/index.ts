@@ -4,7 +4,7 @@ import type { Locale } from './locale.ts';
 import type { ErrorCode } from '../src/errors.ts';
 import type { ScreenId } from '../src/ids.ts';
 import type { NotificationKind } from '../src/notify.ts';
-import type { LanguageSetting, ThemeSetting } from '../src/settings.ts';
+import type { LanguageSetting, MotionSetting, ThemeSetting } from '../src/settings.ts';
 
 export { en, ja };
 export type { MessageKey, Messages };
@@ -18,13 +18,21 @@ type ErrorMessageKey = `error.${ErrorCode}`;
 const _everyErrorHasAMessage: Readonly<Record<ErrorMessageKey, string>> = en;
 void _everyErrorHasAMessage;
 
-/** Compile-time guards: every screen, inbox kind, language and theme option has a label. */
+/** Compile-time guards: every screen, inbox kind and settings option has a label. */
 type ScreenMessageKey = `screen.${ScreenId}`;
 type InboxKindMessageKey = `inbox.kind.${NotificationKind}`;
 type LanguageMessageKey = `settings.language.${LanguageSetting}`;
 type ThemeMessageKey = `settings.theme.${ThemeSetting}`;
+type MotionMessageKey = `settings.motion.${MotionSetting}`;
 const _everyLabelExists: Readonly<
-  Record<ScreenMessageKey | InboxKindMessageKey | LanguageMessageKey | ThemeMessageKey, string>
+  Record<
+    | ScreenMessageKey
+    | InboxKindMessageKey
+    | LanguageMessageKey
+    | ThemeMessageKey
+    | MotionMessageKey,
+    string
+  >
 > = en;
 void _everyLabelExists;
 

@@ -56,7 +56,7 @@ describe('server env contract', () => {
     expect(SERVER_ENV_DEFAULTS).toMatchObject({
       PORT: '3001',
       HOST: '127.0.0.1',
-      DATABASE_PATH: './data/casino.db',
+      DATABASE_PATH: './data/casino.sqlite',
       LOG_LEVEL: 'info',
     });
     const required = SERVER_ENV_KEYS.filter((k) => !OPTIONAL_SERVER_ENV_KEYS.includes(k as never));
@@ -75,17 +75,18 @@ describe('server env contract', () => {
     expect(Value.Check(ServerEnv, { ...env, HOST: '::1' })).toBe(true);
     expect(Value.Check(ServerEnv, { ...env, HOST: 'a b' })).toBe(false);
     expect(Value.Check(ServerEnv, { ...env, DATABASE_PATH: '' })).toBe(false);
+    expect(SERVER_ENV_DEFAULTS.DATABASE_PATH).not.toMatch(/casino\.db$/);
   });
 });
 
 describe('user settings', () => {
-  it('defaults are valid: auto language, Discord theme, sound on at 30, motion on', () => {
+  it('defaults are valid: auto language, Discord theme, sound on at 30, system motion', () => {
     expect(Value.Check(UserSettings, DEFAULT_USER_SETTINGS)).toBe(true);
     expect(DEFAULT_USER_SETTINGS).toEqual({
       language: 'auto',
       theme: 'discord',
       sound: { enabled: true, sfxVolume: 30, musicVolume: 30 },
-      motion: { enabled: true },
+      motion: 'system',
     });
   });
 
@@ -93,7 +94,6 @@ describe('user settings', () => {
     const base: UserSettings = {
       ...DEFAULT_USER_SETTINGS,
       sound: { ...DEFAULT_USER_SETTINGS.sound },
-      motion: { ...DEFAULT_USER_SETTINGS.motion },
     };
     expect(Value.Check(SettingsUpdateRequest, base)).toBe(true);
     expect(
@@ -105,9 +105,8 @@ describe('user settings', () => {
     expect(Value.Check(SettingsUpdateRequest, { ...base, theme: 'auto' })).toBe(false);
     expect(Value.Check(SettingsUpdateRequest, { ...base, language: 'fr' })).toBe(false);
     expect(Value.Check(SettingsUpdateRequest, { ...base, userId: U })).toBe(false);
-    expect(
-      Value.Check(SettingsUpdateRequest, { ...base, motion: { enabled: false, extra: 1 } }),
-    ).toBe(false);
+    expect(Value.Check(SettingsUpdateRequest, { ...base, motion: 'reduced' })).toBe(true);
+    expect(Value.Check(SettingsUpdateRequest, { ...base, motion: false })).toBe(false);
   });
 });
 

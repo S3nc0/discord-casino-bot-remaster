@@ -11,6 +11,9 @@ export const ja: Messages = {
   'settings.language': '言語',
   'settings.sound': 'サウンド',
   'settings.motion': 'アニメーション',
+  'settings.motion.system': 'システムに合わせる',
+  'settings.motion.full': 'すべて表示',
+  'settings.motion.reduced': '控えめ',
   // Shell: screens, inbox kinds, status, navigation, settings, inbox, presence.
   'screen.home': 'ホーム',
   'screen.chinchiro': 'チンチロ',
