@@ -7,6 +7,7 @@ import casino from './0005_casino.sql';
 import notifyWebhooks from './0006_notify_webhooks.sql';
 import finance from './0007_finance.sql';
 import gamesProgression from './0008_games_progression.sql';
+import horseBreeding from './0009_horse_breeding.sql';
 
 export type { Migration };
 
@@ -20,4 +21,5 @@ export const migrations: readonly Migration[] = [
   { version: 6, name: 'notify_webhooks', sql: notifyWebhooks },
   { version: 7, name: 'finance', sql: finance },
   { version: 8, name: 'games_progression', sql: gamesProgression },
+  { version: 9, name: 'horse_breeding', sql: horseBreeding },
 ];

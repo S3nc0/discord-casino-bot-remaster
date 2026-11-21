@@ -243,7 +243,7 @@ export class QuizService {
             guildId,
             userId: q.author_id as string,
             amount: q.reward,
-            reason: 'quiz_author_clawback',
+            reason: 'quiz_author_pay',
             why: 'quiz reward payment',
             refType: 'quiz',
             refId: `${quizId}:pay`,
