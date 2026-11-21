@@ -98,12 +98,24 @@ export const BalanceUpdate = Type.Object({
 });
 export type BalanceUpdate = Static<typeof BalanceUpdate>;
 
+/**
+ * Who is in an Activity instance. Sent to `instance:{instanceId}` as the full list (not a diff)
+ * whenever a socket of that instance connects or the last socket of a user disconnects, and to
+ * a new socket right after it joins. Ordered by join time.
+ */
 export const Participants = Type.Object({
   guildId: Snowflake,
   instanceId: InstanceId,
   users: Type.Array(PublicUser),
 });
 export type Participants = Static<typeof Participants>;
+
+/** Unread inbox count of one guild, sent to `user:{id}` after any read or new item. */
+export const InboxUnread = Type.Object({
+  guildId: Snowflake,
+  unread: Type.Integer({ minimum: 0 }),
+});
+export type InboxUnread = Static<typeof InboxUnread>;
 
 export const SessionError = Type.Object({ error: ErrorCode });
 export type SessionError = Static<typeof SessionError>;
@@ -126,7 +138,9 @@ export interface ServerToClientEvents {
   'balance:update': (update: BalanceUpdate) => void;
   'table:state': (snapshot: TableSnapshot) => void;
   'instance:participants': (participants: Participants) => void;
+  /** A new inbox item (to `user:{id}`; filter on `guildId`). Followed by `inbox:unread`. */
   'inbox:new': (item: InboxItem) => void;
+  'inbox:unread': (payload: InboxUnread) => void;
   toast: (toast: Toast) => void;
   'session:error': (error: SessionError) => void;
 }

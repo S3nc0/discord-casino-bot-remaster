@@ -3,6 +3,21 @@ import { EpochMs, InstanceId, Snowflake } from './ids.ts';
 import { LaunchIntent } from './launch.ts';
 import { LocaleSchema } from './locale.ts';
 
+/**
+ * Scopes the Activity passes to `discordSdk.commands.authorize`. `identify` and `guilds` let the
+ * server read `/users/@me` and `/users/@me/guilds` in `POST /api/token`; `rpc.activities.write`
+ * lets the Activity call `commands.setActivity` (rich presence). The server accepts a grant that
+ * contains at least `identify` and `guilds` (`REQUIRED_SERVER_SCOPES`).
+ */
+export const AUTHORIZE_SCOPES = ['identify', 'guilds', 'rpc.activities.write'] as const;
+export type AuthorizeScope = (typeof AUTHORIZE_SCOPES)[number];
+
+/** Scopes the server itself needs from the exchanged token. */
+export const REQUIRED_SERVER_SCOPES = [
+  'identify',
+  'guilds',
+] as const satisfies readonly AuthorizeScope[];
+
 /** Lifetime of our own session token. The Activity re-runs the silent auth flow on expiry. */
 export const SESSION_TTL_SECONDS = 60 * 60;
 

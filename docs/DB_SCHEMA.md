@@ -52,7 +52,7 @@ and reused. Nightly backups use the online backup API (`sqlite3 .backup`), never
 | `balances` | `guild_id, user_id` | Current balance, maintained by a trigger from the ledger. |
 | `idempotency_keys` | `guild_id, user_id, key` | First response per key, replayed on repeats; `request_hash` detects a reused key with a different body. |
 | `launch_intents` | `guild_id, user_id` | Screen to open after auth. Newest replaces older; expires after 2 minutes; `consumed_at` set on use. |
-| `user_settings` | `user_id` | Language (`NULL` = auto), sound, volume, motion (`system`/`full`/`reduced`), theme, DM digest. Global per user. |
+| `user_settings` | `user_id` | Language (`NULL` = auto), sound, volume, motion (`system`/`full`/`reduced`), theme, DM digest. Global per user. Reshaped by 0004 (below). |
 | `notification_prefs` | `user_id, kind` | DM opt-in (off by default) and inbox (on by default) per `NotificationKind`. |
 | `notification_queue` | `id` | Outgoing DMs with status, attempts, `next_attempt_at`, `dedupe_key`. |
 | `inbox` | `id` | In-Activity inbox per user and guild, with `read_at`. |
@@ -80,6 +80,27 @@ reports any negative legacy balance as an error instead of importing it.
 So `balances.balance = SUM(ledger.delta)` per account always holds. `EconomyService` is the only
 code that inserts ledger rows; it also checks business rules (caps, fees, transfer limits) that
 the triggers do not know about. The test `0001_init.test.ts` covers the triggers.
+
+### `user_settings` after 0004 (B1)
+
+`UserSettings` (`packages/shared/src/settings.ts`) is global per user, so the table keeps its
+`user_id` key. SQLite cannot change a `CHECK` in place, so `0004_user_settings.sql` rebuilds the
+table (create `user_settings_new`, copy, drop, rename, in the migration's transaction):
+
+| Column | 0001 | After 0004 | Wire (`UserSettings`) |
+| --- | --- | --- | --- |
+| `user_id` | `TEXT` PK → `users` | unchanged | (session) |
+| `locale` | `'en'`/`'ja'`, `NULL` = auto | unchanged | `language`: `NULL` ↔ `'auto'` |
+| `sound` | 0/1, default 1 | unchanged | `sound.enabled` |
+| `volume` | 0–100, default 70 | **dropped** | — |
+| `sfx_volume` | — | **added**: `INTEGER NOT NULL DEFAULT 30 CHECK (sfx_volume BETWEEN 0 AND 100)`, copied from `volume` | `sound.sfxVolume` |
+| `music_volume` | — | **added**: `INTEGER NOT NULL DEFAULT 30 CHECK (music_volume BETWEEN 0 AND 100)`, copied from `volume` | `sound.musicVolume` |
+| `motion` | `system`/`full`/`reduced`, default `system` | unchanged | `motion` |
+| `theme` | `system`/`light`/`dark`, default `system` | **changed**: `CHECK (theme IN ('discord', 'light', 'dark'))`, default `'discord'`; `'system'` rows become `'discord'` | `theme` |
+| `dm_digest` | 0/1, default 1 | unchanged | (not in `UserSettings`) |
+| `updated_at` | ms | unchanged | — |
+
+A user without a row gets `DEFAULT_USER_SETTINGS`; `PUT /api/settings` upserts the whole row.
 
 ## Planned tables (Wave 2)
 

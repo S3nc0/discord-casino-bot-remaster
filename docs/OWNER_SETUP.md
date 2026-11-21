@@ -19,9 +19,10 @@ Open your application in the [Discord Developer Portal](https://discord.com/deve
    - Go to **Activities → Settings** and toggle **Enable Activities** on.
    - Verify the Discord-managed **Entry Point** command (under **Installation / App Commands**) is enabled so users can launch the Activity from your server.
 5. **Configure URL Mappings**
-   - Go to **Activities → URL Mappings** and add both mappings:
+   - Go to **Activities → URL Mappings** and add these three mappings:
      - `/` → `PAGES_DOMAIN` (your Cloudflare Pages hostname, e.g. `your-app.pages.dev`)
      - `/api` → `API_DOMAIN/api` (your Cloudflare Tunnel hostname plus `/api`, e.g. `api.example.com/api`)
+     - `/discord-cdn` → `cdn.discordapp.com` (player avatars; the Activity cannot load the CDN directly)
    - Discord's proxy replaces the mapped prefix with the target, so mapping `/api` to `API_DOMAIN/api` preserves the `/api` prefix that the server expects.
 
 ## 2. Create `.env` on Your Mac
