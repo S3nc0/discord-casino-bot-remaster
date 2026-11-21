@@ -5,6 +5,7 @@ import legacyImport from './0003_legacy_import.sql';
 import userSettings from './0004_user_settings.sql';
 import casino from './0005_casino.sql';
 import notifyWebhooks from './0006_notify_webhooks.sql';
+import finance from './0007_finance.sql';
 
 export type { Migration };
 
@@ -16,4 +17,5 @@ export const migrations: readonly Migration[] = [
   { version: 4, name: 'user_settings', sql: userSettings },
   { version: 5, name: 'casino', sql: casino },
   { version: 6, name: 'notify_webhooks', sql: notifyWebhooks },
+  { version: 7, name: 'finance', sql: finance },
 ];
