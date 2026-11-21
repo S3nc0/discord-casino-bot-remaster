@@ -1,18 +1,19 @@
 import { useEffect } from 'react';
+import { Tag } from '@casino/ui';
 import { useLayout } from './layout.ts';
 import { formatPelica, useLocale, useT } from './i18n.ts';
 import { InboxScreen } from './InboxScreen.tsx';
-import { NavigationBar } from './NavigationBar.tsx';
+import { MainNavigation } from './NavigationBar.tsx';
 import { Participants } from './Participants.tsx';
 import { useRuntime } from './runtime.ts';
 import { SettingsScreen } from './SettingsScreen.tsx';
-import { Snackbar } from './Snackbar.tsx';
+import { Toasts } from './Snackbar.tsx';
 import { ErrorScreen, LoadingScreen } from './StatusScreens.tsx';
 import { useBalanceStore } from './stores/balance.ts';
 import { useConnectionStore } from './stores/connection.ts';
 import { useNavStore } from './stores/nav.ts';
 import { useSessionStore } from './stores/session.ts';
-import { useDocumentEffects } from './theme.ts';
+import { useDocumentLang } from './theme.ts';
 import { screenRoutes } from '../screens/index.ts';
 
 function ConnectionBadge() {
@@ -26,8 +27,8 @@ function ConnectionBadge() {
         ? 'shell.reconnecting'
         : 'shell.offline';
   return (
-    <span className="conn" role="status" data-status={status}>
-      {t(key)}
+    <span role="status" data-status={status}>
+      <Tag hue="yellow">{t(key)}</Tag>
     </span>
   );
 }
@@ -63,7 +64,7 @@ export function Shell() {
   const status = useSessionStore((s) => s.status);
   const error = useSessionStore((s) => s.error);
   const layout = useLayout();
-  useDocumentEffects();
+  useDocumentLang();
 
   useEffect(() => {
     void runtime.boot();
@@ -76,14 +77,14 @@ export function Shell() {
 
   return (
     <div className="app" data-layout={layout}>
-      <NavigationBar />
+      <MainNavigation />
       <div className="app__main">
         <TopBar />
         <main className="app__screen">
           <Screen />
         </main>
       </div>
-      <Snackbar />
+      <Toasts />
     </div>
   );
 }

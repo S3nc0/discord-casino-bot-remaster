@@ -16,8 +16,11 @@ export interface SessionState {
   sessionToken: string | null;
   /** Epoch ms. */
   expiresAt: number | null;
-  /** Locale resolved by the server (user setting, client locale, guild locale). */
-  serverLocale: Locale | null;
+  /**
+   * The guild's preferred locale (`/api/me` → `localeHints.guild`). Until `/api/me` answers it
+   * holds the locale the token response resolved, so the first paint is already close.
+   */
+  guildLocale: Locale | null;
   /** Raw Discord client locale from the SDK, e.g. `ja` or `en-US`. */
   sdkLocale: string | null;
   participants: PublicUser[];
@@ -28,8 +31,9 @@ export interface SessionState {
     instanceId: string;
     sessionToken: string;
     expiresAt: number;
-    serverLocale: Locale;
+    guildLocale: Locale;
   }) => void;
+  setGuildLocale: (locale: Locale | null) => void;
   fail: (error: ShellError) => void;
   setSdkLocale: (locale: string | null) => void;
   setParticipants: (users: PublicUser[]) => void;
@@ -44,7 +48,7 @@ const initial = {
   instanceId: null,
   sessionToken: null,
   expiresAt: null,
-  serverLocale: null,
+  guildLocale: null,
   sdkLocale: null,
   participants: [],
 } as const satisfies Partial<SessionState>;
@@ -56,6 +60,7 @@ export const useSessionStore = create<SessionState>()((set) => ({
   authenticated: (input) => set({ ...input, status: 'ready', error: null }),
   fail: (error) => set({ status: 'error', error, sessionToken: null }),
   setSdkLocale: (sdkLocale) => set({ sdkLocale }),
+  setGuildLocale: (guildLocale) => set({ guildLocale }),
   setParticipants: (participants) => set({ participants }),
   reset: () => set({ ...initial, participants: [] }),
 }));

@@ -1,5 +1,5 @@
 import { DiscordSDK, DiscordSDKMock, Events, patchUrlMappings } from '@discord/embedded-app-sdk';
-import type { PublicUser } from '@casino/shared';
+import { AUTHORIZE_SCOPES, DISCORD_URL_MAPPINGS, type PublicUser } from '@casino/shared';
 import type { ShellConfig } from './config.ts';
 
 export interface PresenceActivity {
@@ -54,7 +54,7 @@ function wrap(sdk: DiscordSDK | DiscordSDKMock, mode: 'discord' | 'mock'): Activ
         response_type: 'code',
         state: '',
         prompt: 'none',
-        scope: ['identify', 'guilds'],
+        scope: [...AUTHORIZE_SCOPES],
       });
       return code;
     },
@@ -94,11 +94,13 @@ const MOCK_GUILD_ID = '100000000000000001';
 export function createActivitySdk(config: ShellConfig): ActivitySdk {
   if (config.mode === 'discord') {
     const sdk = new DiscordSDK(config.clientId);
-    // Libraries that build absolute URLs to the API host (socket.io-client among them) are
-    // remapped onto the `/api` mapping. Our own calls already go through the proxy prefix.
-    if (config.apiHost) {
-      patchUrlMappings([{ prefix: '/api', target: `${config.apiHost}/api` }]);
-    }
+    // Anything that builds an absolute URL (socket.io-client, images, fetch) is remapped onto
+    // the Developer Portal mappings: the Discord CDN (`/discord-cdn`) and, when the API host
+    // is known at build time, `/api`. Our own calls already carry the `/.proxy` prefix.
+    patchUrlMappings([
+      ...DISCORD_URL_MAPPINGS,
+      ...(config.apiHost ? [{ prefix: '/api', target: `${config.apiHost}/api` }] : []),
+    ]);
     return wrap(sdk, 'discord');
   }
   if (config.mode === 'mock') {

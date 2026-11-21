@@ -1,3 +1,4 @@
+import { Themed } from './shell/Themed.tsx';
 import { RuntimeContext, type ShellRuntime } from './shell/runtime.ts';
 import { Shell } from './shell/Shell.tsx';
 import { ErrorScreen } from './shell/StatusScreens.tsx';
@@ -8,10 +9,15 @@ export interface AppProps {
 }
 
 export function App({ runtime }: AppProps) {
-  if (!runtime) return <ErrorScreen error="not_in_discord" />;
   return (
-    <RuntimeContext.Provider value={runtime}>
-      <Shell />
-    </RuntimeContext.Provider>
+    <Themed>
+      {runtime ? (
+        <RuntimeContext.Provider value={runtime}>
+          <Shell />
+        </RuntimeContext.Provider>
+      ) : (
+        <ErrorScreen error="not_in_discord" />
+      )}
+    </Themed>
   );
 }

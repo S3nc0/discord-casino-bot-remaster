@@ -78,17 +78,16 @@ export class ShellRuntime {
     // and amount.
     await Promise.allSettled([
       this.settings.load(),
-      this.api.getBalance().then((balance) => {
-        if (balance !== null && useBalanceStore.getState().ledgerId === 0) {
-          useBalanceStore.getState().set(balance);
-        }
+      this.api.getMe().then((me) => {
+        useSessionStore.getState().setGuildLocale(me.localeHints.guild);
+        if (useBalanceStore.getState().ledgerId === 0) useBalanceStore.getState().set(me.balance);
       }),
     ]);
     this.settings.start();
     this.presence.start();
 
     await Promise.allSettled([
-      this.api.getInbox().then((items) => useInboxStore.getState().set(items)),
+      this.api.getInbox().then((page) => useInboxStore.getState().set(page.items, page.unread)),
       this.sdk.getParticipants().then((users) => useSessionStore.getState().setParticipants(users)),
       this.sdk.onParticipantsUpdate((users) => useSessionStore.getState().setParticipants(users)),
     ]);

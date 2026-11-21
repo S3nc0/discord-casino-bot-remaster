@@ -4,6 +4,7 @@ import { ApiError, createHttpApi } from './api.ts';
 import { AuthController } from './auth.ts';
 import { screenForIntent } from './launch.ts';
 import { useSessionStore } from './stores/session.ts';
+import { defaultSettings } from './stores/settings.ts';
 import { GUILD, INSTANCE, USER_ID, fakeSdk, resetStores, tokenResponse } from './testing/fakes.ts';
 
 beforeEach(resetStores);
@@ -59,7 +60,7 @@ describe('auth flow', () => {
       guildId: GUILD,
       instanceId: INSTANCE,
       sdkLocale: 'ja',
-      serverLocale: 'ja',
+      guildLocale: 'ja',
     });
     expect(useSessionStore.getState().user?.id).toBe(USER_ID);
   });
@@ -101,17 +102,49 @@ describe('auth flow', () => {
     expect(useSessionStore.getState().sessionToken).toBe('sess-2');
   });
 
-  it('sends the session token as a bearer on later calls', async () => {
-    const http = mockFetch(() => ({ body: { balance: 5 } }));
+  it('sends the session token as a bearer and reads the balance from /api/me', async () => {
+    const http = mockFetch(() => ({
+      body: { balance: 5, localeHints: { setting: 'auto', guild: 'ja' } },
+    }));
     const api = createHttpApi({
       prefix: '',
       getSessionToken: () => 'sess-x',
       fetchImpl: http.impl,
     });
-    expect(await api.getBalance()).toBe(5);
+    expect((await api.getMe()).balance).toBe(5);
+    expect(http.calls[0]?.url).toBe('/api/me');
     expect((http.calls[0]?.init.headers as Record<string, string>).Authorization).toBe(
       'Bearer sess-x',
     );
+  });
+
+  it('saves the whole settings document with PUT /api/settings', async () => {
+    const doc = defaultSettings();
+    const http = mockFetch((_url, init) => ({ body: JSON.parse(String(init.body)) }));
+    const api = createHttpApi({
+      prefix: '/.proxy',
+      getSessionToken: () => 't',
+      fetchImpl: http.impl,
+    });
+    const stored = await api.saveSettings({ ...doc, motion: 'reduced' });
+    expect(http.calls[0]?.url).toBe('/.proxy/api/settings');
+    expect(http.calls[0]?.init.method).toBe('PUT');
+    expect(JSON.parse(String(http.calls[0]?.init.body))).toEqual({ ...doc, motion: 'reduced' });
+    expect(stored.motion).toBe('reduced');
+  });
+
+  it('asks the inbox for a page and marks everything read with { all: true }', async () => {
+    const http = mockFetch((url) =>
+      url.startsWith('/api/inbox/read')
+        ? { body: { unread: 0 } }
+        : { body: { items: [], unread: 3, nextBefore: null } },
+    );
+    const api = createHttpApi({ prefix: '', getSessionToken: () => 't', fetchImpl: http.impl });
+    expect((await api.getInbox({ before: 40, unreadOnly: true })).unread).toBe(3);
+    expect(http.calls[0]?.url).toBe('/api/inbox?before=40&limit=50&unread=1');
+    expect((await api.markInboxRead({ all: true })).unread).toBe(0);
+    expect(http.calls[1]?.url).toBe('/api/inbox/read');
+    expect(JSON.parse(String(http.calls[1]?.init.body))).toEqual({ all: true });
   });
 });
 

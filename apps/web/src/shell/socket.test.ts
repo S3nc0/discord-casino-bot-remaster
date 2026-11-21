@@ -16,7 +16,7 @@ beforeEach(() => {
     instanceId: INSTANCE,
     sessionToken: 'sess-1',
     expiresAt: 1_000_000,
-    serverLocale: 'en',
+    guildLocale: 'en',
   });
 });
 
@@ -188,27 +188,12 @@ describe('socket controller', () => {
     expect(useSessionStore.getState().participants).toEqual([user]);
   });
 
-  it('marks inbox items read optimistically and tells the server in chunks of 100', () => {
+  it('follows the server unread count for this guild only', () => {
     const s = setup();
     s.controller.connect();
-    const ids = Array.from({ length: 150 }, (_, i) => i + 1);
-    useInboxStore.getState().set(
-      ids.map(
-        (id) =>
-          ({
-            id,
-            guildId: GUILD,
-            kind: 'daily_ready',
-            event: {},
-            createdAt: id,
-            readAt: null,
-          }) as unknown as InboxItem,
-      ),
-    );
-    s.controller.markInboxRead(ids);
-    expect(useInboxStore.getState().items.every((i) => i.readAt !== null)).toBe(true);
-    const reads = s.socket.emitted.filter((e) => e.event === 'inbox:read');
-    expect(reads.map((r) => (r.args[0] as { ids: number[] }).ids.length)).toEqual([100, 50]);
+    s.socket.trigger('inbox:unread', { guildId: GUILD, unread: 4 });
+    s.socket.trigger('inbox:unread', { guildId: '300000000000000000', unread: 99 });
+    expect(useInboxStore.getState().unread).toBe(4);
   });
 
   it('emits the screen only while connected', () => {

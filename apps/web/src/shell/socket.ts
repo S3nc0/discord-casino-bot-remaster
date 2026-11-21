@@ -105,15 +105,6 @@ export class SocketController {
     if (this.socket?.connected) this.socket.emit('presence:screen', { screen });
   }
 
-  /** Mark inbox items read on the server; the store is updated optimistically. */
-  markInboxRead(ids: number[]): void {
-    if (ids.length === 0) return;
-    useInboxStore.getState().markRead(ids, this.now());
-    for (let i = 0; i < ids.length; i += 100) {
-      this.socket?.emit('inbox:read', { ids: ids.slice(i, i + 100) }, () => undefined);
-    }
-  }
-
   /** Renew the session and reconnect with the new token. */
   async reauthenticate(): Promise<void> {
     const socket = this.socket;
@@ -170,6 +161,10 @@ export class SocketController {
       if (item.guildId !== useSessionStore.getState().guildId) return;
       useInboxStore.getState().add(item);
       useToastStore.getState().push({ tone: 'info', messageKey: `inbox.kind.${item.kind}` });
+    });
+    socket.on('inbox:unread', ({ guildId, unread }) => {
+      if (guildId === useSessionStore.getState().guildId)
+        useInboxStore.getState().setUnread(unread);
     });
     socket.on('toast', (toast) => {
       if (toast.guildId !== useSessionStore.getState().guildId) return;

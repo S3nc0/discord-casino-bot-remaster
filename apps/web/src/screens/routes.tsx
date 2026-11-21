@@ -1,5 +1,6 @@
 import type { ComponentType } from 'react';
 import { SCREEN_IDS, type ScreenId } from '@casino/shared';
+import { Card, Tag } from '@casino/ui';
 import { formatPelica, screenName, useLocale, useT } from '../shell/i18n.ts';
 import { useBalanceStore } from '../shell/stores/balance.ts';
 
@@ -9,15 +10,16 @@ export function Home() {
   const locale = useLocale();
   const balance = useBalanceStore((s) => s.balance);
   return (
-    <section className="panel" aria-labelledby="home-title">
-      <h1 id="home-title">{screenName(locale, 'home')}</h1>
-      {balance !== null ? (
-        <p>
-          {t('shell.balance')}: {formatPelica(locale, balance)}
-        </p>
-      ) : null}
+    <Card
+      variant="elevated"
+      title={screenName(locale, 'home')}
+      meta={
+        balance !== null ? `${t('shell.balance')}: ${formatPelica(locale, balance)}` : undefined
+      }
+    >
       <p>{t('shell.placeholder')}</p>
-    </section>
+      <Tag hue="neutral">{t('currency.name')}</Tag>
+    </Card>
   );
 }
 
