@@ -232,6 +232,7 @@ A **`.env` file** is a local text file in your project folder that stores settin
    | `PUBLIC_API_ORIGIN` | Yes | No | Use `https://localhost` for now (checked at startup, not yet used; with a custom domain later, use `https://api.example.com`) |
    | `ANNOUNCE_CHANNEL_ID` | Yes | No | A text channel ID in your test server |
    | `NODE_ENV` | Optional | No | Default `production`. Leave unset or `production` behind Discord and the tunnel |
+   | `REQUIRE_PROXY_SIGNATURE` | Optional | No | Default `0`. Keep `0` for now — it will be turned on once we confirm Discord signs traffic after login |
    | `HOST` | Optional | No | Default `127.0.0.1`. Keep default; the tunnel connects locally |
    | `PORT` | Optional | No | Default `3001`. Port the server listens on |
    | `DATABASE_PATH` | Optional | No | Default `./data/casino.sqlite`. This is the new database (the legacy `data/casino.db` is only an importer input) |
@@ -401,7 +402,7 @@ If you just changed any URL Mappings, **reload Discord first** (`Cmd+R` on macOS
 | `guild_not_allowed` (or `guild_denied`) | This server ID is not in `ALLOWED_GUILD_IDS` | Copy the server ID, add it to `ALLOWED_GUILD_IDS` in `.env`, and restart the server |
 | `guild_pending` | `REQUIRE_APPROVAL=1` and the server has not been approved yet | Set `REQUIRE_APPROVAL=0` in `.env` (or approve the server), then restart the server |
 | `proxy_signature_invalid` | Wrong `DISCORD_PUBLIC_KEY` in `.env` | Copy the 64-character **Public Key** from **Developer Portal → General Information**, update `.env`, and restart the server |
-| `proxy_signature_missing` *(followed by missing header names)* | Request arrived without Discord's proxy headers | If this happens inside Discord (not a direct browser visit), report it — it is a code issue, not a settings issue |
+| `proxy_signature_missing` *(followed by missing header names)* | Request arrived without Discord's proxy headers (cannot happen on `/api/token`; on other routes it only appears when `REQUIRE_PROXY_SIGNATURE=1`) | Set `REQUIRE_PROXY_SIGNATURE=0` in `.env`, restart the server, and report it |
 | `timestamp_skew` / `proxy_expired` | Your Mac's clock is off or the request expired | Turn on automatic date and time in macOS **System Settings → General → Date & Time**, then reopen the Activity |
 | `session_expired` / `session_invalid` / `session_revoked` / `socket_auth_failed` | The session expired or the live connection could not authenticate | Close and reopen the Activity; if it repeats right away, report it |
 | `user_not_in_guild` / `instance_mismatch` / `scope_missing` | Discord could not match your user, server, or permission grant to the live Activity | Close the Activity, reload Discord (`Cmd+R` / `Ctrl+R`), and open it again |
