@@ -42,7 +42,10 @@ export const ServerEnv = Type.Object({
   HOST: Type.Optional(
     Type.String({ minLength: 1, maxLength: 255, pattern: '^[A-Za-z0-9.:\\[\\]-]+$' }),
   ),
-  /** SQLite file of the new server. Relative paths resolve against the working directory. */
+  /**
+   * SQLite file of the new server. Relative paths resolve against the working directory.
+   * Never the legacy Python bot's `data/casino.db`: that file is only read by the importer.
+   */
   DATABASE_PATH: Type.Optional(Type.String({ minLength: 1 })),
   /** Pino level. Default `info`. */
   LOG_LEVEL: Type.Optional(Type.Enum(LOG_LEVELS)),
@@ -54,7 +57,7 @@ export const SERVER_ENV_DEFAULTS = {
   NODE_ENV: 'production',
   PORT: '3001',
   HOST: '127.0.0.1',
-  DATABASE_PATH: './data/casino.db',
+  DATABASE_PATH: './data/casino.sqlite',
   LOG_LEVEL: 'info',
 } as const satisfies Partial<Record<keyof ServerEnv, string>>;
 
