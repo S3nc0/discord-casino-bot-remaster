@@ -23,13 +23,21 @@ export const SessionClaims = Type.Object({
 export type SessionClaims = Static<typeof SessionClaims>;
 
 /** POST /api/token: the Activity sends the OAuth2 code from `discordSdk.commands.authorize`. */
-export const TokenRequest = Type.Object({
-  code: Type.String({ minLength: 1, maxLength: 512 }),
-  guildId: Snowflake,
-  instanceId: InstanceId,
-  /** SDK user locale, used for locale resolution when the user has no setting. */
-  clientLocale: Type.Optional(Type.String({ maxLength: 16 })),
-});
+/**
+ * The server trusts none of these fields as given: `guildId` must be in the user's
+ * `/users/@me/guilds` and in ALLOWED_GUILD_IDS, and `instanceId` must be a live Activity
+ * instance in that guild with this user in it (Discord's activity-instance endpoint).
+ */
+export const TokenRequest = Type.Object(
+  {
+    code: Type.String({ minLength: 1, maxLength: 512 }),
+    guildId: Snowflake,
+    instanceId: InstanceId,
+    /** SDK user locale, used for locale resolution when the user has no setting. */
+    clientLocale: Type.Optional(Type.String({ maxLength: 16 })),
+  },
+  { additionalProperties: false },
+);
 export type TokenRequest = Static<typeof TokenRequest>;
 
 export const PublicUser = Type.Object({
