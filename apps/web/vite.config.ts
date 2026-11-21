@@ -15,6 +15,12 @@ export default defineConfig({
     port: 5173,
     proxy: {
       '/api': { target: 'http://localhost:3001', ws: true },
+      // Avatars: in Discord the Developer Portal maps `/cdn` to the Discord CDN host.
+      '/cdn': {
+        target: 'https://cdn.discordapp.com',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/cdn/, ''),
+      },
     },
   },
 });
