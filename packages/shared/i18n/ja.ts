@@ -53,6 +53,8 @@ export const ja: Messages = {
   'inbox.kind.mission_complete': 'ミッション達成',
   'inbox.kind.order_filled': '注文が約定しました',
   'inbox.kind.marketplace_outbid': 'マーケットで競り負けました',
+  'inbox.kind.horse_foaled': '子馬が生まれました',
+  'inbox.kind.dm_disabled': 'DM通知をオフにしました',
   'shell.loading': 'カジノに接続しています…',
   'shell.retry': 'もう一度試す',
   'shell.notInDiscord': 'Discord のアクティビティとして開いてください。',
@@ -98,4 +100,117 @@ export const ja: Messages = {
   'error.expired': '期限が切れました。',
   'error.game_busy': 'テーブルが混んでいます。少し待ってから試してください。',
   'error.internal': 'エラーが起きました。もう一度試してください。',
+  // Chat bot (apps/server/src/bot): replies, guards, help.
+  'bot.balance.title': '{name} の残高',
+  'bot.balance.noAccount': 'まだ口座がありません。',
+  'bot.settings.status': '言語設定: **{language}**（適用中: **{resolved}**）',
+  'bot.settings.updated': '言語を **{language}** に変更しました（適用中: **{resolved}**）。',
+  'bot.settings.footer': '全サーバーとアクティビティに共通です。',
+  'bot.help.title': 'カジノ案内',
+  'bot.help.body':
+    '`/ペリカ 残高` で残高確認、`/設定` で言語変更、下のボタンでアクティビティを開けます。',
+  'bot.help.commandsTitle': '主なコマンド',
+  'bot.help.commandsList':
+    '`/ペリカ` `/カジノ` `/競馬` `/闘技場` `/地下` `/証券` `/貸付` `/共済` `/会社` `/ショップ` `/クイズ` `/投票` `/設定`',
+  'bot.activity.placeholder': 'アクティビティ起動は次回対応予定です。',
+  'bot.comingSoon.title': '準備中',
+  'bot.comingSoon.body': '`/{command}` は準備中です。',
+  'bot.guard.guildOnly': 'このコマンドはサーバー内でのみ使えます。',
+  'bot.guard.ownerOnly': 'Bot の持ち主だけが使えます。',
+  'bot.guard.dmOnly': 'Bot とのDMでのみ使えます。',
+  'bot.error.unknownCommand': '不明なコマンドです。',
+  // Notify (apps/server/src/notify): announcements, personas, DM digests, inbox notes.
+  'notify.persona.race_caller': '競馬実況',
+  'notify.persona.market_news': '証券ニュース',
+  'notify.persona.teiai_bank': '帝愛銀行',
+
+  'notify.batch.title': 'カジノのお知らせ（{count}件）',
+  'notify.batch.footer': 'まとめ通知',
+  'notify.digest.title': 'カジノ通知ダイジェスト（{count}件）',
+  'notify.digest.footer': '1時間ごとのDMダイジェスト — 設定から変更できます',
+
+  'notify.event.GameSettled.title': '大当たり！',
+  'notify.event.GameSettled.body': '<@{userId}> が{game}で{payout}を獲得（純利益 +{net}）！',
+  'notify.event.BigWin.title': 'ビッグウィン！',
+  'notify.event.BigWin.body': '<@{userId}> が{game}で{multiplier}倍（{payout}）を獲得！',
+  'notify.event.Jackpot.title': 'ジャックポット！',
+  'notify.event.Jackpot.body': '<@{userId}> が{game}のジャックポット {amount} を獲得！',
+  'notify.event.RaceScheduled.title': '第{raceId}回レース 開催予定',
+  'notify.event.RaceScheduled.body': '発走 <t:{startsAtSec}:R>（出走 {entrants}頭）',
+  'notify.event.RaceFinished.title': '第{raceId}回レース 確定',
+  'notify.event.RaceFinished.body': '着順: {placings}',
+  'notify.event.MarketMove.title': '市況速報: {ticker}',
+  'notify.event.MarketMove.spike': '{ticker} が {change}% 急騰（現在値 {price}）！',
+  'notify.event.MarketMove.crash': '{ticker} が {change}% 急落（現在値 {price}）！',
+  'notify.event.TitleAwarded.title': '称号獲得',
+  'notify.event.TitleAwarded.body': '<@{userId}> が称号「{titleId}」を獲得しました！',
+  'notify.event.TitleAwarded.weekly':
+    '<@{userId}> が週間称号「{titleId}」を獲得しました（{week}週）！',
+  'notify.event.BankruptcyGraceStarted.title': '破産猶予期間 開始',
+  'notify.event.BankruptcyGraceStarted.body':
+    '<@{userId}> の借金は {debt} です。猶予期限は <t:{graceEndsAtSec}:R> です。',
+  'notify.event.BankruptcyDeclared.title': '破産確定',
+  'notify.event.BankruptcyDeclared.body':
+    '<@{userId}> が破産しました（{cause}）：借金 {debtBefore} → {debtAfter}。',
+  'notify.event.CompanyBankrupt.title': '企業倒産: {companyName}',
+  'notify.event.CompanyBankrupt.body':
+    '{companyName}（オーナー <@{ownerId}>）が倒産しました（{cause}）。投資家 {investors}名の持分が消滅しました。',
+  'notify.event.LotteryDrawn.title': '抽選会 #{lotteryId} 結果',
+  'notify.event.LotteryDrawn.won':
+    '<@{winnerId}> が賞金 {prize} を獲得（参加 {entrants}名・参加費 {fee}）！',
+  'notify.event.LotteryDrawn.refunded':
+    '抽選会 #{lotteryId} は中止となり、{entrants}名へ参加費 {fee} を返金しました。',
+  'notify.event.HorseRetired.title': '競走馬 引退',
+  'notify.event.HorseRetired.body':
+    '<@{userId}> の競走馬 #{horseId} が引退し、{payout} を受け取りました。',
+  'notify.event.LoanDue.title': 'ローン返済期限',
+  'notify.event.LoanDue.body': 'ローン #{loanId}（{amount}）の返済期限は <t:{dueAtSec}:R> です。',
+  'notify.event.MissionCompleted.title': 'ミッション達成',
+  'notify.event.MissionCompleted.body':
+    'ミッション「{missionId}」を達成し、報酬 {reward} を獲得しました！',
+  'notify.event.OrderFilled.title': '注文約定: {ticker}',
+  'notify.event.OrderFilled.body':
+    '注文 #{orderId}（{side}）が約定しました：{ticker} {quantity} @ {price}。',
+  'notify.event.MarketplaceOutbid.title': 'オークション競り負け',
+  'notify.event.MarketplaceOutbid.body':
+    '出品 #{listingId} でより高い入札（{newBid}）がありました。',
+  'notify.event.DailyReady.title': 'デイリーボーナス受け取り可能',
+  'notify.event.DailyReady.body': 'デイリーボーナスを受け取れるようになりました！',
+
+  'notify.dm_disabled.title': 'DM通知を自動オフにしました',
+  'notify.dm_disabled.body':
+    'DMを受け取れない設定のため送信できませんでした。DM通知をオフにしました。DiscordのDM設定を開いたあとに再度オンにしてください。',
+
+  'notify.cause.voluntary': '自己破産',
+  'notify.cause.forced': '強制破産',
+  'notify.cause.escape': '海外逃亡',
+  'notify.cause.upkeep': '維持費未払い',
+  'notify.cause.owner_bankrupt': 'オーナー破産',
+  'notify.side.buy': '買い',
+  'notify.side.sell': '売り',
+  'notify.race.noPlacings': '完走馬なし',
+  // Horse breeding (docs/spec/horse-breeding.md §5).
+  'horse.breed.title': '配合',
+  'horse.breed.fee': '配合料: {fee}',
+  'horse.breed.confirm':
+    '{a} × {b} を {fee} で配合しますか？子馬の能力は生まれたときに決まり、やり直せません。',
+  'horse.breed.born': '🐣 {name} が生まれました！',
+  'horse.breed.matures': '{time} から出走できます',
+  'horse.lineage': '両親: {a} × {b}・{gen}代目',
+  'horse.announce.foaled': '🐣 {owner} さんの厩舎に、期待の子馬 {name} が生まれました（{a} × {b}）',
+  'horse.breed.err.cooldown': '{name} は {time} から、また配合できます。',
+  'horse.breed.err.min_races': '{name} は {min} 戦走るまで、配合できません。',
+  'horse.breed.err.foal_limit': '{name} は、もう {max} 頭の子がいます。',
+  'horse.breed.err.stable_full':
+    '厩舎がいっぱいです（{max} 頭まで）。先に引退か売却をしてください。',
+  'horse.breed.err.in_debt': '帝愛への借金があるあいだは、配合できません。',
+  'horse.breed.err.same_horse': '違う馬を 2 頭選んでください。',
+  'horse.err.foal_immature': 'この子馬は {time} から出走できます。',
+  'horse.err.gold_carrot_total_cap': '能力の合計は {max} までです。',
+  // Finance toasts and notices.
+  'finance.debtorBlocked': '借金中不可',
+  'finance.graceStarted': '破産猶予開始',
+  'finance.marginLosscut': 'ロスカット執行',
+  'finance.loanDue': '返済期限接近',
+  'finance.outbid': '高値更新',
 };

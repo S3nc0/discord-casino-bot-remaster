@@ -53,9 +53,9 @@ and reused. Nightly backups use the online backup API (`sqlite3 .backup`), never
 | `idempotency_keys` | `guild_id, user_id, key` | First response per key, replayed on repeats; `request_hash` detects a reused key with a different body. |
 | `launch_intents` | `guild_id, user_id` | Screen to open after auth. Newest replaces older; expires after 2 minutes; `consumed_at` set on use. |
 | `user_settings` | `user_id` | Language (`NULL` = auto), sound, volume, motion (`system`/`full`/`reduced`), theme, DM digest. Global per user. Reshaped by 0004 (below). |
-| `notification_prefs` | `user_id, kind` | DM opt-in (off by default) and inbox (on by default) per `NotificationKind`. |
+| `notification_prefs` | `user_id, kind` | DM opt-in (off by default) and inbox (on by default) per `NotificationKind`. System inbox kinds (`SYSTEM_INBOX_KINDS`: `dm_disabled`) have no row: they are always written and never DMed. |
 | `notification_queue` | `id` | Outgoing DMs with status, attempts, `next_attempt_at`, `dedupe_key`. |
-| `inbox` | `id` | In-Activity inbox per user and guild, with `read_at`. |
+| `inbox` | `id` | In-Activity inbox per user and guild, with `read_at`. `kind` is an `InboxKind` (`NOTIFICATION_KINDS` plus `dm_disabled`); `payload` is the JSON of an `InboxPayload` (the domain event, or a `DmDisabledNotice`). |
 
 ### Ledger invariants (enforced by triggers)
 
@@ -117,7 +117,7 @@ are per guild. Only the read-only feeds below are shared by all guilds, as in th
 | Casino games | `game_rounds` (open rounds, held stakes), `jackpots`, `rtp_levels`, `pachinko_spins`, `pachinko_sets` | B2-A |
 | Daily, missions, ranking | `daily_claims`, `missions`, `weekly_stats`, `weekly_champions`, `weekly_state`, `titles`, `nick_prefs` | B2-B |
 | Events | `event_state`, `manual_events` | B2-B |
-| Races, arena | `horses`, `horse_races`, `horse_entries`, `horse_bets`, `horse_odds`, `arena_tournaments`, `arena_fighters`, `arena_bets` | B2-B |
+| Races, arena | `horses` (+ breeding columns, [horse-breeding.md](spec/horse-breeding.md) §5), `horse_breedings` (ledger `ref_id` of `horse_breeding_fee`), `horse_races`, `horse_entries`, `horse_bets`, `horse_odds`, `arena_tournaments`, `arena_fighters`, `arena_bets` | B2-B |
 | Work, quiz, lottery, polls | `work_state`, `work_finds`, `work_click_hours`, `work_workers`, `quiz_answers`, `raffles`, `raffle_entries`, `polls`, `poll_votes` | B2-B |
 | Shop and items | `inventory`, `shop_stock`, `profiles`, `seized_items`, `teiai_market`, `teiai_market_days` | B2-B |
 | Player market | `marketplace_listings` | B3 |

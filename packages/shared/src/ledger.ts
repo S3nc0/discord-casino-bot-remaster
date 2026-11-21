@@ -125,6 +125,13 @@ export const LEDGER_REASONS = [
   'p2p_bankruptcy_payout',
   // kyosai: 5% fee on player-to-player unit trades
   'kyosai_fee',
+  // --- Wave 2 contract batch ---
+  // horse breeding (docs/spec/horse-breeding.md §4): the 15,000 breeding fee
+  'horse_breeding_fee',
+  // casino: insurance consumable refunds half a lost bet (casino-common.md Step C)
+  'game_insurance_refund',
+  // quiz: a user author pays the reward of a correct answer (quiz.md §2, `クイズ報酬の支払い`)
+  'quiz_author_pay',
 ] as const;
 
 export const LedgerReason = Type.Enum(LEDGER_REASONS);
@@ -244,6 +251,14 @@ const FLOW: { readonly [R in LedgerReason]: readonly [LedgerFlow, 1 | -1] } = {
   p2p_garnishment: ['transfer', -1],
   p2p_bankruptcy_payout: ['faucet', 1],
   kyosai_fee: ['sink', -1],
+  horse_breeding_fee: ['sink', -1],
+  // Faucet: paid by the system, not by another player. The item's price left earlier as
+  // `shop_buy`. Its own reason so history and stats can tell it from a voided-round `game_refund`.
+  game_insurance_refund: ['faucet', 1],
+  // Sink, not a transfer leg: the answerer is paid in full with `quiz_reward` (a faucet, as for
+  // official quizzes) while the author's wallet may cover only part (the rest becomes Teiai
+  // debt), so the two rows need not sum to zero.
+  quiz_author_pay: ['sink', -1],
 };
 
 function project<T>(pick: (entry: readonly [LedgerFlow, 1 | -1]) => T) {

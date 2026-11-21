@@ -12,6 +12,7 @@ export const NOTIFICATION_KINDS = [
   'mission_complete',
   'order_filled',
   'marketplace_outbid',
+  'horse_foaled',
 ] as const;
 export const NotificationKind = Type.Enum(NOTIFICATION_KINDS);
 export type NotificationKind = (typeof NOTIFICATION_KINDS)[number];
@@ -26,13 +27,44 @@ export const NOTIFICATION_SOURCE: Readonly<Record<NotificationKind, DomainEventT
   mission_complete: 'MissionCompleted',
   order_filled: 'OrderFilled',
   marketplace_outbid: 'MarketplaceOutbid',
+  horse_foaled: 'HorseFoaled',
 };
+
+/**
+ * Inbox-only kinds written by the system, not by a domain event. They have no DM preference
+ * (there is nothing to opt into) and are never DMed.
+ * - `dm_disabled`: Discord refused a DM because the user's DMs are closed (API error 50007,
+ *   send-failure reason `dm_closed`), so every DM kind was switched off for that user.
+ */
+export const SYSTEM_INBOX_KINDS = ['dm_disabled'] as const;
+export const SystemInboxKind = Type.Enum(SYSTEM_INBOX_KINDS);
+export type SystemInboxKind = (typeof SYSTEM_INBOX_KINDS)[number];
+
+/** Every kind an inbox item can have: the notification kinds plus the system kinds. */
+export const INBOX_KINDS = [...NOTIFICATION_KINDS, ...SYSTEM_INBOX_KINDS] as const;
+export const InboxKind = Type.Enum(INBOX_KINDS);
+export type InboxKind = (typeof INBOX_KINDS)[number];
+
+/** Payload of a `dm_disabled` inbox item. Shaped like an event so clients can read `type`. */
+export const DmDisabledNotice = Type.Object({
+  type: Type.Literal('DmDisabled'),
+  guildId: Snowflake,
+  at: EpochMs,
+  userId: Snowflake,
+  /** Why the DM failed: Discord's "cannot send messages to this user" (50007). */
+  reason: Type.Literal('dm_closed'),
+});
+export type DmDisabledNotice = Static<typeof DmDisabledNotice>;
+
+/** What an inbox item carries: the domain event behind it, or a system notice. */
+export const InboxPayload = Type.Union([DomainEvent, DmDisabledNotice]);
+export type InboxPayload = Static<typeof InboxPayload>;
 
 export const InboxItem = Type.Object({
   id: Type.Integer({ minimum: 1 }),
   guildId: Snowflake,
-  kind: NotificationKind,
-  event: DomainEvent,
+  kind: InboxKind,
+  event: InboxPayload,
   createdAt: EpochMs,
   readAt: Type.Union([EpochMs, Type.Null()]),
 });

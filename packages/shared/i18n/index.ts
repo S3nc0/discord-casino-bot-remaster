@@ -3,7 +3,7 @@ import { ja } from './ja.ts';
 import type { Locale } from './locale.ts';
 import type { ErrorCode } from '../src/errors.ts';
 import type { ScreenId } from '../src/ids.ts';
-import type { NotificationKind } from '../src/notify.ts';
+import type { InboxKind } from '../src/notify.ts';
 import type { LanguageSetting, MotionSetting, ThemeSetting } from '../src/settings.ts';
 
 export { en, ja };
@@ -20,7 +20,8 @@ void _everyErrorHasAMessage;
 
 /** Compile-time guards: every screen, inbox kind and settings option has a label. */
 type ScreenMessageKey = `screen.${ScreenId}`;
-type InboxKindMessageKey = `inbox.kind.${NotificationKind}`;
+/** Notification kinds and system inbox kinds (`dm_disabled`). */
+type InboxKindMessageKey = `inbox.kind.${InboxKind}`;
 type LanguageMessageKey = `settings.language.${LanguageSetting}`;
 type ThemeMessageKey = `settings.theme.${ThemeSetting}`;
 type MotionMessageKey = `settings.motion.${MotionSetting}`;
@@ -40,7 +41,7 @@ export function screenMessageKey(screen: ScreenId): ScreenMessageKey & MessageKe
   return `screen.${screen}`;
 }
 
-export function inboxKindMessageKey(kind: NotificationKind): InboxKindMessageKey & MessageKey {
+export function inboxKindMessageKey(kind: InboxKind): InboxKindMessageKey & MessageKey {
   return `inbox.kind.${kind}`;
 }
 

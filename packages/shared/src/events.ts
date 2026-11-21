@@ -26,6 +26,10 @@ function event<T extends string, P extends Record<string, TSchema>>(type: T, pro
   });
 }
 
+/** Labels a settled round earned (see `GameSettled.tags`). */
+export const GameTag = Type.String({ pattern: '^[a-z][a-z0-9_]{0,31}$' });
+export const GameTags = Type.Array(GameTag, { maxItems: 16 });
+
 /** Where the action happened. Announcements add an "Open in Activity" button for chat ones. */
 export const EventSource = Type.Enum(['activity', 'chat', 'system']);
 
@@ -38,6 +42,12 @@ export const GameSettled = event('GameSettled', {
   net: PelicaDelta,
   source: EventSource,
   instanceId: Type.Optional(InstanceId),
+  /**
+   * Game-specific labels of the round, read by missions (`tag` kind) and the announcer, e.g.
+   * `natural` and `double_win` (blackjack) or `jackpot`. Lowercase snake_case; order carries
+   * no meaning. Absent when the round earned none.
+   */
+  tags: Type.Optional(GameTags),
 });
 
 export const BigWin = event('BigWin', {
@@ -169,6 +179,26 @@ export const LotteryDrawn = event('LotteryDrawn', {
   entrantIds: Type.Array(Snowflake),
 });
 
+/**
+ * A bred foal was born (docs/spec/horse-breeding.md §5). Breeding is instant, so this is
+ * published right after the breeding transaction commits. Inbox + opt-in DM for the breeder
+ * (`horse_foaled`); a guild announcement only when `statTotal >= FOAL_ANNOUNCE_MIN_TOTAL`.
+ */
+export const HorseFoaled = event('HorseFoaled', {
+  /** Breeder, owner of the foal. */
+  userId: Snowflake,
+  foalId: Type.Integer({ minimum: 1 }),
+  foalName: Type.String({ minLength: 1, maxLength: 12 }),
+  /** Parent A and parent B, as picked in the breed form. */
+  parentIds: Type.Tuple([Type.Integer({ minimum: 1 }), Type.Integer({ minimum: 1 })]),
+  statTotal: Type.Integer({ minimum: 190, maximum: 210 }),
+  generation: Type.Integer({ minimum: 1 }),
+  maturesAt: EpochMs,
+});
+
+/** `HorseFoaled` is announced in the guild channel only from this stat total up. */
+export const FOAL_ANNOUNCE_MIN_TOTAL = 205;
+
 export const DomainEvent = Type.Union([
   GameSettled,
   BigWin,
@@ -188,6 +218,7 @@ export const DomainEvent = Type.Union([
   BankruptcyDeclared,
   CompanyBankrupt,
   LotteryDrawn,
+  HorseFoaled,
 ]);
 export type DomainEvent = Static<typeof DomainEvent>;
 export type DomainEventType = DomainEvent['type'];
@@ -215,4 +246,5 @@ export const DOMAIN_EVENT_TYPES = [
   'BankruptcyDeclared',
   'CompanyBankrupt',
   'LotteryDrawn',
+  'HorseFoaled',
 ] as const satisfies readonly DomainEventType[];

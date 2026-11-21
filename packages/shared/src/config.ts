@@ -55,6 +55,12 @@ export const ServerEnv = Type.Object({
   DATABASE_PATH: Type.Optional(Type.String({ minLength: 1 })),
   /** Pino level. Default `info`. */
   LOG_LEVEL: Type.Optional(Type.Enum(LOG_LEVELS)),
+  /**
+   * `1`: start without logging the chat bot in to the Discord gateway (HTTP, Socket.io and
+   * jobs still run; notify uses its no-op Discord port). Default `0`. For local dev, CI smoke
+   * boots and the pi-sim container, where a second gateway login on the same token must not happen.
+   */
+  BOT_DISABLED: Type.Optional(Type.Enum(['0', '1'])),
 });
 export type ServerEnv = Static<typeof ServerEnv>;
 
@@ -66,6 +72,7 @@ export const SERVER_ENV_DEFAULTS = {
   HOST: '127.0.0.1',
   DATABASE_PATH: './data/casino.sqlite',
   LOG_LEVEL: 'info',
+  BOT_DISABLED: '0',
 } as const satisfies Partial<Record<keyof ServerEnv, string>>;
 
 /** Keys that may be left out of `.env`. Everything else is required. */
