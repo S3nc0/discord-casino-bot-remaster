@@ -1,5 +1,5 @@
 {
- "name": "Bitbloom (proposal)",
+ "name": "Bitbloom (proposal, round 2)",
  "version": 1,
  "color": {
   "themes": [
@@ -16,96 +16,96 @@
    {
     "name": "primary",
     "value": {
-     "light": "{teal-40}",
-     "dark": "{teal-70}"
+     "light": "{green-40}",
+     "dark": "{green-70}"
     },
-    "usage": "Main actions, selection, active indicators. The one primary colour."
+    "usage": "Main actions and success. Fresh green, the one primary colour."
    },
    {
     "name": "on-primary",
     "value": {
      "light": "{paper-99}",
-     "dark": "{teal-10}"
+     "dark": "{green-10}"
     },
     "usage": "Text and icons on primary."
    },
    {
     "name": "primary-container",
     "value": {
-     "light": "{teal-90}",
-     "dark": "{teal-30}"
+     "light": "{green-90}",
+     "dark": "{green-30}"
     },
-    "usage": "Tinted fill for primary chips, banners, selected items and the active nav indicator."
+    "usage": "Soft green fill for primary chips, banners and progress surroundings."
    },
    {
     "name": "on-primary-container",
     "value": {
-     "light": "{teal-10}",
-     "dark": "{teal-90}"
+     "light": "{green-10}",
+     "dark": "{green-90}"
     },
     "usage": "Text and icons on primary-container."
    },
    {
     "name": "secondary",
     "value": {
-     "light": "{paper-variant-35}",
-     "dark": "{neutral-variant-80}"
+     "light": "{sky-40}",
+     "dark": "{sky-70}"
     },
-    "usage": "Quiet support colour: tonal buttons, unfilled slider track, selected rows. Low chroma on purpose."
+    "usage": "Sky blue: info, links, selection."
    },
    {
     "name": "on-secondary",
     "value": {
      "light": "{paper-99}",
-     "dark": "{neutral-variant-20}"
+     "dark": "{sky-10}"
     },
     "usage": "Text and icons on secondary."
    },
    {
     "name": "secondary-container",
     "value": {
-     "light": "{paper-variant-90}",
-     "dark": "{neutral-variant-25}"
+     "light": "{sky-90}",
+     "dark": "{sky-30}"
     },
-    "usage": "Quiet fill for tonal buttons, slider track and selected rows."
+    "usage": "Soft sky fill for tonal buttons, selected chips, rows and nav, slider track."
    },
    {
     "name": "on-secondary-container",
     "value": {
-     "light": "{paper-variant-10}",
-     "dark": "{neutral-variant-90}"
+     "light": "{sky-10}",
+     "dark": "{sky-90}"
     },
     "usage": "Text and icons on secondary-container."
    },
    {
     "name": "tertiary",
     "value": {
-     "light": "{amber-40}",
-     "dark": "{amber-70}"
+     "light": "{yellow-40}",
+     "dark": "{yellow-80}"
     },
-    "usage": "The one accent: coin gold. Balance, rewards, highlights. Use sparingly."
+    "usage": "Sunny yellow: Pelica, rewards, highlights, the coin."
    },
    {
     "name": "on-tertiary",
     "value": {
      "light": "{paper-99}",
-     "dark": "{amber-10}"
+     "dark": "{yellow-10}"
     },
     "usage": "Text and icons on tertiary."
    },
    {
     "name": "tertiary-container",
     "value": {
-     "light": "{amber-90}",
-     "dark": "{amber-30}"
+     "light": "{yellow-90}",
+     "dark": "{yellow-30}"
     },
-    "usage": "Gold-tinted fill for reward chips and highlights."
+    "usage": "Butter fill for reward chips and the balance plate."
    },
    {
     "name": "on-tertiary-container",
     "value": {
-     "light": "{amber-10}",
-     "dark": "{amber-90}"
+     "light": "{yellow-10}",
+     "dark": "{yellow-90}"
     },
     "usage": "Text and icons on tertiary-container."
    },
@@ -113,7 +113,7 @@
     "name": "error",
     "value": {
      "light": "{red-40}",
-     "dark": "{red-80}"
+     "dark": "{red-70}"
     },
     "usage": "Errors and destructive actions."
    },
@@ -121,7 +121,7 @@
     "name": "on-error",
     "value": {
      "light": "{paper-99}",
-     "dark": "{red-20}"
+     "dark": "{red-10}"
     },
     "usage": "Text and icons on error."
    },
@@ -147,13 +147,13 @@
      "light": "{green-40}",
      "dark": "{green-80}"
     },
-    "usage": "Completed, saved, correct."
+    "usage": "Completed, saved, correct. Same green family as primary."
    },
    {
     "name": "on-success",
     "value": {
      "light": "{paper-99}",
-     "dark": "{green-20}"
+     "dark": "{green-10}"
     },
     "usage": "Text and icons on success."
    },
@@ -179,13 +179,13 @@
      "light": "{orange-40}",
      "dark": "{orange-80}"
     },
-    "usage": "Needs attention soon. Orange now, so it is not mistaken for the gold accent."
+    "usage": "Needs attention soon. Orange, so it is not mistaken for the yellow accent."
    },
    {
     "name": "on-warning",
     "value": {
      "light": "{paper-99}",
-     "dark": "{orange-20}"
+     "dark": "{orange-10}"
     },
     "usage": "Text and icons on warning."
    },
@@ -209,15 +209,15 @@
     "name": "surface",
     "value": {
      "light": "{paper-96}",
-     "dark": "{neutral-11}"
+     "dark": "{neutral-10}"
     },
-    "usage": "Page background. Warm cream in light, deep ink in dark."
+    "usage": "Page background. Warm paper in light, deep navy in dark."
    },
    {
     "name": "surface-container-lowest",
     "value": {
      "light": "{paper-99}",
-     "dark": "{neutral-8}"
+     "dark": "{neutral-7}"
     },
     "usage": "Lowest layer."
    },
@@ -225,7 +225,7 @@
     "name": "surface-container-low",
     "value": {
      "light": "{paper-94}",
-     "dark": "{neutral-14}"
+     "dark": "{neutral-13}"
     },
     "usage": "Default card and list fill."
    },
@@ -233,7 +233,7 @@
     "name": "surface-container",
     "value": {
      "light": "{paper-92}",
-     "dark": "{neutral-17}"
+     "dark": "{neutral-16}"
     },
     "usage": "Top bar, bottom nav, grouped areas."
    },
@@ -241,7 +241,7 @@
     "name": "surface-container-high",
     "value": {
      "light": "{paper-90}",
-     "dark": "{neutral-21}"
+     "dark": "{neutral-20}"
     },
     "usage": "Dialogs, menus."
    },
@@ -249,22 +249,22 @@
     "name": "surface-container-highest",
     "value": {
      "light": "{paper-87}",
-     "dark": "{neutral-25}"
+     "dark": "{neutral-24}"
     },
     "usage": "Fields, switch track, chips at rest."
    },
    {
     "name": "on-surface",
     "value": {
-     "light": "{paper-15}",
-     "dark": "{neutral-90}"
+     "light": "{neutral-15}",
+     "dark": "{neutral-95}"
     },
-    "usage": "Body text. Never dimmed."
+    "usage": "Body text: deep navy on paper, near white on navy. Never dimmed."
    },
    {
     "name": "on-surface-variant",
     "value": {
-     "light": "{paper-variant-35}",
+     "light": "{neutral-variant-35}",
      "dark": "{neutral-variant-80}"
     },
     "usage": "Supporting text. At least 4.5:1 on every surface."
@@ -272,8 +272,8 @@
    {
     "name": "outline",
     "value": {
-     "light": "{paper-variant-50}",
-     "dark": "{neutral-variant-60}"
+     "light": "{neutral-variant-50}",
+     "dark": "{neutral-variant-65}"
     },
     "usage": "Borders that carry meaning: fields, buttons, switches, sliders. At least 3:1 on every surface."
    },
@@ -283,29 +283,29 @@
      "light": "{paper-variant-80}",
      "dark": "{neutral-variant-30}"
     },
-    "usage": "Decorative tonal edge: cards, lists, nav, dividers. A soft step, not a line. Never the only cue for a control."
+    "usage": "Decorative tonal edge: cards, lists, nav, dividers. Never the only cue for a control."
    },
    {
     "name": "inverse-surface",
     "value": {
-     "light": "{paper-20}",
+     "light": "{neutral-20}",
      "dark": "{neutral-30}"
     },
-    "usage": "Snackbar fill. In dark it is a lifted slate, not a bright slab."
+    "usage": "Snackbar fill. Lifted navy in dark."
    },
    {
     "name": "inverse-on-surface",
     "value": {
-     "light": "{paper-95}",
-     "dark": "{neutral-92}"
+     "light": "{neutral-95}",
+     "dark": "{neutral-95}"
     },
     "usage": "Text on inverse-surface."
    },
    {
     "name": "inverse-primary",
     "value": {
-     "light": "{teal-80}",
-     "dark": "{teal-80}"
+     "light": "{green-80}",
+     "dark": "{green-80}"
     },
     "usage": "Action text on inverse-surface."
    },
@@ -320,7 +320,7 @@
    {
     "name": "on-disabled",
     "value": {
-     "light": "{paper-variant-40}",
+     "light": "{neutral-variant-40}",
      "dark": "{neutral-variant-70}"
     },
     "usage": "Text on disabled controls."
@@ -329,9 +329,9 @@
     "name": "focus-ring",
     "value": {
      "light": "{indigo-40}",
-     "dark": "{amber-80}"
+     "dark": "{yellow-80}"
     },
-    "usage": "Keyboard focus outline, always 3px. Unchanged in purpose and still 3:1 or better."
+    "usage": "Keyboard focus outline, always 3px. Distinct from every fill."
    },
    {
     "name": "pixel-shadow",
@@ -727,893 +727,893 @@
    },
    {
     "name": "scrim",
-    "value": "#10131a80",
+    "value": "#070b1f99",
     "usage": "Dims the page behind a dialog."
    },
    {
     "name": "pixel-lip",
-    "value": "#00000026",
-    "usage": "Darker bottom lip inside filled buttons and FABs; softer than before."
+    "value": "#0000002b",
+    "usage": "Darker bottom lip inside filled buttons and FABs."
    },
    {
     "name": "red-10",
-    "value": "#291714",
-    "usage": "Tone 10 of the red palette, chroma reduced to sit with the calmer surfaces."
+    "value": "#2b1612",
+    "usage": "Tone 10 of the red palette, re-tuned."
    },
    {
     "name": "red-20",
-    "value": "#462924",
-    "usage": "Tone 20 of the red palette, chroma reduced to sit with the calmer surfaces."
+    "value": "#4b2620",
+    "usage": "Tone 20 of the red palette, re-tuned."
    },
    {
     "name": "red-30",
-    "value": "#693a32",
-    "usage": "Tone 30 of the red palette, chroma reduced to sit with the calmer surfaces."
+    "value": "#72342c",
+    "usage": "Tone 30 of the red palette, re-tuned."
    },
    {
     "name": "red-40",
-    "value": "#904b40",
-    "usage": "Tone 40 of the red palette, chroma reduced to sit with the calmer surfaces."
+    "value": "#a23d32",
+    "usage": "Tone 40 of the red palette, re-tuned."
    },
    {
     "name": "red-50",
-    "value": "#b45f52",
-    "usage": "Tone 50 of the red palette, chroma reduced to sit with the calmer surfaces."
+    "value": "#c94f41",
+    "usage": "Tone 50 of the red palette, re-tuned."
    },
    {
     "name": "red-60",
-    "value": "#d67666",
-    "usage": "Tone 60 of the red palette, chroma reduced to sit with the calmer surfaces."
+    "value": "#ef6453",
+    "usage": "Tone 60 of the red palette, re-tuned."
    },
    {
     "name": "red-70",
-    "value": "#ef9382",
-    "usage": "Tone 70 of the red palette, chroma reduced to sit with the calmer surfaces."
+    "value": "#f4907f",
+    "usage": "Tone 70 of the red palette, re-tuned."
    },
    {
     "name": "red-80",
-    "value": "#f4b8ad",
-    "usage": "Tone 80 of the red palette, chroma reduced to sit with the calmer surfaces."
+    "value": "#f7b7ab",
+    "usage": "Tone 80 of the red palette, re-tuned."
    },
    {
     "name": "red-90",
-    "value": "#f9dcd6",
-    "usage": "Tone 90 of the red palette, chroma reduced to sit with the calmer surfaces."
+    "value": "#fbdbd5",
+    "usage": "Tone 90 of the red palette, re-tuned."
    },
    {
     "name": "red-95",
-    "value": "#fceeeb",
-    "usage": "Tone 95 of the red palette, chroma reduced to sit with the calmer surfaces."
+    "value": "#fdeeea",
+    "usage": "Tone 95 of the red palette, re-tuned."
    },
    {
     "name": "red-99",
-    "value": "#fefbfb",
-    "usage": "Tone 99 of the red palette, chroma reduced to sit with the calmer surfaces."
+    "value": "#fffbfb",
+    "usage": "Tone 99 of the red palette, re-tuned."
    },
    {
     "name": "orange-10",
-    "value": "#261810",
-    "usage": "Tone 10 of the orange palette, chroma reduced to sit with the calmer surfaces."
+    "value": "#28180c",
+    "usage": "Tone 10 of the orange palette, re-tuned."
    },
    {
     "name": "orange-20",
-    "value": "#432b1e",
-    "usage": "Tone 20 of the orange palette, chroma reduced to sit with the calmer surfaces."
+    "value": "#462919",
+    "usage": "Tone 20 of the orange palette, re-tuned."
    },
    {
     "name": "orange-30",
-    "value": "#633e29",
-    "usage": "Tone 30 of the orange palette, chroma reduced to sit with the calmer surfaces."
+    "value": "#6a3a1e",
+    "usage": "Tone 30 of the orange palette, re-tuned."
    },
    {
     "name": "orange-40",
-    "value": "#875031",
-    "usage": "Tone 40 of the orange palette, chroma reduced to sit with the calmer surfaces."
+    "value": "#95491a",
+    "usage": "Tone 40 of the orange palette, re-tuned."
    },
    {
     "name": "orange-50",
-    "value": "#a96740",
-    "usage": "Tone 50 of the orange palette, chroma reduced to sit with the calmer surfaces."
+    "value": "#ba5e25",
+    "usage": "Tone 50 of the orange palette, re-tuned."
    },
    {
     "name": "orange-60",
-    "value": "#ca7e52",
-    "usage": "Tone 60 of the orange palette, chroma reduced to sit with the calmer surfaces."
+    "value": "#dd7434",
+    "usage": "Tone 60 of the orange palette, re-tuned."
    },
    {
     "name": "orange-70",
-    "value": "#ea9768",
-    "usage": "Tone 70 of the orange palette, chroma reduced to sit with the calmer surfaces."
+    "value": "#f59258",
+    "usage": "Tone 70 of the orange palette, re-tuned."
    },
    {
     "name": "orange-80",
     "value": "#f8b996",
-    "usage": "Tone 80 of the orange palette, chroma reduced to sit with the calmer surfaces."
+    "usage": "Tone 80 of the orange palette, re-tuned."
    },
    {
     "name": "orange-90",
     "value": "#fbdccd",
-    "usage": "Tone 90 of the orange palette, chroma reduced to sit with the calmer surfaces."
+    "usage": "Tone 90 of the orange palette, re-tuned."
    },
    {
     "name": "orange-95",
     "value": "#fdeee6",
-    "usage": "Tone 95 of the orange palette, chroma reduced to sit with the calmer surfaces."
+    "usage": "Tone 95 of the orange palette, re-tuned."
    },
    {
     "name": "orange-99",
     "value": "#fffbfa",
-    "usage": "Tone 99 of the orange palette, chroma reduced to sit with the calmer surfaces."
+    "usage": "Tone 99 of the orange palette, re-tuned."
    },
    {
     "name": "amber-10",
-    "value": "#231a0d",
-    "usage": "Tone 10 of the amber palette, chroma reduced to sit with the calmer surfaces."
+    "value": "#251a08",
+    "usage": "Tone 10 of the amber palette, re-tuned."
    },
    {
     "name": "amber-20",
-    "value": "#3d2d1a",
-    "usage": "Tone 20 of the amber palette, chroma reduced to sit with the calmer surfaces."
+    "value": "#3f2d14",
+    "usage": "Tone 20 of the amber palette, re-tuned."
    },
    {
     "name": "amber-30",
-    "value": "#5a4222",
-    "usage": "Tone 30 of the amber palette, chroma reduced to sit with the calmer surfaces."
+    "value": "#5f4115",
+    "usage": "Tone 30 of the amber palette, re-tuned."
    },
    {
     "name": "amber-40",
-    "value": "#7b5828",
-    "usage": "Tone 40 of the amber palette, chroma reduced to sit with the calmer surfaces."
+    "value": "#7f5617",
+    "usage": "Tone 40 of the amber palette, re-tuned."
    },
    {
     "name": "amber-50",
-    "value": "#996f34",
-    "usage": "Tone 50 of the amber palette, chroma reduced to sit with the calmer surfaces."
+    "value": "#9f6d1f",
+    "usage": "Tone 50 of the amber palette, re-tuned."
    },
    {
     "name": "amber-60",
-    "value": "#b88845",
-    "usage": "Tone 60 of the amber palette, chroma reduced to sit with the calmer surfaces."
+    "value": "#c18527",
+    "usage": "Tone 60 of the amber palette, re-tuned."
    },
    {
     "name": "amber-70",
-    "value": "#d7a15a",
-    "usage": "Tone 70 of the amber palette, chroma reduced to sit with the calmer surfaces."
+    "value": "#e29d35",
+    "usage": "Tone 70 of the amber palette, re-tuned."
    },
    {
     "name": "amber-80",
-    "value": "#f5bc73",
-    "usage": "Tone 80 of the amber palette, chroma reduced to sit with the calmer surfaces."
+    "value": "#f9bb68",
+    "usage": "Tone 80 of the amber palette, re-tuned."
    },
    {
     "name": "amber-90",
-    "value": "#f4dfc9",
-    "usage": "Tone 90 of the amber palette, chroma reduced to sit with the calmer surfaces."
+    "value": "#fbdebd",
+    "usage": "Tone 90 of the amber palette, re-tuned."
    },
    {
     "name": "amber-95",
-    "value": "#fbefe2",
-    "usage": "Tone 95 of the amber palette, chroma reduced to sit with the calmer surfaces."
+    "value": "#fdeedf",
+    "usage": "Tone 95 of the amber palette, re-tuned."
    },
    {
     "name": "amber-99",
-    "value": "#fefcf9",
-    "usage": "Tone 99 of the amber palette, chroma reduced to sit with the calmer surfaces."
+    "value": "#fffcf9",
+    "usage": "Tone 99 of the amber palette, re-tuned."
    },
    {
     "name": "yellow-10",
-    "value": "#1f1b0d",
-    "usage": "Tone 10 of the yellow palette, chroma reduced to sit with the calmer surfaces."
+    "value": "#201b07",
+    "usage": "Tone 10 of the yellow palette, re-tuned."
    },
    {
     "name": "yellow-20",
-    "value": "#363018",
-    "usage": "Tone 20 of the yellow palette, chroma reduced to sit with the calmer surfaces."
+    "value": "#373012",
+    "usage": "Tone 20 of the yellow palette, re-tuned."
    },
    {
     "name": "yellow-30",
-    "value": "#4f4721",
-    "usage": "Tone 30 of the yellow palette, chroma reduced to sit with the calmer surfaces."
+    "value": "#504712",
+    "usage": "Tone 30 of the yellow palette, re-tuned."
    },
    {
     "name": "yellow-40",
-    "value": "#695f2c",
-    "usage": "Tone 40 of the yellow palette, chroma reduced to sit with the calmer surfaces."
+    "value": "#6b5f09",
+    "usage": "Tone 40 of the yellow palette, re-tuned."
    },
    {
     "name": "yellow-50",
-    "value": "#857739",
-    "usage": "Tone 50 of the yellow palette, chroma reduced to sit with the calmer surfaces."
+    "value": "#87770e",
+    "usage": "Tone 50 of the yellow palette, re-tuned."
    },
    {
     "name": "yellow-60",
-    "value": "#a19146",
-    "usage": "Tone 60 of the yellow palette, chroma reduced to sit with the calmer surfaces."
+    "value": "#a49113",
+    "usage": "Tone 60 of the yellow palette, re-tuned."
    },
    {
     "name": "yellow-70",
-    "value": "#beab56",
-    "usage": "Tone 70 of the yellow palette, chroma reduced to sit with the calmer surfaces."
+    "value": "#c1ac25",
+    "usage": "Tone 70 of the yellow palette, re-tuned."
    },
    {
     "name": "yellow-80",
-    "value": "#d9c67b",
-    "usage": "Tone 80 of the yellow palette, chroma reduced to sit with the calmer surfaces."
+    "value": "#dfc738",
+    "usage": "Tone 80 of the yellow palette, re-tuned."
    },
    {
     "name": "yellow-90",
-    "value": "#ebe2c8",
-    "usage": "Tone 90 of the yellow palette, chroma reduced to sit with the calmer surfaces."
+    "value": "#f0e2b9",
+    "usage": "Tone 90 of the yellow palette, re-tuned."
    },
    {
     "name": "yellow-95",
-    "value": "#f6f0e1",
-    "usage": "Tone 95 of the yellow palette, chroma reduced to sit with the calmer surfaces."
+    "value": "#f8f0db",
+    "usage": "Tone 95 of the yellow palette, re-tuned."
    },
    {
     "name": "yellow-99",
-    "value": "#fefcf7",
-    "usage": "Tone 99 of the yellow palette, chroma reduced to sit with the calmer surfaces."
+    "value": "#fffcf4",
+    "usage": "Tone 99 of the yellow palette, re-tuned."
    },
    {
     "name": "lime-10",
-    "value": "#1a1d0e",
-    "usage": "Tone 10 of the lime palette, chroma reduced to sit with the calmer surfaces."
+    "value": "#1a1d0b",
+    "usage": "Tone 10 of the lime palette, re-tuned."
    },
    {
     "name": "lime-20",
-    "value": "#2d331b",
-    "usage": "Tone 20 of the lime palette, chroma reduced to sit with the calmer surfaces."
+    "value": "#2b3315",
+    "usage": "Tone 20 of the lime palette, re-tuned."
    },
    {
     "name": "lime-30",
-    "value": "#404b25",
-    "usage": "Tone 30 of the lime palette, chroma reduced to sit with the calmer surfaces."
+    "value": "#3d4c18",
+    "usage": "Tone 30 of the lime palette, re-tuned."
    },
    {
     "name": "lime-40",
-    "value": "#566430",
-    "usage": "Tone 40 of the lime palette, chroma reduced to sit with the calmer surfaces."
+    "value": "#51651d",
+    "usage": "Tone 40 of the lime palette, re-tuned."
    },
    {
     "name": "lime-50",
-    "value": "#6c7e3e",
-    "usage": "Tone 50 of the lime palette, chroma reduced to sit with the calmer surfaces."
+    "value": "#668027",
+    "usage": "Tone 50 of the lime palette, re-tuned."
    },
    {
     "name": "lime-60",
-    "value": "#84994c",
-    "usage": "Tone 60 of the lime palette, chroma reduced to sit with the calmer surfaces."
+    "value": "#7d9b31",
+    "usage": "Tone 60 of the lime palette, re-tuned."
    },
    {
     "name": "lime-70",
-    "value": "#9eb461",
-    "usage": "Tone 70 of the lime palette, chroma reduced to sit with the calmer surfaces."
+    "value": "#96b744",
+    "usage": "Tone 70 of the lime palette, re-tuned."
    },
    {
     "name": "lime-80",
-    "value": "#bbcf84",
-    "usage": "Tone 80 of the lime palette, chroma reduced to sit with the calmer surfaces."
+    "value": "#b2d35f",
+    "usage": "Tone 80 of the lime palette, re-tuned."
    },
    {
     "name": "lime-90",
-    "value": "#dfe5cb",
-    "usage": "Tone 90 of the lime palette, chroma reduced to sit with the calmer surfaces."
+    "value": "#dde7bd",
+    "usage": "Tone 90 of the lime palette, re-tuned."
    },
    {
     "name": "lime-95",
-    "value": "#eff2e3",
-    "usage": "Tone 95 of the lime palette, chroma reduced to sit with the calmer surfaces."
+    "value": "#eef3de",
+    "usage": "Tone 95 of the lime palette, re-tuned."
    },
    {
     "name": "lime-99",
-    "value": "#fbfdf7",
-    "usage": "Tone 99 of the lime palette, chroma reduced to sit with the calmer surfaces."
+    "value": "#fbfdf5",
+    "usage": "Tone 99 of the lime palette, re-tuned."
    },
    {
     "name": "green-10",
-    "value": "#141e12",
-    "usage": "Tone 10 of the green palette, chroma reduced to sit with the calmer surfaces."
+    "value": "#121f10",
+    "usage": "Tone 10 of the green palette, re-tuned."
    },
    {
     "name": "green-20",
-    "value": "#223420",
-    "usage": "Tone 20 of the green palette, chroma reduced to sit with the calmer surfaces."
+    "value": "#1e351c",
+    "usage": "Tone 20 of the green palette, re-tuned."
    },
    {
     "name": "green-30",
-    "value": "#304e2e",
-    "usage": "Tone 30 of the green palette, chroma reduced to sit with the calmer surfaces."
+    "value": "#265025",
+    "usage": "Tone 30 of the green palette, re-tuned."
    },
    {
     "name": "green-40",
-    "value": "#3c6839",
-    "usage": "Tone 40 of the green palette, chroma reduced to sit with the calmer surfaces."
+    "value": "#216c26",
+    "usage": "Tone 40 of the green palette, re-tuned."
    },
    {
     "name": "green-50",
-    "value": "#4c8349",
-    "usage": "Tone 50 of the green palette, chroma reduced to sit with the calmer surfaces."
+    "value": "#2d8832",
+    "usage": "Tone 50 of the green palette, re-tuned."
    },
    {
     "name": "green-60",
-    "value": "#619f5d",
-    "usage": "Tone 60 of the green palette, chroma reduced to sit with the calmer surfaces."
+    "value": "#40a443",
+    "usage": "Tone 60 of the green palette, re-tuned."
    },
    {
     "name": "green-70",
-    "value": "#78ba73",
-    "usage": "Tone 70 of the green palette, chroma reduced to sit with the calmer surfaces."
+    "value": "#59c059",
+    "usage": "Tone 70 of the green palette, re-tuned."
    },
    {
     "name": "green-80",
-    "value": "#9cd595",
-    "usage": "Tone 80 of the green palette, chroma reduced to sit with the calmer surfaces."
+    "value": "#80db7c",
+    "usage": "Tone 80 of the green palette, re-tuned."
    },
    {
     "name": "green-90",
-    "value": "#d4e8d1",
-    "usage": "Tone 90 of the green palette, chroma reduced to sit with the calmer surfaces."
+    "value": "#ccebc7",
+    "usage": "Tone 90 of the green palette, re-tuned."
    },
    {
     "name": "green-95",
-    "value": "#e9f4e7",
-    "usage": "Tone 95 of the green palette, chroma reduced to sit with the calmer surfaces."
+    "value": "#e5f5e3",
+    "usage": "Tone 95 of the green palette, re-tuned."
    },
    {
     "name": "green-99",
-    "value": "#f9fdf8",
-    "usage": "Tone 99 of the green palette, chroma reduced to sit with the calmer surfaces."
+    "value": "#f8fef7",
+    "usage": "Tone 99 of the green palette, re-tuned."
    },
    {
     "name": "emerald-10",
-    "value": "#0f1f17",
-    "usage": "Tone 10 of the emerald palette, chroma reduced to sit with the calmer surfaces."
+    "value": "#0b2016",
+    "usage": "Tone 10 of the emerald palette, re-tuned."
    },
    {
     "name": "emerald-20",
-    "value": "#1a3528",
-    "usage": "Tone 20 of the emerald palette, chroma reduced to sit with the calmer surfaces."
+    "value": "#103726",
+    "usage": "Tone 20 of the emerald palette, re-tuned."
    },
    {
     "name": "emerald-30",
-    "value": "#2a4e3c",
-    "usage": "Tone 30 of the emerald palette, chroma reduced to sit with the calmer surfaces."
+    "value": "#1b5039",
+    "usage": "Tone 30 of the emerald palette, re-tuned."
    },
    {
     "name": "emerald-40",
-    "value": "#396750",
-    "usage": "Tone 40 of the emerald palette, chroma reduced to sit with the calmer surfaces."
+    "value": "#266a4c",
+    "usage": "Tone 40 of the emerald palette, re-tuned."
    },
    {
     "name": "emerald-50",
-    "value": "#498266",
-    "usage": "Tone 50 of the emerald palette, chroma reduced to sit with the calmer surfaces."
+    "value": "#328561",
+    "usage": "Tone 50 of the emerald palette, re-tuned."
    },
    {
     "name": "emerald-60",
-    "value": "#5a9e7c",
-    "usage": "Tone 60 of the emerald palette, chroma reduced to sit with the calmer surfaces."
+    "value": "#3ea276",
+    "usage": "Tone 60 of the emerald palette, re-tuned."
    },
    {
     "name": "emerald-70",
-    "value": "#6bbb94",
-    "usage": "Tone 70 of the emerald palette, chroma reduced to sit with the calmer surfaces."
+    "value": "#4bbf8c",
+    "usage": "Tone 70 of the emerald palette, re-tuned."
    },
    {
     "name": "emerald-80",
-    "value": "#86d7ae",
-    "usage": "Tone 80 of the emerald palette, chroma reduced to sit with the calmer surfaces."
+    "value": "#68dca6",
+    "usage": "Tone 80 of the emerald palette, re-tuned."
    },
    {
     "name": "emerald-90",
-    "value": "#cbead9",
-    "usage": "Tone 90 of the emerald palette, chroma reduced to sit with the calmer surfaces."
+    "value": "#bdedd3",
+    "usage": "Tone 90 of the emerald palette, re-tuned."
    },
    {
     "name": "emerald-95",
-    "value": "#e3f5eb",
-    "usage": "Tone 95 of the emerald palette, chroma reduced to sit with the calmer surfaces."
+    "value": "#def6e9",
+    "usage": "Tone 95 of the emerald palette, re-tuned."
    },
    {
     "name": "emerald-99",
-    "value": "#f7fefa",
-    "usage": "Tone 99 of the emerald palette, chroma reduced to sit with the calmer surfaces."
+    "value": "#f6fef9",
+    "usage": "Tone 99 of the emerald palette, re-tuned."
    },
    {
     "name": "teal-10",
-    "value": "#0a1f1d",
-    "usage": "Tone 10 of the teal palette, chroma reduced to sit with the calmer surfaces."
+    "value": "#071f1d",
+    "usage": "Tone 10 of the teal palette, re-tuned."
    },
    {
     "name": "teal-20",
-    "value": "#153532",
-    "usage": "Tone 20 of the teal palette, chroma reduced to sit with the calmer surfaces."
+    "value": "#113632",
+    "usage": "Tone 20 of the teal palette, re-tuned."
    },
    {
     "name": "teal-30",
-    "value": "#224e4a",
-    "usage": "Tone 30 of the teal palette, chroma reduced to sit with the calmer surfaces."
+    "value": "#1c4e4a",
+    "usage": "Tone 30 of the teal palette, re-tuned."
    },
    {
     "name": "teal-40",
-    "value": "#306762",
-    "usage": "Tone 40 of the teal palette, chroma reduced to sit with the calmer surfaces."
+    "value": "#276863",
+    "usage": "Tone 40 of the teal palette, re-tuned."
    },
    {
     "name": "teal-50",
-    "value": "#3e827c",
-    "usage": "Tone 50 of the teal palette, chroma reduced to sit with the calmer surfaces."
+    "value": "#34837d",
+    "usage": "Tone 50 of the teal palette, re-tuned."
    },
    {
     "name": "teal-60",
-    "value": "#4c9e97",
-    "usage": "Tone 60 of the teal palette, chroma reduced to sit with the calmer surfaces."
+    "value": "#409f97",
+    "usage": "Tone 60 of the teal palette, re-tuned."
    },
    {
     "name": "teal-70",
-    "value": "#5bbab2",
-    "usage": "Tone 70 of the teal palette, chroma reduced to sit with the calmer surfaces."
+    "value": "#4dbcb3",
+    "usage": "Tone 70 of the teal palette, re-tuned."
    },
    {
     "name": "teal-80",
-    "value": "#6bd8ce",
-    "usage": "Tone 80 of the teal palette, chroma reduced to sit with the calmer surfaces."
+    "value": "#5bdacf",
+    "usage": "Tone 80 of the teal palette, re-tuned."
    },
    {
     "name": "teal-90",
-    "value": "#c3ebe6",
-    "usage": "Tone 90 of the teal palette, chroma reduced to sit with the calmer surfaces."
+    "value": "#aeefe8",
+    "usage": "Tone 90 of the teal palette, re-tuned."
    },
    {
     "name": "teal-95",
-    "value": "#dff5f3",
-    "usage": "Tone 95 of the teal palette, chroma reduced to sit with the calmer surfaces."
+    "value": "#d8f7f3",
+    "usage": "Tone 95 of the teal palette, re-tuned."
    },
    {
     "name": "teal-99",
-    "value": "#f6fefd",
-    "usage": "Tone 99 of the teal palette, chroma reduced to sit with the calmer surfaces."
+    "value": "#f4fefd",
+    "usage": "Tone 99 of the teal palette, re-tuned."
    },
    {
     "name": "cyan-10",
-    "value": "#0e1e20",
-    "usage": "Tone 10 of the cyan palette, chroma reduced to sit with the calmer surfaces."
+    "value": "#0b1e21",
+    "usage": "Tone 10 of the cyan palette, re-tuned."
    },
    {
     "name": "cyan-20",
-    "value": "#1c3437",
-    "usage": "Tone 20 of the cyan palette, chroma reduced to sit with the calmer surfaces."
+    "value": "#173438",
+    "usage": "Tone 20 of the cyan palette, re-tuned."
    },
    {
     "name": "cyan-30",
-    "value": "#2b4c50",
-    "usage": "Tone 30 of the cyan palette, chroma reduced to sit with the calmer surfaces."
+    "value": "#254d51",
+    "usage": "Tone 30 of the cyan palette, re-tuned."
    },
    {
     "name": "cyan-40",
-    "value": "#3b656a",
-    "usage": "Tone 40 of the cyan palette, chroma reduced to sit with the calmer surfaces."
+    "value": "#33666c",
+    "usage": "Tone 40 of the cyan palette, re-tuned."
    },
    {
     "name": "cyan-50",
-    "value": "#4c7f85",
-    "usage": "Tone 50 of the cyan palette, chroma reduced to sit with the calmer surfaces."
+    "value": "#428188",
+    "usage": "Tone 50 of the cyan palette, re-tuned."
    },
    {
     "name": "cyan-60",
-    "value": "#5d9aa2",
-    "usage": "Tone 60 of the cyan palette, chroma reduced to sit with the calmer surfaces."
+    "value": "#519ca5",
+    "usage": "Tone 60 of the cyan palette, re-tuned."
    },
    {
     "name": "cyan-70",
-    "value": "#6fb6bf",
-    "usage": "Tone 70 of the cyan palette, chroma reduced to sit with the calmer surfaces."
+    "value": "#61b8c3",
+    "usage": "Tone 70 of the cyan palette, re-tuned."
    },
    {
     "name": "cyan-80",
-    "value": "#81d3dd",
-    "usage": "Tone 80 of the cyan palette, chroma reduced to sit with the calmer surfaces."
+    "value": "#71d5e1",
+    "usage": "Tone 80 of the cyan palette, re-tuned."
    },
    {
     "name": "cyan-90",
-    "value": "#c1eaef",
-    "usage": "Tone 90 of the cyan palette, chroma reduced to sit with the calmer surfaces."
+    "value": "#abeef6",
+    "usage": "Tone 90 of the cyan palette, re-tuned."
    },
    {
     "name": "cyan-95",
-    "value": "#def5f8",
-    "usage": "Tone 95 of the cyan palette, chroma reduced to sit with the calmer surfaces."
+    "value": "#d7f7fb",
+    "usage": "Tone 95 of the cyan palette, re-tuned."
    },
    {
     "name": "cyan-99",
-    "value": "#f8fdfe",
-    "usage": "Tone 99 of the cyan palette, chroma reduced to sit with the calmer surfaces."
+    "value": "#f7fdfe",
+    "usage": "Tone 99 of the cyan palette, re-tuned."
    },
    {
     "name": "sky-10",
-    "value": "#0f1e24",
-    "usage": "Tone 10 of the sky palette, chroma reduced to sit with the calmer surfaces."
+    "value": "#021f29",
+    "usage": "Tone 10 of the sky palette, re-tuned."
    },
    {
     "name": "sky-20",
-    "value": "#1d333d",
-    "usage": "Tone 20 of the sky palette, chroma reduced to sit with the calmer surfaces."
+    "value": "#053545",
+    "usage": "Tone 20 of the sky palette, re-tuned."
    },
    {
     "name": "sky-30",
-    "value": "#2d4b59",
-    "usage": "Tone 30 of the sky palette, chroma reduced to sit with the calmer surfaces."
+    "value": "#0b4d63",
+    "usage": "Tone 30 of the sky palette, re-tuned."
    },
    {
     "name": "sky-40",
-    "value": "#3d6375",
-    "usage": "Tone 40 of the sky palette, chroma reduced to sit with the calmer surfaces."
+    "value": "#126682",
+    "usage": "Tone 40 of the sky palette, re-tuned."
    },
    {
     "name": "sky-50",
-    "value": "#4f7d93",
-    "usage": "Tone 50 of the sky palette, chroma reduced to sit with the calmer surfaces."
+    "value": "#1981a4",
+    "usage": "Tone 50 of the sky palette, re-tuned."
    },
    {
     "name": "sky-60",
-    "value": "#6097b2",
-    "usage": "Tone 60 of the sky palette, chroma reduced to sit with the calmer surfaces."
+    "value": "#219bc5",
+    "usage": "Tone 60 of the sky palette, re-tuned."
    },
    {
     "name": "sky-70",
-    "value": "#73b4d2",
-    "usage": "Tone 70 of the sky palette, chroma reduced to sit with the calmer surfaces."
+    "value": "#29b8e9",
+    "usage": "Tone 70 of the sky palette, re-tuned."
    },
    {
     "name": "sky-80",
-    "value": "#99cee8",
-    "usage": "Tone 80 of the sky palette, chroma reduced to sit with the calmer surfaces."
+    "value": "#71d2fc",
+    "usage": "Tone 80 of the sky palette, re-tuned."
    },
    {
     "name": "sky-90",
-    "value": "#cee6f4",
-    "usage": "Tone 90 of the sky palette, chroma reduced to sit with the calmer surfaces."
+    "value": "#c0e9fe",
+    "usage": "Tone 90 of the sky palette, re-tuned."
    },
    {
     "name": "sky-95",
-    "value": "#e7f3f9",
-    "usage": "Tone 95 of the sky palette, chroma reduced to sit with the calmer surfaces."
+    "value": "#e1f4fe",
+    "usage": "Tone 95 of the sky palette, re-tuned."
    },
    {
     "name": "sky-99",
-    "value": "#fafdfe",
-    "usage": "Tone 99 of the sky palette, chroma reduced to sit with the calmer surfaces."
+    "value": "#f9fdff",
+    "usage": "Tone 99 of the sky palette, re-tuned."
    },
    {
     "name": "blue-10",
-    "value": "#161c29",
-    "usage": "Tone 10 of the blue palette, chroma reduced to sit with the calmer surfaces."
+    "value": "#141c2c",
+    "usage": "Tone 10 of the blue palette, re-tuned."
    },
    {
     "name": "blue-20",
-    "value": "#263148",
-    "usage": "Tone 20 of the blue palette, chroma reduced to sit with the calmer surfaces."
+    "value": "#21314e",
+    "usage": "Tone 20 of the blue palette, re-tuned."
    },
    {
     "name": "blue-30",
-    "value": "#34476b",
-    "usage": "Tone 30 of the blue palette, chroma reduced to sit with the calmer surfaces."
+    "value": "#274778",
+    "usage": "Tone 30 of the blue palette, re-tuned."
    },
    {
     "name": "blue-40",
-    "value": "#445e91",
-    "usage": "Tone 40 of the blue palette, chroma reduced to sit with the calmer surfaces."
+    "value": "#335f9f",
+    "usage": "Tone 40 of the blue palette, re-tuned."
    },
    {
     "name": "blue-50",
-    "value": "#5676b5",
-    "usage": "Tone 50 of the blue palette, chroma reduced to sit with the calmer surfaces."
+    "value": "#4177c7",
+    "usage": "Tone 50 of the blue palette, re-tuned."
    },
    {
     "name": "blue-60",
-    "value": "#6f90d5",
-    "usage": "Tone 60 of the blue palette, chroma reduced to sit with the calmer surfaces."
+    "value": "#5b91e9",
+    "usage": "Tone 60 of the blue palette, re-tuned."
    },
    {
     "name": "blue-70",
-    "value": "#96abdf",
-    "usage": "Tone 70 of the blue palette, chroma reduced to sit with the calmer surfaces."
+    "value": "#8cabee",
+    "usage": "Tone 70 of the blue palette, re-tuned."
    },
    {
     "name": "blue-80",
-    "value": "#bac6ea",
-    "usage": "Tone 80 of the blue palette, chroma reduced to sit with the calmer surfaces."
+    "value": "#b6c6f4",
+    "usage": "Tone 80 of the blue palette, re-tuned."
    },
    {
     "name": "blue-90",
-    "value": "#dde2f4",
-    "usage": "Tone 90 of the blue palette, chroma reduced to sit with the calmer surfaces."
+    "value": "#dbe2f9",
+    "usage": "Tone 90 of the blue palette, re-tuned."
    },
    {
     "name": "blue-95",
-    "value": "#eef0f9",
-    "usage": "Tone 95 of the blue palette, chroma reduced to sit with the calmer surfaces."
+    "value": "#edf0fc",
+    "usage": "Tone 95 of the blue palette, re-tuned."
    },
    {
     "name": "blue-99",
     "value": "#fbfcfe",
-    "usage": "Tone 99 of the blue palette, chroma reduced to sit with the calmer surfaces."
+    "usage": "Tone 99 of the blue palette, re-tuned."
    },
    {
     "name": "indigo-10",
-    "value": "#1b1a28",
-    "usage": "Tone 10 of the indigo palette, chroma reduced to sit with the calmer surfaces."
+    "value": "#1b1a2a",
+    "usage": "Tone 10 of the indigo palette, re-tuned."
    },
    {
     "name": "indigo-20",
-    "value": "#2f2e45",
-    "usage": "Tone 20 of the indigo palette, chroma reduced to sit with the calmer surfaces."
+    "value": "#2e2d4b",
+    "usage": "Tone 20 of the indigo palette, re-tuned."
    },
    {
     "name": "indigo-30",
-    "value": "#444369",
-    "usage": "Tone 30 of the indigo palette, chroma reduced to sit with the calmer surfaces."
+    "value": "#414274",
+    "usage": "Tone 30 of the indigo palette, re-tuned."
    },
    {
     "name": "indigo-40",
-    "value": "#4454bb",
-    "usage": "Tone 40 of the indigo palette, chroma reduced to sit with the calmer surfaces."
+    "value": "#3853c7",
+    "usage": "Tone 40 of the indigo palette, re-tuned."
    },
    {
     "name": "indigo-50",
-    "value": "#7070b5",
-    "usage": "Tone 50 of the indigo palette, chroma reduced to sit with the calmer surfaces."
+    "value": "#656dd1",
+    "usage": "Tone 50 of the indigo palette, re-tuned."
    },
    {
     "name": "indigo-60",
-    "value": "#8989d7",
-    "usage": "Tone 60 of the indigo palette, chroma reduced to sit with the calmer surfaces."
+    "value": "#7e86f7",
+    "usage": "Tone 60 of the indigo palette, re-tuned."
    },
    {
     "name": "indigo-70",
-    "value": "#a4a3f7",
-    "usage": "Tone 70 of the indigo palette, chroma reduced to sit with the calmer surfaces."
+    "value": "#a3a2fb",
+    "usage": "Tone 70 of the indigo palette, re-tuned."
    },
    {
     "name": "indigo-80",
-    "value": "#c5c1f9",
-    "usage": "Tone 80 of the indigo palette, chroma reduced to sit with the calmer surfaces."
+    "value": "#c4c0fc",
+    "usage": "Tone 80 of the indigo palette, re-tuned."
    },
    {
     "name": "indigo-90",
-    "value": "#e2e0fa",
-    "usage": "Tone 90 of the indigo palette, chroma reduced to sit with the calmer surfaces."
+    "value": "#e2dffe",
+    "usage": "Tone 90 of the indigo palette, re-tuned."
    },
    {
     "name": "indigo-95",
     "value": "#f1effe",
-    "usage": "Tone 95 of the indigo palette, chroma reduced to sit with the calmer surfaces."
+    "usage": "Tone 95 of the indigo palette, re-tuned."
    },
    {
     "name": "indigo-99",
     "value": "#fcfcff",
-    "usage": "Tone 99 of the indigo palette, chroma reduced to sit with the calmer surfaces."
+    "usage": "Tone 99 of the indigo palette, re-tuned."
    },
    {
     "name": "violet-10",
-    "value": "#1f1926",
-    "usage": "Tone 10 of the violet palette, chroma reduced to sit with the calmer surfaces."
+    "value": "#201828",
+    "usage": "Tone 10 of the violet palette, re-tuned."
    },
    {
     "name": "violet-20",
-    "value": "#372c42",
-    "usage": "Tone 20 of the violet palette, chroma reduced to sit with the calmer surfaces."
+    "value": "#382b47",
+    "usage": "Tone 20 of the violet palette, re-tuned."
    },
    {
     "name": "violet-30",
-    "value": "#513f63",
-    "usage": "Tone 30 of the violet palette, chroma reduced to sit with the calmer surfaces."
+    "value": "#533c6d",
+    "usage": "Tone 30 of the violet palette, re-tuned."
    },
    {
     "name": "violet-40",
-    "value": "#6c5389",
-    "usage": "Tone 40 of the violet palette, chroma reduced to sit with the calmer surfaces."
+    "value": "#714d9d",
+    "usage": "Tone 40 of the violet palette, re-tuned."
    },
    {
     "name": "violet-50",
-    "value": "#896aac",
-    "usage": "Tone 50 of the violet palette, chroma reduced to sit with the calmer surfaces."
+    "value": "#8e62c4",
+    "usage": "Tone 50 of the violet palette, re-tuned."
    },
    {
     "name": "violet-60",
-    "value": "#a581cc",
-    "usage": "Tone 60 of the violet palette, chroma reduced to sit with the calmer surfaces."
+    "value": "#aa7ae2",
+    "usage": "Tone 60 of the violet palette, re-tuned."
    },
    {
     "name": "violet-70",
-    "value": "#be9edf",
-    "usage": "Tone 70 of the violet palette, chroma reduced to sit with the calmer surfaces."
+    "value": "#c19bea",
+    "usage": "Tone 70 of the violet palette, re-tuned."
    },
    {
     "name": "violet-80",
-    "value": "#d4bee9",
-    "usage": "Tone 80 of the violet palette, chroma reduced to sit with the calmer surfaces."
+    "value": "#d6bcf1",
+    "usage": "Tone 80 of the violet palette, re-tuned."
    },
    {
     "name": "violet-90",
-    "value": "#eadff4",
-    "usage": "Tone 90 of the violet palette, chroma reduced to sit with the calmer surfaces."
+    "value": "#ebdef8",
+    "usage": "Tone 90 of the violet palette, re-tuned."
    },
    {
     "name": "violet-95",
-    "value": "#f4eef9",
-    "usage": "Tone 95 of the violet palette, chroma reduced to sit with the calmer surfaces."
+    "value": "#f5eefb",
+    "usage": "Tone 95 of the violet palette, re-tuned."
    },
    {
     "name": "violet-99",
     "value": "#fdfbfe",
-    "usage": "Tone 99 of the violet palette, chroma reduced to sit with the calmer surfaces."
+    "usage": "Tone 99 of the violet palette, re-tuned."
    },
    {
     "name": "magenta-10",
-    "value": "#241822",
-    "usage": "Tone 10 of the magenta palette, chroma reduced to sit with the calmer surfaces."
+    "value": "#261724",
+    "usage": "Tone 10 of the magenta palette, re-tuned."
    },
    {
     "name": "magenta-20",
-    "value": "#3f293c",
-    "usage": "Tone 20 of the magenta palette, chroma reduced to sit with the calmer surfaces."
+    "value": "#42273f",
+    "usage": "Tone 20 of the magenta palette, re-tuned."
    },
    {
     "name": "magenta-30",
-    "value": "#5e3b5a",
-    "usage": "Tone 30 of the magenta palette, chroma reduced to sit with the calmer surfaces."
+    "value": "#653660",
+    "usage": "Tone 30 of the magenta palette, re-tuned."
    },
    {
     "name": "magenta-40",
-    "value": "#804c7a",
-    "usage": "Tone 40 of the magenta palette, chroma reduced to sit with the calmer surfaces."
+    "value": "#8e4088",
+    "usage": "Tone 40 of the magenta palette, re-tuned."
    },
    {
     "name": "magenta-50",
-    "value": "#a06199",
-    "usage": "Tone 50 of the magenta palette, chroma reduced to sit with the calmer surfaces."
+    "value": "#af54a7",
+    "usage": "Tone 50 of the magenta palette, re-tuned."
    },
    {
     "name": "magenta-60",
-    "value": "#c078b8",
-    "usage": "Tone 60 of the magenta palette, chroma reduced to sit with the calmer surfaces."
+    "value": "#cc6fc2",
+    "usage": "Tone 60 of the magenta palette, re-tuned."
    },
    {
     "name": "magenta-70",
-    "value": "#df91d5",
-    "usage": "Tone 70 of the magenta palette, chroma reduced to sit with the calmer surfaces."
+    "value": "#e88bdd",
+    "usage": "Tone 70 of the magenta palette, re-tuned."
    },
    {
     "name": "magenta-80",
-    "value": "#e9b7e2",
-    "usage": "Tone 80 of the magenta palette, chroma reduced to sit with the calmer surfaces."
+    "value": "#efb4e7",
+    "usage": "Tone 80 of the magenta palette, re-tuned."
    },
    {
     "name": "magenta-90",
-    "value": "#f4dbf0",
-    "usage": "Tone 90 of the magenta palette, chroma reduced to sit with the calmer surfaces."
+    "value": "#f7daf2",
+    "usage": "Tone 90 of the magenta palette, re-tuned."
    },
    {
     "name": "magenta-95",
-    "value": "#f9edf7",
-    "usage": "Tone 95 of the magenta palette, chroma reduced to sit with the calmer surfaces."
+    "value": "#fbedf9",
+    "usage": "Tone 95 of the magenta palette, re-tuned."
    },
    {
     "name": "magenta-99",
     "value": "#fefbfd",
-    "usage": "Tone 99 of the magenta palette, chroma reduced to sit with the calmer surfaces."
+    "usage": "Tone 99 of the magenta palette, re-tuned."
    },
    {
     "name": "pink-10",
-    "value": "#28161d",
-    "usage": "Tone 10 of the pink palette, chroma reduced to sit with the calmer surfaces."
+    "value": "#2a151d",
+    "usage": "Tone 10 of the pink palette, re-tuned."
    },
    {
     "name": "pink-20",
-    "value": "#452733",
-    "usage": "Tone 20 of the pink palette, chroma reduced to sit with the calmer surfaces."
+    "value": "#4a2433",
+    "usage": "Tone 20 of the pink palette, re-tuned."
    },
    {
     "name": "pink-30",
-    "value": "#68384b",
-    "usage": "Tone 30 of the pink palette, chroma reduced to sit with the calmer surfaces."
+    "value": "#72314c",
+    "usage": "Tone 30 of the pink palette, re-tuned."
    },
    {
     "name": "pink-40",
-    "value": "#8f4764",
-    "usage": "Tone 40 of the pink palette, chroma reduced to sit with the calmer surfaces."
+    "value": "#993f66",
+    "usage": "Tone 40 of the pink palette, re-tuned."
    },
    {
     "name": "pink-50",
-    "value": "#ad5e7e",
-    "usage": "Tone 50 of the pink palette, chroma reduced to sit with the calmer surfaces."
+    "value": "#b6597f",
+    "usage": "Tone 50 of the pink palette, re-tuned."
    },
    {
     "name": "pink-60",
-    "value": "#ca7897",
-    "usage": "Tone 60 of the pink palette, chroma reduced to sit with the calmer surfaces."
+    "value": "#d27399",
+    "usage": "Tone 60 of the pink palette, re-tuned."
    },
    {
     "name": "pink-70",
-    "value": "#e096b1",
-    "usage": "Tone 70 of the pink palette, chroma reduced to sit with the calmer surfaces."
+    "value": "#e892b2",
+    "usage": "Tone 70 of the pink palette, re-tuned."
    },
    {
     "name": "pink-80",
-    "value": "#e9baca",
-    "usage": "Tone 80 of the pink palette, chroma reduced to sit with the calmer surfaces."
+    "value": "#efb7cb",
+    "usage": "Tone 80 of the pink palette, re-tuned."
    },
    {
     "name": "pink-90",
-    "value": "#f4dce4",
-    "usage": "Tone 90 of the pink palette, chroma reduced to sit with the calmer surfaces."
+    "value": "#f7dbe4",
+    "usage": "Tone 90 of the pink palette, re-tuned."
    },
    {
     "name": "pink-95",
-    "value": "#f9eef1",
-    "usage": "Tone 95 of the pink palette, chroma reduced to sit with the calmer surfaces."
+    "value": "#fbedf2",
+    "usage": "Tone 95 of the pink palette, re-tuned."
    },
    {
     "name": "pink-99",
     "value": "#fefbfc",
-    "usage": "Tone 99 of the pink palette, chroma reduced to sit with the calmer surfaces."
+    "usage": "Tone 99 of the pink palette, re-tuned."
    },
    {
     "name": "brown-10",
-    "value": "#26180f",
-    "usage": "Tone 10 of the brown palette, chroma reduced to sit with the calmer surfaces."
+    "value": "#27180b",
+    "usage": "Tone 10 of the brown palette, re-tuned."
    },
    {
     "name": "brown-20",
-    "value": "#422b1c",
-    "usage": "Tone 20 of the brown palette, chroma reduced to sit with the calmer surfaces."
+    "value": "#452a18",
+    "usage": "Tone 20 of the brown palette, re-tuned."
    },
    {
     "name": "brown-30",
-    "value": "#5a4230",
-    "usage": "Tone 30 of the brown palette, chroma reduced to sit with the calmer surfaces."
+    "value": "#5d412d",
+    "usage": "Tone 30 of the brown palette, re-tuned."
    },
    {
     "name": "brown-40",
-    "value": "#745947",
-    "usage": "Tone 40 of the brown palette, chroma reduced to sit with the calmer surfaces."
+    "value": "#775843",
+    "usage": "Tone 40 of the brown palette, re-tuned."
    },
    {
     "name": "brown-50",
-    "value": "#8e715e",
-    "usage": "Tone 50 of the brown palette, chroma reduced to sit with the calmer surfaces."
+    "value": "#91705a",
+    "usage": "Tone 50 of the brown palette, re-tuned."
    },
    {
     "name": "brown-60",
-    "value": "#a98b78",
-    "usage": "Tone 60 of the brown palette, chroma reduced to sit with the calmer surfaces."
+    "value": "#ac8a74",
+    "usage": "Tone 60 of the brown palette, re-tuned."
    },
    {
     "name": "brown-70",
-    "value": "#c4a591",
-    "usage": "Tone 70 of the brown palette, chroma reduced to sit with the calmer surfaces."
+    "value": "#c8a48d",
+    "usage": "Tone 70 of the brown palette, re-tuned."
    },
    {
     "name": "brown-80",
-    "value": "#e0c0ac",
-    "usage": "Tone 80 of the brown palette, chroma reduced to sit with the calmer surfaces."
+    "value": "#e4bfa7",
+    "usage": "Tone 80 of the brown palette, re-tuned."
    },
    {
     "name": "brown-90",
-    "value": "#f4dfd1",
-    "usage": "Tone 90 of the brown palette, chroma reduced to sit with the calmer surfaces."
+    "value": "#f7dece",
+    "usage": "Tone 90 of the brown palette, re-tuned."
    },
    {
     "name": "brown-95",
-    "value": "#f9eee8",
-    "usage": "Tone 95 of the brown palette, chroma reduced to sit with the calmer surfaces."
+    "value": "#fbeee7",
+    "usage": "Tone 95 of the brown palette, re-tuned."
    },
    {
     "name": "brown-99",
     "value": "#fefbfa",
-    "usage": "Tone 99 of the brown palette, chroma reduced to sit with the calmer surfaces."
+    "usage": "Tone 99 of the brown palette, re-tuned."
    },
    {
     "name": "neutral-0",
@@ -1622,157 +1622,177 @@
    },
    {
     "name": "neutral-4",
-    "value": "#090f14",
+    "value": "#050e1f",
     "usage": "Tone 4 of the neutral palette."
    },
    {
     "name": "neutral-6",
-    "value": "#0f1418",
+    "value": "#0a1323",
     "usage": "Tone 6 of the neutral palette."
    },
    {
+    "name": "neutral-7",
+    "value": "#0d1625",
+    "usage": "Tone 7 of the neutral palette."
+   },
+   {
     "name": "neutral-8",
-    "value": "#14181c",
+    "value": "#0f1827",
     "usage": "Tone 8 of the neutral palette."
    },
    {
     "name": "neutral-10",
-    "value": "#181c20",
+    "value": "#131c2b",
     "usage": "Tone 10 of the neutral palette."
    },
    {
     "name": "neutral-11",
-    "value": "#1a1e22",
+    "value": "#151e2e",
     "usage": "Tone 11 of the neutral palette."
    },
    {
     "name": "neutral-12",
-    "value": "#1c2024",
+    "value": "#172030",
     "usage": "Tone 12 of the neutral palette."
    },
    {
+    "name": "neutral-13",
+    "value": "#192232",
+    "usage": "Tone 13 of the neutral palette."
+   },
+   {
     "name": "neutral-14",
-    "value": "#202428",
+    "value": "#1c2434",
     "usage": "Tone 14 of the neutral palette."
    },
    {
     "name": "neutral-15",
-    "value": "#22262a",
+    "value": "#1e2636",
     "usage": "Tone 15 of the neutral palette."
    },
    {
+    "name": "neutral-16",
+    "value": "#202839",
+    "usage": "Tone 16 of the neutral palette."
+   },
+   {
     "name": "neutral-17",
-    "value": "#262a2e",
+    "value": "#222a3b",
     "usage": "Tone 17 of the neutral palette."
    },
    {
     "name": "neutral-20",
-    "value": "#2c3135",
+    "value": "#283042",
     "usage": "Tone 20 of the neutral palette."
    },
    {
     "name": "neutral-21",
-    "value": "#2f3337",
+    "value": "#2b3244",
     "usage": "Tone 21 of the neutral palette."
    },
    {
     "name": "neutral-22",
-    "value": "#313539",
+    "value": "#2d3546",
     "usage": "Tone 22 of the neutral palette."
    },
    {
     "name": "neutral-24",
-    "value": "#353a3e",
+    "value": "#31394b",
     "usage": "Tone 24 of the neutral palette."
    },
    {
     "name": "neutral-25",
-    "value": "#373c40",
+    "value": "#343b4d",
     "usage": "Tone 25 of the neutral palette."
    },
    {
     "name": "neutral-30",
-    "value": "#43474c",
+    "value": "#3f4759",
     "usage": "Tone 30 of the neutral palette."
    },
    {
     "name": "neutral-35",
-    "value": "#4e5357",
+    "value": "#4b5265",
     "usage": "Tone 35 of the neutral palette."
    },
    {
     "name": "neutral-40",
-    "value": "#5a5f64",
+    "value": "#575e71",
     "usage": "Tone 40 of the neutral palette."
    },
    {
     "name": "neutral-50",
-    "value": "#73787c",
+    "value": "#6f778b",
     "usage": "Tone 50 of the neutral palette."
    },
    {
     "name": "neutral-60",
-    "value": "#8c9196",
+    "value": "#8991a5",
     "usage": "Tone 60 of the neutral palette."
    },
    {
+    "name": "neutral-65",
+    "value": "#969eb3",
+    "usage": "Tone 65 of the neutral palette."
+   },
+   {
     "name": "neutral-70",
-    "value": "#a6acb1",
+    "value": "#a3abc0",
     "usage": "Tone 70 of the neutral palette."
    },
    {
     "name": "neutral-78",
-    "value": "#bcc2c7",
+    "value": "#bbc1d1",
     "usage": "Tone 78 of the neutral palette."
    },
    {
     "name": "neutral-80",
-    "value": "#c2c7cc",
+    "value": "#c1c6d6",
     "usage": "Tone 80 of the neutral palette."
    },
    {
     "name": "neutral-87",
-    "value": "#d5dbe0",
+    "value": "#d6dae5",
     "usage": "Tone 87 of the neutral palette."
    },
    {
     "name": "neutral-90",
-    "value": "#dde3e9",
+    "value": "#dfe2eb",
     "usage": "Tone 90 of the neutral palette."
    },
    {
     "name": "neutral-92",
-    "value": "#e3e9ee",
+    "value": "#e5e8f0",
     "usage": "Tone 92 of the neutral palette."
    },
    {
     "name": "neutral-94",
-    "value": "#e9eff4",
+    "value": "#eceef4",
     "usage": "Tone 94 of the neutral palette."
    },
    {
     "name": "neutral-95",
-    "value": "#ecf1f7",
+    "value": "#eff1f6",
     "usage": "Tone 95 of the neutral palette."
    },
    {
     "name": "neutral-96",
-    "value": "#eff4fa",
+    "value": "#f2f3f9",
     "usage": "Tone 96 of the neutral palette."
    },
    {
     "name": "neutral-97",
-    "value": "#f1f7fd",
+    "value": "#f4f6fc",
     "usage": "Tone 97 of the neutral palette."
    },
    {
     "name": "neutral-98",
-    "value": "#f5faff",
+    "value": "#f7f9ff",
     "usage": "Tone 98 of the neutral palette."
    },
    {
     "name": "neutral-99",
-    "value": "#fafcff",
+    "value": "#fbfcff",
     "usage": "Tone 99 of the neutral palette."
    },
    {
@@ -1787,157 +1807,177 @@
    },
    {
     "name": "neutral-variant-4",
-    "value": "#011019",
+    "value": "#000f23",
     "usage": "Tone 4 of the neutral-variant palette."
    },
    {
     "name": "neutral-variant-6",
-    "value": "#08151d",
+    "value": "#00142b",
     "usage": "Tone 6 of the neutral-variant palette."
    },
    {
+    "name": "neutral-variant-7",
+    "value": "#01162d",
+    "usage": "Tone 7 of the neutral-variant palette."
+   },
+   {
     "name": "neutral-variant-8",
-    "value": "#0e1921",
+    "value": "#03182f",
     "usage": "Tone 8 of the neutral-variant palette."
    },
    {
     "name": "neutral-variant-10",
-    "value": "#121d25",
+    "value": "#071c34",
     "usage": "Tone 10 of the neutral-variant palette."
    },
    {
     "name": "neutral-variant-11",
-    "value": "#141f27",
+    "value": "#091e36",
     "usage": "Tone 11 of the neutral-variant palette."
    },
    {
     "name": "neutral-variant-12",
-    "value": "#162129",
+    "value": "#0c2038",
     "usage": "Tone 12 of the neutral-variant palette."
    },
    {
+    "name": "neutral-variant-13",
+    "value": "#0f223a",
+    "usage": "Tone 13 of the neutral-variant palette."
+   },
+   {
     "name": "neutral-variant-14",
-    "value": "#1a252e",
+    "value": "#11243d",
     "usage": "Tone 14 of the neutral-variant palette."
    },
    {
     "name": "neutral-variant-15",
-    "value": "#1c2730",
+    "value": "#14263f",
     "usage": "Tone 15 of the neutral-variant palette."
    },
    {
+    "name": "neutral-variant-16",
+    "value": "#162841",
+    "usage": "Tone 16 of the neutral-variant palette."
+   },
+   {
     "name": "neutral-variant-17",
-    "value": "#202b34",
+    "value": "#192a43",
     "usage": "Tone 17 of the neutral-variant palette."
    },
    {
     "name": "neutral-variant-20",
-    "value": "#27323b",
+    "value": "#20314a",
     "usage": "Tone 20 of the neutral-variant palette."
    },
    {
     "name": "neutral-variant-21",
-    "value": "#29343d",
+    "value": "#22334d",
     "usage": "Tone 21 of the neutral-variant palette."
    },
    {
     "name": "neutral-variant-22",
-    "value": "#2b363f",
+    "value": "#24354f",
     "usage": "Tone 22 of the neutral-variant palette."
    },
    {
     "name": "neutral-variant-24",
-    "value": "#303a44",
+    "value": "#293a54",
     "usage": "Tone 24 of the neutral-variant palette."
    },
    {
     "name": "neutral-variant-25",
-    "value": "#323d46",
+    "value": "#2b3c56",
     "usage": "Tone 25 of the neutral-variant palette."
    },
    {
     "name": "neutral-variant-30",
-    "value": "#3d4852",
+    "value": "#374762",
     "usage": "Tone 30 of the neutral-variant palette."
    },
    {
     "name": "neutral-variant-35",
-    "value": "#49545e",
+    "value": "#43536f",
     "usage": "Tone 35 of the neutral-variant palette."
    },
    {
     "name": "neutral-variant-40",
-    "value": "#54606a",
+    "value": "#4f5f7b",
     "usage": "Tone 40 of the neutral-variant palette."
    },
    {
     "name": "neutral-variant-50",
-    "value": "#6d7883",
+    "value": "#687795",
     "usage": "Tone 50 of the neutral-variant palette."
    },
    {
     "name": "neutral-variant-60",
-    "value": "#86929d",
+    "value": "#8291b0",
     "usage": "Tone 60 of the neutral-variant palette."
    },
    {
+    "name": "neutral-variant-65",
+    "value": "#8f9ebe",
+    "usage": "Tone 65 of the neutral-variant palette."
+   },
+   {
     "name": "neutral-variant-70",
-    "value": "#a0adb8",
+    "value": "#9caccb",
     "usage": "Tone 70 of the neutral-variant palette."
    },
    {
     "name": "neutral-variant-78",
-    "value": "#b6c2ce",
+    "value": "#b6c1da",
     "usage": "Tone 78 of the neutral-variant palette."
    },
    {
     "name": "neutral-variant-80",
-    "value": "#bcc8d4",
+    "value": "#bcc7de",
     "usage": "Tone 80 of the neutral-variant palette."
    },
    {
     "name": "neutral-variant-87",
-    "value": "#cfdce7",
+    "value": "#d3daea",
     "usage": "Tone 87 of the neutral-variant palette."
    },
    {
     "name": "neutral-variant-90",
-    "value": "#d7e4f0",
+    "value": "#dde3f0",
     "usage": "Tone 90 of the neutral-variant palette."
    },
    {
     "name": "neutral-variant-92",
-    "value": "#ddeaf6",
+    "value": "#e3e8f4",
     "usage": "Tone 92 of the neutral-variant palette."
    },
    {
     "name": "neutral-variant-94",
-    "value": "#e3effb",
+    "value": "#eaeef7",
     "usage": "Tone 94 of the neutral-variant palette."
    },
    {
     "name": "neutral-variant-95",
-    "value": "#e5f2fe",
+    "value": "#edf1f9",
     "usage": "Tone 95 of the neutral-variant palette."
    },
    {
     "name": "neutral-variant-96",
-    "value": "#eaf5ff",
+    "value": "#f0f4fc",
     "usage": "Tone 96 of the neutral-variant palette."
    },
    {
     "name": "neutral-variant-97",
-    "value": "#eff7ff",
+    "value": "#f3f6ff",
     "usage": "Tone 97 of the neutral-variant palette."
    },
    {
     "name": "neutral-variant-98",
-    "value": "#f5faff",
+    "value": "#f7f9ff",
     "usage": "Tone 98 of the neutral-variant palette."
    },
    {
     "name": "neutral-variant-99",
-    "value": "#fafcff",
+    "value": "#fbfcff",
     "usage": "Tone 99 of the neutral-variant palette."
    },
    {
@@ -1952,157 +1992,177 @@
    },
    {
     "name": "paper-4",
-    "value": "#120d07",
+    "value": "#130d00",
     "usage": "Tone 4 of the paper palette."
    },
    {
     "name": "paper-6",
-    "value": "#16130e",
+    "value": "#181307",
     "usage": "Tone 6 of the paper palette."
    },
    {
+    "name": "paper-7",
+    "value": "#19150b",
+    "usage": "Tone 7 of the paper palette."
+   },
+   {
     "name": "paper-8",
-    "value": "#1a1713",
+    "value": "#1b170e",
     "usage": "Tone 8 of the paper palette."
    },
    {
     "name": "paper-10",
-    "value": "#1e1b17",
+    "value": "#1f1b13",
     "usage": "Tone 10 of the paper palette."
    },
    {
     "name": "paper-11",
-    "value": "#201d19",
+    "value": "#211d15",
     "usage": "Tone 11 of the paper palette."
    },
    {
     "name": "paper-12",
-    "value": "#221f1b",
+    "value": "#231f17",
     "usage": "Tone 12 of the paper palette."
    },
    {
+    "name": "paper-13",
+    "value": "#252119",
+    "usage": "Tone 13 of the paper palette."
+   },
+   {
     "name": "paper-14",
-    "value": "#26231f",
+    "value": "#27231b",
     "usage": "Tone 14 of the paper palette."
    },
    {
     "name": "paper-15",
-    "value": "#282521",
+    "value": "#29251d",
     "usage": "Tone 15 of the paper palette."
    },
    {
+    "name": "paper-16",
+    "value": "#2b271f",
+    "usage": "Tone 16 of the paper palette."
+   },
+   {
     "name": "paper-17",
-    "value": "#2d2925",
+    "value": "#2e2921",
     "usage": "Tone 17 of the paper palette."
    },
    {
     "name": "paper-20",
-    "value": "#33302c",
+    "value": "#343028",
     "usage": "Tone 20 of the paper palette."
    },
    {
     "name": "paper-21",
-    "value": "#35322e",
+    "value": "#36322a",
     "usage": "Tone 21 of the paper palette."
    },
    {
     "name": "paper-22",
-    "value": "#383430",
+    "value": "#39342c",
     "usage": "Tone 22 of the paper palette."
    },
    {
     "name": "paper-24",
-    "value": "#3c3934",
+    "value": "#3d3930",
     "usage": "Tone 24 of the paper palette."
    },
    {
     "name": "paper-25",
-    "value": "#3e3b37",
+    "value": "#3f3b32",
     "usage": "Tone 25 of the paper palette."
    },
    {
     "name": "paper-30",
-    "value": "#4a4642",
+    "value": "#4b463d",
     "usage": "Tone 30 of the paper palette."
    },
    {
     "name": "paper-35",
-    "value": "#55524d",
+    "value": "#575249",
     "usage": "Tone 35 of the paper palette."
    },
    {
     "name": "paper-40",
-    "value": "#615e59",
+    "value": "#635e55",
     "usage": "Tone 40 of the paper palette."
    },
    {
     "name": "paper-50",
-    "value": "#7a7672",
+    "value": "#7c766d",
     "usage": "Tone 50 of the paper palette."
    },
    {
     "name": "paper-60",
-    "value": "#94908b",
+    "value": "#969086",
     "usage": "Tone 60 of the paper palette."
    },
    {
+    "name": "paper-65",
+    "value": "#a39d93",
+    "usage": "Tone 65 of the paper palette."
+   },
+   {
     "name": "paper-70",
-    "value": "#afaba5",
+    "value": "#b0aba0",
     "usage": "Tone 70 of the paper palette."
    },
    {
     "name": "paper-78",
-    "value": "#c5c0bb",
+    "value": "#c6c0b6",
     "usage": "Tone 78 of the paper palette."
    },
    {
     "name": "paper-80",
-    "value": "#cac6c1",
+    "value": "#ccc6bb",
     "usage": "Tone 80 of the paper palette."
    },
    {
     "name": "paper-87",
-    "value": "#ded9d4",
+    "value": "#dfd9cf",
     "usage": "Tone 87 of the paper palette."
    },
    {
     "name": "paper-90",
-    "value": "#e6e2dc",
+    "value": "#e8e2d7",
     "usage": "Tone 90 of the paper palette."
    },
    {
     "name": "paper-92",
-    "value": "#ece7e2",
+    "value": "#eee7dd",
     "usage": "Tone 92 of the paper palette."
    },
    {
     "name": "paper-94",
-    "value": "#f2ede8",
+    "value": "#f3ede2",
     "usage": "Tone 94 of the paper palette."
    },
    {
     "name": "paper-95",
-    "value": "#f4f0eb",
+    "value": "#f6f0e5",
     "usage": "Tone 95 of the paper palette."
    },
    {
     "name": "paper-96",
-    "value": "#f7f3ed",
+    "value": "#f9f3e8",
     "usage": "Tone 96 of the paper palette."
    },
    {
     "name": "paper-97",
-    "value": "#faf6f0",
+    "value": "#fcf6eb",
     "usage": "Tone 97 of the paper palette."
    },
    {
     "name": "paper-98",
-    "value": "#fdf9f3",
+    "value": "#fff9ee",
     "usage": "Tone 98 of the paper palette."
    },
    {
     "name": "paper-99",
-    "value": "#fffcf8",
+    "value": "#fffcf6",
     "usage": "Tone 99 of the paper palette."
    },
    {
@@ -2117,157 +2177,177 @@
    },
    {
     "name": "paper-variant-4",
-    "value": "#160d00",
+    "value": "#140d00",
     "usage": "Tone 4 of the paper-variant palette."
    },
    {
     "name": "paper-variant-6",
-    "value": "#1b1203",
+    "value": "#1b1200",
     "usage": "Tone 6 of the paper-variant palette."
    },
    {
+    "name": "paper-variant-7",
+    "value": "#1d1400",
+    "usage": "Tone 7 of the paper-variant palette."
+   },
+   {
     "name": "paper-variant-8",
-    "value": "#1e160a",
+    "value": "#1f1703",
     "usage": "Tone 8 of the paper-variant palette."
    },
    {
     "name": "paper-variant-10",
-    "value": "#221a10",
+    "value": "#221b0a",
     "usage": "Tone 10 of the paper-variant palette."
    },
    {
     "name": "paper-variant-11",
-    "value": "#241c13",
+    "value": "#241d0d",
     "usage": "Tone 11 of the paper-variant palette."
    },
    {
     "name": "paper-variant-12",
-    "value": "#261e15",
+    "value": "#261f10",
     "usage": "Tone 12 of the paper-variant palette."
    },
    {
+    "name": "paper-variant-13",
+    "value": "#282112",
+    "usage": "Tone 13 of the paper-variant palette."
+   },
+   {
     "name": "paper-variant-14",
-    "value": "#2a2219",
+    "value": "#2a2314",
     "usage": "Tone 14 of the paper-variant palette."
    },
    {
     "name": "paper-variant-15",
-    "value": "#2c251b",
+    "value": "#2c2516",
     "usage": "Tone 15 of the paper-variant palette."
    },
    {
+    "name": "paper-variant-16",
+    "value": "#2f2718",
+    "usage": "Tone 16 of the paper-variant palette."
+   },
+   {
     "name": "paper-variant-17",
-    "value": "#30291f",
+    "value": "#31291a",
     "usage": "Tone 17 of the paper-variant palette."
    },
    {
     "name": "paper-variant-20",
-    "value": "#372f25",
+    "value": "#372f20",
     "usage": "Tone 20 of the paper-variant palette."
    },
    {
     "name": "paper-variant-21",
-    "value": "#393127",
+    "value": "#3a3122",
     "usage": "Tone 21 of the paper-variant palette."
    },
    {
     "name": "paper-variant-22",
-    "value": "#3c3329",
+    "value": "#3c3425",
     "usage": "Tone 22 of the paper-variant palette."
    },
    {
     "name": "paper-variant-24",
-    "value": "#40382d",
+    "value": "#413829",
     "usage": "Tone 24 of the paper-variant palette."
    },
    {
     "name": "paper-variant-25",
-    "value": "#423a30",
+    "value": "#433a2b",
     "usage": "Tone 25 of the paper-variant palette."
    },
    {
     "name": "paper-variant-30",
-    "value": "#4e453b",
+    "value": "#4f4636",
     "usage": "Tone 30 of the paper-variant palette."
    },
    {
     "name": "paper-variant-35",
-    "value": "#5a5146",
+    "value": "#5b5141",
     "usage": "Tone 35 of the paper-variant palette."
    },
    {
     "name": "paper-variant-40",
-    "value": "#665d52",
+    "value": "#675d4d",
     "usage": "Tone 40 of the paper-variant palette."
    },
    {
     "name": "paper-variant-50",
-    "value": "#7f766a",
+    "value": "#807664",
     "usage": "Tone 50 of the paper-variant palette."
    },
    {
     "name": "paper-variant-60",
-    "value": "#998f83",
+    "value": "#9a8f7d",
     "usage": "Tone 60 of the paper-variant palette."
    },
    {
+    "name": "paper-variant-65",
+    "value": "#a89c8a",
+    "usage": "Tone 65 of the paper-variant palette."
+   },
+   {
     "name": "paper-variant-70",
-    "value": "#b4aa9d",
+    "value": "#b5aa97",
     "usage": "Tone 70 of the paper-variant palette."
    },
    {
     "name": "paper-variant-78",
-    "value": "#cabfb2",
+    "value": "#cbc0ad",
     "usage": "Tone 78 of the paper-variant palette."
    },
    {
     "name": "paper-variant-80",
-    "value": "#d0c5b8",
+    "value": "#d1c5b2",
     "usage": "Tone 80 of the paper-variant palette."
    },
    {
     "name": "paper-variant-87",
-    "value": "#e4d8cb",
+    "value": "#e5d9c5",
     "usage": "Tone 87 of the paper-variant palette."
    },
    {
     "name": "paper-variant-90",
-    "value": "#ece1d4",
+    "value": "#ede1ce",
     "usage": "Tone 90 of the paper-variant palette."
    },
    {
     "name": "paper-variant-92",
-    "value": "#f2e6d9",
+    "value": "#f3e7d3",
     "usage": "Tone 92 of the paper-variant palette."
    },
    {
     "name": "paper-variant-94",
-    "value": "#f8ecdf",
+    "value": "#f9ecd9",
     "usage": "Tone 94 of the paper-variant palette."
    },
    {
     "name": "paper-variant-95",
-    "value": "#fbefe2",
+    "value": "#fcefdc",
     "usage": "Tone 95 of the paper-variant palette."
    },
    {
     "name": "paper-variant-96",
-    "value": "#fdf2e4",
+    "value": "#fef2de",
     "usage": "Tone 96 of the paper-variant palette."
    },
    {
     "name": "paper-variant-97",
-    "value": "#fff5e9",
+    "value": "#fff5e6",
     "usage": "Tone 97 of the paper-variant palette."
    },
    {
     "name": "paper-variant-98",
-    "value": "#fff8f1",
+    "value": "#fff9ee",
     "usage": "Tone 98 of the paper-variant palette."
    },
    {
     "name": "paper-variant-99",
-    "value": "#fffcf8",
+    "value": "#fffcf7",
     "usage": "Tone 99 of the paper-variant palette."
    },
    {
@@ -2520,24 +2600,24 @@
    {
     "name": "elevation-1",
     "value": {
-     "light": "2px 2px 0 0 #d0c5b8",
-     "dark": "2px 2px 0 0 #090f14"
+     "light": "2px 2px 0 0 #d1c5b2",
+     "dark": "2px 2px 0 0 #050e1f"
     },
     "usage": "Cards, chips when dragged."
    },
    {
     "name": "elevation-2",
     "value": {
-     "light": "4px 4px 0 0 #d0c5b8",
-     "dark": "4px 4px 0 0 #090f14"
+     "light": "4px 4px 0 0 #d1c5b2",
+     "dark": "4px 4px 0 0 #050e1f"
     },
     "usage": "FAB, snackbar, hovered card."
    },
    {
     "name": "elevation-3",
     "value": {
-     "light": "6px 6px 0 0 #d0c5b8",
-     "dark": "6px 6px 0 0 #090f14"
+     "light": "6px 6px 0 0 #d1c5b2",
+     "dark": "6px 6px 0 0 #050e1f"
     },
     "usage": "Dialogs, menus."
    }

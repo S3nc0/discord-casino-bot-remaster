@@ -100,9 +100,9 @@ def run(path, label):
     return total, failures
 
 
-def table():
+def table(proposal, is_r1):
     """Compact before/after table for the doc: role colour old -> new, and the pair ratio old -> new."""
-    old, new = load(HERE.parent / "tokens.json"), load(HERE / "tokens.proposal.json")
+    old, new = load(HERE.parent / "tokens.json"), load(proposal)
     rows = [  # (label, role, role it is read against; None = swatch only)
         ("Page background", "surface", None),
         ("Card fill", "surface-container-low", None),
@@ -112,7 +112,7 @@ def table():
         ("Primary (text/icon)", "primary", "surface"),
         ("Text on primary", "on-primary", "primary"),
         ("Tonal fill, text on it", "on-secondary-container", "secondary-container"),
-        ("Accent: old `secondary`, new `tertiary`", None, "surface"),
+        ("Accent: old `secondary` (orange), new `tertiary`", None, "surface"),
         ("Control border (`outline`)", "outline", "surface-container-highest"),
         ("Card / list / nav edge (`outline-variant`)", "outline-variant", "surface"),
         ("Focus ring", "focus-ring", "surface"),
@@ -146,16 +146,23 @@ def table():
         print(f"| {r} ({h}) | {cells[0]} | {cells[1]} |")
 
 
-if __name__ == "__main__":
-    if "--table" in sys.argv:
-        table()
-        sys.exit(0)
-    total, fails = run(HERE / "tokens.proposal.json", "proposal")
-    print(f"proposal: {total} checks, {len(fails)} failing")
-    for f in fails:
-        print("  FAIL", f)
+def check_all():
+    status = 0
+    for path, label in ((HERE / "tokens.proposal.json", "round 2"), (HERE / "tokens.proposal-r1.json", "round 1")):
+        total, fails = run(path, label)
+        print(f"{label} ({path.name}): {total} checks, {len(fails)} failing")
+        for f in fails:
+            print("  FAIL", f)
+        status |= bool(fails)
     ototal, ofails = run(HERE.parent / "tokens.json", "current")
     print(f"current (for reference, same rules): {ototal} checks, {len(ofails)} failing")
     for f in ofails[:12]:
         print("  note", f)
-    sys.exit(1 if fails else 0)
+    return status
+
+
+if __name__ == "__main__":
+    if "--table" in sys.argv:
+        table(HERE / ("tokens.proposal-r1.json" if "--r1" in sys.argv else "tokens.proposal.json"), "r1" in "".join(sys.argv))
+        sys.exit(0)
+    sys.exit(1 if check_all() else 0)

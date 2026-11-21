@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Builds preview.html: CURRENT tokens next to PROPOSED tokens, dark and light, in one file.
+"""Builds preview.html: CURRENT tokens next to round 1 and round 2, dark and light, in one file.
 
 Self-contained: inline CSS, fonts embedded from the @fontsource packages (set FONTSOURCE_DIR when
 packages/ui has no node_modules yet), no external URLs.
@@ -42,9 +42,15 @@ def scoped_tokens(css_path, cls):
 
 
 type_css = "\n".join(l for l in (BASE / "tokens.css").read_text().splitlines() if l.startswith(".type-"))
-TOKENS = scoped_tokens(BASE / "tokens.css", "set-cur") + scoped_tokens(HERE / "tokens.proposal.css", "set-prop") + type_css
+TOKENS = (
+    scoped_tokens(BASE / "tokens.css", "set-cur")
+    + scoped_tokens(HERE / "tokens.proposal-r1.css", "set-r1")
+    + scoped_tokens(HERE / "tokens.proposal.css", "set-r2")
+    + type_css
+)
 BUNDLE = (ROOT / "packages/ui/src/styles/bundle.css").read_text()
-OVERLAY = (HERE / "components.proposal.css").read_text()
+OVERLAY_R1 = (HERE / "components.proposal-r1.css").read_text()
+OVERLAY_R2 = (HERE / "components.proposal.css").read_text()
 
 # What the owner sees today: the shell restyles some roles after the kit (apps/web/src/shell/styles.css).
 CURRENT_SHELL = """
@@ -98,7 +104,7 @@ def coin_grid():
 
 
 COIN = coin_grid()
-COIN_COLORS = {"o": "var(--amber-30)", "y": "var(--amber-70)", "h": "var(--amber-90)", "s": "var(--amber-50)", "m": "var(--amber-50)"}
+COIN_COLORS = {"o": "var(--coin-o)", "y": "var(--coin-y)", "h": "var(--coin-h)", "s": "var(--coin-s)", "m": "var(--coin-s)"}
 DIE = [
     "..oooooooo..",
     ".obbbbbbbbo.",
@@ -113,7 +119,7 @@ DIE = [
     ".osssssssso.",
     "..oooooooo..",
 ]
-DIE_COLORS = {"o": "var(--neutral-30)", "b": "var(--neutral-90)", "s": "var(--neutral-70)", "p": "var(--teal-30)"}
+DIE_COLORS = {"o": "var(--neutral-30)", "b": "var(--neutral-90)", "s": "var(--neutral-70)", "p": "var(--die-pip)"}
 SPARK = [".#.", "###", ".#."]
 
 AVATARS = [
@@ -162,6 +168,273 @@ def path_icon(d, cls="bb-icon"):
     return f'<svg class="{cls}" viewBox="0 0 12 12" aria-hidden="true"><path fill="currentColor" d="{d}"/></svg>'
 
 
+
+# ---------------------------------------------------------------- round 2 pixel art
+import random
+
+SPR = {
+    "o": "var(--neutral-10)", "w": "var(--neutral-95)", "g": "var(--neutral-70)", "G": "var(--neutral-50)",
+    "y": "var(--yellow-80)", "Y": "var(--yellow-60)", "h": "var(--yellow-95)",
+    "r": "var(--red-60)", "R": "var(--red-40)", "b": "var(--sky-70)", "B": "var(--sky-50)",
+    "n": "var(--green-60)", "N": "var(--green-40)", "k": "var(--brown-60)", "K": "var(--brown-30)",
+    "e": "var(--neutral-10)", "p": "var(--orange-60)",
+}
+
+
+def auto_outline(rows, size=16):
+    """Centre a mask on a size x size canvas and add a 1px outline ('o') around it."""
+    h, w = len(rows), len(rows[0])
+    assert all(len(r) == w for r in rows), rows
+    ox, oy = (size - w) // 2, (size - h) // 2
+    g = [["."] * size for _ in range(size)]
+    for y, r in enumerate(rows):
+        for x, c in enumerate(r):
+            if c != ".":
+                g[oy + y][ox + x] = c
+    out = [r[:] for r in g]
+    for y in range(size):
+        for x in range(size):
+            if g[y][x] == "." and any(0 <= y + dy < size and 0 <= x + dx < size and g[y + dy][x + dx] != "." for dy in (-1, 0, 1) for dx in (-1, 0, 1)):
+                out[y][x] = "o"
+    return ["".join(r) for r in out]
+
+
+def canvas(n=14):
+    return [["."] * n for _ in range(n)]
+
+
+def to_rows(g):
+    return ["".join(r) for r in g]
+
+
+def icon_dice():
+    g = [["w"] * 14 for _ in range(14)]
+    for i in range(14):
+        g[i][13] = "g"
+        g[13][i] = "g"
+    for x, y in ((0, 0), (13, 0), (0, 13), (13, 13)):
+        g[y][x] = "."
+    for px, py in ((2, 2), (10, 2), (6, 6), (2, 10), (10, 10)):
+        for dx in (0, 1):
+            for dy in (0, 1):
+                g[py + dy][px + dx] = "B"
+    return auto_outline(to_rows(g))
+
+
+def icon_slots():
+    return [
+        ".oooooooooooooo.",
+        "orrrrrrrrrrrrrro",
+        "orryyrryyrryyrro",
+        "orrrrrrrrrrrrrro",
+        "oroooooooooooooo"[:14] + "ro",
+        "orowwwwwwwwwworo",
+        "orowRRwyywBBworo",
+        "orowRRwyywBBworo",
+        "orowRRwyywBBworo",
+        "orowwwwwwwwwworo",
+        "orooooooooooooro",
+        "orrrrrrrrrrrrrro",
+        "orrrrroooorrrrro",
+        "orrrrrrrrrrrrrro",
+        ".oooooooooooooo.",
+        "................",
+    ]
+
+
+def icon_cards():
+    g = canvas()
+    for y in range(2, 14):
+        for x in range(0, 9):
+            g[y][x] = "B"
+    for y in range(0, 12):
+        for x in range(5, 14):
+            g[y][x] = "w"
+    for y in range(2, 12):
+        g[y][4] = "o"
+    for x in range(4, 9):
+        g[12][x] = "o"
+    for k, row in enumerate((".R.R.", "RRRRR", ".RRR.", "..R..")):
+        for j, ch in enumerate(row):
+            if ch != ".":
+                g[3 + k][7 + j] = ch
+    for y in (4, 6, 8, 10):
+        for x in (1, 3):
+            g[y][x] = "b"
+    return auto_outline(to_rows(g))
+
+
+def icon_roulette():
+    n, c = 14, 6.5
+    g = canvas(n)
+    import math
+    for y in range(n):
+        for x in range(n):
+            d = math.hypot(x - c, y - c)
+            if d > 6.9:
+                continue
+            if d > 6.0:
+                g[y][x] = "k"
+            elif d > 4.2:
+                ang = (math.degrees(math.atan2(y - c, x - c)) + 360) % 360
+                g[y][x] = "r" if int(ang // 45) % 2 == 0 else "G"
+            elif d > 2.4:
+                g[y][x] = "Y"
+            elif d > 1.0:
+                g[y][x] = "y"
+            else:
+                g[y][x] = "h"
+    g[3][10] = "w"
+    return auto_outline(to_rows(g))
+
+
+def icon_horse():
+    rows = [
+        "....kk........",
+        "...kkkk.mmm...",
+        "...kkkkmmmmm..",
+        "..kkkkkkmmmmm.",
+        "..kekkkkkmmmm.",
+        ".kkkkkkkkkmmm.",
+        ".kkkkkkkkkkmm.",
+        "kkkkkkkkkkkm..",
+        "kknkkkkkkkk...",
+        "kkkkkkkkkk....",
+        ".kkkkkkkkk....",
+        "..kkkkkkk.....",
+        "...kkkkkk.....",
+        "....kkkk......",
+    ]
+    rows = [r.replace("m", "K").replace("n", "K").replace("e", "w") for r in rows]
+    return auto_outline(rows)
+
+
+def icon_chart():
+    g = canvas()
+    for x in range(14):
+        g[13][x] = "g"
+    for (x0, h, a, b) in ((1, 4, "b", "B"), (4, 6, "b", "B"), (7, 9, "n", "N"), (10, 12, "n", "N")):
+        for y in range(13 - h, 13):
+            g[y][x0] = a
+            g[y][x0 + 1] = b
+    for x, y in ((10, 0), (11, 0), (10, 1), (11, 1)):
+        g[y][x] = "y"
+    return auto_outline(to_rows(g))
+
+
+def icon_pickaxe():
+    g = canvas()
+    for x in range(1, 10):
+        g[13 - x][x] = "k"
+    for x in range(2, 10):
+        g[14 - x][x] = "K"
+    for x in range(7, 14):
+        if 0 <= x - 7 < 14:
+            g[x - 7][x] = "w"
+    for x in range(7, 14):
+        if x - 6 < 14:
+            g[x - 6][x] = "g"
+    for y, x in ((1, 6), (2, 6), (3, 7), (7, 12), (8, 13)):
+        pass
+    return auto_outline(to_rows(g))
+
+
+def icon_sword():
+    g = canvas()
+    for x in range(6, 13):
+        g[13 - x][x] = "w"
+    g[0][13] = "w"
+    for x in range(7, 14):
+        if 14 - x < 14:
+            g[14 - x][x] = "g"
+    for x in range(2, 8):
+        g[x + 3][x] = "y"
+        g[x + 4][x] = "Y"
+    for x in range(2, 5):
+        g[13 - x][x] = "k"
+    g[12][1] = "y"
+    g[13][0] = "y"
+    return auto_outline(to_rows(g))
+
+
+def icon_coin():
+    n, c = 14, 6.5
+    import math
+    g = canvas(n)
+    for y in range(n):
+        for x in range(n):
+            d = math.hypot(x - c, y - c)
+            if d > 6.9:
+                continue
+            if 6 <= x <= 7 and 3 <= y <= 10:
+                g[y][x] = "Y"
+            elif d > 4.8 and x + y >= 15:
+                g[y][x] = "Y"
+            elif d > 4.8 and x + y <= 9:
+                g[y][x] = "h"
+            else:
+                g[y][x] = "y"
+    return auto_outline(to_rows(g))
+
+
+GAMES = [("Dice", icon_dice), ("Slots", icon_slots), ("Cards", icon_cards), ("Roulette", icon_roulette), ("Horses", icon_horse),
+         ("Stocks", icon_chart), ("Mining", icon_pickaxe), ("Arena", icon_sword), ("Pelica", icon_coin)]
+GAME_SVG = {}
+for _name, _fn in GAMES:
+    _rows = _fn()
+    assert len(_rows) == 16 and all(len(r) == 16 for r in _rows), (_name, [len(r) for r in _rows])
+    GAME_SVG[_name] = pixel_svg(_rows, SPR)
+
+
+def game_tile(name):
+    return f'<button class="bb-card bb-game" type="button">{GAME_SVG[name]}<span>{name}</span></button>'
+
+
+def scene_svg(w=96, h=14):
+    rnd = random.Random(11)
+    cells = {}
+
+    def put(x, y, k):
+        if 0 <= x < w and 0 <= y < h:
+            cells[(x, y)] = k
+
+    for _ in range(16):  # stars, upper sky only
+        put(rnd.randrange(0, w), rnd.randrange(0, 5), "s")
+    for sx in (14, 47, 71):  # three small sparkles
+        sy = rnd.randrange(1, 4)
+        for dx, dy in ((0, 0), (-1, 0), (1, 0), (0, -1), (0, 1)):
+            put(sx + dx, sy + dy, "s")
+    for dx, dy in ((0, 0), (1, 0), (2, 0), (0, 1), (1, 1), (2, 1), (0, 2), (1, 2), (2, 2)):  # moon / sun
+        put(84 + dx, 1 + dy, "m")
+    x = 0
+    while x < w:  # far skyline
+        bw, bh = rnd.randrange(4, 8), rnd.randrange(4, 9)
+        for xx in range(x, min(w, x + bw)):
+            for yy in range(h - bh, h):
+                put(xx, yy, "f")
+        x += bw
+    x = -2
+    while x < w:  # near skyline with lit windows
+        bw, bh = rnd.randrange(5, 10), rnd.randrange(3, 7)
+        for xx in range(max(0, x), min(w, x + bw)):
+            for yy in range(h - bh, h):
+                put(xx, yy, "n")
+        for xx in range(x + 1, x + bw - 1, 2):
+            for yy in range(h - bh + 1, h - 1, 2):
+                if rnd.random() < 0.55:
+                    put(xx, yy, "v")
+        if rnd.random() < 0.4:
+            put(x + bw // 2, h - bh - 1, "n")
+        x += bw + rnd.randrange(0, 2)
+    paths = {}
+    for (px, py), k in cells.items():
+        paths.setdefault(k, []).append(f"M{px} {py}h1v1h-1z")
+    inner = "".join(f'<path class="sc-{k}" d="{"".join(v)}"/>' for k, v in paths.items())
+    return f'<svg viewBox="0 0 {w} {h}" aria-hidden="true">{inner}</svg>'
+
+
+SCENE = scene_svg()
+
 # ---------------------------------------------------------------- markup
 def stage(setname, theme, label):
     nav = ""
@@ -169,6 +442,23 @@ def stage(setname, theme, label):
         cur = ' aria-current="page"' if n == "Home" else ""
         badge = '<span class="bb-badge">3</span>' if n == "Inbox" else ""
         nav += f'<button class="bb-nav-item" type="button"{cur}><span class="bb-nav-item__ind">{icon(NAV[n])}{badge}</span>{n}</button>'
+
+    rich = setname == "r2"
+    scene = f'<div class="hero__scene" aria-hidden="true">{SCENE}</div>' if rich else ""
+    tiles = (
+        '<section aria-label="Games"><p class="bb-eyebrow" style="margin-bottom:12px">Games</p><div class="tiles">'
+        + "".join(game_tile(n) for n in ("Dice", "Slots", "Cards", "Horses"))
+        + "</div></section>"
+        if rich
+        else ""
+    )
+    games_block = (
+        '<div class="block"><p class="bb-eyebrow">Game icons (pixel art, 16 by 16)</p><div class="games">'
+        + "".join(game_tile(n) for n, _ in GAMES)
+        + "</div></div>"
+        if rich
+        else ""
+    )
 
     return f"""
 <section class="col set-{setname} t-{theme}" aria-label="{label}, {theme}">
@@ -181,12 +471,14 @@ def stage(setname, theme, label):
     </header>
     <main class="screen">
       <section class="hero bb-card">
+        {scene}
         <p class="bb-eyebrow">Your balance</p>
         <p class="hero__amount type-display-small"><span class="accent">3,000</span> <span class="hero__unit">Pelica</span></p>
         <div class="bb-progress-wrap hero__streak"><div class="bb-progress-wrap__head"><span>Daily streak</span><span>3 / 7</span></div><div class="bb-progress" role="progressbar" aria-valuenow="3" aria-valuemin="0" aria-valuemax="7" aria-label="Daily streak"><div class="bb-progress__fill" style="width:43%"></div></div></div>
         <div class="hero__actions"><button class="bb-btn" type="button">Claim bonus</button><button class="bb-btn bb-btn--text" type="button">History</button></div>
         <div class="hero__art" aria-hidden="true"><span class="spr spr--die" style="--u:3px"><span class="die"></span></span><span class="spr spr--coin bob" style="--u:4px"><span class="coin"></span></span><span class="spr spr--a tw" style="--u:3px"><span class="spark"></span></span><span class="spr spr--b tw" style="--u:3px"><span class="spark"></span></span></div>
       </section>
+      {tiles}
       <article class="bb-card">
         <p class="bb-eyebrow">Slots</p>
         <h3 class="bb-card__title">Lucky Sprout</h3>
@@ -199,6 +491,7 @@ def stage(setname, theme, label):
   </div>
 
   <div class="sheet">
+    {games_block}
     <div class="block"><p class="bb-eyebrow">Buttons</p>
       <div class="row"><button class="bb-btn" type="button">Filled</button><button class="bb-btn bb-btn--tonal" type="button">Tonal</button><button class="bb-btn bb-btn--outlined" type="button">Outlined</button><button class="bb-btn bb-btn--text" type="button">Text</button></div>
       <div class="row"><button class="bb-btn is-pressed" type="button">Pressed</button><button class="bb-btn bb-btn--tonal is-pressed" type="button">Pressed</button><button class="bb-btn bb-btn--outlined is-pressed" type="button">Pressed</button></div>
@@ -254,27 +547,31 @@ PAGE_CSS = """
 *,*::before,*::after{box-sizing:border-box}
 html{background:#17191c;color:#e9eaec;font:400 16px/24px "Atkinson Hyperlegible",system-ui,-apple-system,"Segoe UI",sans-serif}
 body{margin:0}
-.page{max-width:1000px;margin:0 auto;padding:24px 16px 64px}
+.page{max-width:1400px;margin:0 auto;padding:24px 16px 64px}
 .intro h1{font:600 28px/36px "Pixelify Sans",system-ui,sans-serif;margin:0 0 8px}
 .intro p{margin:0 0 12px;max-width:62ch;color:#c9ccd1}
 .switcher{display:flex;gap:8px;flex-wrap:wrap;margin:16px 0 24px}
 .switcher a{min-height:48px;display:inline-flex;align-items:center;padding:0 16px;color:#e9eaec;text-decoration:none;font-weight:700;background:#2a2d32;box-shadow:0 -2px 0 #6b7078,0 2px 0 #6b7078,-2px 0 0 #6b7078,2px 0 0 #6b7078;margin:2px}
 .switcher a:focus-visible{outline:3px solid #f3c06a;outline-offset:4px}
 html[data-show=all] a[href="#all"],html[data-show=dark] a[href="#dark"],html[data-show=light] a[href="#light"]{background:#3b4a58}
-.pair{display:grid;grid-template-columns:repeat(2,minmax(0,422px));gap:24px;justify-content:center;margin-bottom:40px}
+.pair{display:grid;grid-template-columns:repeat(3,minmax(0,422px));gap:24px;justify-content:center;margin-bottom:40px}
 html[data-show=dark] .pair--light,html[data-show=light] .pair--dark{display:none}
 .col{background:var(--surface-container-lowest);color:var(--on-surface);font:400 16px/24px var(--font-body);padding:16px 16px 24px;display:grid;gap:24px;align-content:start;min-width:0}
 .col__head{margin:0;display:flex;gap:12px;align-items:baseline;font:600 20px/28px var(--font-display)}
 .col__tag{color:var(--on-surface)}
 .col__theme{font:700 14px/20px var(--font-body);letter-spacing:.08em;text-transform:uppercase;color:var(--on-surface-variant)}
 .set-cur{--accent:var(--secondary)}
-.set-prop{--accent:var(--tertiary)}
+.set-r1,.set-r2{--accent:var(--tertiary)}
+.set-cur,.set-r1{--coin-o:var(--amber-30);--coin-y:var(--amber-70);--coin-h:var(--amber-90);--coin-s:var(--amber-50);--die-pip:var(--teal-30)}
+.set-r2{--coin-o:var(--yellow-30);--coin-y:var(--yellow-80);--coin-h:var(--yellow-95);--coin-s:var(--yellow-60);--die-pip:var(--blue-40)}
+.set-r2.t-dark{--scene-sky:var(--neutral-16);--scene-far:var(--neutral-10);--scene-near:var(--neutral-7);--scene-win:var(--yellow-80);--scene-star:var(--yellow-90);--scene-moon:var(--yellow-90)}
+.set-r2.t-light{--scene-sky:var(--sky-90);--scene-far:var(--sky-80);--scene-near:var(--sky-60);--scene-win:var(--yellow-90);--scene-star:var(--paper-99);--scene-moon:var(--yellow-80)}
 .accent{color:var(--accent)}
-.phone{width:390px;max-width:100%;height:760px;margin:0 auto;display:grid;grid-template-rows:auto 1fr auto;background:var(--surface);overflow:hidden;position:relative;box-shadow:0 0 0 4px var(--surface-container-highest)}
+.phone{width:390px;max-width:100%;min-height:760px;margin:0 auto;display:grid;grid-template-rows:auto 1fr auto;background:var(--surface);overflow:hidden;position:relative;box-shadow:0 0 0 4px var(--surface-container-highest)}
 .topbar{display:flex;align-items:center;gap:12px;min-height:56px;padding:4px 16px;background:var(--surface-container)}
 .topbar__avatar .bb-avatar{margin:0}
 .topbar__balance{margin-left:auto;display:inline-flex;gap:8px;align-items:center;font-weight:700;font-variant-numeric:tabular-nums}
-.screen{display:grid;gap:16px;align-content:start;padding:16px;overflow:hidden}
+.screen{display:grid;gap:16px;align-content:start;padding:16px}
 .phone .bb-card{width:100%;max-width:none;margin:0}
 .phone .bb-navbar{margin:0;width:100%;max-width:none;padding-bottom:16px}
 .hero{position:relative;padding:24px 16px;gap:12px;overflow:hidden}
@@ -309,11 +606,27 @@ html[data-show=dark] .pair--light,html[data-show=light] .pair--dark{display:none
 .bb-btn.is-pressed{transform:translateY(2px);box-shadow:var(--pb),inset 0 -2px 0 0 var(--pixel-lip)}
 .bb-btn--outlined.is-pressed{box-shadow:var(--pb);background:color-mix(in srgb,currentColor 12%,transparent)}
 .bb-slider input{width:100%}
+@media (max-width:1360px){.pair{grid-template-columns:repeat(2,minmax(0,422px))}}
 @media (max-width:900px){.pair{grid-template-columns:minmax(0,422px)}}
 @media (max-width:430px){.page{padding:16px 0 48px}.intro,.switcher{padding:0 16px}.col{padding:16px 0 24px}.col__head,.sheet{padding:0 16px}.pair{gap:16px}.phone{width:100%}}
 @media (prefers-reduced-motion:reduce){.bob,.tw{animation:none}}
 .bb-card__meta,.bb-list__support,.bb-nav-item{font-size:16px;line-height:24px}
-.set-prop .screen{gap:24px}
+.set-r1 .screen,.set-r2 .screen{gap:24px}
+.set-r2 .hero{padding:0 16px 24px}
+.set-r2 .hero__art{top:76px}
+.hero__scene{display:flex;justify-content:center;height:56px;margin:0 -16px;overflow:hidden;background:var(--scene-sky)}
+.hero__scene svg{flex:none;width:384px;height:56px;display:block;shape-rendering:crispEdges}
+.sc-s{fill:var(--scene-star)}.sc-f{fill:var(--scene-far)}.sc-n{fill:var(--scene-near)}.sc-v{fill:var(--scene-win)}.sc-m{fill:var(--scene-moon)}
+.set-r2.t-light .hero__amount .accent{background:var(--tertiary-container);color:var(--on-tertiary-container);padding:0 8px;box-shadow:0 -2px 0 0 var(--yellow-70),0 2px 0 0 var(--yellow-70),-2px 0 0 0 var(--yellow-70),2px 0 0 0 var(--yellow-70)}
+.tiles{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}
+.games{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+.bb-card.bb-game{padding:12px 4px;width:100%;gap:4px;justify-items:center;text-align:center;font:700 16px/24px var(--font-body);color:var(--on-surface);margin:0}
+.bb-game svg{width:48px;height:48px;image-rendering:pixelated;shape-rendering:crispEdges}
+html[data-show^=home] .intro,html[data-show^=home] .switcher,html[data-show^=home] .col__head,html[data-show^=home] .sheet,html[data-show^=home] .col:not(.set-r2){display:none}
+html[data-show=home-dark] .pair.pair--light,html[data-show=home-light] .pair.pair--dark{display:none}
+html[data-show^=home] .page{padding:0;max-width:none}
+html[data-show^=home] .pair{margin:0;display:block}
+html[data-show^=home] .col{padding:0;background:transparent}
 .bb-eyebrow{margin:0;font:700 14px/20px var(--font-body);letter-spacing:.08em;text-transform:uppercase;color:var(--on-surface-variant)}
 """
 
@@ -325,7 +638,7 @@ SPRITE_CSS = f"""
 
 SCRIPT = """
 (function(){
-  function apply(){var h=(location.hash||'#all').slice(1);if(h!=='dark'&&h!=='light')h='all';document.documentElement.setAttribute('data-show',h);}
+  function apply(){var h=(location.hash||'#all').slice(1);if(['dark','light','home-dark','home-light'].indexOf(h)<0)h='all';document.documentElement.setAttribute('data-show',h);}
   window.addEventListener('hashchange',apply);apply();
 })();
 """
@@ -334,8 +647,8 @@ INTRO = """
 <div class="page">
   <div class="intro">
     <h1>Bitbloom theme re-tune: preview</h1>
-    <p>Left: the tokens in the app today. Right: the proposal. Same components, same pixel structure (square 2px notched edges, hard offset shadows, stepped motion). Only colour, edges and a few component choices differ. Nothing here is wired into the app.</p>
-    <p>The proposal: calmer surfaces, one primary (sea teal), one accent (coin gold), quiet slate for supporting fills, borders as tonal steps. Text and meaningful borders keep their contrast.</p>
+    <p>Three columns: the tokens in the app today, round 1 (calm, teal and gold on grey ink), and round 2 (navy base with fresh green, sunny yellow and sky blue, more pixel art). Same components and pixel structure (square 2px notched edges, hard offset shadows, stepped motion). Nothing here is wired into the app.</p>
+    <p>Round 2: surfaces are navy tonal steps, green means act and succeed, yellow means Pelica and rewards, blue means info and selection. Fills are soft tints; the bright hues are kept for small accents and pixel art. Text and meaningful borders keep their contrast.</p>
   </div>
   <nav class="switcher" aria-label="Theme filter"><a href="#all">Both themes</a><a href="#dark">Dark only</a><a href="#light">Light only</a></nav>
   <div class="pair pair--dark">%DARK%</div>
@@ -356,15 +669,18 @@ html = f"""<!doctype html>
 .set-cur {{
 {CURRENT_SHELL}
 }}
-.set-prop {{
-{OVERLAY}
+.set-r1 {{
+{OVERLAY_R1}
+}}
+.set-r2 {{
+{OVERLAY_R2}
 }}
 {SPRITE_CSS}
 {PAGE_CSS}
 </style>
 </head>
 <body>
-{INTRO.replace("%DARK%", stage("cur", "dark", "Current") + stage("prop", "dark", "Proposed")).replace("%LIGHT%", stage("cur", "light", "Current") + stage("prop", "light", "Proposed"))}
+{INTRO.replace("%DARK%", stage("cur", "dark", "Current") + stage("r1", "dark", "Round 1") + stage("r2", "dark", "Round 2")).replace("%LIGHT%", stage("cur", "light", "Current") + stage("r1", "light", "Round 1") + stage("r2", "light", "Round 2"))}
 <script>{SCRIPT}</script>
 </body>
 </html>
