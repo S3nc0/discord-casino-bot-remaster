@@ -1,5 +1,7 @@
-/* Shell layout only. Colours, type, borders and focus rings come from @casino/ui (tokens.css and
-   bundle.css load with the package). Interactive targets stay at the kit's 48px minimum. */
+/* Shell layout plus legibility overrides. Colours, type, borders and focus rings come from
+   @casino/ui (tokens.css and bundle.css load with the package). Interactive targets stay at the
+   kit's 48px minimum. contrast.test.ts resolves the roles used below and fails under 4.5:1 for
+   text and 3:1 for borders, in both themes. */
 
 html,
 body,
@@ -13,11 +15,45 @@ body {
   overscroll-behavior: none;
 }
 
+/* Safe area: Discord's mobile client overlays its own bar (activity name, invite, leave) and
+   injects --discord-safe-area-inset-*; env() covers plain browsers and the home indicator. */
 .app-root {
-  --safe-top: env(safe-area-inset-top, 0px);
-  --safe-right: env(safe-area-inset-right, 0px);
-  --safe-bottom: env(safe-area-inset-bottom, 0px);
-  --safe-left: env(safe-area-inset-left, 0px);
+  --safe-top: var(--discord-safe-area-inset-top, env(safe-area-inset-top, 0px));
+  --safe-right: var(--discord-safe-area-inset-right, env(safe-area-inset-right, 0px));
+  --safe-bottom: var(--discord-safe-area-inset-bottom, env(safe-area-inset-bottom, 0px));
+  --safe-left: var(--discord-safe-area-inset-left, env(safe-area-inset-left, 0px));
+  box-sizing: border-box;
+  padding: var(--safe-top) var(--safe-right) 0 var(--safe-left);
+}
+
+/* Legibility: body text uses on-surface (never the muted variant role), borders use the
+   stronger outline role, and nothing is smaller than 16px except the landscape rail. */
+.app-root .bb-card__meta,
+.app-root .bb-list__support,
+.app-root .bb-nav-item,
+.app-root .bb-tab,
+.app-root .bb-slider__head,
+.app-root .bb-radio,
+.app-root .participants__more {
+  color: var(--on-surface);
+}
+
+.app-root .bb-card__meta,
+.app-root .bb-list__support,
+.app-root .bb-nav-item {
+  font-size: 16px;
+  line-height: 24px;
+}
+
+.app-root .bb-card:not(.bb-card--filled),
+.app-root .bb-list,
+.app-root .bb-navbar,
+.app-root .bb-dialog,
+.app-root .bb-banner,
+.app-root .bb-avatar,
+.app-root .bb-progress,
+.app-root .bb-tag {
+  --bc: var(--outline);
 }
 
 .status {
@@ -25,7 +61,8 @@ body {
   place-content: center;
   justify-items: center;
   height: 100%;
-  padding: var(--space-4);
+  padding: var(--space-4) var(--space-4) calc(var(--space-4) + var(--safe-bottom));
+  box-sizing: border-box;
 }
 
 /* ---- shell grid: desktop = rail left, mobile portrait = bar bottom, landscape = slim rail ---- */
@@ -33,7 +70,6 @@ body {
   display: grid;
   grid-template-columns: 9rem 1fr;
   height: 100%;
-  padding: var(--safe-top) var(--safe-right) var(--safe-bottom) var(--safe-left);
   box-sizing: border-box;
 }
 
@@ -48,7 +84,7 @@ body {
   flex: 1;
   min-height: 0;
   overflow: auto;
-  padding: var(--space-4);
+  padding: var(--space-4) var(--space-4) calc(var(--space-4) + var(--safe-bottom));
 }
 
 .app__screen .bb-card,
@@ -100,8 +136,8 @@ body {
 
 .app[data-layout='mobile-landscape'] .bb-nav-item {
   min-width: 0;
-  font-size: 12px;
-  line-height: 16px;
+  font-size: 14px;
+  line-height: 18px;
 }
 
 .app[data-layout='mobile-portrait'] {
@@ -112,6 +148,12 @@ body {
 .app[data-layout='mobile-portrait'] .shell-nav {
   grid-row: 2;
   width: 100%;
+  /* the bar runs to the screen edge; its content clears the home indicator */
+  padding-bottom: calc(var(--space-4) + var(--safe-bottom));
+}
+
+.app[data-layout='mobile-portrait'] .app__screen {
+  padding-bottom: var(--space-4);
 }
 
 .app[data-layout='mobile-portrait'] .bb-nav-item {
@@ -175,13 +217,13 @@ body {
 }
 
 .participants__more {
-  color: var(--on-surface-variant);
+  color: var(--on-surface);
 }
 
 .toasts {
   position: fixed;
   right: calc(var(--safe-right) + var(--space-4));
-  bottom: calc(var(--safe-bottom) + 5.5rem);
+  bottom: calc(var(--safe-bottom) + 6rem);
   left: calc(var(--safe-left) + var(--space-4));
   z-index: 10;
   display: grid;
@@ -197,4 +239,36 @@ body {
 .app[data-layout='desktop'] .toasts,
 .app[data-layout='mobile-landscape'] .toasts {
   bottom: calc(var(--safe-bottom) + var(--space-4));
+}
+
+/* ---- Home: the balance is the hero ---- */
+.home {
+  display: grid;
+  gap: var(--space-1);
+  padding-block: var(--space-3);
+}
+
+.home__balance {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-2) var(--space-3);
+  margin: 0;
+  color: var(--on-surface);
+}
+
+.home__amount {
+  font: 600 clamp(40px, 13vw, 56px) / 1.1 var(--font-display);
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+
+.home__unit {
+  font: 700 24px / 32px var(--font-body);
+}
+
+.home__label {
+  margin: 0;
+  color: var(--on-surface);
+  font: 400 16px / 24px var(--font-body);
 }
