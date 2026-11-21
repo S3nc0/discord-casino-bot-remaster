@@ -70,7 +70,12 @@ describe('0006_notify_webhooks migration', () => {
     ).run(GUILD);
     db.prepare('INSERT INTO guild_config (guild_id, updated_at) VALUES (?, 0)').run(GUILD);
 
-    expect(runMigrations(db, migrations)).toEqual([6]);
+    expect(
+      runMigrations(
+        db,
+        migrations.filter((m) => m.version <= 6),
+      ),
+    ).toEqual([6]);
 
     const cfg = db
       .prepare('SELECT personas_enabled FROM guild_config WHERE guild_id = ?')
