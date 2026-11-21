@@ -11,6 +11,7 @@ import { loadConfig, type Config } from './config.ts';
 import type { Logger } from 'pino';
 import { createLogger } from './logger.ts';
 import type { SocketHandlers } from '../socket/server.ts';
+import type { CronDriver } from './scheduler.ts';
 import { createServer, type CasinoServices } from './server.ts';
 
 export const GUILD = '234567890123456789';
@@ -151,6 +152,10 @@ export function createTestServer(
     /** Defaults to a silent logger. */
     logger?: Logger;
     socketHandlers?: SocketHandlers;
+    /** Use the casino's own socket handlers instead of the empty set the socket tests expect. */
+    casinoHandlers?: boolean;
+    /** A hand-fired cron driver, so no real timer runs. */
+    cronDriver?: CronDriver;
     rateLimits?: { ipPerMinute: number; tokenPerMinute: number; userPerMinute: number };
   } = {},
 ): TestServer {
@@ -167,7 +172,9 @@ export function createTestServer(
     ...(options.sessionTtlSeconds === undefined
       ? {}
       : { sessionTtlSeconds: options.sessionTtlSeconds }),
-    ...(options.socketHandlers === undefined ? {} : { socketHandlers: options.socketHandlers }),
+    // The socket tests drive their own handlers; pass `socketHandlers: games.handlers` to use the casino's.
+    ...(options.casinoHandlers === true ? {} : { socketHandlers: options.socketHandlers ?? {} }),
+    ...(options.cronDriver === undefined ? {} : { cronDriver: options.cronDriver }),
     ...(options.rateLimits === undefined ? {} : { rateLimits: options.rateLimits }),
   });
   return {

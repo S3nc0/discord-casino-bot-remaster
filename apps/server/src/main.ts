@@ -1,12 +1,12 @@
 import { mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
-import { startBot } from './bot/index.ts';
 import { ConfigError, loadConfig } from './runtime/config.ts';
+import { startRuntime } from './runtime/lifecycle.ts';
 import { createServer } from './runtime/server.ts';
 
-// Entry point of the single server process. The chat bot and the scheduler plug into the
-// services returned by `createServer`; this file only validates the environment, starts HTTP and
-// sockets, and shuts down cleanly.
+// Entry point of the single server process. `createServer` builds every service and registers
+// the scheduler's jobs; `startRuntime` starts the bot, HTTP, sockets and jobs. This file only
+// validates the environment and shuts down cleanly.
 async function main(): Promise<void> {
   let config;
   try {
@@ -24,18 +24,16 @@ async function main(): Promise<void> {
   // Bound to loopback by default and reached through the tunnel, so forwarded headers are
   // trusted for the client address (rate limits).
   const server = createServer({ config, trustProxy: true });
-  const address = await server.listen();
-  server.logger.info({ address, env: config.nodeEnv }, 'casino server listening');
-  const bot = await startBot(server, config);
+  const runtime = await startRuntime(server, config);
+  server.logger.info({ address: runtime.address, env: config.nodeEnv }, 'casino server listening');
 
   let stopping = false;
   const stop = (signal: string): void => {
     if (stopping) return;
     stopping = true;
     server.logger.info({ signal }, 'shutting down');
-    bot
-      .close()
-      .then(() => server.close())
+    runtime
+      .stop()
       .then(() => process.exit(0))
       .catch((error: unknown) => {
         server.logger.error({ err: error }, 'shutdown failed');
