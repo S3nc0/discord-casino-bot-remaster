@@ -49,9 +49,11 @@ Fill in the real values locally. **Never commit `.env`, and never paste secret v
 | `UTC_OFFSET_HOURS` | No | Game day boundary offset (`9` for JST) |
 | `PUBLIC_API_ORIGIN` | No | `https://API_DOMAIN` (no trailing slash) |
 | `ANNOUNCE_CHANNEL_ID` | No | Default Discord channel ID for announcements |
-| `NODE_ENV` | No | Use `production` behind Discord proxy / Cloudflare Tunnel so Ed25519 signature verification is enforced; use `development` only for direct local browser testing without Discord proxy |
-| `PORT` | No | Template placeholder (default `3001`) when supported by server config |
-| `DATABASE_PATH` | No | Template placeholder (default `./data/casino.db`) when supported by server config |
+| `NODE_ENV` | No | Optional (default `production`). Keep `production` behind Discord proxy / Cloudflare Tunnel so Ed25519 signature verification stays enforced; use `development` only for direct local browser testing without Discord proxy |
+| `HOST` | No | Optional (default `127.0.0.1`). Bind address — keep loopback because `cloudflared` connects locally and `trustProxy` is enabled (only a container such as `pi-sim` binds `0.0.0.0`) |
+| `PORT` | No | Optional (default `3001`). HTTP and Socket.io listen port |
+| `DATABASE_PATH` | No | Optional (default `./data/casino.sqlite`, relative to working directory). SQLite file of the new server — never the legacy `data/casino.db` (importer input only) |
+| `LOG_LEVEL` | No | Optional (default `info`). Pino log level: `fatal` \| `error` \| `warn` \| `info` \| `debug` \| `trace` \| `silent` |
 
 ## 3. Set Up Cloudflare Pages for `apps/web`
 

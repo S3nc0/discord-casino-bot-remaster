@@ -16,10 +16,11 @@ services:
         required: false
     environment:
       NODE_ENV: production
+      HOST: ${HOST:-0.0.0.0}
       PORT: ${PORT:-3001}
-      DATABASE_PATH: ${DATABASE_PATH:-/app/data/casino.db}
+      DATABASE_PATH: ${DATABASE_PATH:-/app/data/casino.sqlite}
     ports:
-      - '${PORT:-3001}:${PORT:-3001}'
+      - '127.0.0.1:${PORT:-3001}:${PORT:-3001}'
     volumes:
       - pi_sim_data:/app/data
 

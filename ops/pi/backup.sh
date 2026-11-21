@@ -23,7 +23,7 @@ if [ -z "${DATABASE_PATH:-}" ] && [ -f "$ENV_FILE" ]; then
   DATABASE_PATH="$raw_db_path"
 fi
 
-DB_PATH="${DATABASE_PATH:-$APP_DIR/data/casino.db}"
+DB_PATH="${DATABASE_PATH:-$APP_DIR/data/casino.sqlite}"
 if [ "${DB_PATH#/}" = "$DB_PATH" ]; then
   DB_PATH="$APP_DIR/$DB_PATH"
 fi
@@ -36,7 +36,7 @@ fi
 mkdir -p "$BACKUP_DIR"
 
 timestamp="$(date -u +%Y%m%d-%H%M%S)"
-dest_file="$BACKUP_DIR/casino-${timestamp}.db"
+dest_file="$BACKUP_DIR/casino-${timestamp}.sqlite"
 tmp_file="${dest_file}.tmp"
 
 cleanup() {
@@ -47,6 +47,6 @@ trap cleanup EXIT
 sqlite3 "$DB_PATH" ".timeout 5000" ".backup '$tmp_file'"
 mv -- "$tmp_file" "$dest_file"
 
-find "$BACKUP_DIR" -maxdepth 1 -type f -name 'casino-*.db' -mtime "+${RETENTION_DAYS}" -delete
+find "$BACKUP_DIR" -maxdepth 1 -type f -name 'casino-*.sqlite' -mtime "+${RETENTION_DAYS}" -delete
 
 echo "Backup written: $dest_file"
