@@ -1,0 +1,100 @@
+{
+  "buffs_stacked": {
+    "click": 0.01,
+    "daily": 10.0,
+    "luck": 100.0,
+    "wage": 1.0
+  },
+  "chance_round_1_35": [
+    2,
+    1,
+    2,
+    2,
+    1,
+    1,
+    1,
+    2,
+    2,
+    1,
+    1,
+    1,
+    2,
+    2,
+    1,
+    1,
+    1,
+    2,
+    1,
+    2
+  ],
+  "db_merge": {
+    "buffs_after": {
+      "click": 0.1
+    },
+    "merge_result": [
+      true,
+      "relic_fossil_s1"
+    ],
+    "stock_after": {
+      "relic_fossil_s1": 1
+    }
+  },
+  "id_ops": [
+    {
+      "buff_text": "持っている間、地下作業の「働く」1回の稼ぎが 1個ごとに +1%",
+      "id": "relic_fossil",
+      "split": [
+        "relic_fossil",
+        0
+      ]
+    },
+    {
+      "buff_text": "持っている間、作業員の稼ぎが 1個ごとに +100%",
+      "id": "relic_bone_s2",
+      "split": [
+        "relic_bone",
+        2
+      ]
+    },
+    {
+      "buff_text": "持っている間、デイリーボーナスの額が 1個ごとに +1000%",
+      "id": "relic_crown_s3",
+      "split": [
+        "relic_crown",
+        3
+      ]
+    },
+    {
+      "buff_text": "持っている間、作業員の鉱石・発掘品の出やすさが 1個ごとに +10000%",
+      "id": "relic_meteor_s4",
+      "split": [
+        "relic_meteor",
+        4
+      ]
+    }
+  ],
+  "module": "relics",
+  "seed": 2012,
+  "star_ops": {
+    "1": {
+      "star_id": "relic_crown_s1",
+      "stars": "★"
+    },
+    "2": {
+      "star_id": "relic_crown_s2",
+      "stars": "★★"
+    },
+    "3": {
+      "star_id": "relic_crown_s3",
+      "stars": "★★★"
+    },
+    "4": {
+      "star_id": "relic_crown_s4",
+      "stars": "★★★★"
+    },
+    "5": {
+      "star_id": "relic_crown_s5",
+      "stars": "★★★★★"
+    }
+  }
+}

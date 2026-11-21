@@ -1,0 +1,182 @@
+{
+  "balance_after": 21000,
+  "date": "2025-01-06",
+  "db_plays": [
+    {
+      "bonus": 0,
+      "completed": [],
+      "new_best": true,
+      "streak": 1
+    },
+    {
+      "bonus": 0,
+      "completed": [],
+      "new_best": false,
+      "streak": 0
+    },
+    {
+      "bonus": 0,
+      "completed": [],
+      "new_best": false,
+      "streak": 1
+    },
+    {
+      "bonus": 0,
+      "completed": [
+        [
+          {
+            "game": null,
+            "id": "win3",
+            "kind": "win",
+            "name": "3回勝つ",
+            "reward": 400,
+            "tag": null,
+            "target": 3
+          },
+          400
+        ],
+        [
+          {
+            "game": null,
+            "id": "big3x",
+            "kind": "big_win",
+            "name": "賭け金の3倍以上の利益を1回で出す",
+            "reward": 600,
+            "tag": null,
+            "target": 3
+          },
+          600
+        ]
+      ],
+      "new_best": true,
+      "streak": 2
+    }
+  ],
+  "jackpot_checks": [
+    {
+      "bet": 1000,
+      "is_jackpot": false,
+      "net": 2000
+    },
+    {
+      "bet": 1000,
+      "is_jackpot": false,
+      "net": 3000
+    },
+    {
+      "bet": 1000,
+      "is_jackpot": false,
+      "net": 4000
+    },
+    {
+      "bet": 1000,
+      "is_jackpot": false,
+      "net": 5000
+    },
+    {
+      "bet": 1000,
+      "is_jackpot": false,
+      "net": -1000
+    }
+  ],
+  "mission_status_after": [
+    [
+      {
+        "game": null,
+        "id": "win3",
+        "kind": "win",
+        "name": "3回勝つ",
+        "reward": 400,
+        "tag": null,
+        "target": 3
+      },
+      3,
+      true
+    ],
+    [
+      {
+        "game": "ブラックジャック",
+        "id": "bj_natural",
+        "kind": "tag",
+        "name": "ナチュラルブラックジャックを出す",
+        "reward": 700,
+        "tag": "natural",
+        "target": 1
+      },
+      0,
+      false
+    ],
+    [
+      {
+        "game": null,
+        "id": "big3x",
+        "kind": "big_win",
+        "name": "賭け金の3倍以上の利益を1回で出す",
+        "reward": 600,
+        "tag": null,
+        "target": 3
+      },
+      3,
+      true
+    ]
+  ],
+  "module": "missions",
+  "next_day_missions": [
+    {
+      "game": null,
+      "id": "win5",
+      "kind": "win",
+      "name": "5回勝つ",
+      "reward": 600,
+      "tag": null,
+      "target": 5
+    },
+    {
+      "game": "ブラックジャック",
+      "id": "bj_natural",
+      "kind": "tag",
+      "name": "ナチュラルブラックジャックを出す",
+      "reward": 700,
+      "tag": "natural",
+      "target": 1
+    },
+    {
+      "game": null,
+      "id": "streak2",
+      "kind": "streak",
+      "name": "2連勝する",
+      "reward": 400,
+      "tag": null,
+      "target": 2
+    }
+  ],
+  "today_missions": [
+    {
+      "game": null,
+      "id": "win3",
+      "kind": "win",
+      "name": "3回勝つ",
+      "reward": 400,
+      "tag": null,
+      "target": 3
+    },
+    {
+      "game": "ブラックジャック",
+      "id": "bj_natural",
+      "kind": "tag",
+      "name": "ナチュラルブラックジャックを出す",
+      "reward": 700,
+      "tag": "natural",
+      "target": 1
+    },
+    {
+      "game": null,
+      "id": "big3x",
+      "kind": "big_win",
+      "name": "賭け金の3倍以上の利益を1回で出す",
+      "reward": 600,
+      "tag": null,
+      "target": 3
+    }
+  ]
+}

@@ -1,0 +1,661 @@
+{
+  "module": "pachinko",
+  "seed": 1003,
+  "seeded_round_rolls": [
+    [
+      2,
+      2
+    ],
+    [
+      2,
+      2
+    ],
+    [
+      2,
+      10
+    ],
+    [
+      2,
+      2
+    ],
+    [
+      2,
+      2,
+      30
+    ],
+    [
+      2,
+      2
+    ],
+    [
+      10,
+      10
+    ],
+    [
+      2,
+      2
+    ],
+    [
+      10
+    ],
+    [
+      10
+    ],
+    [
+      10
+    ],
+    [
+      2,
+      2
+    ],
+    [
+      2,
+      2,
+      2
+    ],
+    [
+      10,
+      2
+    ],
+    [
+      2,
+      2
+    ]
+  ],
+  "seeded_sets": [
+    {
+      "raw": 0,
+      "spins": [
+        {
+          "hit": false,
+          "hit_prob": 0.01022,
+          "omen": "red",
+          "rounds": [],
+          "tier": ""
+        },
+        {
+          "hit": false,
+          "hit_prob": 0.00222,
+          "omen": "blue",
+          "rounds": [],
+          "tier": ""
+        },
+        {
+          "hit": false,
+          "hit_prob": 0.01022,
+          "omen": "",
+          "rounds": [],
+          "tier": "normal"
+        },
+        {
+          "hit": false,
+          "hit_prob": 0.00222,
+          "omen": "blue",
+          "rounds": [],
+          "tier": ""
+        },
+        {
+          "hit": false,
+          "hit_prob": 0.08022,
+          "omen": "gold",
+          "rounds": [],
+          "tier": ""
+        },
+        {
+          "hit": false,
+          "hit_prob": 0.00022,
+          "omen": "",
+          "rounds": [],
+          "tier": ""
+        }
+      ],
+      "starts": 6
+    },
+    {
+      "raw": 0,
+      "spins": [
+        {
+          "hit": false,
+          "hit_prob": 0.00022,
+          "omen": "",
+          "rounds": [],
+          "tier": ""
+        },
+        {
+          "hit": false,
+          "hit_prob": 0.12222,
+          "omen": "blue",
+          "rounds": [],
+          "tier": "super"
+        },
+        {
+          "hit": false,
+          "hit_prob": 0.00022,
+          "omen": "",
+          "rounds": [],
+          "tier": ""
+        },
+        {
+          "hit": false,
+          "hit_prob": 0.00022,
+          "omen": "",
+          "rounds": [],
+          "tier": ""
+        },
+        {
+          "hit": false,
+          "hit_prob": 0.00022,
+          "omen": "",
+          "rounds": [],
+          "tier": ""
+        },
+        {
+          "hit": false,
+          "hit_prob": 0.01022,
+          "omen": "",
+          "rounds": [],
+          "tier": "normal"
+        }
+      ],
+      "starts": 6
+    },
+    {
+      "raw": 2,
+      "spins": [
+        {
+          "hit": false,
+          "hit_prob": 0.00022,
+          "omen": "",
+          "rounds": [],
+          "tier": ""
+        },
+        {
+          "hit": false,
+          "hit_prob": 0.00222,
+          "omen": "blue",
+          "rounds": [],
+          "tier": ""
+        },
+        {
+          "hit": false,
+          "hit_prob": 0.00022,
+          "omen": "",
+          "rounds": [],
+          "tier": ""
+        },
+        {
+          "hit": false,
+          "hit_prob": 0.00022,
+          "omen": "",
+          "rounds": [],
+          "tier": ""
+        },
+        {
+          "hit": false,
+          "hit_prob": 0.00022,
+          "omen": "",
+          "rounds": [],
+          "tier": ""
+        },
+        {
+          "hit": false,
+          "hit_prob": 0.00022,
+          "omen": "",
+          "rounds": [],
+          "tier": ""
+        },
+        {
+          "hit": true,
+          "hit_prob": 0.13022,
+          "omen": "red",
+          "rounds": [
+            2
+          ],
+          "tier": "super"
+        },
+        {
+          "hit": false,
+          "hit_prob": 0.00022,
+          "omen": "",
+          "rounds": [],
+          "tier": ""
+        }
+      ],
+      "starts": 8
+    },
+    {
+      "raw": 0,
+      "spins": [
+        {
+          "hit": false,
+          "hit_prob": 0.00022,
+          "omen": "",
+          "rounds": [],
+          "tier": ""
+        },
+        {
+          "hit": false,
+          "hit_prob": 0.01022,
+          "omen": "",
+          "rounds": [],
+          "tier": "normal"
+        },
+        {
+          "hit": false,
+          "hit_prob": 0.00022,
+          "omen": "",
+          "rounds": [],
+          "tier": ""
+        },
+        {
+          "hit": false,
+          "hit_prob": 0.00022,
+          "omen": "",
+          "rounds": [],
+          "tier": ""
+        }
+      ],
+      "starts": 4
+    },
+    {
+      "raw": 0,
+      "spins": [
+        {
+          "hit": false,
+          "hit_prob": 0.00022,
+          "omen": "",
+          "rounds": [],
+          "tier": ""
+        },
+        {
+          "hit": false,
+          "hit_prob": 0.00022,
+          "omen": "",
+          "rounds": [],
+          "tier": ""
+        },
+        {
+          "hit": false,
+          "hit_prob": 0.01222,
+          "omen": "blue",
+          "rounds": [],
+          "tier": "normal"
+        },
+        {
+          "hit": false,
+          "hit_prob": 0.00022,
+          "omen": "",
+          "rounds": [],
+          "tier": ""
+        },
+        {
+          "hit": false,
+          "hit_prob": 0.12022,
+          "omen": "",
+          "rounds": [],
+          "tier": "super"
+        }
+      ],
+      "starts": 5
+    },
+    {
+      "raw": 0,
+      "spins": [
+        {
+          "hit": false,
+          "hit_prob": 0.12222,
+          "omen": "blue",
+          "rounds": [],
+          "tier": "super"
+        },
+        {
+          "hit": false,
+          "hit_prob": 0.00022,
+          "omen": "",
+          "rounds": [],
+          "tier": ""
+        },
+        {
+          "hit": false,
+          "hit_prob": 0.00022,
+          "omen": "",
+          "rounds": [],
+          "tier": ""
+        },
+        {
+          "hit": false,
+          "hit_prob": 0.00022,
+          "omen": "",
+          "rounds": [],
+          "tier": ""
+        },
+        {
+          "hit": false,
+          "hit_prob": 0.00022,
+          "omen": "",
+          "rounds": [],
+          "tier": ""
+        },
+        {
+          "hit": false,
+          "hit_prob": 0.00022,
+          "omen": "",
+          "rounds": [],
+          "tier": ""
+        },
+        {
+          "hit": false,
+          "hit_prob": 0.00222,
+          "omen": "blue",
+          "rounds": [],
+          "tier": ""
+        },
+        {
+          "hit": false,
+          "hit_prob": 0.00022,
+          "omen": "",
+          "rounds": [],
+          "tier": ""
+        }
+      ],
+      "starts": 8
+    },
+    {
+      "raw": 0,
+      "spins": [
+        {
+          "hit": false,
+          "hit_prob": 0.00022,
+          "omen": "",
+          "rounds": [],
+          "tier": ""
+        },
+        {
+          "hit": false,
+          "hit_prob": 0.00022,
+          "omen": "",
+          "rounds": [],
+          "tier": ""
+        }
+      ],
+      "starts": 2
+    },
+    {
+      "raw": 0,
+      "spins": [
+        {
+          "hit": false,
+          "hit_prob": 0.00022,
+          "omen": "",
+          "rounds": [],
+          "tier": ""
+        },
+        {
+          "hit": false,
+          "hit_prob": 0.45222,
+          "omen": "blue",
+          "rounds": [],
+          "tier": "premium"
+        },
+        {
+          "hit": false,
+          "hit_prob": 0.00222,
+          "omen": "blue",
+          "rounds": [],
+          "tier": ""
+        },
+        {
+          "hit": false,
+          "hit_prob": 0.00222,
+          "omen": "blue",
+          "rounds": [],
+          "tier": ""
+        },
+        {
+          "hit": false,
+          "hit_prob": 0.00022,
+          "omen": "",
+          "rounds": [],
+          "tier": ""
+        },
+        {
+          "hit": false,
+          "hit_prob": 0.00022,
+          "omen": "",
+          "rounds": [],
+          "tier": ""
+        }
+      ],
+      "starts": 6
+    }
+  ],
+  "seeded_spins": [
+    {
+      "hit": false,
+      "hit_prob": 0.00022,
+      "omen": "",
+      "rounds": [],
+      "tier": ""
+    },
+    {
+      "hit": false,
+      "hit_prob": 0.00022,
+      "omen": "",
+      "rounds": [],
+      "tier": ""
+    },
+    {
+      "hit": false,
+      "hit_prob": 0.00022,
+      "omen": "",
+      "rounds": [],
+      "tier": ""
+    },
+    {
+      "hit": false,
+      "hit_prob": 0.00022,
+      "omen": "",
+      "rounds": [],
+      "tier": ""
+    },
+    {
+      "hit": false,
+      "hit_prob": 0.01022,
+      "omen": "red",
+      "rounds": [],
+      "tier": ""
+    },
+    {
+      "hit": false,
+      "hit_prob": 0.00022,
+      "omen": "",
+      "rounds": [],
+      "tier": ""
+    },
+    {
+      "hit": false,
+      "hit_prob": 0.00022,
+      "omen": "",
+      "rounds": [],
+      "tier": ""
+    },
+    {
+      "hit": false,
+      "hit_prob": 0.00022,
+      "omen": "",
+      "rounds": [],
+      "tier": ""
+    },
+    {
+      "hit": false,
+      "hit_prob": 0.01022,
+      "omen": "",
+      "rounds": [],
+      "tier": "normal"
+    },
+    {
+      "hit": false,
+      "hit_prob": 0.01022,
+      "omen": "",
+      "rounds": [],
+      "tier": "normal"
+    },
+    {
+      "hit": false,
+      "hit_prob": 0.00022,
+      "omen": "",
+      "rounds": [],
+      "tier": ""
+    },
+    {
+      "hit": false,
+      "hit_prob": 0.00222,
+      "omen": "blue",
+      "rounds": [],
+      "tier": ""
+    },
+    {
+      "hit": false,
+      "hit_prob": 0.00222,
+      "omen": "blue",
+      "rounds": [],
+      "tier": ""
+    },
+    {
+      "hit": false,
+      "hit_prob": 0.01022,
+      "omen": "",
+      "rounds": [],
+      "tier": "normal"
+    },
+    {
+      "hit": false,
+      "hit_prob": 0.00222,
+      "omen": "blue",
+      "rounds": [],
+      "tier": ""
+    },
+    {
+      "hit": false,
+      "hit_prob": 0.00022,
+      "omen": "",
+      "rounds": [],
+      "tier": ""
+    },
+    {
+      "hit": false,
+      "hit_prob": 0.00022,
+      "omen": "",
+      "rounds": [],
+      "tier": ""
+    },
+    {
+      "hit": false,
+      "hit_prob": 0.00022,
+      "omen": "",
+      "rounds": [],
+      "tier": ""
+    },
+    {
+      "hit": false,
+      "hit_prob": 0.00022,
+      "omen": "",
+      "rounds": [],
+      "tier": ""
+    },
+    {
+      "hit": false,
+      "hit_prob": 0.00022,
+      "omen": "",
+      "rounds": [],
+      "tier": ""
+    },
+    {
+      "hit": false,
+      "hit_prob": 0.00022,
+      "omen": "",
+      "rounds": [],
+      "tier": ""
+    },
+    {
+      "hit": false,
+      "hit_prob": 0.00022,
+      "omen": "",
+      "rounds": [],
+      "tier": ""
+    },
+    {
+      "hit": false,
+      "hit_prob": 0.45022,
+      "omen": "",
+      "rounds": [],
+      "tier": "premium"
+    },
+    {
+      "hit": false,
+      "hit_prob": 0.00022,
+      "omen": "",
+      "rounds": [],
+      "tier": ""
+    },
+    {
+      "hit": false,
+      "hit_prob": 0.00022,
+      "omen": "",
+      "rounds": [],
+      "tier": ""
+    },
+    {
+      "hit": false,
+      "hit_prob": 0.00222,
+      "omen": "blue",
+      "rounds": [],
+      "tier": ""
+    },
+    {
+      "hit": false,
+      "hit_prob": 0.01022,
+      "omen": "",
+      "rounds": [],
+      "tier": "normal"
+    },
+    {
+      "hit": false,
+      "hit_prob": 0.00022,
+      "omen": "",
+      "rounds": [],
+      "tier": ""
+    },
+    {
+      "hit": false,
+      "hit_prob": 0.00022,
+      "omen": "",
+      "rounds": [],
+      "tier": ""
+    },
+    {
+      "hit": false,
+      "hit_prob": 0.00022,
+      "omen": "",
+      "rounds": [],
+      "tier": ""
+    }
+  ],
+  "stats": {
+    "hit_rate": 0.0884263112,
+    "hit_rate_by_omen": {
+      "": 0.01052,
+      "blue": 0.01252,
+      "gold": 0.09052,
+      "red": 0.02052
+    },
+    "hit_rate_by_tier": {
+      "": 0.00292,
+      "normal": 0.01292,
+      "premium": 0.45292,
+      "super": 0.12292
+    },
+    "mean_hit_prob": 0.01322,
+    "rtp": 0.9698192
+  }
+}

@@ -1,0 +1,1070 @@
+{
+  "classifications": [
+    {
+      "dice": [
+        1,
+        1,
+        1
+      ],
+      "hand": {
+        "kind": "pinzoro",
+        "value": 0
+      }
+    },
+    {
+      "dice": [
+        6,
+        6,
+        6
+      ],
+      "hand": {
+        "kind": "arashi",
+        "value": 6
+      }
+    },
+    {
+      "dice": [
+        2,
+        2,
+        2
+      ],
+      "hand": {
+        "kind": "arashi",
+        "value": 2
+      }
+    },
+    {
+      "dice": [
+        4,
+        5,
+        6
+      ],
+      "hand": {
+        "kind": "shigoro",
+        "value": 0
+      }
+    },
+    {
+      "dice": [
+        6,
+        6,
+        5
+      ],
+      "hand": {
+        "kind": "me",
+        "value": 5
+      }
+    },
+    {
+      "dice": [
+        3,
+        3,
+        1
+      ],
+      "hand": {
+        "kind": "me",
+        "value": 1
+      }
+    },
+    {
+      "dice": [
+        1,
+        3,
+        5
+      ],
+      "hand": {
+        "kind": "menashi",
+        "value": 0
+      }
+    },
+    {
+      "dice": [
+        1,
+        2,
+        3
+      ],
+      "hand": {
+        "kind": "hifumi",
+        "value": 0
+      }
+    }
+  ],
+  "matchups": [
+    {
+      "dealer_dice": [
+        6,
+        6,
+        6
+      ],
+      "dealer_hand": {
+        "kind": "arashi",
+        "value": 6
+      },
+      "outcome": {
+        "multiplier": 5,
+        "result": "win"
+      },
+      "payout_bet_1000": [
+        6000,
+        0
+      ],
+      "player_dice": [
+        1,
+        1,
+        1
+      ],
+      "player_hand": {
+        "kind": "pinzoro",
+        "value": 0
+      }
+    },
+    {
+      "dealer_dice": [
+        4,
+        5,
+        6
+      ],
+      "dealer_hand": {
+        "kind": "shigoro",
+        "value": 0
+      },
+      "outcome": {
+        "multiplier": 3,
+        "result": "win"
+      },
+      "payout_bet_1000": [
+        4000,
+        0
+      ],
+      "player_dice": [
+        6,
+        6,
+        6
+      ],
+      "player_hand": {
+        "kind": "arashi",
+        "value": 6
+      }
+    },
+    {
+      "dealer_dice": [
+        2,
+        2,
+        6
+      ],
+      "dealer_hand": {
+        "kind": "me",
+        "value": 6
+      },
+      "outcome": {
+        "multiplier": 2,
+        "result": "win"
+      },
+      "payout_bet_1000": [
+        3000,
+        0
+      ],
+      "player_dice": [
+        4,
+        5,
+        6
+      ],
+      "player_hand": {
+        "kind": "shigoro",
+        "value": 0
+      }
+    },
+    {
+      "dealer_dice": [
+        1,
+        1,
+        5
+      ],
+      "dealer_hand": {
+        "kind": "me",
+        "value": 5
+      },
+      "outcome": {
+        "multiplier": 1,
+        "result": "win"
+      },
+      "payout_bet_1000": [
+        2000,
+        0
+      ],
+      "player_dice": [
+        2,
+        2,
+        6
+      ],
+      "player_hand": {
+        "kind": "me",
+        "value": 6
+      }
+    },
+    {
+      "dealer_dice": [
+        2,
+        4,
+        6
+      ],
+      "dealer_hand": {
+        "kind": "menashi",
+        "value": 0
+      },
+      "outcome": {
+        "multiplier": 1,
+        "result": "lose"
+      },
+      "payout_bet_1000": [
+        0,
+        0
+      ],
+      "player_dice": [
+        1,
+        3,
+        5
+      ],
+      "player_hand": {
+        "kind": "menashi",
+        "value": 0
+      }
+    },
+    {
+      "dealer_dice": [
+        1,
+        3,
+        5
+      ],
+      "dealer_hand": {
+        "kind": "menashi",
+        "value": 0
+      },
+      "outcome": {
+        "multiplier": 2,
+        "result": "lose"
+      },
+      "payout_bet_1000": [
+        0,
+        1000
+      ],
+      "player_dice": [
+        1,
+        2,
+        3
+      ],
+      "player_hand": {
+        "kind": "hifumi",
+        "value": 0
+      }
+    },
+    {
+      "dealer_dice": [
+        1,
+        2,
+        3
+      ],
+      "dealer_hand": {
+        "kind": "hifumi",
+        "value": 0
+      },
+      "outcome": {
+        "multiplier": 0,
+        "result": "draw"
+      },
+      "payout_bet_1000": [
+        1000,
+        0
+      ],
+      "player_dice": [
+        1,
+        2,
+        3
+      ],
+      "player_hand": {
+        "kind": "hifumi",
+        "value": 0
+      }
+    },
+    {
+      "dealer_dice": [
+        1,
+        2,
+        3
+      ],
+      "dealer_hand": {
+        "kind": "hifumi",
+        "value": 0
+      },
+      "outcome": {
+        "multiplier": 2,
+        "result": "win"
+      },
+      "payout_bet_1000": [
+        3000,
+        0
+      ],
+      "player_dice": [
+        1,
+        3,
+        5
+      ],
+      "player_hand": {
+        "kind": "menashi",
+        "value": 0
+      }
+    },
+    {
+      "dealer_dice": [
+        5,
+        5,
+        4
+      ],
+      "dealer_hand": {
+        "kind": "me",
+        "value": 4
+      },
+      "outcome": {
+        "multiplier": 0,
+        "result": "draw"
+      },
+      "payout_bet_1000": [
+        1000,
+        0
+      ],
+      "player_dice": [
+        3,
+        3,
+        4
+      ],
+      "player_hand": {
+        "kind": "me",
+        "value": 4
+      }
+    }
+  ],
+  "module": "chinchiro",
+  "seed": 1002,
+  "seeded_rounds": [
+    {
+      "dealer_rolls": [
+        {
+          "dice": [
+            2,
+            2,
+            2
+          ],
+          "hand": {
+            "kind": "arashi",
+            "value": 2
+          }
+        }
+      ],
+      "outcome": {
+        "multiplier": 3,
+        "result": "lose"
+      },
+      "payout_bet_1000": [
+        0,
+        2000
+      ],
+      "player_rolls": [
+        {
+          "dice": [
+            5,
+            5,
+            4
+          ],
+          "hand": {
+            "kind": "me",
+            "value": 4
+          }
+        }
+      ],
+      "round": 0
+    },
+    {
+      "dealer_rolls": [
+        {
+          "dice": [
+            1,
+            6,
+            4
+          ],
+          "hand": {
+            "kind": "menashi",
+            "value": 0
+          }
+        },
+        {
+          "dice": [
+            5,
+            1,
+            2
+          ],
+          "hand": {
+            "kind": "menashi",
+            "value": 0
+          }
+        },
+        {
+          "dice": [
+            2,
+            1,
+            4
+          ],
+          "hand": {
+            "kind": "menashi",
+            "value": 0
+          }
+        }
+      ],
+      "outcome": {
+        "multiplier": 1,
+        "result": "win"
+      },
+      "payout_bet_1000": [
+        2000,
+        0
+      ],
+      "player_rolls": [
+        {
+          "dice": [
+            3,
+            4,
+            2
+          ],
+          "hand": {
+            "kind": "menashi",
+            "value": 0
+          }
+        },
+        {
+          "dice": [
+            6,
+            5,
+            5
+          ],
+          "hand": {
+            "kind": "me",
+            "value": 6
+          }
+        }
+      ],
+      "round": 1
+    },
+    {
+      "dealer_rolls": [
+        {
+          "dice": [
+            6,
+            2,
+            5
+          ],
+          "hand": {
+            "kind": "menashi",
+            "value": 0
+          }
+        },
+        {
+          "dice": [
+            2,
+            3,
+            4
+          ],
+          "hand": {
+            "kind": "menashi",
+            "value": 0
+          }
+        },
+        {
+          "dice": [
+            6,
+            6,
+            3
+          ],
+          "hand": {
+            "kind": "me",
+            "value": 3
+          }
+        }
+      ],
+      "outcome": {
+        "multiplier": 1,
+        "result": "lose"
+      },
+      "payout_bet_1000": [
+        0,
+        0
+      ],
+      "player_rolls": [
+        {
+          "dice": [
+            1,
+            5,
+            5
+          ],
+          "hand": {
+            "kind": "me",
+            "value": 1
+          }
+        }
+      ],
+      "round": 2
+    },
+    {
+      "dealer_rolls": [
+        {
+          "dice": [
+            6,
+            6,
+            4
+          ],
+          "hand": {
+            "kind": "me",
+            "value": 4
+          }
+        }
+      ],
+      "outcome": {
+        "multiplier": 1,
+        "result": "lose"
+      },
+      "payout_bet_1000": [
+        0,
+        0
+      ],
+      "player_rolls": [
+        {
+          "dice": [
+            1,
+            5,
+            5
+          ],
+          "hand": {
+            "kind": "me",
+            "value": 1
+          }
+        }
+      ],
+      "round": 3
+    },
+    {
+      "dealer_rolls": [
+        {
+          "dice": [
+            6,
+            1,
+            6
+          ],
+          "hand": {
+            "kind": "me",
+            "value": 1
+          }
+        }
+      ],
+      "outcome": {
+        "multiplier": 1,
+        "result": "win"
+      },
+      "payout_bet_1000": [
+        2000,
+        0
+      ],
+      "player_rolls": [
+        {
+          "dice": [
+            5,
+            3,
+            6
+          ],
+          "hand": {
+            "kind": "menashi",
+            "value": 0
+          }
+        },
+        {
+          "dice": [
+            1,
+            1,
+            4
+          ],
+          "hand": {
+            "kind": "me",
+            "value": 4
+          }
+        }
+      ],
+      "round": 4
+    },
+    {
+      "dealer_rolls": [
+        {
+          "dice": [
+            4,
+            1,
+            4
+          ],
+          "hand": {
+            "kind": "me",
+            "value": 1
+          }
+        }
+      ],
+      "outcome": {
+        "multiplier": 1,
+        "result": "win"
+      },
+      "payout_bet_1000": [
+        2000,
+        0
+      ],
+      "player_rolls": [
+        {
+          "dice": [
+            1,
+            4,
+            3
+          ],
+          "hand": {
+            "kind": "menashi",
+            "value": 0
+          }
+        },
+        {
+          "dice": [
+            5,
+            2,
+            5
+          ],
+          "hand": {
+            "kind": "me",
+            "value": 2
+          }
+        }
+      ],
+      "round": 5
+    },
+    {
+      "dealer_rolls": [
+        {
+          "dice": [
+            2,
+            1,
+            1
+          ],
+          "hand": {
+            "kind": "me",
+            "value": 2
+          }
+        }
+      ],
+      "outcome": {
+        "multiplier": 1,
+        "result": "lose"
+      },
+      "payout_bet_1000": [
+        0,
+        0
+      ],
+      "player_rolls": [
+        {
+          "dice": [
+            1,
+            5,
+            5
+          ],
+          "hand": {
+            "kind": "me",
+            "value": 1
+          }
+        }
+      ],
+      "round": 6
+    },
+    {
+      "dealer_rolls": [
+        {
+          "dice": [
+            4,
+            1,
+            4
+          ],
+          "hand": {
+            "kind": "me",
+            "value": 1
+          }
+        }
+      ],
+      "outcome": {
+        "multiplier": 1,
+        "result": "win"
+      },
+      "payout_bet_1000": [
+        2000,
+        0
+      ],
+      "player_rolls": [
+        {
+          "dice": [
+            1,
+            4,
+            1
+          ],
+          "hand": {
+            "kind": "me",
+            "value": 4
+          }
+        }
+      ],
+      "round": 7
+    },
+    {
+      "dealer_rolls": [
+        {
+          "dice": [
+            2,
+            2,
+            6
+          ],
+          "hand": {
+            "kind": "me",
+            "value": 6
+          }
+        }
+      ],
+      "outcome": {
+        "multiplier": 1,
+        "result": "lose"
+      },
+      "payout_bet_1000": [
+        0,
+        0
+      ],
+      "player_rolls": [
+        {
+          "dice": [
+            3,
+            1,
+            1
+          ],
+          "hand": {
+            "kind": "me",
+            "value": 3
+          }
+        }
+      ],
+      "round": 8
+    },
+    {
+      "dealer_rolls": [
+        {
+          "dice": [
+            1,
+            2,
+            1
+          ],
+          "hand": {
+            "kind": "me",
+            "value": 2
+          }
+        }
+      ],
+      "outcome": {
+        "multiplier": 1,
+        "result": "win"
+      },
+      "payout_bet_1000": [
+        2000,
+        0
+      ],
+      "player_rolls": [
+        {
+          "dice": [
+            1,
+            5,
+            1
+          ],
+          "hand": {
+            "kind": "me",
+            "value": 5
+          }
+        }
+      ],
+      "round": 9
+    },
+    {
+      "dealer_rolls": [
+        {
+          "dice": [
+            4,
+            3,
+            6
+          ],
+          "hand": {
+            "kind": "menashi",
+            "value": 0
+          }
+        },
+        {
+          "dice": [
+            4,
+            4,
+            2
+          ],
+          "hand": {
+            "kind": "me",
+            "value": 2
+          }
+        }
+      ],
+      "outcome": {
+        "multiplier": 1,
+        "result": "lose"
+      },
+      "payout_bet_1000": [
+        0,
+        0
+      ],
+      "player_rolls": [
+        {
+          "dice": [
+            2,
+            1,
+            2
+          ],
+          "hand": {
+            "kind": "me",
+            "value": 1
+          }
+        }
+      ],
+      "round": 10
+    },
+    {
+      "dealer_rolls": [
+        {
+          "dice": [
+            4,
+            2,
+            1
+          ],
+          "hand": {
+            "kind": "menashi",
+            "value": 0
+          }
+        },
+        {
+          "dice": [
+            1,
+            3,
+            5
+          ],
+          "hand": {
+            "kind": "menashi",
+            "value": 0
+          }
+        },
+        {
+          "dice": [
+            6,
+            3,
+            4
+          ],
+          "hand": {
+            "kind": "menashi",
+            "value": 0
+          }
+        }
+      ],
+      "outcome": {
+        "multiplier": 1,
+        "result": "win"
+      },
+      "payout_bet_1000": [
+        2000,
+        0
+      ],
+      "player_rolls": [
+        {
+          "dice": [
+            3,
+            2,
+            4
+          ],
+          "hand": {
+            "kind": "menashi",
+            "value": 0
+          }
+        },
+        {
+          "dice": [
+            5,
+            1,
+            5
+          ],
+          "hand": {
+            "kind": "me",
+            "value": 1
+          }
+        }
+      ],
+      "round": 11
+    },
+    {
+      "dealer_rolls": [
+        {
+          "dice": [
+            1,
+            1,
+            3
+          ],
+          "hand": {
+            "kind": "me",
+            "value": 3
+          }
+        }
+      ],
+      "outcome": {
+        "multiplier": 0,
+        "result": "draw"
+      },
+      "payout_bet_1000": [
+        1000,
+        0
+      ],
+      "player_rolls": [
+        {
+          "dice": [
+            1,
+            5,
+            4
+          ],
+          "hand": {
+            "kind": "menashi",
+            "value": 0
+          }
+        },
+        {
+          "dice": [
+            3,
+            6,
+            6
+          ],
+          "hand": {
+            "kind": "me",
+            "value": 3
+          }
+        }
+      ],
+      "round": 12
+    },
+    {
+      "dealer_rolls": [
+        {
+          "dice": [
+            6,
+            5,
+            3
+          ],
+          "hand": {
+            "kind": "menashi",
+            "value": 0
+          }
+        },
+        {
+          "dice": [
+            1,
+            1,
+            2
+          ],
+          "hand": {
+            "kind": "me",
+            "value": 2
+          }
+        }
+      ],
+      "outcome": {
+        "multiplier": 1,
+        "result": "lose"
+      },
+      "payout_bet_1000": [
+        0,
+        0
+      ],
+      "player_rolls": [
+        {
+          "dice": [
+            5,
+            4,
+            1
+          ],
+          "hand": {
+            "kind": "menashi",
+            "value": 0
+          }
+        },
+        {
+          "dice": [
+            4,
+            2,
+            5
+          ],
+          "hand": {
+            "kind": "menashi",
+            "value": 0
+          }
+        },
+        {
+          "dice": [
+            6,
+            1,
+            6
+          ],
+          "hand": {
+            "kind": "me",
+            "value": 1
+          }
+        }
+      ],
+      "round": 13
+    },
+    {
+      "dealer_rolls": [
+        {
+          "dice": [
+            3,
+            6,
+            3
+          ],
+          "hand": {
+            "kind": "me",
+            "value": 6
+          }
+        }
+      ],
+      "outcome": {
+        "multiplier": 1,
+        "result": "lose"
+      },
+      "payout_bet_1000": [
+        0,
+        0
+      ],
+      "player_rolls": [
+        {
+          "dice": [
+            5,
+            4,
+            4
+          ],
+          "hand": {
+            "kind": "me",
+            "value": 5
+          }
+        }
+      ],
+      "round": 14
+    }
+  ]
+}

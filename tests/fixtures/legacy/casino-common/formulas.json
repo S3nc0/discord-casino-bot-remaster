@@ -1,0 +1,539 @@
+{
+  "events": {
+    "active_during_hour": {
+      "day": "2025-01-06",
+      "game": "チンチロ",
+      "start_min": 805
+    },
+    "active_outside_hour": null,
+    "bonuses": [
+      {
+        "bet": 1000,
+        "bonus": 1000,
+        "boost": 0.5,
+        "payout": 3000
+      },
+      {
+        "bet": 1000,
+        "bonus": 0,
+        "boost": 0.5,
+        "payout": 1000
+      },
+      {
+        "bet": 1000,
+        "bonus": 0,
+        "boost": 0.5,
+        "payout": 0
+      },
+      {
+        "best_boost_manual_higher": 0.5,
+        "best_boost_scheduled_only": 0.5
+      }
+    ],
+    "guild_id": 100000000000000001,
+    "weekly_schedule": [
+      {
+        "day": "2025-01-06",
+        "event": {
+          "day": "2025-01-06",
+          "game": "チンチロ",
+          "start_min": 805
+        }
+      },
+      {
+        "day": "2025-01-07",
+        "event": {
+          "day": "2025-01-07",
+          "game": "パチンコ",
+          "start_min": 815
+        }
+      },
+      {
+        "day": "2025-01-08",
+        "event": {
+          "day": "2025-01-08",
+          "game": "チンチロ",
+          "start_min": 1215
+        }
+      },
+      {
+        "day": "2025-01-09",
+        "event": {
+          "day": "2025-01-09",
+          "game": "チンチロ",
+          "start_min": 830
+        }
+      },
+      {
+        "day": "2025-01-10",
+        "event": {
+          "day": "2025-01-10",
+          "game": "ブラックジャック",
+          "start_min": 725
+        }
+      },
+      {
+        "day": "2025-01-11",
+        "event": {
+          "day": "2025-01-11",
+          "game": "スロット",
+          "start_min": 1050
+        }
+      },
+      {
+        "day": "2025-01-12",
+        "event": {
+          "day": "2025-01-12",
+          "game": "スロット",
+          "start_min": 1055
+        }
+      }
+    ]
+  },
+  "jackpot": {
+    "draws": [
+      {
+        "hit": false,
+        "trial": 0
+      },
+      {
+        "hit": false,
+        "trial": 1
+      },
+      {
+        "hit": false,
+        "trial": 2
+      },
+      {
+        "hit": false,
+        "trial": 3
+      },
+      {
+        "hit": false,
+        "trial": 4
+      },
+      {
+        "hit": false,
+        "trial": 5
+      },
+      {
+        "hit": false,
+        "trial": 6
+      },
+      {
+        "hit": false,
+        "trial": 7
+      },
+      {
+        "hit": false,
+        "trial": 8
+      },
+      {
+        "hit": false,
+        "trial": 9
+      },
+      {
+        "hit": false,
+        "trial": 10
+      },
+      {
+        "hit": false,
+        "trial": 11
+      },
+      {
+        "hit": false,
+        "trial": 12
+      },
+      {
+        "hit": false,
+        "trial": 13
+      },
+      {
+        "hit": false,
+        "trial": 14
+      },
+      {
+        "hit": false,
+        "trial": 15
+      },
+      {
+        "hit": false,
+        "trial": 16
+      },
+      {
+        "hit": false,
+        "trial": 17
+      },
+      {
+        "hit": false,
+        "trial": 18
+      },
+      {
+        "hit": false,
+        "trial": 19
+      },
+      {
+        "hit": false,
+        "trial": 20
+      },
+      {
+        "hit": false,
+        "trial": 21
+      },
+      {
+        "hit": false,
+        "trial": 22
+      },
+      {
+        "hit": false,
+        "trial": 23
+      },
+      {
+        "hit": false,
+        "trial": 24
+      }
+    ],
+    "formulas": [
+      {
+        "bet": 100,
+        "chance": 5e-05,
+        "contribution": 5,
+        "pool": 10000
+      },
+      {
+        "bet": 1000,
+        "chance": 0.0005,
+        "contribution": 50,
+        "pool": 50000
+      },
+      {
+        "bet": 5000,
+        "chance": 0.0025,
+        "contribution": 250,
+        "pool": 100000
+      },
+      {
+        "bet": 10000,
+        "chance": 0.005,
+        "contribution": 500,
+        "pool": 500000
+      }
+    ]
+  },
+  "module": "casino-common",
+  "rtp_levels": [
+    {
+      "base_stats": [
+        0.985,
+        0.653
+      ],
+      "game": "チンチロ",
+      "kind": null,
+      "levels": {
+        "1": {
+          "adjust_1000_loss_0": 0,
+          "adjust_1000_push_1000": 1000,
+          "adjust_1000_win_2000": 1877,
+          "approx_rtp": 0.905,
+          "factor": 0.8774885145
+        },
+        "2": {
+          "adjust_1000_loss_0": 0,
+          "adjust_1000_push_1000": 1000,
+          "adjust_1000_win_2000": 1938,
+          "approx_rtp": 0.945,
+          "factor": 0.9387442573
+        },
+        "3": {
+          "adjust_1000_loss_0": 0,
+          "adjust_1000_push_1000": 1000,
+          "adjust_1000_win_2000": 2000,
+          "approx_rtp": 0.985,
+          "factor": 1.0
+        },
+        "4": {
+          "adjust_1000_loss_0": 0,
+          "adjust_1000_push_1000": 1000,
+          "adjust_1000_win_2000": 2061,
+          "approx_rtp": 1.025,
+          "factor": 1.0612557427
+        },
+        "5": {
+          "adjust_1000_loss_0": 0,
+          "adjust_1000_push_1000": 1000,
+          "adjust_1000_win_2000": 2122,
+          "approx_rtp": 1.065,
+          "factor": 1.1225114855
+        },
+        "6": {
+          "adjust_1000_loss_0": 0,
+          "adjust_1000_push_1000": 1000,
+          "adjust_1000_win_2000": 2183,
+          "approx_rtp": 1.105,
+          "factor": 1.1837672282
+        }
+      }
+    },
+    {
+      "base_stats": [
+        0.9726091773,
+        0.5674532577
+      ],
+      "game": "スロット",
+      "kind": null,
+      "levels": {
+        "1": {
+          "adjust_1000_loss_0": 0,
+          "adjust_1000_push_1000": 1000,
+          "adjust_1000_win_2000": 1859,
+          "approx_rtp": 0.8926091773,
+          "factor": 0.8590192251
+        },
+        "2": {
+          "adjust_1000_loss_0": 0,
+          "adjust_1000_push_1000": 1000,
+          "adjust_1000_win_2000": 1929,
+          "approx_rtp": 0.9326091773,
+          "factor": 0.9295096125
+        },
+        "3": {
+          "adjust_1000_loss_0": 0,
+          "adjust_1000_push_1000": 1000,
+          "adjust_1000_win_2000": 2000,
+          "approx_rtp": 0.9726091773,
+          "factor": 1.0
+        },
+        "4": {
+          "adjust_1000_loss_0": 0,
+          "adjust_1000_push_1000": 1000,
+          "adjust_1000_win_2000": 2070,
+          "approx_rtp": 1.0126091773,
+          "factor": 1.0704903875
+        },
+        "5": {
+          "adjust_1000_loss_0": 0,
+          "adjust_1000_push_1000": 1000,
+          "adjust_1000_win_2000": 2140,
+          "approx_rtp": 1.0526091773,
+          "factor": 1.1409807749
+        },
+        "6": {
+          "adjust_1000_loss_0": 0,
+          "adjust_1000_push_1000": 1000,
+          "adjust_1000_win_2000": 2211,
+          "approx_rtp": 1.0926091773,
+          "factor": 1.2114711624
+        }
+      }
+    },
+    {
+      "base_stats": [
+        0.918,
+        0.412
+      ],
+      "game": "ブラックジャック",
+      "kind": null,
+      "levels": {
+        "1": {
+          "adjust_1000_loss_0": 0,
+          "adjust_1000_push_1000": 1000,
+          "adjust_1000_win_2000": 1805,
+          "approx_rtp": 0.838,
+          "factor": 0.8058252427
+        },
+        "2": {
+          "adjust_1000_loss_0": 0,
+          "adjust_1000_push_1000": 1000,
+          "adjust_1000_win_2000": 1902,
+          "approx_rtp": 0.878,
+          "factor": 0.9029126214
+        },
+        "3": {
+          "adjust_1000_loss_0": 0,
+          "adjust_1000_push_1000": 1000,
+          "adjust_1000_win_2000": 2000,
+          "approx_rtp": 0.918,
+          "factor": 1.0
+        },
+        "4": {
+          "adjust_1000_loss_0": 0,
+          "adjust_1000_push_1000": 1000,
+          "adjust_1000_win_2000": 2097,
+          "approx_rtp": 0.958,
+          "factor": 1.0970873786
+        },
+        "5": {
+          "adjust_1000_loss_0": 0,
+          "adjust_1000_push_1000": 1000,
+          "adjust_1000_win_2000": 2194,
+          "approx_rtp": 0.998,
+          "factor": 1.1941747573
+        },
+        "6": {
+          "adjust_1000_loss_0": 0,
+          "adjust_1000_push_1000": 1000,
+          "adjust_1000_win_2000": 2291,
+          "approx_rtp": 1.038,
+          "factor": 1.2912621359
+        }
+      }
+    },
+    {
+      "base_stats": [
+        0.9698192,
+        0.8813928888
+      ],
+      "game": "パチンコ",
+      "kind": null,
+      "levels": {
+        "1": {
+          "adjust_1000_loss_0": 0,
+          "adjust_1000_push_1000": 1000,
+          "adjust_1000_win_2000": 1909,
+          "approx_rtp": 0.8898192,
+          "factor": 0.9092345752
+        },
+        "2": {
+          "adjust_1000_loss_0": 0,
+          "adjust_1000_push_1000": 1000,
+          "adjust_1000_win_2000": 1954,
+          "approx_rtp": 0.9298192,
+          "factor": 0.9546172876
+        },
+        "3": {
+          "adjust_1000_loss_0": 0,
+          "adjust_1000_push_1000": 1000,
+          "adjust_1000_win_2000": 2000,
+          "approx_rtp": 0.9698192,
+          "factor": 1.0
+        },
+        "4": {
+          "adjust_1000_loss_0": 0,
+          "adjust_1000_push_1000": 1000,
+          "adjust_1000_win_2000": 2045,
+          "approx_rtp": 1.0098192,
+          "factor": 1.0453827124
+        },
+        "5": {
+          "adjust_1000_loss_0": 0,
+          "adjust_1000_push_1000": 1000,
+          "adjust_1000_win_2000": 2090,
+          "approx_rtp": 1.0498192,
+          "factor": 1.0907654248
+        },
+        "6": {
+          "adjust_1000_loss_0": 0,
+          "adjust_1000_push_1000": 1000,
+          "adjust_1000_win_2000": 2136,
+          "approx_rtp": 1.0898192,
+          "factor": 1.1361481373
+        }
+      }
+    },
+    {
+      "base_stats": [
+        0.972972973,
+        0.4864864865
+      ],
+      "game": "ルーレット",
+      "kind": "red",
+      "levels": {
+        "1": {
+          "adjust_1000_loss_0": 0,
+          "adjust_1000_push_1000": 1000,
+          "adjust_1000_win_2000": 1835,
+          "approx_rtp": 0.892972973,
+          "factor": 0.8355555556
+        },
+        "2": {
+          "adjust_1000_loss_0": 0,
+          "adjust_1000_push_1000": 1000,
+          "adjust_1000_win_2000": 1917,
+          "approx_rtp": 0.932972973,
+          "factor": 0.9177777778
+        },
+        "3": {
+          "adjust_1000_loss_0": 0,
+          "adjust_1000_push_1000": 1000,
+          "adjust_1000_win_2000": 2000,
+          "approx_rtp": 0.972972973,
+          "factor": 1.0
+        },
+        "4": {
+          "adjust_1000_loss_0": 0,
+          "adjust_1000_push_1000": 1000,
+          "adjust_1000_win_2000": 2082,
+          "approx_rtp": 1.012972973,
+          "factor": 1.0822222222
+        },
+        "5": {
+          "adjust_1000_loss_0": 0,
+          "adjust_1000_push_1000": 1000,
+          "adjust_1000_win_2000": 2164,
+          "approx_rtp": 1.052972973,
+          "factor": 1.1644444444
+        },
+        "6": {
+          "adjust_1000_loss_0": 0,
+          "adjust_1000_push_1000": 1000,
+          "adjust_1000_win_2000": 2246,
+          "approx_rtp": 1.092972973,
+          "factor": 1.2466666667
+        }
+      }
+    },
+    {
+      "base_stats": [
+        0.972972973,
+        0.9459459459
+      ],
+      "game": "ルーレット",
+      "kind": "number",
+      "levels": {
+        "1": {
+          "adjust_1000_loss_0": 0,
+          "adjust_1000_push_1000": 1000,
+          "adjust_1000_win_2000": 1915,
+          "approx_rtp": 0.892972973,
+          "factor": 0.9154285714
+        },
+        "2": {
+          "adjust_1000_loss_0": 0,
+          "adjust_1000_push_1000": 1000,
+          "adjust_1000_win_2000": 1957,
+          "approx_rtp": 0.932972973,
+          "factor": 0.9577142857
+        },
+        "3": {
+          "adjust_1000_loss_0": 0,
+          "adjust_1000_push_1000": 1000,
+          "adjust_1000_win_2000": 2000,
+          "approx_rtp": 0.972972973,
+          "factor": 1.0
+        },
+        "4": {
+          "adjust_1000_loss_0": 0,
+          "adjust_1000_push_1000": 1000,
+          "adjust_1000_win_2000": 2042,
+          "approx_rtp": 1.012972973,
+          "factor": 1.0422857143
+        },
+        "5": {
+          "adjust_1000_loss_0": 0,
+          "adjust_1000_push_1000": 1000,
+          "adjust_1000_win_2000": 2084,
+          "approx_rtp": 1.052972973,
+          "factor": 1.0845714286
+        },
+        "6": {
+          "adjust_1000_loss_0": 0,
+          "adjust_1000_push_1000": 1000,
+          "adjust_1000_win_2000": 2126,
+          "approx_rtp": 1.092972973,
+          "factor": 1.1268571429
+        }
+      }
+    }
+  ],
+  "seed": 1001
+}

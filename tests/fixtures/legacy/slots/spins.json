@@ -1,0 +1,481 @@
+{
+  "explicit_combos": [
+    {
+      "label": "7️⃣ 大当たり！！",
+      "multiplier": 500,
+      "reels": [
+        "7️⃣",
+        "7️⃣",
+        "7️⃣"
+      ]
+    },
+    {
+      "label": "💎 3つ揃い！",
+      "multiplier": 100,
+      "reels": [
+        "💎",
+        "💎",
+        "💎"
+      ]
+    },
+    {
+      "label": "🔔 3つ揃い！",
+      "multiplier": 30,
+      "reels": [
+        "🔔",
+        "🔔",
+        "🔔"
+      ]
+    },
+    {
+      "label": "🍇 3つ揃い！",
+      "multiplier": 15,
+      "reels": [
+        "🍇",
+        "🍇",
+        "🍇"
+      ]
+    },
+    {
+      "label": "🍒 3つ揃い！",
+      "multiplier": 5,
+      "reels": [
+        "🍒",
+        "🍒",
+        "🍒"
+      ]
+    },
+    {
+      "label": "🍒🍒 チェリー2つ",
+      "multiplier": 1.5,
+      "reels": [
+        "🍒",
+        "🍒",
+        "🍋"
+      ]
+    },
+    {
+      "label": "🍒 チェリー（少し戻り）",
+      "multiplier": 0.3,
+      "reels": [
+        "🍒",
+        "🔔",
+        "🍋"
+      ]
+    },
+    {
+      "label": "ハズレ",
+      "multiplier": 0,
+      "reels": [
+        "🔔",
+        "🍇",
+        "🍋"
+      ]
+    }
+  ],
+  "module": "slots",
+  "rtp": 0.9726091773,
+  "seed": 1004,
+  "seeded_spins": [
+    {
+      "label": "ハズレ",
+      "multiplier": 0,
+      "reels": [
+        "🍋",
+        "7️⃣",
+        "🍇"
+      ],
+      "spin": 0
+    },
+    {
+      "label": "🍒 チェリー（少し戻り）",
+      "multiplier": 0.3,
+      "reels": [
+        "🍇",
+        "🍋",
+        "🍒"
+      ],
+      "spin": 1
+    },
+    {
+      "label": "🍒 チェリー（少し戻り）",
+      "multiplier": 0.3,
+      "reels": [
+        "🔔",
+        "🔔",
+        "🍒"
+      ],
+      "spin": 2
+    },
+    {
+      "label": "🍇 3つ揃い！",
+      "multiplier": 15,
+      "reels": [
+        "🍇",
+        "🍇",
+        "🍇"
+      ],
+      "spin": 3
+    },
+    {
+      "label": "ハズレ",
+      "multiplier": 0,
+      "reels": [
+        "🔔",
+        "🔔",
+        "🍋"
+      ],
+      "spin": 4
+    },
+    {
+      "label": "🍒 チェリー（少し戻り）",
+      "multiplier": 0.3,
+      "reels": [
+        "🍋",
+        "🍇",
+        "🍒"
+      ],
+      "spin": 5
+    },
+    {
+      "label": "🍒🍒 チェリー2つ",
+      "multiplier": 1.5,
+      "reels": [
+        "🍒",
+        "🍒",
+        "🔔"
+      ],
+      "spin": 6
+    },
+    {
+      "label": "🍒🍒 チェリー2つ",
+      "multiplier": 1.5,
+      "reels": [
+        "🍋",
+        "🍒",
+        "🍒"
+      ],
+      "spin": 7
+    },
+    {
+      "label": "🍒🍒 チェリー2つ",
+      "multiplier": 1.5,
+      "reels": [
+        "🍒",
+        "7️⃣",
+        "🍒"
+      ],
+      "spin": 8
+    },
+    {
+      "label": "🍒 チェリー（少し戻り）",
+      "multiplier": 0.3,
+      "reels": [
+        "7️⃣",
+        "🍋",
+        "🍒"
+      ],
+      "spin": 9
+    },
+    {
+      "label": "🍒 チェリー（少し戻り）",
+      "multiplier": 0.3,
+      "reels": [
+        "🍒",
+        "🔔",
+        "🍋"
+      ],
+      "spin": 10
+    },
+    {
+      "label": "🍒 チェリー（少し戻り）",
+      "multiplier": 0.3,
+      "reels": [
+        "💎",
+        "🍒",
+        "🔔"
+      ],
+      "spin": 11
+    },
+    {
+      "label": "ハズレ",
+      "multiplier": 0,
+      "reels": [
+        "🍇",
+        "🔔",
+        "🍋"
+      ],
+      "spin": 12
+    },
+    {
+      "label": "🍒 チェリー（少し戻り）",
+      "multiplier": 0.3,
+      "reels": [
+        "🍇",
+        "🍋",
+        "🍒"
+      ],
+      "spin": 13
+    },
+    {
+      "label": "🍒 チェリー（少し戻り）",
+      "multiplier": 0.3,
+      "reels": [
+        "🍒",
+        "🍋",
+        "🍇"
+      ],
+      "spin": 14
+    },
+    {
+      "label": "🍒🍒 チェリー2つ",
+      "multiplier": 1.5,
+      "reels": [
+        "🍒",
+        "🍒",
+        "💎"
+      ],
+      "spin": 15
+    },
+    {
+      "label": "ハズレ",
+      "multiplier": 0,
+      "reels": [
+        "🍋",
+        "🍋",
+        "🍇"
+      ],
+      "spin": 16
+    },
+    {
+      "label": "🍒 チェリー（少し戻り）",
+      "multiplier": 0.3,
+      "reels": [
+        "🍒",
+        "🍋",
+        "🍋"
+      ],
+      "spin": 17
+    },
+    {
+      "label": "ハズレ",
+      "multiplier": 0,
+      "reels": [
+        "🍇",
+        "🍋",
+        "🍇"
+      ],
+      "spin": 18
+    },
+    {
+      "label": "ハズレ",
+      "multiplier": 0,
+      "reels": [
+        "💎",
+        "🍋",
+        "🔔"
+      ],
+      "spin": 19
+    },
+    {
+      "label": "ハズレ",
+      "multiplier": 0,
+      "reels": [
+        "🍋",
+        "💎",
+        "🍋"
+      ],
+      "spin": 20
+    },
+    {
+      "label": "🍒 チェリー（少し戻り）",
+      "multiplier": 0.3,
+      "reels": [
+        "🍒",
+        "💎",
+        "🍇"
+      ],
+      "spin": 21
+    },
+    {
+      "label": "🍒 チェリー（少し戻り）",
+      "multiplier": 0.3,
+      "reels": [
+        "🍒",
+        "🍋",
+        "🍋"
+      ],
+      "spin": 22
+    },
+    {
+      "label": "🍒 3つ揃い！",
+      "multiplier": 5,
+      "reels": [
+        "🍒",
+        "🍒",
+        "🍒"
+      ],
+      "spin": 23
+    },
+    {
+      "label": "🍒🍒 チェリー2つ",
+      "multiplier": 1.5,
+      "reels": [
+        "🍒",
+        "🍒",
+        "🔔"
+      ],
+      "spin": 24
+    },
+    {
+      "label": "ハズレ",
+      "multiplier": 0,
+      "reels": [
+        "🔔",
+        "🍋",
+        "🍋"
+      ],
+      "spin": 25
+    },
+    {
+      "label": "ハズレ",
+      "multiplier": 0,
+      "reels": [
+        "🔔",
+        "🍇",
+        "🍋"
+      ],
+      "spin": 26
+    },
+    {
+      "label": "🍒 チェリー（少し戻り）",
+      "multiplier": 0.3,
+      "reels": [
+        "🍋",
+        "7️⃣",
+        "🍒"
+      ],
+      "spin": 27
+    },
+    {
+      "label": "🍒 チェリー（少し戻り）",
+      "multiplier": 0.3,
+      "reels": [
+        "🍇",
+        "🍋",
+        "🍒"
+      ],
+      "spin": 28
+    },
+    {
+      "label": "🍒 チェリー（少し戻り）",
+      "multiplier": 0.3,
+      "reels": [
+        "🍋",
+        "🍒",
+        "🍇"
+      ],
+      "spin": 29
+    },
+    {
+      "label": "🍇 3つ揃い！",
+      "multiplier": 15,
+      "reels": [
+        "🍇",
+        "🍇",
+        "🍇"
+      ],
+      "spin": 30
+    },
+    {
+      "label": "🍒🍒 チェリー2つ",
+      "multiplier": 1.5,
+      "reels": [
+        "🍒",
+        "🍒",
+        "🍇"
+      ],
+      "spin": 31
+    },
+    {
+      "label": "ハズレ",
+      "multiplier": 0,
+      "reels": [
+        "7️⃣",
+        "🍇",
+        "💎"
+      ],
+      "spin": 32
+    },
+    {
+      "label": "ハズレ",
+      "multiplier": 0,
+      "reels": [
+        "🔔",
+        "🍋",
+        "🍇"
+      ],
+      "spin": 33
+    },
+    {
+      "label": "🍒🍒 チェリー2つ",
+      "multiplier": 1.5,
+      "reels": [
+        "💎",
+        "🍒",
+        "🍒"
+      ],
+      "spin": 34
+    },
+    {
+      "label": "🍒 チェリー（少し戻り）",
+      "multiplier": 0.3,
+      "reels": [
+        "🔔",
+        "7️⃣",
+        "🍒"
+      ],
+      "spin": 35
+    },
+    {
+      "label": "ハズレ",
+      "multiplier": 0,
+      "reels": [
+        "🍋",
+        "💎",
+        "🍇"
+      ],
+      "spin": 36
+    },
+    {
+      "label": "🍒 チェリー（少し戻り）",
+      "multiplier": 0.3,
+      "reels": [
+        "🔔",
+        "🍒",
+        "🍋"
+      ],
+      "spin": 37
+    },
+    {
+      "label": "🍒 チェリー（少し戻り）",
+      "multiplier": 0.3,
+      "reels": [
+        "🍇",
+        "🍒",
+        "🍋"
+      ],
+      "spin": 38
+    },
+    {
+      "label": "ハズレ",
+      "multiplier": 0,
+      "reels": [
+        "💎",
+        "💎",
+        "🍋"
+      ],
+      "spin": 39
+    }
+  ]
+}

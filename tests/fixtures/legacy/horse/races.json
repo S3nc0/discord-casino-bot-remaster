@@ -1,0 +1,363 @@
+{
+  "combo_checks": [
+    {
+      "hit": false,
+      "kind": "win",
+      "lanes": [
+        4
+      ]
+    },
+    {
+      "hit": false,
+      "kind": "place",
+      "lanes": [
+        0
+      ]
+    },
+    {
+      "hit": true,
+      "kind": "quinella",
+      "lanes": [
+        2,
+        4
+      ]
+    },
+    {
+      "hit": true,
+      "kind": "exacta",
+      "lanes": [
+        4,
+        2
+      ]
+    },
+    {
+      "hit": false,
+      "kind": "exacta",
+      "lanes": [
+        2,
+        4
+      ]
+    },
+    {
+      "hit": true,
+      "kind": "wide",
+      "lanes": [
+        4,
+        0
+      ]
+    },
+    {
+      "hit": true,
+      "kind": "trio",
+      "lanes": [
+        0,
+        4,
+        2
+      ]
+    },
+    {
+      "hit": false,
+      "kind": "trifecta",
+      "lanes": [
+        4,
+        2,
+        0
+      ]
+    }
+  ],
+  "db_race_flow": {
+    "bet_result": [
+      true,
+      {
+        "id": 1,
+        "kind": "win",
+        "lane": 1,
+        "lanes": [
+          1
+        ],
+        "name": "ゴールデンキャロット",
+        "odds": 7.7,
+        "stake": 2000
+      }
+    ],
+    "closed_entries_count": 8,
+    "horse_create": [
+      true,
+      1
+    ],
+    "register": [
+      true,
+      ""
+    ],
+    "run_order": [
+      3,
+      2,
+      1,
+      7,
+      4,
+      5,
+      6,
+      0
+    ],
+    "user1_balance_after": 69000,
+    "user2_balance_after": 98000
+  },
+  "make_all_odds_win_place": {
+    "place": {
+      "1": 1.7,
+      "2": 1.7,
+      "3": 3.2,
+      "4": 2.0,
+      "5": 1.9,
+      "6": 2.3,
+      "7": 3.6,
+      "8": 2.6
+    },
+    "win": {
+      "1": 4.4,
+      "2": 4.4,
+      "3": 10.1,
+      "4": 6.2,
+      "5": 6.7,
+      "6": 7.2,
+      "7": 13.2,
+      "8": 9.2
+    }
+  },
+  "make_odds": [
+    [
+      6.1,
+      2.0
+    ],
+    [
+      6.1,
+      2.0
+    ],
+    [
+      7.0,
+      2.3
+    ],
+    [
+      7.0,
+      2.3
+    ],
+    [
+      7.0,
+      2.3
+    ],
+    [
+      7.0,
+      2.3
+    ],
+    [
+      7.0,
+      2.3
+    ],
+    [
+      7.0,
+      2.3
+    ]
+  ],
+  "module": "horse",
+  "payout_1000_at_4_3": 4300,
+  "prize_pool_scale": {
+    "1_real": 0.0333333333,
+    "4_real": 0.1333333333,
+    "8_real_topup": 0.6
+  },
+  "retire_values": {
+    "0_0_0": 0,
+    "10_3_5": 9000,
+    "25_10_15": 40000
+  },
+  "runners": [
+    {
+      "form": 1,
+      "guts": 65,
+      "lane": 1,
+      "name": "ウマ1",
+      "places": 0,
+      "power": 45,
+      "races": 0,
+      "speed": 65,
+      "stamina": 25,
+      "style": "nige",
+      "wins": 0
+    },
+    {
+      "form": 1,
+      "guts": 45,
+      "lane": 2,
+      "name": "ウマ2",
+      "places": 0,
+      "power": 55,
+      "races": 0,
+      "speed": 60,
+      "stamina": 40,
+      "style": "nige",
+      "wins": 0
+    },
+    {
+      "form": 0,
+      "guts": 80,
+      "lane": 3,
+      "name": "ウマ3",
+      "places": 0,
+      "power": 35,
+      "races": 0,
+      "speed": 35,
+      "stamina": 50,
+      "style": "oikomi",
+      "wins": 0
+    },
+    {
+      "form": 0,
+      "guts": 60,
+      "lane": 4,
+      "name": "ウマ4",
+      "places": 0,
+      "power": 35,
+      "races": 0,
+      "speed": 60,
+      "stamina": 45,
+      "style": "nige",
+      "wins": 0
+    },
+    {
+      "form": 0,
+      "guts": 25,
+      "lane": 5,
+      "name": "ウマ5",
+      "places": 0,
+      "power": 60,
+      "races": 0,
+      "speed": 35,
+      "stamina": 80,
+      "style": "sashi",
+      "wins": 0
+    },
+    {
+      "form": 0,
+      "guts": 45,
+      "lane": 6,
+      "name": "ウマ6",
+      "places": 0,
+      "power": 50,
+      "races": 0,
+      "speed": 30,
+      "stamina": 75,
+      "style": "sashi",
+      "wins": 0
+    },
+    {
+      "form": 0,
+      "guts": 65,
+      "lane": 7,
+      "name": "ウマ7",
+      "places": 0,
+      "power": 60,
+      "races": 0,
+      "speed": 25,
+      "stamina": 50,
+      "style": "oikomi",
+      "wins": 0
+    },
+    {
+      "form": 0,
+      "guts": 55,
+      "lane": 8,
+      "name": "ウマ8",
+      "places": 0,
+      "power": 50,
+      "races": 0,
+      "speed": 45,
+      "stamina": 50,
+      "style": "oikomi",
+      "wins": 0
+    }
+  ],
+  "schedule_2025_01_06": [
+    [
+      9,
+      0
+    ],
+    [
+      12,
+      0
+    ],
+    [
+      15,
+      0
+    ],
+    [
+      18,
+      0
+    ],
+    [
+      21,
+      0
+    ]
+  ],
+  "seeds": {
+    "db_close": 2003,
+    "db_run": 2004,
+    "setup": 2001,
+    "sim": 2002
+  },
+  "simulation": {
+    "finish": [
+      61.0898603277,
+      62.3778849859,
+      60.7192747642,
+      63.7201426501,
+      57.3677204261,
+      63.5312457612,
+      62.5269060695,
+      61.1947560138
+    ],
+    "order": [
+      4,
+      2,
+      0,
+      7,
+      1,
+      6,
+      5,
+      3
+    ],
+    "times": [
+      57.3677204261,
+      60.7192747642,
+      61.0898603277,
+      61.1947560138,
+      62.3778849859,
+      62.5269060695,
+      63.5312457612,
+      63.7201426501
+    ]
+  },
+  "stat_ops": {
+    "add_points": [
+      true,
+      {
+        "guts": 45,
+        "power": 50,
+        "speed": 65,
+        "stamina": 50
+      }
+    ],
+    "move_points": [
+      true,
+      {
+        "guts": 45,
+        "power": 45,
+        "speed": 65,
+        "stamina": 45
+      }
+    ]
+  },
+  "track": {
+    "distance": 2000,
+    "going": "良"
+  }
+}

@@ -1,0 +1,126 @@
+{
+  "db_flow": {
+    "auction_open": [
+      {
+        "ends": 1736208000.0,
+        "event": "listed",
+        "id": 1,
+        "top_bid": 0,
+        "top_bidder": null,
+        "units": 100
+      }
+    ],
+    "auction_settle": [
+      {
+        "ends": 1736208000.0,
+        "event": "sold",
+        "guild_id": 100000000000000001,
+        "id": 1,
+        "status": "open",
+        "top_bid": 6000,
+        "top_bidder": 200000000000000002,
+        "units": 100
+      },
+      {
+        "ends": 1736467200.0,
+        "event": "listed",
+        "id": 2,
+        "top_bid": 0,
+        "top_bidder": null,
+        "units": 100
+      }
+    ],
+    "bid1": [
+      true,
+      {
+        "ends": 1736208000.0,
+        "guild_id": 100000000000000001,
+        "id": 1,
+        "status": "open",
+        "top_bid": 5000,
+        "top_bidder": 200000000000000001,
+        "units": 100
+      }
+    ],
+    "bid2": [
+      true,
+      {
+        "ends": 1736208000.0,
+        "guild_id": 100000000000000001,
+        "id": 1,
+        "status": "open",
+        "top_bid": 6000,
+        "top_bidder": 200000000000000002,
+        "units": 100
+      }
+    ],
+    "p2p_accept": [
+      true,
+      {
+        "buyer": 200000000000000001,
+        "done_at": 0.0,
+        "expires": 1736467260.0,
+        "fee": 400,
+        "guild_id": 100000000000000001,
+        "id": 1,
+        "price": 8000,
+        "seller": 200000000000000002,
+        "status": "open",
+        "units": 1
+      }
+    ],
+    "p2p_offer": [
+      true,
+      1
+    ],
+    "u1_units_after": 1,
+    "u2_status": {
+      "auction": {
+        "ends": 1736467200.0,
+        "guild_id": 100000000000000001,
+        "id": 2,
+        "status": "open",
+        "top_bid": 0,
+        "top_bidder": null,
+        "units": 100
+      },
+      "charged": 0.0,
+      "circulating": 100,
+      "holders": 1,
+      "house": 9900,
+      "locked": false,
+      "motions": [],
+      "next_dividend": null,
+      "paid": 0.0,
+      "pool": 300,
+      "premium": 0.001,
+      "theta": null,
+      "total": 10000,
+      "units": 100
+    },
+    "u2_units_after": 99,
+    "u2_units_after_auction": 100
+  },
+  "domain_math": {
+    "dividend_pool_below_buffer": 4000,
+    "dividend_pool_excess": 8500,
+    "gate_locked_grace": true,
+    "gate_locked_low_theta": true,
+    "gate_locked_ok": true,
+    "motion_passes_quorum_fail": false,
+    "motion_passes_yes": true,
+    "premium_ok_0_05": true,
+    "premium_ok_0_50": true,
+    "split_1000_3holders": {
+      "1": 334,
+      "2": 333,
+      "3": 333
+    },
+    "split_1000_weighted": {
+      "1": 500,
+      "2": 300,
+      "3": 200
+    }
+  },
+  "module": "kyosai"
+}

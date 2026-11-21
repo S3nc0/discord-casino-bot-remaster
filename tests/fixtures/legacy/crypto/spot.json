@@ -1,0 +1,68 @@
+{
+  "db_flow": {
+    "balance_after": 89753,
+    "buy1": {
+      "balance": 70000,
+      "fee": 0,
+      "money": 30000,
+      "ok": true,
+      "profit": 0,
+      "reason": "",
+      "tax": 0,
+      "units": 300000
+    },
+    "buy2": {
+      "balance": 50000,
+      "fee": 0,
+      "money": 20000,
+      "ok": true,
+      "profit": 0,
+      "reason": "",
+      "tax": 0,
+      "units": 160000
+    },
+    "holdings_after": [
+      [
+        "cs",
+        260000,
+        28261
+      ]
+    ],
+    "holdings_mid": [
+      [
+        "cs",
+        460000,
+        50000
+      ]
+    ],
+    "sell_partial": {
+      "balance": 89753,
+      "fee": 0,
+      "money": 39753,
+      "ok": true,
+      "profit": 18261,
+      "reason": "",
+      "tax": 247,
+      "units": 200000
+    }
+  },
+  "module": "crypto",
+  "quotes": {
+    "avg_price_50000_cost_4000": 80.0,
+    "buy_10000_at_100": [
+      100000,
+      10000,
+      0
+    ],
+    "buy_10000_at_33_3": [
+      300300,
+      10000,
+      0
+    ],
+    "pnl_percent": 50.0,
+    "sell_50000_at_120": [
+      6000,
+      0
+    ]
+  }
+}
