@@ -4,44 +4,10 @@ import {
   type ChatInputCommandInteraction,
   type InteractionReplyOptions,
 } from 'discord.js';
-import { formatPelica, type Locale } from '@casino/shared/i18n';
+import { formatPelica, t, type Locale } from '@casino/shared/i18n';
 import type { GuildNotifyConfig, NotifyConfigService } from '../notify/config-service.ts';
 import { botColor } from '../notify/theme.ts';
 import { AppError } from '../runtime/errors.ts';
-
-// TODO(A1): Merge these `/admin notifications` EN/JA keys into `packages/shared/i18n/{en,ja}.ts`.
-const COPY = {
-  en: {
-    titleView: 'Notification Settings',
-    titleUpdated: 'Notification Settings Updated',
-    channelLabel: 'Announcement Channel',
-    channelDefault: (id: string) => (id ? `<#${id}> (default)` : 'Not configured'),
-    channelCustom: (id: string) => `<#${id}>`,
-    enabledLabel: 'Announcements',
-    thresholdLabel: 'Big-Win Threshold',
-    personasLabel: 'Webhook Personas',
-    rateLimitLabel: 'Rate Limit',
-    rateLimitValue: (n: number) => `${n}/min`,
-    on: 'ON',
-    off: 'OFF',
-    footer: (guildId: string) => `Guild ${guildId}`,
-  },
-  ja: {
-    titleView: '通知設定',
-    titleUpdated: '通知設定を更新しました',
-    channelLabel: '告知チャンネル',
-    channelDefault: (id: string) => (id ? `<#${id}>（既定）` : '未設定'),
-    channelCustom: (id: string) => `<#${id}>`,
-    enabledLabel: 'サーバー告知',
-    thresholdLabel: '大当たり告知基準',
-    personasLabel: 'Webhook ペルソナ',
-    rateLimitLabel: '投稿上限',
-    rateLimitValue: (n: number) => `${n}件/分`,
-    on: 'オン',
-    off: 'オフ',
-    footer: (guildId: string) => `サーバー ${guildId}`,
-  },
-} as const;
 
 export interface AdminNotificationsDeps {
   notifyConfig?: NotifyConfigService;
@@ -49,9 +15,11 @@ export interface AdminNotificationsDeps {
 }
 
 function formatChannelValue(locale: Locale, cfg: GuildNotifyConfig): string {
-  const c = COPY[locale];
-  if (cfg.announceChannelId) return c.channelCustom(cfg.announceChannelId);
-  return c.channelDefault(cfg.effectiveChannelId);
+  if (cfg.announceChannelId) return `<#${cfg.announceChannelId}>`;
+  if (cfg.effectiveChannelId) {
+    return t(locale, 'bot.admin.notify.channelDefault', { id: cfg.effectiveChannelId });
+  }
+  return t(locale, 'bot.admin.notify.channelNone');
 }
 
 /**
@@ -114,27 +82,40 @@ export async function handleAdminNotifications(
   }
 
   const cfg = deps.notifyConfig.getGuildConfig(targetGuildId);
-  const c = COPY[locale];
+  const onOff = (value: boolean): string =>
+    t(locale, value ? 'bot.admin.notify.on' : 'bot.admin.notify.off');
 
   const embed = new EmbedBuilder()
     .setColor(botColor(updated ? 'success' : 'info'))
-    .setTitle(updated ? c.titleUpdated : c.titleView)
+    .setTitle(t(locale, updated ? 'bot.admin.notify.titleUpdated' : 'bot.admin.notify.titleView'))
     .addFields(
-      { name: c.channelLabel, value: formatChannelValue(locale, cfg), inline: true },
-      { name: c.enabledLabel, value: cfg.announceEnabled ? c.on : c.off, inline: true },
       {
-        name: c.thresholdLabel,
+        name: t(locale, 'bot.admin.notify.channelLabel'),
+        value: formatChannelValue(locale, cfg),
+        inline: true,
+      },
+      {
+        name: t(locale, 'bot.admin.notify.enabledLabel'),
+        value: onOff(cfg.announceEnabled),
+        inline: true,
+      },
+      {
+        name: t(locale, 'bot.admin.notify.thresholdLabel'),
         value: formatPelica(locale, cfg.bigWinThreshold),
         inline: true,
       },
-      { name: c.personasLabel, value: cfg.personasEnabled ? c.on : c.off, inline: true },
       {
-        name: c.rateLimitLabel,
-        value: c.rateLimitValue(cfg.announcePerMinute),
+        name: t(locale, 'bot.admin.notify.personasLabel'),
+        value: onOff(cfg.personasEnabled),
+        inline: true,
+      },
+      {
+        name: t(locale, 'bot.admin.notify.rateLimitLabel'),
+        value: t(locale, 'bot.admin.notify.rateLimitValue', { n: cfg.announcePerMinute }),
         inline: true,
       },
     )
-    .setFooter({ text: c.footer(targetGuildId) });
+    .setFooter({ text: t(locale, 'bot.admin.notify.footer', { id: targetGuildId }) });
 
   await sendReply(interaction, {
     embeds: [embed],

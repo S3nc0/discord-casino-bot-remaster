@@ -794,14 +794,18 @@ export class StocksService {
   /** Open options (bought and written) of a member, for `/market settle`. */
   listOpenOptions(guildId: string, userId: string): OptionRow[] {
     return this.deps.store
-      .stmt("SELECT * FROM options WHERE guild_id = ? AND user_id = ? AND status = 'open' ORDER BY id ASC")
+      .stmt(
+        "SELECT * FROM options WHERE guild_id = ? AND user_id = ? AND status = 'open' ORDER BY id ASC",
+      )
       .all(guildId, userId) as OptionRow[];
   }
 
   /** Active bonds of a member, for `/market settle`. */
   listActiveBonds(guildId: string, userId: string): BondRow[] {
     return this.deps.store
-      .stmt("SELECT * FROM bonds WHERE guild_id = ? AND user_id = ? AND status = 'active' ORDER BY id ASC")
+      .stmt(
+        "SELECT * FROM bonds WHERE guild_id = ? AND user_id = ? AND status = 'active' ORDER BY id ASC",
+      )
       .all(guildId, userId) as BondRow[];
   }
 
@@ -992,7 +996,9 @@ export class StocksService {
       if (percent < 100 && partialUnits <= 0) return { ok: false, reason: 'invalid_units' };
       const share = partial ? partialUnits / pos.units_milli : 1;
       const closeUnits = partial ? partialUnits : pos.units_milli;
-      const closeEntry = partial ? Math.floor(pos.entry_value_micros * share) : pos.entry_value_micros;
+      const closeEntry = partial
+        ? Math.floor(pos.entry_value_micros * share)
+        : pos.entry_value_micros;
       const closeMarginAmount = partial ? Math.floor(pos.margin * share) : pos.margin;
       const pnl = marginPnl(side, closeUnits, closeEntry, priceMicros);
       const grossReturn = closeMarginAmount + pnl;

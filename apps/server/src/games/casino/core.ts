@@ -78,8 +78,7 @@ const defaultPorts = (store: Store): CasinoPorts => ({
         'SELECT game, boost_pct, starts_at, ends_at FROM casino_events WHERE guild_id = ? AND ends_at > ?',
       )
       .get(guildId, nowMs) as
-      | { game: CasinoGame; boost_pct: number; starts_at: number; ends_at: number }
-      | undefined;
+      { game: CasinoGame; boost_pct: number; starts_at: number; ends_at: number } | undefined;
     const manual: ManualEvent | null = row
       ? { game: row.game, boostPct: row.boost_pct, startsAt: row.starts_at, endsAt: row.ends_at }
       : null;

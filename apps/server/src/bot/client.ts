@@ -12,6 +12,7 @@ import { systemClock } from '../runtime/clock.ts';
 import type { Config } from '../runtime/config.ts';
 import type { CasinoServices } from '../runtime/server.ts';
 import { PLACEHOLDER_DISCORD_TOKEN } from './deploy.ts';
+import { startBoardRefresh } from './boards.ts';
 import { createInteractionHandler, type BotRouterDeps } from './router.ts';
 
 /** Guilds intent only: zero privileged intents (no GuildMembers, Presences, MessageContent). */
@@ -96,7 +97,11 @@ export function createDiscordClient(deps: CreateBotClientDeps): Client {
 
   const onInteraction = createInteractionHandler(deps);
 
+  let stopBoards: (() => void) | null = null;
   client.once(Events.ClientReady, (readyClient) => {
+    if (deps.store) {
+      stopBoards = startBoardRefresh(client, deps.store, deps.identity, deps.logger);
+    }
     deps.logger.info(
       { userId: readyClient.user.id, guilds: readyClient.guilds.cache.size },
       'discord bot ready',
@@ -106,6 +111,8 @@ export function createDiscordClient(deps: CreateBotClientDeps): Client {
   client.on(Events.InteractionCreate, (interaction) => {
     void onInteraction(interaction);
   });
+
+  client.once(Events.ShardDisconnect, () => stopBoards?.());
 
   client.on(Events.Warn, (warning) => {
     deps.logger.warn({ warning }, 'discord client warning');

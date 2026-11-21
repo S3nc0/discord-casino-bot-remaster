@@ -38,94 +38,6 @@ export type SendReplyFn = (
   options: InteractionReplyOptions,
 ) => Promise<void>;
 
-// TODO(A1): Merge command response labels below into `packages/shared/i18n/{en,ja}.ts`.
-const LABEL = {
-  en: {
-    balance: 'Balance',
-    payout: 'Payout',
-    net: 'Net',
-    streak: 'Streak',
-    nextSlot: 'Next bonus',
-    alreadyClaimed: 'Already claimed for this 6-hour window.',
-    debt: 'Teiai Debt',
-    deposit: 'Trust Deposit',
-    bankCash: 'Bank Cash',
-    status: 'Status',
-    repaid: 'Repaid',
-    remaining: 'Remaining',
-    fee: 'Fee',
-    received: 'Received',
-    noHistory: 'No recent ledger entries.',
-    noMissions: 'No missions today.',
-    noRanking: 'No plays recorded this week yet.',
-    noHorses: 'You do not own any horses yet.',
-    noRace: 'No upcoming race scheduled.',
-    noTournament: 'No tournament scheduled today.',
-    noHoldings: 'No open spot holdings.',
-    noCompany: 'You do not own a company yet.',
-    workFatigue: 'Fatigue',
-    workPot: 'Uncollected Pot',
-    workTooFast: 'Too fast — pause a moment between swings.',
-    pollCreated: 'Poll Created',
-    pollCloses: 'Closes',
-    quizWithdrawn: 'Quiz withdrawn.',
-    loanId: 'Loan ID',
-    principal: 'Principal',
-    rate: 'Daily Rate',
-    term: 'Term',
-    offerId: 'Offer ID',
-    motionId: 'Motion ID',
-    units: 'Units',
-    price: 'Price',
-    voteRecorded: 'Vote recorded.',
-    companyFunds: 'Funds',
-    companyLevel: 'Level',
-    companyDividend: 'Dividend Rate',
-  },
-  ja: {
-    balance: '残高',
-    payout: '払戻',
-    net: '収支',
-    streak: '連続日数',
-    nextSlot: '次回受取',
-    alreadyClaimed: 'この6時間枠のデイリーは受取済みです。',
-    debt: '帝愛の借金',
-    deposit: '信託預金',
-    bankCash: '銀行資金',
-    status: '状態',
-    repaid: '返済額',
-    remaining: '残高',
-    fee: '手数料',
-    received: '受取額',
-    noHistory: '最近の履歴はまだありません。',
-    noMissions: '今日のミッションはありません。',
-    noRanking: '今週の記録はまだありません。',
-    noHorses: '所有している競走馬はまだいません。',
-    noRace: '開催予定のレースはありません。',
-    noTournament: '本日の大会はありません。',
-    noHoldings: '保有している現物はありません。',
-    noCompany: 'まだ会社を設立していません。',
-    workFatigue: '疲労',
-    workPot: '未回収の稼ぎ',
-    workTooFast: '速すぎます。少し間をあけてください。',
-    pollCreated: '投票を作成しました',
-    pollCloses: '締切',
-    quizWithdrawn: 'クイズを取り下げました。',
-    loanId: '貸付番号',
-    principal: '元本',
-    rate: '日利',
-    term: '期間',
-    offerId: '譲渡番号',
-    motionId: '動議番号',
-    units: '口数',
-    price: '価格',
-    voteRecorded: '投票を記録しました。',
-    companyFunds: '会社資金',
-    companyLevel: 'レベル',
-    companyDividend: '配当率',
-  },
-} as const;
-
 function formatNumber(locale: Locale, value: number): string {
   return value.toLocaleString(locale === 'ja' ? 'ja-JP' : 'en-US');
 }
@@ -243,7 +155,6 @@ export async function dispatchWiredCommand(
   locale: Locale,
   sendReply: SendReplyFn,
 ): Promise<boolean> {
-  const l = LABEL[locale];
   const userId = interaction.user.id;
   const idemKey = idempotencyKeyOf(interaction);
 
@@ -257,7 +168,7 @@ export async function dispatchWiredCommand(
       const rows = deps.economy.history(guildId, userId, 10);
       const lines =
         rows.length === 0
-          ? l.noHistory
+          ? t(locale, 'bot.label.noHistory')
           : rows
               .map(
                 (r) =>
@@ -282,18 +193,22 @@ export async function dispatchWiredCommand(
         embed
           .setColor(botColor('warning'))
           .setDescription(
-            `${l.alreadyClaimed}\n${l.nextSlot}: <t:${Math.floor(status.nextSlotAt / 1000)}:R>`,
+            `${t(locale, 'bot.label.alreadyClaimed')}\n${t(locale, 'bot.label.nextSlot')}: <t:${Math.floor(status.nextSlotAt / 1000)}:R>`,
           );
       } else {
         const balance = deps.economy.getBalance(guildId, userId);
         embed.setColor(botColor('success')).addFields(
           {
-            name: l.received,
+            name: t(locale, 'bot.label.received'),
             value: `**${formatPelica(locale, res.credit - res.repaid)}**`,
             inline: true,
           },
-          { name: l.streak, value: `${res.streak}`, inline: true },
-          { name: l.balance, value: formatPelica(locale, balance), inline: true },
+          { name: t(locale, 'bot.label.streak'), value: `${res.streak}`, inline: true },
+          {
+            name: t(locale, 'bot.label.balance'),
+            value: formatPelica(locale, balance),
+            inline: true,
+          },
         );
       }
       await replyWithScreen(sendReply, interaction, locale, embed, 'daily', false);
@@ -306,7 +221,7 @@ export async function dispatchWiredCommand(
       const status = deps.games.progression.missionStatus(guildId, userId);
       const lines =
         status.missions.length === 0
-          ? l.noMissions
+          ? t(locale, 'bot.label.noMissions')
           : status.missions
               .map(
                 (m) =>
@@ -329,7 +244,7 @@ export async function dispatchWiredCommand(
       const selfRank = deps.games.progression.weeklyRankOf(guildId, targetUser.id);
       const lines =
         top.length === 0
-          ? l.noRanking
+          ? t(locale, 'bot.label.noRanking')
           : top
               .map(
                 (row, i) =>
@@ -374,9 +289,17 @@ export async function dispatchWiredCommand(
         .setTitle(t(locale, 'screen.transfer'))
         .setDescription(`<@${userId}> → <@${recipient.id}>`)
         .addFields(
-          { name: l.received, value: formatPelica(locale, res.received), inline: true },
-          { name: l.fee, value: formatPelica(locale, res.fee), inline: true },
-          { name: l.balance, value: formatPelica(locale, res.senderBalance), inline: true },
+          {
+            name: t(locale, 'bot.label.received'),
+            value: formatPelica(locale, res.received),
+            inline: true,
+          },
+          { name: t(locale, 'bot.label.fee'), value: formatPelica(locale, res.fee), inline: true },
+          {
+            name: t(locale, 'bot.label.balance'),
+            value: formatPelica(locale, res.senderBalance),
+            inline: true,
+          },
         );
       await replyWithScreen(sendReply, interaction, locale, embed, 'transfer', false);
       return true;
@@ -394,10 +317,18 @@ export async function dispatchWiredCommand(
         .setColor(botColor('success'))
         .setTitle(t(locale, 'screen.bank'))
         .addFields(
-          { name: l.repaid, value: formatPelica(locale, data.paid), inline: true },
-          { name: l.debt, value: formatPelica(locale, data.remainingDebt), inline: true },
           {
-            name: l.balance,
+            name: t(locale, 'bot.label.repaid'),
+            value: formatPelica(locale, data.paid),
+            inline: true,
+          },
+          {
+            name: t(locale, 'bot.label.debt'),
+            value: formatPelica(locale, data.remainingDebt),
+            inline: true,
+          },
+          {
+            name: t(locale, 'bot.label.balance'),
             value: formatPelica(locale, deps.economy.getBalance(guildId, userId)),
             inline: true,
           },
@@ -418,10 +349,18 @@ export async function dispatchWiredCommand(
         .setColor(botColor('primary'))
         .setTitle(t(locale, 'screen.bank'))
         .addFields(
-          { name: l.status, value: `\`${playerStatus}\``, inline: true },
-          { name: l.debt, value: formatPelica(locale, debt), inline: true },
-          { name: l.deposit, value: formatPelica(locale, deposit), inline: true },
-          { name: l.bankCash, value: formatPelica(locale, bank.cash), inline: true },
+          { name: t(locale, 'bot.label.status'), value: `\`${playerStatus}\``, inline: true },
+          { name: t(locale, 'bot.label.debt'), value: formatPelica(locale, debt), inline: true },
+          {
+            name: t(locale, 'bot.label.deposit'),
+            value: formatPelica(locale, deposit),
+            inline: true,
+          },
+          {
+            name: t(locale, 'bot.label.bankCash'),
+            value: formatPelica(locale, bank.cash),
+            inline: true,
+          },
         );
       await replyWithScreen(sendReply, interaction, locale, embed, 'bank', true);
       return true;
@@ -444,9 +383,21 @@ export async function dispatchWiredCommand(
         .setTitle(t(locale, 'screen.slots'))
         .setDescription(`[ ${res.reels.join(' | ')} ] · **${res.multiplier}x**`)
         .addFields(
-          { name: l.payout, value: formatPelica(locale, res.settlement.payout), inline: true },
-          { name: l.net, value: formatSignedPelica(locale, res.settlement.net), inline: true },
-          { name: l.balance, value: formatPelica(locale, res.settlement.balance), inline: true },
+          {
+            name: t(locale, 'bot.label.payout'),
+            value: formatPelica(locale, res.settlement.payout),
+            inline: true,
+          },
+          {
+            name: t(locale, 'bot.label.net'),
+            value: formatSignedPelica(locale, res.settlement.net),
+            inline: true,
+          },
+          {
+            name: t(locale, 'bot.label.balance'),
+            value: formatPelica(locale, res.settlement.balance),
+            inline: true,
+          },
         );
       await replyWithScreen(sendReply, interaction, locale, embed, 'slots', false);
       return true;
@@ -467,9 +418,21 @@ export async function dispatchWiredCommand(
         .setTitle(t(locale, 'screen.pachinko'))
         .setDescription(`${res.sets.length} sets · top ${res.topRound}R`)
         .addFields(
-          { name: l.payout, value: formatPelica(locale, res.settlement.payout), inline: true },
-          { name: l.net, value: formatSignedPelica(locale, res.settlement.net), inline: true },
-          { name: l.balance, value: formatPelica(locale, res.settlement.balance), inline: true },
+          {
+            name: t(locale, 'bot.label.payout'),
+            value: formatPelica(locale, res.settlement.payout),
+            inline: true,
+          },
+          {
+            name: t(locale, 'bot.label.net'),
+            value: formatSignedPelica(locale, res.settlement.net),
+            inline: true,
+          },
+          {
+            name: t(locale, 'bot.label.balance'),
+            value: formatPelica(locale, res.settlement.balance),
+            inline: true,
+          },
         );
       await replyWithScreen(sendReply, interaction, locale, embed, 'pachinko', false);
       return true;
@@ -496,9 +459,21 @@ export async function dispatchWiredCommand(
         .setTitle(t(locale, 'screen.roulette'))
         .setDescription(`**${res.result}** (${res.color})`)
         .addFields(
-          { name: l.payout, value: formatPelica(locale, res.settlement.payout), inline: true },
-          { name: l.net, value: formatSignedPelica(locale, res.settlement.net), inline: true },
-          { name: l.balance, value: formatPelica(locale, res.settlement.balance), inline: true },
+          {
+            name: t(locale, 'bot.label.payout'),
+            value: formatPelica(locale, res.settlement.payout),
+            inline: true,
+          },
+          {
+            name: t(locale, 'bot.label.net'),
+            value: formatSignedPelica(locale, res.settlement.net),
+            inline: true,
+          },
+          {
+            name: t(locale, 'bot.label.balance'),
+            value: formatPelica(locale, res.settlement.balance),
+            inline: true,
+          },
         );
       await replyWithScreen(sendReply, interaction, locale, embed, 'roulette', false);
       return true;
@@ -513,7 +488,7 @@ export async function dispatchWiredCommand(
       const horses = deps.games.race.stable(guildId, userId);
       const lines =
         horses.length === 0
-          ? l.noHorses
+          ? t(locale, 'bot.label.noHorses')
           : horses
               .map((h) => {
                 const total = h.stats.speed + h.stats.stamina + h.stats.power + h.stats.guts;
@@ -541,7 +516,7 @@ export async function dispatchWiredCommand(
         .setColor(botColor('info'))
         .setTitle(t(locale, 'screen.horse'));
       if (!nextRace) {
-        embed.setDescription(l.noRace);
+        embed.setDescription(t(locale, 'bot.label.noRace'));
       } else {
         const card = deps.games.race.card(nextRace.id);
         const lines =
@@ -569,7 +544,7 @@ export async function dispatchWiredCommand(
         .setColor(botColor('primary'))
         .setTitle(t(locale, 'screen.arena'));
       if (!row) {
-        embed.setDescription(l.noTournament);
+        embed.setDescription(t(locale, 'bot.label.noTournament'));
       } else {
         const board = deps.games.arena.board(row.id);
         const lines = board.fighters
@@ -592,10 +567,16 @@ export async function dispatchWiredCommand(
       const embed = new EmbedBuilder()
         .setColor(botColor(res.tooFast ? 'warning' : 'success'))
         .setTitle(t(locale, 'screen.work'))
-        .setDescription(res.tooFast ? l.workTooFast : `+${formatPelica(locale, res.pay)}`)
+        .setDescription(
+          res.tooFast ? t(locale, 'bot.label.workTooFast') : `+${formatPelica(locale, res.pay)}`,
+        )
         .addFields(
-          { name: l.workPot, value: formatPelica(locale, view.pot), inline: true },
-          { name: l.workFatigue, value: `${view.fatigue}%`, inline: true },
+          {
+            name: t(locale, 'bot.label.workPot'),
+            value: formatPelica(locale, view.pot),
+            inline: true,
+          },
+          { name: t(locale, 'bot.label.workFatigue'), value: `${view.fatigue}%`, inline: true },
         );
       await replyWithScreen(sendReply, interaction, locale, embed, 'work', false);
       return true;
@@ -614,10 +595,10 @@ export async function dispatchWiredCommand(
       });
       const embed = new EmbedBuilder()
         .setColor(botColor('primary'))
-        .setTitle(`${l.pollCreated} #${poll.id}`)
+        .setTitle(`${t(locale, 'bot.label.pollCreated')} #${poll.id}`)
         .setDescription(poll.title)
         .addFields({
-          name: l.pollCloses,
+          name: t(locale, 'bot.label.pollCloses'),
           value: `<t:${Math.floor(poll.closesAt / 1000)}:R>`,
           inline: true,
         });
@@ -633,7 +614,7 @@ export async function dispatchWiredCommand(
       const embed = new EmbedBuilder()
         .setColor(botColor('success'))
         .setTitle(t(locale, 'screen.quiz'))
-        .setDescription(`${l.quizWithdrawn} (#${quizId})`);
+        .setDescription(`${t(locale, 'bot.label.quizWithdrawn')} (#${quizId})`);
       await replyWithScreen(sendReply, interaction, locale, embed, 'quiz', true);
       return true;
     }
@@ -668,7 +649,7 @@ export async function dispatchWiredCommand(
       const margin = deps.finance.stocks.getPortfolioMarginStatus(guildId, userId);
       const lines =
         spots.length === 0
-          ? l.noHoldings
+          ? t(locale, 'bot.label.noHoldings')
           : spots
               .map(
                 (s) =>
@@ -705,12 +686,16 @@ export async function dispatchWiredCommand(
         .setTitle(`${t(locale, 'screen.market')} · ${symbol.toUpperCase()}`)
         .addFields(
           {
-            name: l.units,
+            name: t(locale, 'bot.label.units'),
             value: (data.unitsMilli / QUANTITY_SCALE).toFixed(3),
             inline: true,
           },
-          { name: l.fee, value: formatPelica(locale, data.fee), inline: true },
-          { name: l.balance, value: formatPelica(locale, data.balance), inline: true },
+          { name: t(locale, 'bot.label.fee'), value: formatPelica(locale, data.fee), inline: true },
+          {
+            name: t(locale, 'bot.label.balance'),
+            value: formatPelica(locale, data.balance),
+            inline: true,
+          },
         );
       await replyWithScreen(sendReply, interaction, locale, embed, 'market', false);
       return true;
@@ -743,8 +728,16 @@ export async function dispatchWiredCommand(
           `${t(locale, 'screen.market')} · ${symbol.toUpperCase()} ${side.toUpperCase()} ${leverage}x`,
         )
         .addFields(
-          { name: l.units, value: (data.unitsMilli / QUANTITY_SCALE).toFixed(3), inline: true },
-          { name: l.price, value: formatPelica(locale, data.margin), inline: true },
+          {
+            name: t(locale, 'bot.label.units'),
+            value: (data.unitsMilli / QUANTITY_SCALE).toFixed(3),
+            inline: true,
+          },
+          {
+            name: t(locale, 'bot.label.price'),
+            value: formatPelica(locale, data.margin),
+            inline: true,
+          },
         );
       await replyWithScreen(sendReply, interaction, locale, embed, 'market', false);
       return true;
@@ -788,9 +781,13 @@ export async function dispatchWiredCommand(
         .setColor(botColor('success'))
         .setTitle(`${t(locale, 'screen.market')} · ${kind.toUpperCase()} #${opt.id}`)
         .addFields(
-          { name: l.price, value: formatPelica(locale, opt.premium), inline: true },
           {
-            name: l.balance,
+            name: t(locale, 'bot.label.price'),
+            value: formatPelica(locale, opt.premium),
+            inline: true,
+          },
+          {
+            name: t(locale, 'bot.label.balance'),
             value: formatPelica(locale, deps.economy.getBalance(guildId, userId)),
             inline: true,
           },
@@ -813,8 +810,16 @@ export async function dispatchWiredCommand(
         .setColor(botColor('success'))
         .setTitle(`${t(locale, 'screen.market')} · Bond #${bond.id}`)
         .addFields(
-          { name: l.principal, value: formatPelica(locale, bond.principal), inline: true },
-          { name: l.rate, value: `${(bond.rate_bps / 100).toFixed(2)}%`, inline: true },
+          {
+            name: t(locale, 'bot.label.principal'),
+            value: formatPelica(locale, bond.principal),
+            inline: true,
+          },
+          {
+            name: t(locale, 'bot.label.rate'),
+            value: `${(bond.rate_bps / 100).toFixed(2)}%`,
+            inline: true,
+          },
         );
       await replyWithScreen(sendReply, interaction, locale, embed, 'market', false);
       return true;
@@ -844,10 +849,14 @@ export async function dispatchWiredCommand(
         .setTitle(t(locale, 'screen.loans'))
         .setDescription(`<@${userId}> → <@${borrower.id}>`)
         .addFields(
-          { name: l.loanId, value: `#${loanId}`, inline: true },
-          { name: l.principal, value: formatPelica(locale, principal), inline: true },
-          { name: l.rate, value: `${rate}%`, inline: true },
-          { name: l.term, value: `${termDays}d`, inline: true },
+          { name: t(locale, 'bot.label.loanId'), value: `#${loanId}`, inline: true },
+          {
+            name: t(locale, 'bot.label.principal'),
+            value: formatPelica(locale, principal),
+            inline: true,
+          },
+          { name: t(locale, 'bot.label.rate'), value: `${rate}%`, inline: true },
+          { name: t(locale, 'bot.label.term'), value: `${termDays}d`, inline: true },
         );
       await replyWithScreen(sendReply, interaction, locale, embed, 'loans', false);
       return true;
@@ -874,10 +883,14 @@ export async function dispatchWiredCommand(
         .setColor(botColor('primary'))
         .setTitle(t(locale, 'screen.loans'))
         .addFields(
-          { name: l.loanId, value: `#${loanId}`, inline: true },
-          { name: l.principal, value: formatPelica(locale, principal), inline: true },
-          { name: l.rate, value: `${rate}%`, inline: true },
-          { name: l.term, value: `${termDays}d`, inline: true },
+          { name: t(locale, 'bot.label.loanId'), value: `#${loanId}`, inline: true },
+          {
+            name: t(locale, 'bot.label.principal'),
+            value: formatPelica(locale, principal),
+            inline: true,
+          },
+          { name: t(locale, 'bot.label.rate'), value: `${rate}%`, inline: true },
+          { name: t(locale, 'bot.label.term'), value: `${termDays}d`, inline: true },
         );
       await replyWithScreen(sendReply, interaction, locale, embed, 'loans', false);
       return true;
@@ -896,10 +909,10 @@ export async function dispatchWiredCommand(
         .setColor(botColor('success'))
         .setTitle(t(locale, 'screen.loans'))
         .addFields(
-          { name: l.loanId, value: `#${loanId}`, inline: true },
-          { name: l.repaid, value: formatPelica(locale, paid), inline: true },
+          { name: t(locale, 'bot.label.loanId'), value: `#${loanId}`, inline: true },
+          { name: t(locale, 'bot.label.repaid'), value: formatPelica(locale, paid), inline: true },
           {
-            name: l.balance,
+            name: t(locale, 'bot.label.balance'),
             value: formatPelica(locale, deps.economy.getBalance(guildId, userId)),
             inline: true,
           },
@@ -916,9 +929,17 @@ export async function dispatchWiredCommand(
         .setColor(botColor('primary'))
         .setTitle(t(locale, 'screen.kyosai'))
         .addFields(
-          { name: l.units, value: `${st.units} / ${st.total}`, inline: true },
-          { name: l.payout, value: formatPelica(locale, st.pool), inline: true },
-          { name: l.rate, value: `${(st.premium * 100).toFixed(3)}%`, inline: true },
+          { name: t(locale, 'bot.label.units'), value: `${st.units} / ${st.total}`, inline: true },
+          {
+            name: t(locale, 'bot.label.payout'),
+            value: formatPelica(locale, st.pool),
+            inline: true,
+          },
+          {
+            name: t(locale, 'bot.label.rate'),
+            value: `${(st.premium * 100).toFixed(3)}%`,
+            inline: true,
+          },
         );
       await replyWithScreen(sendReply, interaction, locale, embed, 'kyosai', true);
       return true;
@@ -936,8 +957,12 @@ export async function dispatchWiredCommand(
         .setColor(botColor('success'))
         .setTitle(t(locale, 'screen.kyosai'))
         .addFields(
-          { name: l.units, value: `${auc.units}`, inline: true },
-          { name: l.price, value: formatPelica(locale, auc.top_bid), inline: true },
+          { name: t(locale, 'bot.label.units'), value: `${auc.units}`, inline: true },
+          {
+            name: t(locale, 'bot.label.price'),
+            value: formatPelica(locale, auc.top_bid),
+            inline: true,
+          },
         );
       await replyWithScreen(sendReply, interaction, locale, embed, 'kyosai', true);
       return true;
@@ -957,9 +982,9 @@ export async function dispatchWiredCommand(
         .setTitle(t(locale, 'screen.kyosai'))
         .setDescription(`<@${userId}> → <@${buyer.id}>`)
         .addFields(
-          { name: l.offerId, value: `#${offerId}`, inline: true },
-          { name: l.units, value: `${units}`, inline: true },
-          { name: l.price, value: formatPelica(locale, price), inline: true },
+          { name: t(locale, 'bot.label.offerId'), value: `#${offerId}`, inline: true },
+          { name: t(locale, 'bot.label.units'), value: `${units}`, inline: true },
+          { name: t(locale, 'bot.label.price'), value: formatPelica(locale, price), inline: true },
         );
       await replyWithScreen(sendReply, interaction, locale, embed, 'kyosai', false);
       return true;
@@ -977,9 +1002,13 @@ export async function dispatchWiredCommand(
         .setColor(botColor('success'))
         .setTitle(t(locale, 'screen.kyosai'))
         .addFields(
-          { name: l.offerId, value: `#${offer.id}`, inline: true },
-          { name: l.units, value: `${offer.units}`, inline: true },
-          { name: l.price, value: formatPelica(locale, offer.price), inline: true },
+          { name: t(locale, 'bot.label.offerId'), value: `#${offer.id}`, inline: true },
+          { name: t(locale, 'bot.label.units'), value: `${offer.units}`, inline: true },
+          {
+            name: t(locale, 'bot.label.price'),
+            value: formatPelica(locale, offer.price),
+            inline: true,
+          },
         );
       await replyWithScreen(sendReply, interaction, locale, embed, 'kyosai', false);
       return true;
@@ -1015,8 +1044,8 @@ export async function dispatchWiredCommand(
         .setColor(botColor('primary'))
         .setTitle(t(locale, 'screen.kyosai'))
         .addFields(
-          { name: l.motionId, value: `#${motion.id}`, inline: true },
-          { name: l.rate, value: `${premiumPct}%`, inline: true },
+          { name: t(locale, 'bot.label.motionId'), value: `#${motion.id}`, inline: true },
+          { name: t(locale, 'bot.label.rate'), value: `${premiumPct}%`, inline: true },
         );
       await replyWithScreen(sendReply, interaction, locale, embed, 'kyosai', false);
       return true;
@@ -1039,7 +1068,7 @@ export async function dispatchWiredCommand(
       const embed = new EmbedBuilder()
         .setColor(botColor('success'))
         .setTitle(t(locale, 'screen.kyosai'))
-        .setDescription(`${l.voteRecorded} (#${motionId}: ${choice})`);
+        .setDescription(`${t(locale, 'bot.label.voteRecorded')} (#${motionId}: ${choice})`);
       await replyWithScreen(sendReply, interaction, locale, embed, 'kyosai', true);
       return true;
     }
@@ -1058,8 +1087,12 @@ export async function dispatchWiredCommand(
         .setColor(botColor('success'))
         .setTitle(`${t(locale, 'screen.companies')} · ${state.name}`)
         .addFields(
-          { name: l.companyLevel, value: `Lv.${state.level}`, inline: true },
-          { name: l.companyFunds, value: formatPelica(locale, state.funds), inline: true },
+          { name: t(locale, 'bot.label.companyLevel'), value: `Lv.${state.level}`, inline: true },
+          {
+            name: t(locale, 'bot.label.companyFunds'),
+            value: formatPelica(locale, state.funds),
+            inline: true,
+          },
         );
       await replyWithScreen(sendReply, interaction, locale, embed, 'companies', false);
       return true;
@@ -1073,13 +1106,17 @@ export async function dispatchWiredCommand(
         .setColor(botColor('info'))
         .setTitle(t(locale, 'screen.companies'));
       if (!state) {
-        embed.setDescription(l.noCompany);
+        embed.setDescription(t(locale, 'bot.label.noCompany'));
       } else {
         embed.setTitle(`${t(locale, 'screen.companies')} · ${state.name}`).addFields(
-          { name: l.companyLevel, value: `Lv.${state.level}`, inline: true },
-          { name: l.companyFunds, value: formatPelica(locale, state.funds), inline: true },
+          { name: t(locale, 'bot.label.companyLevel'), value: `Lv.${state.level}`, inline: true },
           {
-            name: l.companyDividend,
+            name: t(locale, 'bot.label.companyFunds'),
+            value: formatPelica(locale, state.funds),
+            inline: true,
+          },
+          {
+            name: t(locale, 'bot.label.companyDividend'),
             value: `${Math.round(state.dividendRate * 100)}%`,
             inline: true,
           },
@@ -1102,8 +1139,16 @@ export async function dispatchWiredCommand(
         .setColor(botColor('success'))
         .setTitle(`${t(locale, 'screen.companies')} · ${data.name}`)
         .addFields(
-          { name: l.price, value: formatPelica(locale, data.amount), inline: true },
-          { name: l.remaining, value: formatPelica(locale, data.total), inline: true },
+          {
+            name: t(locale, 'bot.label.price'),
+            value: formatPelica(locale, data.amount),
+            inline: true,
+          },
+          {
+            name: t(locale, 'bot.label.remaining'),
+            value: formatPelica(locale, data.total),
+            inline: true,
+          },
         );
       await replyWithScreen(sendReply, interaction, locale, embed, 'companies', false);
       return true;
@@ -1120,7 +1165,7 @@ export async function dispatchWiredCommand(
         .setColor(botColor('success'))
         .setTitle(t(locale, 'screen.companies'))
         .addFields({
-          name: l.companyDividend,
+          name: t(locale, 'bot.label.companyDividend'),
           value: `${Math.round(rate * 100)}%`,
           inline: true,
         });
