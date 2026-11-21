@@ -76,3 +76,71 @@ export type { TagHue, TagProps } from './components/Tag.tsx';
 
 export { TextField } from './components/TextField.tsx';
 export type { TextFieldProps } from './components/TextField.tsx';
+
+export { buildSamples, getNote, ZZFX_DEFAULT_SAMPLE_RATE } from './audio/zzfx.ts';
+export type { ZzfxParams } from './audio/zzfx.ts';
+
+export { getSfxPreset, renderSfxBuffer, SFX_NAMES, SFX_PRESETS } from './audio/sfx.ts';
+export type { SfxName } from './audio/sfx.ts';
+
+export {
+  AudioManager,
+  clampVolume,
+  computeMusicGain,
+  computeSfxGain,
+  DEFAULT_SOUND_SETTINGS,
+  DEFAULT_SOUND_VOLUME,
+  getDefaultAudioManager,
+  volumeToGain,
+} from './audio/AudioManager.ts';
+export type {
+  AudioBufferLike,
+  AudioBufferSourceNodeLike,
+  AudioContextLike,
+  AudioManagerOptions,
+  AudioNodeLike,
+  AudioParamLike,
+  AudioSnapshot,
+  GainNodeLike,
+  MusicTrack,
+  PlaySfxOptions,
+  SoundSettings,
+} from './audio/AudioManager.ts';
+
+export { AudioProvider, useSfx } from './audio/useSfx.tsx';
+export type { AudioProviderProps, UseSfxResult } from './audio/useSfx.tsx';
+
+export { isReducedMotionActive } from './fx/motion.ts';
+export type { ReducedMotionFallback } from './fx/motion.ts';
+
+export {
+  COIN_ROLE_VARS,
+  CONFETTI_ROLE_VARS,
+  resolveCssRoleColor,
+  resolveRolePalette,
+} from './fx/palette.ts';
+
+export {
+  DEFAULT_COIN_BURST_COUNT,
+  DEFAULT_CONFETTI_COUNT,
+  MAX_FX_PARTICLES_DESKTOP,
+  MAX_FX_PARTICLES_MOBILE,
+  MOBILE_BREAKPOINT_PX,
+  resolveParticleCount,
+  triggerCoinBurst,
+  triggerConfetti,
+  triggerStaticFlash,
+} from './fx/confetti.ts';
+export type {
+  BurstOptions,
+  CoinBurstOptions,
+  ConfettiOptions,
+  FlashOptions,
+  FxParticleKind,
+} from './fx/confetti.ts';
+
+export { triggerScreenShake } from './fx/shake.ts';
+export type { ScreenShakeOptions } from './fx/shake.ts';
+
+export { useFx } from './fx/useFx.ts';
+export type { UseFxOptions, UseFxResult } from './fx/useFx.ts';
