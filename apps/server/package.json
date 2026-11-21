@@ -1,0 +1,27 @@
+{
+  "name": "@casino/server",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "One process: Fastify API, Socket.io, chat bot and scheduler.",
+  "scripts": {
+    "build": "tsup",
+    "typecheck": "tsc -p tsconfig.json",
+    "test": "vitest run",
+    "start": "node --max-old-space-size=192 --enable-source-maps dist/main.js"
+  },
+  "dependencies": {
+    "@casino/domain": "workspace:*",
+    "@casino/shared": "workspace:*",
+    "better-sqlite3": "13.0.3",
+    "croner": "11.0.0",
+    "discord.js": "14.28.1",
+    "fastify": "5.12.8",
+    "socket.io": "4.8.4",
+    "typebox": "1.4.5"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "9.6.0",
+    "tsup": "9.0.0"
+  }
+}
