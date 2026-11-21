@@ -1,11 +1,13 @@
+import type { Migration } from '../migrate.ts';
 import init from './0001_init.sql';
+import ledgerIdempotency from './0002_ledger_idempotency.sql';
+import legacyImport from './0003_legacy_import.sql';
 
-export interface Migration {
-  /** Strictly increasing. Never edit a migration after it has merged; add a new one. */
-  readonly version: number;
-  readonly name: string;
-  readonly sql: string;
-}
+export type { Migration };
 
 /** Ordered list of migrations. SQL files are inlined into the server bundle at build time. */
-export const migrations: readonly Migration[] = [{ version: 1, name: 'init', sql: init }];
+export const migrations: readonly Migration[] = [
+  { version: 1, name: 'init', sql: init },
+  { version: 2, name: 'ledger_idempotency', sql: ledgerIdempotency },
+  { version: 3, name: 'legacy_import', sql: legacyImport },
+];

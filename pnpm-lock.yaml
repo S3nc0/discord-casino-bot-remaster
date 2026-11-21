@@ -220,6 +220,9 @@ importers:
       fastify:
         specifier: 5.12.8
         version: 5.12.8
+      pino:
+        specifier: 10.4.0
+        version: 10.4.0
       socket.io:
         specifier: 4.8.4
         version: 4.8.4
@@ -230,6 +233,9 @@ importers:
       '@types/better-sqlite3':
         specifier: 9.6.0
         version: 9.6.0
+      socket.io-client:
+        specifier: 4.8.4
+        version: 4.8.4
       tsup:
         specifier: 9.0.0
         version: 9.0.0(postcss@8.5.33)(typescript@6.0.3)
