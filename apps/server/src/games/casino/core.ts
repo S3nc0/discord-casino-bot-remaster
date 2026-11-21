@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import type { RtpProfile } from '@casino/domain/casino';
-import { MIN_BET, isRtpLevel, settle, winTier } from '@casino/domain/casino';
+import { MIN_BET, isRtpLevel, scheduledBoost, settle, winTier } from '@casino/domain/casino';
 import type { LedgerReason } from '@casino/shared';
 import type { Logger } from 'pino';
 import { AppError } from '../../runtime/errors.ts';
@@ -71,7 +71,7 @@ const defaultPorts = (store: Store): CasinoPorts => ({
       .get(guildId, game) as { level: number } | undefined;
     return row?.level ?? 3;
   },
-  eventBoost: () => 0,
+  eventBoost: (guildId, game, nowMs) => scheduledBoost(guildId, game, nowMs),
   isEnabled: (guildId, game) =>
     store
       .stmt('SELECT 1 FROM guild_features_off WHERE guild_id = ? AND feature = ?')
@@ -356,7 +356,7 @@ export class CasinoCore {
       const paid = s.payout + s.eventBonus;
       if (paid > 0) post(paid, 'game_payout', 'payout', { game, eventBonus: s.eventBonus });
       if (s.insured > 0) {
-        post(s.insured, 'game_refund', 'insurance', { game, insurance: true });
+        post(s.insured, 'game_insurance_refund', 'insurance', { game });
         this.ports.insurance.consume(guildId, userId);
       }
       let withheld = 0;
@@ -441,6 +441,7 @@ export class CasinoCore {
         net: s.net,
         source: round.source,
         ...(round.instanceId === null ? {} : { instanceId: round.instanceId }),
+        ...(allTags.length === 0 ? {} : { tags: allTags }),
       });
       if (s.tier !== null) {
         bus.publishDomain({
