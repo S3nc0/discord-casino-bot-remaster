@@ -17,7 +17,7 @@ Simulates the target Raspberry Pi runtime environment:
 docker compose -f ops/pi-sim/compose.yaml up --build
 ```
 
-To override the port, bind address, or database path used inside the container (`compose.yaml` defaults `HOST=0.0.0.0` only for container port forwarding; host installs keep `127.0.0.1`):
+To override the port, bind address, or database path used inside the container (`compose.yaml` defaults `HOST=0.0.0.0` only for container port forwarding; host installs keep `127.0.0.1`). The host port mapping binds to `127.0.0.1` only so external clients cannot bypass the tunnel and forge `X-Forwarded-For` against `trustProxy`.
 
 ```sh
 PORT=3001 HOST=0.0.0.0 DATABASE_PATH=/app/data/casino.sqlite docker compose -f ops/pi-sim/compose.yaml up --build
