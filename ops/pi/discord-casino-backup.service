@@ -1,0 +1,14 @@
+[Unit]
+Description=Nightly SQLite backup for Discord Casino
+
+[Service]
+Type=oneshot
+User=casino
+Group=casino
+ExecStart=/opt/discord-casino/ops/pi/backup.sh
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadOnlyPaths=/opt/discord-casino
+ReadWritePaths=/var/backups/discord-casino
