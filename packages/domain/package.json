@@ -5,7 +5,8 @@
   "type": "module",
   "description": "Pure game and economy rules. No I/O; RNG and clock are injected.",
   "exports": {
-    ".": "./src/index.ts"
+    ".": "./src/index.ts",
+    "./*": "./src/*/index.ts"
   },
   "scripts": {
     "build": "tsc -p tsconfig.json",
