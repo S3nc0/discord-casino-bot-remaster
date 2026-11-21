@@ -1,0 +1,28 @@
+import type { Messages } from './en.ts';
+
+export const ja: Messages = {
+  'app.name': 'Discord Casino Remaster',
+  'currency.name': 'ペリカ',
+  'currency.amount': '{amount}ペリカ',
+  'common.ok': 'OK',
+  'common.cancel': 'キャンセル',
+  'common.loading': '読み込み中…',
+  'launch.openInActivity': 'アクティビティで開く',
+  'settings.language': '言語',
+  'settings.sound': 'サウンド',
+  'settings.motion': 'アニメーション',
+  'error.unauthorized': 'セッションが切れました。アプリを開き直してください。',
+  'error.forbidden': 'その操作はできません。',
+  'error.guild_not_allowed': 'このサーバーではカジノを使えません。',
+  'error.guild_pending': 'このサーバーは承認待ちです。',
+  'error.invalid_payload': 'リクエストの内容が正しくありません。',
+  'error.rate_limited': '操作が速すぎます。少し待ってから試してください。',
+  'error.insufficient_funds': 'ペリカが足りません。',
+  'error.feature_disabled': 'この機能はこのサーバーで止められています。',
+  'error.not_found': '見つかりません。',
+  'error.conflict': '状況が変わりました。もう一度試してください。',
+  'error.in_flight': '前の操作を処理しています。',
+  'error.expired': '期限が切れました。',
+  'error.game_busy': 'テーブルが混んでいます。少し待ってから試してください。',
+  'error.internal': 'エラーが起きました。もう一度試してください。',
+};

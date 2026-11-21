@@ -1,0 +1,21 @@
+{
+  "name": "@casino/domain",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Pure game and economy rules. No I/O; RNG and clock are injected.",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json && tsc -p tsconfig.test.json",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@casino/shared": "workspace:*"
+  },
+  "devDependencies": {
+    "fast-check": "4.10.2"
+  }
+}

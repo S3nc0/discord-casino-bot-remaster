@@ -1,0 +1,8 @@
+legacy/
+design/
+catalogs/
+docs/
+pnpm-lock.yaml
+**/dist/
+coverage/
+*.md
