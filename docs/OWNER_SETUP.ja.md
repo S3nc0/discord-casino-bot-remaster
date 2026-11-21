@@ -19,9 +19,10 @@
    - **Activities → Settings** で **Enable Activities** を有効にします。
    - **Installation / App Commands** で Discord 管理の **Entry Point** コマンドが有効になっていることを確認します。
 5. **URL Mappings の設定**
-   - **Activities → URL Mappings** に次の 2 つを設定します。
+   - **Activities → URL Mappings** に次の 3 つを設定します。
      - `/` → `PAGES_DOMAIN`（Cloudflare Pages のホスト名、例: `your-app.pages.dev`）
      - `/api` → `API_DOMAIN/api`（Cloudflare Tunnel のホスト名に `/api` を付けたもの、例: `api.example.com/api`）
+     - `/discord-cdn` → `cdn.discordapp.com`（プレイヤーのアバター画像用。Activity から CDN へ直接はアクセスできません）
    - Discord のプロキシはマッピング元のプレフィックスをターゲットに置換するため、サーバーが `/api` 配下で待ち受けるルートに合わせるには `/api` のターゲットを `API_DOMAIN/api` に指定する必要があります。
 
 ## 2. Mac 上に `.env` を作成する

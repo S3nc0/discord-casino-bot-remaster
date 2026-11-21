@@ -16,7 +16,10 @@ consumed as TypeScript source: erasable syntax only, `.ts` relative imports.
 ## Auth flow
 
 1. Activity: `discordSdk.ready()`, then `commands.authorize({ client_id, response_type: 'code',
-   prompt: 'none', scope: ['identify', 'guilds'] })`.
+   prompt: 'none', scope: AUTHORIZE_SCOPES })` = `identify`, `guilds` (the server reads
+   `/users/@me` and `/users/@me/guilds`) and `rpc.activities.write` (`commands.setActivity` for
+   rich presence). The server needs only `REQUIRED_SERVER_SCOPES` (`identify`, `guilds`) in
+   the grant.
 2. `POST /api/token` with `TokenRequest`. Nothing in it is trusted as given.
 3. The server exchanges the code (`DISCORD_CLIENT_SECRET`), reads `/users/@me` and
    `/users/@me/guilds`, and requires: `guildId` is in the user's guild list **and** in
@@ -37,8 +40,11 @@ rooms only for the token's instance (verified above to belong to that guild).
 ## URL mappings and proxy signatures
 
 Developer Portal: `/` → Pages domain, `/api` → API domain with `/api` kept, so routes match dev
-(Vite proxies `/api` to `localhost:3001`). Socket.io: path `/api/socket.io`, websocket only.
-Libraries that build URLs use `patchUrlMappings`. All assets are bundled.
+(Vite proxies `/api` to `localhost:3001`), and `/discord-cdn` → `cdn.discordapp.com`
+(`DISCORD_CDN_PREFIX`, `DISCORD_URL_MAPPINGS`) for avatars: `avatarUrl(user, { base:
+'/.proxy/discord-cdn' })` inside Discord, the CDN origin outside. Socket.io: path
+`/api/socket.io`, websocket only. Libraries that build URLs use `patchUrlMappings` with
+`DISCORD_URL_MAPPINGS`. All other assets are bundled.
 
 Every request through the Discord proxy carries `X-Signature-Ed25519`, `X-Signature-Timestamp`
 and `X-Discord-Proxy-Payload` (base64 JSON with `created_at`, `expires_at`, Unix seconds).
@@ -70,6 +76,37 @@ has its own tables). All money, rates, prices and quantities are integers (Pelic
 point). The change, its game state and its idempotency record commit together; events are
 published after commit. See [DB_SCHEMA.md](DB_SCHEMA.md).
 
+## HTTP API
+
+Routes are `API_ROUTES` (`packages/shared/src/api.ts`); bodies and responses are TypeBox
+schemas there and in `settings.ts`. Everything but `health` and `token` needs the session token
+and acts only on the token's own user and guild: no route takes a user or guild id.
+
+| Route | Request → response |
+| --- | --- |
+| `GET /api/health` | → `{ status, db }` (no signature check) |
+| `POST /api/token` | `TokenRequest` → `TokenResponse` |
+| `GET /api/me` | → `MeResponse`: user, guild, instance, balance, resolved locale, `localeHints`, expiry |
+| `GET /api/settings` / `PUT /api/settings` | → `SettingsResponse` / `SettingsUpdateRequest` (whole document) → `SettingsResponse` |
+| `GET /api/inbox` | `InboxQuery` (digit strings) → `InboxPage` (newest first, `unread`, `nextBefore`) |
+| `POST /api/inbox/read` | `InboxReadRequest` (`{ ids }` or `{ all: true }`) → `InboxReadResponse` |
+| `POST /api/launch-intent/consume` | `LaunchIntentConsumeRequest` (`{}`) → `LaunchIntentConsumeResponse` |
+
+**Decision: `/api/me` is the balance source.** There is no `/api/balance`: the shell needs user,
+guild, balance and locale together at start and after a reconnect, and `balance:update` keeps
+the balance fresh afterwards. One call, one schema.
+
+**Decision: settings are global per user.** `UserSettings` (language `auto|en|ja`, theme
+`discord|light|dark`, sound on/off with SFX and music volume 0–100, default 30, motion on/off)
+describes the person and their device, not an account in one guild's economy; a player in two
+guilds expects the same app. Audio stays muted until the first user gesture even when sound is
+on. After a change the client re-runs `resolveLocale` with `localeHints`; the token's `loc`
+catches up at the next silent refresh.
+
+**Inbox.** Per user and guild. New items arrive as `inbox:new` on `user:{id}`, followed by
+`inbox:unread` (`{ guildId, unread }`), which is also sent after every read (HTTP or the
+`inbox:read` socket event), so every open instance shows the same count.
+
 ## Events, rooms, launch intents
 
 After commit, per-guild `DomainEvent`s go to subscribers: socket rooms (`domain:event`,
@@ -79,9 +116,15 @@ queue (opt-in, retry, digest), inbox, presence, and stats/missions/ranking. Room
 Payloads on `user:{id}` carry `guildId` so a client in two guilds can filter. Market ticks once
 a minute; races as a timeline.
 
-Launch intents are in-process only (`LaunchIntentService`); there is no HTTP route. The bot calls
-`create({ userId, guildId, screen })` (expires in 2 min) and answers with `LAUNCH_ACTIVITY`;
-`POST /api/token` calls `consume` for the session's own user and guild.
+Launch intents are created in-process only (`LaunchIntentService`); there is no HTTP route to
+create one. The bot calls `create({ userId, guildId, screen })` (expires in 2 min) and answers
+with `LAUNCH_ACTIVITY`; `POST /api/token` calls `consume` for the session's own user and guild.
+An Activity that is already open consumes a newer intent with `POST /api/launch-intent/consume`
+(empty body; user and guild come from the session token), so it only ever consumes its own.
+
+`instance:participants` (`Participants`: guild, instance, `PublicUser[]`) goes to
+`instance:{instanceId}` as the full list whenever a user joins or leaves the instance, and to a
+socket right after it joins.
 
 ## i18n, legacy import, secrets
 
@@ -93,7 +136,11 @@ client locale, guild locale, `en`.
 DB_SCHEMA.md and fails on any Pelica difference. Never run both bots on one token.
 
 `.env` lives only on the owner's machine; `.env.example` holds placeholders and must satisfy
-`ServerEnv` (tested). The server validates env at start-up. Pino `redact.paths`:
+`ServerEnv` (tested). The server validates env at start-up. Optional keys have
+`SERVER_ENV_DEFAULTS`: `PORT` 3001, `HOST` `127.0.0.1`, `DATABASE_PATH` `./data/casino.db`,
+`LOG_LEVEL` `info`, `NODE_ENV` `production`. `HOST` stays on loopback: the tunnel connects
+locally and `trustProxy` is on, so a directly reachable server would accept forged
+`X-Forwarded-For` (a container is the only reason to bind elsewhere). Pino `redact.paths`:
 `req.headers.authorization`, `req.headers.cookie`, `req.headers["x-discord-proxy-payload"]`,
 `*.code`, `*.accessToken`, `*.access_token`, `*.sessionToken`, `*.token`, `*.secret`; a
 serializer also masks `Bearer …`, JWS-shaped strings and bot-token-shaped strings in messages.
