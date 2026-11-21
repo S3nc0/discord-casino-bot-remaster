@@ -31,6 +31,7 @@ import type { IdentityRepo } from '../db/identity.ts';
 import type { SettingsRepo } from '../db/settings.ts';
 import type { Store } from '../db/store.ts';
 import type { EconomyService } from '../economy/economy-service.ts';
+import { REASONS, missingProxyHeaders, proxyReason } from '../auth/reasons.ts';
 import { AppError } from '../runtime/errors.ts';
 import { RateLimiter } from '../runtime/rate-limit.ts';
 
@@ -72,6 +73,8 @@ export interface AppDeps {
   rateLimits?: RateLimits;
   /** Trust `X-Forwarded-For` (the server sits behind the tunnel on loopback). */
   trustProxy?: boolean;
+  /** Put the auth reason code in 401/403 bodies. Off in production (the log always has it). */
+  exposeReasons?: boolean;
 }
 
 const HEALTH_PATH = API_ROUTES.health;
@@ -81,9 +84,13 @@ function header(request: FastifyRequest, name: string): string | undefined {
   return typeof value === 'string' ? value : undefined;
 }
 
-function sendError(reply: FastifyReply, error: AppError): FastifyReply {
+/** The URL path without the query string (which may carry anything). */
+const routeOf = (request: FastifyRequest): string => request.url.split('?')[0] ?? '';
+
+function sendError(reply: FastifyReply, error: AppError, exposeReasons = false): FastifyReply {
   const body: ApiError = {
     error: error.code,
+    ...(exposeReasons && error.authReason !== undefined ? { reason: error.authReason } : {}),
     ...(error.retryAfterMs === undefined ? {} : { retryAfterMs: error.retryAfterMs }),
   };
   if (error.retryAfterMs !== undefined) {
@@ -133,7 +140,23 @@ export function buildApp(deps: AppDeps): FastifyInstance {
   });
 
   app.setErrorHandler((error: FastifyError | AppError, request, reply) => {
-    if (error instanceof AppError) return sendError(reply, error);
+    if (error instanceof AppError) {
+      // One warn line per auth refusal, with a stable reason and nothing secret.
+      if (error.status === 401 || error.status === 403) {
+        const reason = error.authReason ?? error.code;
+        request.log.warn(
+          {
+            reason,
+            errorCode: error.code,
+            status: error.status,
+            method: request.method,
+            path: routeOf(request),
+          },
+          `auth rejected: ${reason}`,
+        );
+      }
+      return sendError(reply, error, deps.exposeReasons);
+    }
     const status = (error as FastifyError).statusCode;
     if (status !== undefined && status >= 400 && status < 500) {
       // Malformed JSON, wrong content type, oversized body: the client's mistake.
@@ -153,17 +176,21 @@ export function buildApp(deps: AppDeps): FastifyInstance {
     if (!path.startsWith('/api') || path === HEALTH_PATH) return done();
     const verifier = deps.proxyVerifier;
     if (verifier) {
-      const result = verifier.verify(
-        {
-          signature: header(request, PROXY_HEADERS.signature),
-          timestamp: header(request, PROXY_HEADERS.timestamp),
-          payload: header(request, PROXY_HEADERS.payload),
-        },
-        Math.floor(deps.clock.now() / 1000),
-      );
+      const proxyHeaders = {
+        signature: header(request, PROXY_HEADERS.signature),
+        timestamp: header(request, PROXY_HEADERS.timestamp),
+        payload: header(request, PROXY_HEADERS.payload),
+      };
+      const result = verifier.verify(proxyHeaders, Math.floor(deps.clock.now() / 1000));
       if (!result.ok) {
-        request.log.warn({ reason: result.reason }, 'proxy signature rejected');
-        return done(new AppError('unauthorized'));
+        const reason = proxyReason(result.reason);
+        const absent = missingProxyHeaders(proxyHeaders);
+        // The error handler writes the warn line; `absent` names missing headers there.
+        return done(
+          new AppError('unauthorized', {
+            reason: absent.length > 0 ? `${reason}:${absent.join(',')}` : reason,
+          }),
+        );
       }
     }
     // 2. Per-IP limit, after the signature so unsigned noise costs nothing but a check.
@@ -201,10 +228,19 @@ export function buildApp(deps: AppDeps): FastifyInstance {
   app.register((authed, _options, done) => {
     authed.addHook('onRequest', (request, _reply, hookDone) => {
       const match = /^Bearer (\S+)$/i.exec(header(request, 'authorization') ?? '');
-      if (!match?.[1]) return hookDone(new AppError('unauthorized'));
+      if (!match?.[1]) {
+        return hookDone(new AppError('unauthorized', { reason: REASONS.bearerMissing }));
+      }
       const check = deps.sessions.verify(match[1]);
       if (!check.ok) {
-        return hookDone(new AppError(check.reason === 'expired' ? 'expired' : 'unauthorized'));
+        const reason = {
+          expired: REASONS.sessionExpired,
+          revoked: REASONS.sessionRevoked,
+          invalid: REASONS.sessionInvalid,
+        }[check.reason];
+        return hookDone(
+          new AppError(check.reason === 'expired' ? 'expired' : 'unauthorized', { reason }),
+        );
       }
       request.session = check.claims;
       try {

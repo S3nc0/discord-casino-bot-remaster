@@ -24,5 +24,7 @@ export type ErrorCode = (typeof ERROR_CODES)[number];
 export const ApiError = Type.Object({
   error: ErrorCode,
   retryAfterMs: Type.Optional(Type.Integer({ minimum: 0 })),
+  /** Why an auth check said no. Sent only when the server runs outside production. */
+  reason: Type.Optional(Type.String({ maxLength: 80 })),
 });
 export type ApiError = Static<typeof ApiError>;

@@ -110,6 +110,7 @@ export function createServer(options: CreateServerOptions): CasinoServices {
     launchIntents,
     proxyVerifier,
     trustProxy: options.trustProxy ?? false,
+    exposeReasons: config.nodeEnv !== 'production',
     ...(options.rateLimits === undefined ? {} : { rateLimits: options.rateLimits }),
   });
   const sockets = attachSocketServer({

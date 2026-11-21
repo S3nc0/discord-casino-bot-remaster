@@ -8,6 +8,7 @@ import { Store } from '../db/store.ts';
 import { applyPragmas } from '../db/pragmas.ts';
 import { runMigrations } from '../db/migrate.ts';
 import { loadConfig, type Config } from './config.ts';
+import type { Logger } from 'pino';
 import { createLogger } from './logger.ts';
 import type { SocketHandlers } from '../socket/server.ts';
 import { createServer, type CasinoServices } from './server.ts';
@@ -70,7 +71,7 @@ export function testConfig(publicKeyHex: string, overrides: Record<string, strin
     SESSION_SECRET: 'x'.repeat(40),
     PUBLIC_API_ORIGIN: 'https://api.example.com',
     ANNOUNCE_CHANNEL_ID: '456789012345678901',
-    NODE_ENV: 'test',
+    NODE_ENV: 'production',
     PORT: '0',
     LOG_LEVEL: 'silent',
     ...overrides,
@@ -147,6 +148,8 @@ export function createTestServer(
     discord?: Partial<FakeDiscordState>;
     env?: Record<string, string>;
     sessionTtlSeconds?: number;
+    /** Defaults to a silent logger. */
+    logger?: Logger;
     socketHandlers?: SocketHandlers;
     rateLimits?: { ipPerMinute: number; tokenPerMinute: number; userPerMinute: number };
   } = {},
@@ -159,7 +162,7 @@ export function createTestServer(
     config,
     clock,
     http: discord,
-    logger: createLogger({ level: 'silent' }),
+    logger: options.logger ?? createLogger({ level: 'silent' }),
     store: memoryStore(),
     ...(options.sessionTtlSeconds === undefined
       ? {}
