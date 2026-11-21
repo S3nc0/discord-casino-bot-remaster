@@ -51,7 +51,7 @@ describe('server env contract', () => {
       expect.arrayContaining(['PORT', 'HOST', 'DATABASE_PATH', 'LOG_LEVEL']),
     );
     expect([...OPTIONAL_SERVER_ENV_KEYS].sort()).toEqual(
-      ['DATABASE_PATH', 'HOST', 'LOG_LEVEL', 'NODE_ENV', 'PORT'].sort(),
+      ['DATABASE_PATH', 'HOST', 'LOG_LEVEL', 'NODE_ENV', 'PORT', 'REQUIRE_PROXY_SIGNATURE'].sort(),
     );
     expect(SERVER_ENV_DEFAULTS).toMatchObject({
       PORT: '3001',

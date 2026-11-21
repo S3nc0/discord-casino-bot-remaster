@@ -71,6 +71,18 @@ describe('loadConfig', () => {
     expect(loadConfig({ ...valid, NODE_ENV: 'production' }).enforceProxySignatures).toBe(true);
   });
 
+  it('REQUIRE_PROXY_SIGNATURE defaults to off and accepts 1/true', () => {
+    expect(loadConfig(valid).requireProxySignature).toBe(false);
+    expect(loadConfig({ ...valid, REQUIRE_PROXY_SIGNATURE: '0' }).requireProxySignature).toBe(
+      false,
+    );
+    expect(loadConfig({ ...valid, REQUIRE_PROXY_SIGNATURE: '1' }).requireProxySignature).toBe(true);
+    expect(loadConfig({ ...valid, REQUIRE_PROXY_SIGNATURE: 'true' }).requireProxySignature).toBe(
+      true,
+    );
+    expect(() => loadConfig({ ...valid, REQUIRE_PROXY_SIGNATURE: 'maybe' })).toThrow(ConfigError);
+  });
+
   it('names the bad keys and never prints their values', () => {
     const attempt = (): unknown =>
       loadConfig({

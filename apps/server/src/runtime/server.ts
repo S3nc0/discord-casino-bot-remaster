@@ -111,6 +111,7 @@ export function createServer(options: CreateServerOptions): CasinoServices {
     proxyVerifier,
     trustProxy: options.trustProxy ?? false,
     exposeReasons: config.nodeEnv !== 'production',
+    requireProxySignature: config.requireProxySignature,
     ...(options.rateLimits === undefined ? {} : { rateLimits: options.rateLimits }),
   });
   const sockets = attachSocketServer({
@@ -122,6 +123,7 @@ export function createServer(options: CreateServerOptions): CasinoServices {
     clock,
     logger,
     proxyVerifier,
+    requireProxySignature: config.requireProxySignature,
     ...(options.socketHandlers === undefined ? {} : { handlers: options.socketHandlers }),
   });
 

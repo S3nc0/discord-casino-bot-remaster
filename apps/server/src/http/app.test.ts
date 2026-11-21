@@ -37,21 +37,17 @@ describe('GET /api/health', () => {
 });
 
 describe('proxy signature hook', () => {
-  it('fails closed on /api/* without or with a bad signature', async () => {
+  it('rejects a bad signature and an expired payload on /api/* (see proxy-policy.test.ts)', async () => {
     server = createTestServer();
-    const unsigned = await server.app.inject({ method: 'POST', url: '/api/token', payload: body });
-    expect(unsigned.statusCode).toBe(401);
-    expect(unsigned.json()).toEqual({ error: 'unauthorized' });
-    const bad = await token({}, { ...server.signed(), 'x-signature-ed25519': 'ab'.repeat(64) });
+    const bad = await server.app.inject({
+      url: '/api/me',
+      headers: { ...server.signed(), 'x-signature-ed25519': 'ab'.repeat(64) },
+    });
     expect(bad.statusCode).toBe(401);
-    expect((await server.app.inject({ url: '/api/me' })).statusCode).toBe(401);
-    expect(server.discord.requests).toEqual([]);
-  });
-
-  it('rejects an expired proxy payload', async () => {
-    server = createTestServer();
+    expect(bad.json()).toEqual({ error: 'unauthorized' });
     const stale = server.keys.headers(Math.floor(server.clock.now() / 1000) - 1000, 10);
-    expect((await token({}, stale)).statusCode).toBe(401);
+    expect((await server.app.inject({ url: '/api/me', headers: stale })).statusCode).toBe(401);
+    expect(server.discord.requests).toEqual([]);
   });
 
   it('is skipped only when NODE_ENV=development', async () => {

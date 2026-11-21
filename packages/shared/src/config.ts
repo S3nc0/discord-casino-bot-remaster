@@ -27,6 +27,12 @@ export const ServerEnv = Type.Object({
   ANNOUNCE_CHANNEL_ID: Type.String({ pattern: `^${snowflake}$` }),
   /** `development` disables proxy signature checks (local dev only). Anything else enforces them. */
   NODE_ENV: Type.Optional(Type.Enum(['development', 'test', 'production'])),
+  /**
+   * `1`/`true`: every `/api` route except `health` and `token`, and the socket upgrade, must
+   * carry valid Discord proxy signature headers. Default `0`: headers are verified when
+   * present and may be absent (Discord was observed not to sign `POST /api/token`).
+   */
+  REQUIRE_PROXY_SIGNATURE: Type.Optional(Type.Enum(['0', '1', 'true', 'false'])),
   /** HTTP + Socket.io port. Default `SERVER_ENV_DEFAULTS.PORT`. */
   PORT: Type.Optional(
     Type.String({
@@ -55,6 +61,7 @@ export type ServerEnv = Static<typeof ServerEnv>;
 /** Defaults for the optional keys (as strings, the way they appear in `process.env`). */
 export const SERVER_ENV_DEFAULTS = {
   NODE_ENV: 'production',
+  REQUIRE_PROXY_SIGNATURE: '0',
   PORT: '3001',
   HOST: '127.0.0.1',
   DATABASE_PATH: './data/casino.sqlite',

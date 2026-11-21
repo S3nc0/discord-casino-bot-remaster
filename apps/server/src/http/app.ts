@@ -31,7 +31,13 @@ import type { IdentityRepo } from '../db/identity.ts';
 import type { SettingsRepo } from '../db/settings.ts';
 import type { Store } from '../db/store.ts';
 import type { EconomyService } from '../economy/economy-service.ts';
-import { REASONS, missingProxyHeaders, proxyReason } from '../auth/reasons.ts';
+import {
+  ProxySignatureObserver,
+  checkProxySignature,
+  decisionReason,
+  type ProxySignatureState,
+} from '../auth/proxy-policy.ts';
+import { REASONS } from '../auth/reasons.ts';
 import { AppError } from '../runtime/errors.ts';
 import { RateLimiter } from '../runtime/rate-limit.ts';
 
@@ -39,6 +45,8 @@ declare module 'fastify' {
   interface FastifyRequest {
     /** Verified session claims; set on authenticated routes only. */
     session: SessionClaims | null;
+    /** What the proxy signature check found; set on every non-exempt `/api` request. */
+    proxySignature: ProxySignatureState | null;
   }
 }
 
@@ -75,9 +83,12 @@ export interface AppDeps {
   trustProxy?: boolean;
   /** Put the auth reason code in 401/403 bodies. Off in production (the log always has it). */
   exposeReasons?: boolean;
+  /** Refuse missing proxy signature headers (health and token excepted). */
+  requireProxySignature?: boolean;
 }
 
 const HEALTH_PATH = API_ROUTES.health;
+const TOKEN_PATH = API_ROUTES.token;
 
 function header(request: FastifyRequest, name: string): string | undefined {
   const value = request.headers[name];
@@ -129,6 +140,8 @@ export function buildApp(deps: AppDeps): FastifyInstance {
     bodyLimit: 16 * 1024,
   });
   app.decorateRequest('session', null);
+  app.decorateRequest('proxySignature', null);
+  const observer = new ProxySignatureObserver(deps.logger);
 
   // Browsers and the SDK fetch wrapper send an empty body with or without a JSON content type.
   // An empty body parses as "no body" (routes treat that as {} where the contract allows);
@@ -170,28 +183,29 @@ export function buildApp(deps: AppDeps): FastifyInstance {
   });
   app.setNotFoundHandler((_request, reply) => sendError(reply, new AppError('not_found')));
 
-  // 1. Discord proxy signature (fails closed unless the verifier is switched off for dev).
+  // 1. Discord proxy signature. `health` and `token` are exempt: Discord does not sign the
+  // pre-authenticate `token` call (observed), and that route checks the Discord code itself.
+  // Elsewhere headers are verified when present; a request without any still needs our session
+  // token, and `REQUIRE_PROXY_SIGNATURE` refuses it outright.
   app.addHook('onRequest', (request, _reply, done) => {
     const path = request.url.split('?')[0] ?? '';
     if (!path.startsWith('/api') || path === HEALTH_PATH) return done();
-    const verifier = deps.proxyVerifier;
-    if (verifier) {
-      const proxyHeaders = {
-        signature: header(request, PROXY_HEADERS.signature),
-        timestamp: header(request, PROXY_HEADERS.timestamp),
-        payload: header(request, PROXY_HEADERS.payload),
-      };
-      const result = verifier.verify(proxyHeaders, Math.floor(deps.clock.now() / 1000));
-      if (!result.ok) {
-        const reason = proxyReason(result.reason);
-        const absent = missingProxyHeaders(proxyHeaders);
-        // The error handler writes the warn line; `absent` names missing headers there.
-        return done(
-          new AppError('unauthorized', {
-            reason: absent.length > 0 ? `${reason}:${absent.join(',')}` : reason,
-          }),
-        );
+    if (path !== TOKEN_PATH) {
+      const decision = checkProxySignature(
+        deps.proxyVerifier,
+        {
+          signature: header(request, PROXY_HEADERS.signature),
+          timestamp: header(request, PROXY_HEADERS.timestamp),
+          payload: header(request, PROXY_HEADERS.payload),
+        },
+        Math.floor(deps.clock.now() / 1000),
+        deps.requireProxySignature ?? false,
+      );
+      if (!decision.ok) {
+        // The error handler writes the warn line.
+        return done(new AppError('unauthorized', { reason: decisionReason(decision) }));
       }
+      request.proxySignature = decision.state;
     }
     // 2. Per-IP limit, after the signature so unsigned noise costs nothing but a check.
     try {
@@ -243,6 +257,9 @@ export function buildApp(deps: AppDeps): FastifyInstance {
         );
       }
       request.session = check.claims;
+      if (request.proxySignature !== null) {
+        observer.note(check.claims.jti, 'http', request.proxySignature);
+      }
       try {
         limitHit(userLimiter, check.claims.sub);
       } catch (error) {

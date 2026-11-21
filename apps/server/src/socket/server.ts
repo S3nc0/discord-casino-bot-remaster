@@ -26,7 +26,13 @@ import {
   type TableSnapshot,
 } from '@casino/shared';
 import type { Logger } from 'pino';
-import { REASONS, missingProxyHeaders, proxyReason } from '../auth/reasons.ts';
+import {
+  ProxySignatureObserver,
+  checkProxySignature,
+  decisionReason,
+  type ProxySignatureState,
+} from '../auth/proxy-policy.ts';
+import { REASONS } from '../auth/reasons.ts';
 import type { SessionService } from '../auth/sessions.ts';
 import type { IdentityRepo } from '../db/identity.ts';
 import type { InboxService } from '../db/inbox.ts';
@@ -68,6 +74,8 @@ export interface SocketServerOptions {
   logger: Logger;
   /** null disables the upgrade signature check (development only). */
   proxyVerifier: ProxySignatureVerifier | null;
+  /** Refuse an upgrade without proxy signature headers. */
+  requireProxySignature?: boolean;
   handlers?: SocketHandlers;
   /** Events per socket per 10 s before they are dropped with `rate_limited`. */
   eventsPer10s?: number;
@@ -161,35 +169,40 @@ export function attachSocketServer(options: SocketServerOptions): SocketServer {
     clock,
   }).start();
 
+  const observer = new ProxySignatureObserver(logger);
+  /** What `allowRequest` found, by upgrade request (the handshake sees the same object). */
+  const proxyStates = new WeakMap<object, ProxySignatureState>();
+
   const io: CasinoServer = new Server(options.httpServer, {
     path: SOCKET_PATH,
     transports: ['websocket'],
     perMessageDeflate: false,
     serveClient: false,
     maxHttpBufferSize: 64 * 1024,
-    // The Discord proxy signs the upgrade request too.
+    // Same policy as HTTP: signature headers are verified when present, and refused when absent
+    // only with REQUIRE_PROXY_SIGNATURE. The handshake still needs our session token.
     allowRequest(request, callback) {
-      const verifier = options.proxyVerifier;
-      if (!verifier) return callback(null, true);
       const pick = (name: string): string | undefined => {
         const value = request.headers[name];
         return typeof value === 'string' ? value : undefined;
       };
-      const proxyHeaders = {
-        signature: pick(PROXY_HEADERS.signature),
-        timestamp: pick(PROXY_HEADERS.timestamp),
-        payload: pick(PROXY_HEADERS.payload),
-      };
-      const result = verifier.verify(proxyHeaders, Math.floor(clock.now() / 1000));
-      if (!result.ok) {
-        const reason = proxyReason(result.reason);
-        const absent = missingProxyHeaders(proxyHeaders);
-        logger.warn(
-          { reason, absentHeaders: absent, transport: 'socket' },
-          `auth rejected: ${reason}`,
-        );
+      const decision = checkProxySignature(
+        options.proxyVerifier,
+        {
+          signature: pick(PROXY_HEADERS.signature),
+          timestamp: pick(PROXY_HEADERS.timestamp),
+          payload: pick(PROXY_HEADERS.payload),
+        },
+        Math.floor(clock.now() / 1000),
+        options.requireProxySignature ?? false,
+      );
+      if (!decision.ok) {
+        const reason = decisionReason(decision);
+        logger.warn({ reason, transport: 'socket' }, `auth rejected: ${reason}`);
+        return callback(null, false);
       }
-      return callback(null, result.ok);
+      proxyStates.set(request, decision.state);
+      return callback(null, true);
     },
   });
 
@@ -225,6 +238,7 @@ export function attachSocketServer(options: SocketServerOptions): SocketServer {
     socket.data.locale = claims.loc;
     socket.data.expiresAt = claims.exp * 1000;
     socket.data.jti = claims.jti;
+    observer.note(claims.jti, 'socket', proxyStates.get(socket.request) ?? 'absent');
     return next();
   });
 
