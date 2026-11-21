@@ -1,8 +1,8 @@
 # Horse Breeding Design (`horse`, new feature)
 
-> Status: **design for owner approval**. Planned owner: **B2-B** · Game ID: `horse` · Screen ID: `horse` (stable tab) · Feature toggle: `horse` · New ledger reason: `horse_breeding_fee` (+ `horse_stud_fee` / `horse_stud_income` only if §9 D1 = yes).
+> Status: **approved by the owner on 2026-11-21** (§9). Planned owner: **B2-B** · Game ID: `horse` · Screen ID: `horse` (stable tab) · Feature toggle: `horse` · New ledger reason: `horse_breeding_fee`.
 >
-> Legacy Python has **no breeding** ([horse.md](horse.md) §1). Nothing here is a parity rule; every number below is a proposal. Each section is numbered so the owner can answer yes/no per section. §9 lists the decisions that change the build.
+> Legacy Python has **no breeding** ([horse.md](horse.md) §1). Nothing here is a parity rule; the numbers below are this design's own. §9 records the owner's decisions; §10 holds ideas left out of v1.
 
 ## 1. Player story and fit
 
@@ -38,7 +38,7 @@ A horse is **eligible** when all of these hold (checked inside the breeding tran
 - **Stable:** owner's horse count (incl. active market listings, as today) `< MAX_HORSES = 3`. In practice: two parents + one foal fills the stable; breeding again needs a retirement or a sale.
 - **Feature toggle:** `horse` off blocks new breedings; foals already born keep maturing.
 
-**Alternative (not recommended for v1): another player's stud.** See §9 D1. If approved, it works as a *standing offer*: the stud's owner marks one eligible horse "open to stud" at a fee `STUD_FEE` in `[1,000, 30,000]`; any other player pairs one of their own eligible horses with it at once, paying `BREED_FEE` (sink) + `STUD_FEE` (transfer to the stud's owner) in one transaction. No accept step means no escrow. The foal goes to the breeder; the stud gets the cooldown and a foal count. Offers lapse after 7 days and are withdrawn when the stud retires, is sold, listed or seized. (An approve-each-request flow would need an escrow hold/release pair and a pending state; only worth it if owners want to vet partners.)
+**Not in v1: another player's horse as a partner (stud fee).** Decided against for v1 (§9 D1); a possible later design is in §10.
 
 ## 3. The foal
 
@@ -76,7 +76,6 @@ Breeding is **instant**: one transaction charges the fee, updates both parents a
 | Constant | Value | Flow |
 | --- | --- | --- |
 | `BREED_FEE` | **15,000** Pelica (half a voucher) | `horse_breeding_fee`, **sink** |
-| `STUD_FEE` (only if D1) | owner-set `1,000–30,000` | `horse_stud_fee` / `horse_stud_income`, **transfer** |
 | New faucets | **none** | — |
 
 Sizing against horse.md and the 3,000 start:
@@ -90,7 +89,6 @@ Inflation sanity check (per guild):
 2. **Average horse is a net sink.** At the field average (win 1/8, top-3 3/8), a 32-race career ends at `4×5,000 + 8×2,000 − 20×2,000 = −4,000` (a fee). Entry fees (32 × 1,000) roughly fund the prize pool (prizes scale to `real_entries × 1,000`), so the loop is closed. Per average foal: `−15,000` fee `−4,000` retirement ≈ **−19,000** Pelica leaves circulation.
 3. **Worst case:** breeding replaces the 30,000 voucher sink with 15,000, so at most **15,000 less sink per replacement horse**, ≤ 1 replacement per owner per week ⇒ ≤ ≈2,100 Pelica/owner/day, against a daily-bonus faucet of 4,000–12,000 per player per day. Small, and still a sink.
 4. **Rankings:** `純資産` (default ranking) does not include horses. `総資産` counts a foal at `base_value` 15,000, the price paid, so breeding cannot inflate it.
-5. **Stud fee (if D1):** a transfer, sums to zero. Moving Pelica to a friend through it costs the 15,000 sink each time, far worse than `/送金`'s 10% fee, so it is no way around the transfer limits. Stud income gets the usual 30% debt withholding (`debt_withholding` row, gross then deduction).
 
 ## 5. Data
 
@@ -99,8 +97,7 @@ Per-guild, in the existing `horses` table (already `guild_id`-scoped) plus one l
 | Change | Columns |
 | --- | --- |
 | `horses` + | `parent_a_id INTEGER NULL REFERENCES horses(id)`, `parent_b_id INTEGER NULL REFERENCES horses(id)`, `generation INTEGER NOT NULL DEFAULT 0`, `foaled_at INTEGER NULL` (epoch ms), `matures_at INTEGER NULL`, `last_bred_at INTEGER NULL`, `foal_count INTEGER NOT NULL DEFAULT 0 CHECK (foal_count BETWEEN 0 AND 2)`, `base_value INTEGER NOT NULL DEFAULT 30000` |
-| new `horse_breedings` | `id`, `guild_id`, `user_id`, `parent_a_id`, `parent_b_id`, `foal_id UNIQUE`, `fee`, `stud_owner_id NULL`, `stud_fee NULL`, `created_at`. Audit trail and the ledger `ref_id`. |
-| new `horse_stud_offers` (only if D1) | `guild_id`, `horse_id` (PK with guild), `owner_id`, `fee`, `created_at`, `expires_at` |
+| new `horse_breedings` | `id`, `guild_id`, `user_id`, `parent_a_id`, `parent_b_id`, `foal_id UNIQUE`, `fee`, `created_at`. Audit trail and the ledger `ref_id`. |
 
 Retired and seized parents keep their rows (owner `-2` / `-1`), so lineage still resolves.
 
@@ -109,10 +106,8 @@ Retired and seized parents keep their rows (owner `-2` / `-1`), so lineage still
 | Reason | Flow | Sign | Ledger label (JA history) |
 | --- | --- | --- | --- |
 | `horse_breeding_fee` | sink | −1 | `競馬:配合料（{name}）` |
-| `horse_stud_fee` (D1 only) | transfer | −1 | `競馬:種付け料（{stud}）` |
-| `horse_stud_income` (D1 only) | transfer | +1 | `競馬:種付け料の受け取り（{stud}）` |
 
-`ref_type = 'horse_breeding'`, `ref_id = horse_breedings.id`. A transfer reason has one fixed sign, so the stud fee needs the pair.
+`ref_type = 'horse_breeding'`, `ref_id = horse_breedings.id`.
 
 **Domain event** (append to `DomainEvent` / `DOMAIN_EVENT_TYPES`):
 
@@ -125,13 +120,12 @@ HorseFoaled = event('HorseFoaled', {
   statTotal: Type.Integer({ minimum: 190, maximum: 210 }),
   generation: Type.Integer({ minimum: 1 }),
   maturesAt: EpochMs,
-  studOwnerId: Type.Optional(Snowflake), // D1 only, for the stud owner's notice
 });
 ```
 
-Subscribers: breeder's inbox + opt-in DM (new `NotificationKind` `horse_foaled` → `HorseFoaled`); stud owner's inbox (D1); guild announcement only when `statTotal >= 205` (keeps chat quiet). No "matured" event: the stable shows the countdown.
+Subscribers: breeder's inbox + opt-in DM (new `NotificationKind` `horse_foaled` → `HorseFoaled`); guild announcement only when `statTotal >= 205` (keeps chat quiet). No "matured" event: the stable shows the countdown.
 
-**Intent:** `ActionIntent` with `game: 'horse'`, `action: 'breed'`, `args: { parentA, parentB, name, silks, studOfferId? }`. Rejections use existing `ErrorCode`s (`insufficient_funds`, `conflict`, `forbidden`, `invalid_payload`); the specific message key below travels in the game-specific result.
+**Intent:** `ActionIntent` with `game: 'horse'`, `action: 'breed'`, `args: { parentA, parentB, name, silks }`. Rejections use existing `ErrorCode`s (`insufficient_funds`, `conflict`, `forbidden`, `invalid_payload`); the specific message key below travels in the game-specific result.
 
 **i18n keys** (examples; `ja` typed against `en`):
 
@@ -161,11 +155,11 @@ Subscribers: breeder's inbox + opt-in DM (new `NotificationKind` `horse_foaled` 
 | Parent retired during its cooldown | Nothing to do: cooldown lives on the horse row; the foal and its lineage are unaffected. |
 | Parent sold or traded during cooldown | `last_bred_at` and `foal_count` travel with the horse, so the buyer inherits the cooldown and the remaining foal allowance (no reset by selling to a friend). |
 | Parent listed on the market | Not eligible while listed (owner `-3`); the in-transaction ownership check fails with `conflict`. |
-| Bankruptcy (voluntary, forced, escape) | Foals are seized like any horse (owner `-1`), immature ones included; maturity keeps counting. Seizure credit and Teiai auction price use `base_value`. Open stud offers (D1) are deleted. |
+| Bankruptcy (voluntary, forced, escape) | Foals are seized like any horse (owner `-1`), immature ones included; maturity keeps counting. Seizure credit and Teiai auction price use `base_value`. |
 | Breeder in debt / in bankruptcy grace / bankrupt | Rejected before any change (`horse.breed.err.in_debt`). Balance never goes negative: fee must be covered by cash. |
 | Debt arrives between confirm and commit | The transaction re-reads debt and balance; it either commits fully or changes nothing. |
 | Stable at the cap | Rejected before charging (`stable_full`). Market listings count, as today. A won player-market auction still checks the buyer's cap at settlement (player-market.md). |
-| Owner leaves the guild | We can't see it (no member intent). Horses stay in place and frozen in practice (no entries without the owner). Stud offers (D1) lapse after 7 days. On return everything is still there. |
+| Owner leaves the guild | We can't see it (no member intent). Horses stay in place and frozen in practice (no entries without the owner). On return everything is still there. |
 | Two breed requests using the same parent (double click, two devices) | Same `idempotencyKey` → stored response replayed. Different keys → SQLite serializes writers; the parent update is conditional (`WHERE last_bred_at IS NULL OR last_bred_at <= now − 72 h AND foal_count < 2`) and must change both rows, else `conflict` and rollback. |
 | Breeding while a parent's race settles | No conflict: settlement writes the record and breeding writes the breeding fields. If a parent auto-retires at 32 races first, breeding fails eligibility. |
 | Re-roll attempts | Stats are rolled once on the server and stored in the same transaction; a replay returns the stored foal. No preview before paying. Retiring a 0-race foal pays 0. |
@@ -189,7 +183,7 @@ Property tests (seeded RNG, many runs):
 
 Unit cases:
 
-- Each eligibility rule rejects on its own: 3 races, cooldown 71 h 59 m, `foal_count = 2`, immature foal as parent, same horse twice, other player's horse (without D1), retired, listed, seized.
+- Each eligibility rule rejects on its own: 3 races, cooldown 71 h 59 m, `foal_count = 2`, immature foal as parent, same horse twice, another player's horse, retired, listed, seized.
 - Fee: exact 15,000 balance succeeds and ends at 0; 14,999 fails with no rows written; debt `> 0` fails.
 - Stable: 3 horses (or 2 + 1 listing) fails; 2 horses succeeds and ends at 3.
 - Ledger: one `horse_breeding_fee` row of `−15,000`, `isDeltaAllowed` holds, `ref_id` = breeding id; supply check still balances.
@@ -197,14 +191,25 @@ Unit cases:
 - Foal: generation, `matures_at = foaled_at + 48 h`, `base_value = 15,000`; race entry rejected at 47 h 59 m and accepted at 48 h.
 - Gold carrot on a 205-total foal fails; on a 200-total foal succeeds to 210.
 - Bankruptcy seizes an immature foal; valuation and auction price use 15,000.
-- D1 only: stud fee rows sum to 0; stud income to an indebted owner produces a `debt_withholding` row; expired or withdrawn offer → `conflict`.
 
-## 9. Owner decisions needed
+## 9. Decisions (2026-11-21)
 
-| # | Question | Recommendation |
-| --- | --- | --- |
-| D1 | Allow pairing with **another player's horse** (stud fee to its owner) in v1, or own × own only? | **Own × own only.** Stud offers can follow later as specced in §2 (standing offer, no escrow). |
-| D2 | Can **retired horses** breed ("retire to stud": no payout, stays in the stable as a breeder), or only active horses? | **Active only.** Simpler, keeps the 3-slot cap meaningful, and keeps retirement a clean exit. |
-| D3 | Breeding fee: **10,000 / 15,000 / 25,000** Pelica? | **15,000** (half a voucher, still a net sink per foal). |
-| D4 | Keep the stable cap at **3** (foals included), or raise it to **4**? | **Keep 3.** It limits breeding pace by itself (two parents + one foal); 4 would allow a second foal per cycle. The retirement faucet is bounded by race slots either way. |
-| D5 | Hard cap of **210** on any horse's stat total (bred foals never beat a fully tuned bought horse; gold carrot only on horses at ≤ 200)? | **Yes.** Without it, bred lines plus gold carrots could reach 220. |
+The owner accepted every recommendation:
+
+- **D1 Pairing:** own × own only. No stud fee or cross-owner breeding in v1.
+- **D2 Retired horses:** do not breed. Only active horses are eligible.
+- **D3 Breeding fee:** `BREED_FEE = 15,000` Pelica (sink).
+- **D4 Stable cap:** stays at `MAX_HORSES = 3`, foals included.
+- **D5 Total cap:** `TOTAL_CAP = 210` on every horse's stat total; `gold_carrot` fails if it would pass 210.
+
+## 10. Later (not in v1)
+
+**Stud offers (another player's horse as a partner).** If wanted later, the simplest form is a _standing offer_: the stud's owner marks one eligible horse "open to stud" at a fee `STUD_FEE` in `[1,000, 30,000]`; any other player pairs one of their own eligible horses with it at once, paying `BREED_FEE` (sink) + `STUD_FEE` (transfer) in one transaction, so no escrow is needed. The foal goes to the breeder; the stud gets the cooldown and a foal count. Offers lapse after 7 days and are withdrawn when the stud retires, is sold, listed or seized (bankruptcy deletes them).
+
+- Ledger: a transfer reason has one fixed sign, so it needs a pair: `horse_stud_fee` (transfer, −1, `競馬:種付け料（{stud}）`) and `horse_stud_income` (transfer, +1, `競馬:種付け料の受け取り（{stud}）`). Stud income gets the usual 30% `debt_withholding` row.
+- Data: `horse_stud_offers (guild_id, horse_id PK with guild, owner_id, fee, created_at, expires_at)`; `horse_breedings` gains `stud_owner_id NULL`, `stud_fee NULL`; `HorseFoaled` gains optional `studOwnerId` for the stud owner's inbox; the breed intent gains `studOfferId`.
+- Economy: the transfer rows sum to zero, and moving Pelica to a friend this way costs the 15,000 sink each time, far more than `/送金`'s 10% fee, so it does not get around the transfer limits.
+- An approve-each-request flow would instead need an escrow hold/release pair and a pending state; only worth it if owners want to vet partners.
+- Tests: stud rows sum to 0; stud income to an indebted owner produces `debt_withholding`; an expired or withdrawn offer → `conflict`.
+
+**Retire to stud** (D2 alternative): a retired horse kept as a breeder with no payout, still counting toward the cap.
