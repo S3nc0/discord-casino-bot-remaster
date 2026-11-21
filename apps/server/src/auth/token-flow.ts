@@ -24,14 +24,13 @@ export interface TokenFlowOptions {
   sessions: SessionService;
   launchIntents: LaunchIntentService;
   allowedGuildIds: ReadonlySet<string>;
-  requireApproval: boolean;
   clock: Clock;
   logger: Logger;
 }
 
 /**
  * `POST /api/token`. Nothing in the request is trusted as given: the guild must be one the
- * user is in and one we allow (and approve), the instance must be a live Activity instance of
+ * user is in and one the owner listed in ALLOWED_GUILD_IDS, the instance must be a live Activity instance of
  * that guild with this user in it. Only then is anything written.
  */
 export class TokenFlow {
@@ -78,21 +77,14 @@ export class TokenFlow {
       });
     }
 
-    // The guild row is recorded even when it still waits for approval, so the owner can see it.
-    identity.ensureGuild(
-      request.guildId,
-      this.o.requireApproval ? 'pending' : 'approved',
-      guild.name,
-    );
+    // A guild in ALLOWED_GUILD_IDS (checked above) is approved: the owner chose it explicitly,
+    // so a `pending` row (made here on first sight, or by `ensureMember`) never blocks it.
+    // Only an explicit `denied` decision is honoured.
+    identity.ensureGuild(request.guildId, 'approved', guild.name);
     if (guild.name) identity.setGuildName(request.guildId, guild.name);
-    let status = identity.getGuildStatus(request.guildId);
-    if (status === 'pending' && !this.o.requireApproval) {
-      identity.setGuildStatus(request.guildId, 'approved');
-      status = 'approved';
-    }
+    const status = identity.getGuildStatus(request.guildId);
     if (status === 'denied') throw new AppError('guild_not_allowed', { reason: 'guild_denied' });
-    if (status !== 'approved')
-      throw new AppError('guild_pending', { reason: REASONS.guildPending });
+    if (status !== 'approved') identity.setGuildStatus(request.guildId, 'approved');
 
     // Everything below commits together: the member and its start balance, and the intent.
     const result = store.transaction(() => {

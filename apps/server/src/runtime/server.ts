@@ -89,7 +89,6 @@ export function createServer(options: CreateServerOptions): CasinoServices {
     sessions,
     launchIntents,
     allowedGuildIds: config.allowedGuildIds,
-    requireApproval: config.requireApproval,
     clock,
     logger,
   });

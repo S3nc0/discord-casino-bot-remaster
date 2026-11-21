@@ -23,7 +23,10 @@ consumed as TypeScript source: erasable syntax only, `.ts` relative imports.
 2. `POST /api/token` with `TokenRequest`. Nothing in it is trusted as given.
 3. The server exchanges the code (`DISCORD_CLIENT_SECRET`), reads `/users/@me` and
    `/users/@me/guilds`, and requires: `guildId` is in the user's guild list **and** in
-   `ALLOWED_GUILD_IDS` (and approved if `REQUIRE_APPROVAL=1`); `instanceId` is a live instance
+   `ALLOWED_GUILD_IDS` (a listed guild counts as approved: a `pending` row is set to `approved`
+   on sight; only an explicit `denied` blocks it, as `guild_not_allowed`. `REQUIRE_APPROVAL`
+   has no effect on this route; it is reserved for guilds outside the list once the bot can
+   admit them); `instanceId` is a live instance
    per `GET /applications/{app}/activity-instances/{instanceId}`, its location's guild is
    `guildId`, and the user is in its user list. Then it upserts `users`/`guild_members`,
    resolves the locale, consumes this user's launch intent for this guild, and returns
