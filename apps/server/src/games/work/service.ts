@@ -10,6 +10,7 @@ import {
   DRINK_RECOVER,
   dormCost,
   fatigueNow,
+  isMechanicalHour,
   MAX_LEVEL,
   settlePlan,
   slotsOf,
@@ -32,6 +33,12 @@ import {
 } from '@casino/domain/progression';
 import { Inventory } from '../shop/inventory.ts';
 import { GameRuleError, type GamesCtx } from '../progression/context.ts';
+
+export interface WorkRankRow {
+  userId: string;
+  clicks: number;
+  earned: number;
+}
 
 interface StateRow {
   pick: number;
@@ -115,6 +122,87 @@ export class WorkService {
 
   private terrain(): string {
     return terrainToday(isoDate(localDayNumber(this.ctx.clock.now(), this.ctx.offsetHours)));
+  }
+
+  /**
+   * `/labor ranking`: most earned first, fewest clicks breaking ties, then user id. `today` counts
+   * only what was earned on the current local day. Top `top` rows plus the caller's own rank.
+   */
+  ranking(
+    guildId: string,
+    userId: string,
+    period: 'total' | 'today',
+    top = 10,
+  ): { rows: WorkRankRow[]; self: (WorkRankRow & { rank: number }) | null; total: number } {
+    const today = this.dayIso();
+    const raw = this.ctx.store
+      .stmt(
+        'SELECT user_id, clicks, day, day_earned, earned_total FROM work_state WHERE guild_id = ? AND clicks > 0',
+      )
+      .all(guildId) as {
+      user_id: string;
+      clicks: number;
+      day: string | null;
+      day_earned: number;
+      earned_total: number;
+    }[];
+    const all: WorkRankRow[] = raw
+      .map((r) => ({
+        userId: r.user_id,
+        clicks: r.clicks,
+        earned: period === 'today' ? (r.day === today ? r.day_earned : 0) : r.earned_total,
+      }))
+      .filter((r) => r.earned > 0)
+      .sort((a, b) => b.earned - a.earned || a.clicks - b.clicks || (a.userId < b.userId ? -1 : 1));
+    const index = all.findIndex((r) => r.userId === userId);
+    const mine = index < 0 ? undefined : all[index];
+    return {
+      rows: all.slice(0, top),
+      self: mine === undefined ? null : { ...mine, rank: index + 1 },
+      total: all.length,
+    };
+  }
+
+  /** Hourly click statistics of one member, newest hours first (`/admin click-history`). */
+  clickHistory(
+    guildId: string,
+    userId: string,
+    hours: number,
+  ): { hour: number; clicks: number; pay: number; cv: number | null; mechanical: boolean }[] {
+    const nowHour = Math.floor(this.ctx.clock.now() / MS_HOUR);
+    const rows = this.ctx.store
+      .stmt(
+        `SELECT hour, clicks, pay, gaps, sum_gap_ms, sum_gap2_ms, min_gap_ms FROM work_click_hours
+          WHERE guild_id = ? AND user_id = ? AND hour > ? ORDER BY hour DESC`,
+      )
+      .all(guildId, userId, nowHour - hours) as {
+      hour: number;
+      clicks: number;
+      pay: number;
+      gaps: number;
+      sum_gap_ms: number;
+      sum_gap2_ms: number;
+      min_gap_ms: number;
+    }[];
+    return rows.map((r) => {
+      const h: ClickHour = {
+        clicks: r.clicks,
+        pay: r.pay,
+        gaps: r.gaps,
+        sumGap: r.sum_gap_ms / 1000,
+        sumGap2: r.sum_gap2_ms / 1e6,
+        minGap: r.min_gap_ms / 1000,
+      };
+      const mean = h.gaps > 0 ? h.sumGap / h.gaps : 0;
+      const variance = h.gaps > 0 ? Math.max(0, h.sumGap2 / h.gaps - mean * mean) : 0;
+      return {
+        hour: r.hour,
+        clicks: r.clicks,
+        pay: r.pay,
+        cv: h.gaps >= 2 && mean > 0 ? Math.sqrt(variance) / mean : null,
+        mechanical: isMechanicalHour(h),
+      };
+    });
   }
 
   view(guildId: string, userId: string): WorkView {

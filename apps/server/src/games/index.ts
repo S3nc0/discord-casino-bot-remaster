@@ -28,6 +28,8 @@ export interface CasinoGames {
   handlers: SocketHandlers;
   /** Give tables a way to push `table:state`. Call once the socket server exists. */
   attach(io: CasinoServer): void;
+  /** Hear every table snapshot (chat tables edit their Discord message from it). Returns an unsubscribe. */
+  onTableState(listener: (snapshot: TableSnapshot) => void): () => void;
   /** At start-up: refund every round a crash left open. Returns how many. */
   recover(): number;
 }
@@ -45,6 +47,7 @@ export function createCasinoGames(
   deps: CasinoDeps & { limits?: Partial<HandlerLimits> },
 ): CasinoGames {
   let io: CasinoServer | null = null;
+  const tableListeners = new Set<(snapshot: TableSnapshot) => void>();
   const core = new CasinoCore(deps);
   const ctx: GameContext = {
     core,
@@ -55,6 +58,13 @@ export function createCasinoGames(
     logger: deps.logger,
     broadcast(snapshot: TableSnapshot) {
       io?.to(rooms.table(snapshot.instanceId, snapshot.game)).emit('table:state', snapshot);
+      for (const listener of tableListeners) {
+        try {
+          listener(snapshot);
+        } catch (error) {
+          deps.logger.error({ err: error }, 'table listener failed');
+        }
+      }
     },
   };
   const services = {
@@ -74,6 +84,12 @@ export function createCasinoGames(
     }),
     attach(server) {
       io = server;
+    },
+    onTableState(listener) {
+      tableListeners.add(listener);
+      return () => {
+        tableListeners.delete(listener);
+      };
     },
     recover: () => core.recoverOpenRounds(),
   };

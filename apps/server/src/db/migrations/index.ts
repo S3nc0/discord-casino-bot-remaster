@@ -8,6 +8,7 @@ import notifyWebhooks from './0006_notify_webhooks.sql';
 import finance from './0007_finance.sql';
 import gamesProgression from './0008_games_progression.sql';
 import horseBreeding from './0009_horse_breeding.sql';
+import botTools from './0010_bot_tools.sql';
 
 export type { Migration };
 
@@ -22,4 +23,5 @@ export const migrations: readonly Migration[] = [
   { version: 7, name: 'finance', sql: finance },
   { version: 8, name: 'games_progression', sql: gamesProgression },
   { version: 9, name: 'horse_breeding', sql: horseBreeding },
+  { version: 10, name: 'bot_tools', sql: botTools },
 ];

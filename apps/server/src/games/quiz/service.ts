@@ -198,6 +198,72 @@ export class QuizService {
     });
   }
 
+  /** Admin: add one official quiz (`/admin quiz add`); `choices[0]` is the right answer. */
+  addOfficial(input: {
+    question: string;
+    choices: string[];
+    explanation?: string;
+    reward?: number;
+    minutes?: number | null;
+  }): QuizView {
+    const { ctx } = this;
+    return ctx.store.transaction(() => {
+      const question = input.question.trim();
+      if (question.length === 0 || [...question].length > MAX_QUESTION_LEN)
+        throw new GameRuleError('quiz_question_invalid', {}, 'invalid_payload');
+      const bad = validateChoices(input.choices);
+      if (bad) throw new GameRuleError(bad, {}, 'invalid_payload');
+      if ([...(input.explanation ?? '')].length > MAX_EXPLANATION_LEN)
+        throw new GameRuleError('quiz_explanation_long', {}, 'invalid_payload');
+      const reward = input.reward ?? 100;
+      if (!Number.isInteger(reward) || reward < 1)
+        throw new GameRuleError('quiz_reward_invalid', {}, 'invalid_payload');
+      const now = ctx.clock.now();
+      const shown = shuffle(
+        ctx.rng,
+        input.choices.map((c) => c.trim()),
+      );
+      const info = ctx.store
+        .stmt(
+          'INSERT INTO quiz_questions (guild_id, author_id, question, choices, answer, explanation, reward, expires_at, created_at) VALUES (NULL, NULL, ?, ?, ?, ?, ?, ?, ?)',
+        )
+        .run(
+          question,
+          JSON.stringify(shown),
+          shown.indexOf((input.choices[0] as string).trim()),
+          input.explanation ?? '',
+          reward,
+          input.minutes == null ? null : now + input.minutes * 60_000,
+          now,
+        );
+      return this.view(this.row(Number(info.lastInsertRowid)));
+    });
+  }
+
+  /** Admin: every quiz still open (not settled), newest last, with how many answered. */
+  listOpen(limit = 25): (QuizView & { answers: number })[] {
+    const rows = this.ctx.store
+      .stmt('SELECT * FROM quiz_questions WHERE settled = 0 ORDER BY id LIMIT ?')
+      .all(limit) as QuizRow[];
+    return rows.map((q) => ({
+      ...this.view(q),
+      answers: (
+        this.ctx.store
+          .stmt('SELECT COUNT(*) AS n FROM quiz_answers WHERE quiz_id = ?')
+          .get(q.id) as { n: number }
+      ).n,
+    }));
+  }
+
+  /** Admin: delete a quiz and its answer history (`/admin quiz delete`). */
+  deleteQuiz(quizId: number): void {
+    this.ctx.store.transaction(() => {
+      this.row(quizId);
+      this.ctx.store.stmt('DELETE FROM quiz_answers WHERE quiz_id = ?').run(quizId);
+      this.ctx.store.stmt('DELETE FROM quiz_questions WHERE id = ?').run(quizId);
+    });
+  }
+
   /** The oldest open quiz this player has not answered (official ones, or other authors' in this guild). */
   next(guildId: string, userId: string): QuizView | null {
     const q = this.ctx.store
