@@ -26,7 +26,7 @@
 
 ### 2.1 Acquisition & Limits
 - Max owned horses per user per guild: **`MAX_HORSES = 3`** (`catalogs/horse.yaml:29`). Count includes active P2P market listings (`horse_count_for`, `infra/db/horse.py:43-52`).
-- Requires consuming 1 `horse_voucher` (`競走馬（購入券）`, shop price **50,000** Pelica, `infra/db/horse.py:20,75`).
+- Requires consuming 1 `horse_voucher` (`競走馬（購入券）`, shop price **30,000** Pelica, `catalogs/shop.yaml:192`, `infra/db/horse.py:20,75`).
 - Name rules (`domain/horse.py:513-522`): stripped, non-empty, `len <= 12` (`NAME_MAX = 12`), cannot contain any char in `"@<>`*_~|\\\n\r\t#:/"` or substring `"http"` (case-insensitive).
 - Appearance choices (`catalogs/horse.yaml:31-32`):
   - `COATS`: `["栗毛", "鹿毛", "黒鹿毛", "青毛", "芦毛", "白毛", "栃栗毛", "月毛"]`
@@ -65,8 +65,8 @@
   - Positive value → owner receives payout (`income=value`). Negative value → owner pays fee (manual retire fails if `balance < -value`; auto-retirement at 32 races applies fee even if it sends balance negative).
   - Retired horse sets `owner_id = -2`. Cannot manually retire while entered in an `entry` or `betting` race (`infra/db/horse.py:125-131`).
 - **Mandatory Retirement**: After running **`MAX_RACES = 32`** races, horse is automatically retired during race settlement (`infra/db/race.py:476-488`).
-- **Asset Valuation** (`infra/db/horse.py:58-60`): `horse_worth = max(0, 50000 + retire_value(races, wins, places))`.
-- **Bankruptcy Seizure** (`infra/db/horse.py:186-202`): sets `owner_id = -1, listed_at = now`, deletes unclosed registrations (`lane < 0`, entry fee NOT refunded), converts already-drawn `entry`/`betting` entries into NPC (`owner_id=0, horse_id=0`), returns `count * 50000` seizure credit. Sold via Teiai auction at `max(1, round(50000 * teiai.auction_rate(listed_at, now)))` to Katagi only (`infra/db/horse.py:222-252`).
+- **Asset Valuation** (`infra/db/horse.py:58-60`): `horse_worth = max(0, 30000 + retire_value(races, wins, places))`.
+- **Bankruptcy Seizure** (`infra/db/horse.py:186-202`): sets `owner_id = -1, listed_at = now`, deletes unclosed registrations (`lane < 0`, entry fee NOT refunded), converts already-drawn `entry`/`betting` entries into NPC (`owner_id=0, horse_id=0`), returns `count * 30000` seizure credit. Sold via Teiai auction at `max(1, round(30000 * teiai.auction_rate(listed_at, now)))` to Katagi only (`infra/db/horse.py:222-252`).
 
 ---
 
