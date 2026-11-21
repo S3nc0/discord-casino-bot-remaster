@@ -240,7 +240,8 @@ A **`.env` file** is a local text file in your project folder that stores settin
    | `HOST` | Optional | No | Default `127.0.0.1`. Keep default; the tunnel connects locally |
    | `PORT` | Optional | No | Default `3001`. Port the server listens on |
    | `DATABASE_PATH` | Optional | No | Default `./data/casino.sqlite`. This is the new database (the legacy `data/casino.db` is only an importer input) |
-   | `LOG_LEVEL` | Optional | No | Default `info` (`fatal`, `error`, `warn`, `info`, `debug`, `trace`, `silent`) |
+   | `LOG_LEVEL` | Optional | No | Default `info`. Must be exactly one of `fatal`, `error`, `warn`, `info`, `debug`, `trace`, `silent` (lowercase, no quotes, no comment on the same line) |
+| `BOT_DISABLED` | Optional | No | Default `0`. `0` logs the chat bot in; `1` keeps it offline. Exactly `0` or `1` (see Step 8) |
 
 5. Save the file.
    - **Remember:** Whenever you edit `.env`, you must **restart the server** (press `Ctrl+C` in Terminal 1 and run `pnpm dev:server` again) for changes to take effect.
@@ -363,7 +364,57 @@ Keep **two Terminal windows** open inside your `discord-casino` folder:
 
 ---
 
-## 8. Open the Activity in Discord
+## 8. Turn the Chat Bot On
+
+The server also runs the **chat bot**: the slash commands you type in Discord, such as `/pelica balance`. It logs in with the same Bot Token (`DISCORD_TOKEN`) as the Activity.
+
+> [!WARNING]
+> **Never run two bots on one token.** If you ever ran the old Python bot, stop it first (press `Ctrl+C` in its terminal, or quit its process). Two bots on one token fight over every command and answer twice or not at all.
+
+1. **Check two lines in `.env`:**
+   - `BOT_DISABLED=0` or `BOT_DISABLED=1`. It must be exactly the digit `0` or `1`. Do not write `true` or `false`, and add no quotes or comment on the same line.
+   - `BOT_DISABLED=0` (the default) logs the bot in. `BOT_DISABLED=1` keeps the bot offline while the Activity still works. Use `1` when something else already runs the bot on this token. For this step you want **`0`**.
+   - Also check `TEST_GUILD_ID` is your test server's ID, not the placeholder, and `DISCORD_TOKEN` is your real token.
+
+2. **Start (or restart) the server** in Terminal 1:
+
+   ```sh
+   pnpm dev:server
+   ```
+
+   Restart it if it was already running, because `.env` is only read at startup.
+
+3. **Register the slash commands once.** Discord only shows commands it has been told about. In a new Terminal tab, inside the `discord-casino` folder, run:
+
+   ```sh
+   pnpm commands:deploy:guild
+   ```
+
+   This registers all commands in your test server (`TEST_GUILD_ID`), and they show up almost immediately. It prints how many commands it registered. If it says it cannot deploy without a real token or a server ID, fix `.env` first.
+
+4. **Run the same command again whenever the commands change** (for example after you pull an update that adds or renames commands). It is safe to repeat. It replaces the whole list each time.
+
+5. **Optional: preview without touching Discord.** `pnpm commands:dry-run` only prints the command list, needs no `.env`, and changes nothing.
+
+✅ **Check:**
+
+- The bot shows as **online** in your test server's member list.
+- Typing `/` in a channel lists your app's commands. `/pelica balance` replies with your balance, and it matches the number on the Activity's **Home** screen.
+- If your Discord app language is **Japanese**, the same commands appear with Japanese names (for example `/ペリカ`), and replies are in Japanese. In English you see `/pelica`.
+
+### Later: other servers (global deploy)
+
+The guild deploy only covers your test server. When you want the commands in other servers (they must also be in `ALLOWED_GUILD_IDS`), run:
+
+```sh
+pnpm commands:deploy:global
+```
+
+Discord can take **up to an hour** to show global commands everywhere. Do not run it while you are still testing. Use the guild deploy for that, because it is instant.
+
+---
+
+## 9. Open the Activity in Discord
 
 If you just changed any URL Mappings, **reload Discord first** (`Cmd+R` on macOS, `Ctrl+R` on Windows/Linux).
 
@@ -388,7 +439,7 @@ Next, run the full [Owner Testing Checklist](OWNER_TESTING.md) to verify desktop
 
 ---
 
-## 9. Troubleshooting
+## 10. Troubleshooting
 
 | What you see | Likely cause | How to fix |
 | --- | --- | --- |
@@ -399,6 +450,11 @@ Next, run the full [Owner Testing Checklist](OWNER_TESTING.md) to verify desktop
 | App is not in the Activities list | Activities not enabled, app not installed in this server, or Discord needs a refresh | Check **Activities → Settings → Enable Activities** is On, confirm the app is installed in your test server (Step 4), and restart/reload Discord (`Cmd+R` / `Ctrl+R`) |
 | Phone says the Activity is not available on this OS | **iOS** / **Android** is not enabled under **Supported Platforms** | Go to **Activities → Settings → Supported Platforms**, tick **iOS** and **Android** (leave orientation unlocked), click **Save Changes**, and fully restart Discord on your phone |
 | `"Your session ended. Please open the app again."` | The server rejected login | Look at **Terminal 1** for a line saying `auth rejected: <reason>` and check the table below |
+| Server exits at start with `invalid environment: LOG_LEVEL is invalid` | `LOG_LEVEL` in `.env` is not one of the allowed words | Set it to exactly one of `fatal`, `error`, `warn`, `info`, `debug`, `trace`, `silent`: lowercase, no quotes, and no comment on the same line (for example `LOG_LEVEL=info`). Or delete the line to use the default. Then restart the server |
+| Server exits at start with `invalid environment: BOT_DISABLED is invalid` | `BOT_DISABLED` is something other than `0` or `1` (for example `true`, `"1"` or a trailing comment) | Write exactly `BOT_DISABLED=0` or `BOT_DISABLED=1`, with no quotes or comment on that line, or delete the line. Then restart the server |
+| Slash commands do not show up when you type `/` | The commands were never registered, are out of date, or were registered in a different server | Run `pnpm commands:deploy:guild` again, check `TEST_GUILD_ID` in `.env` is the ID of the server you are looking at, make sure the app is installed there (Step 4), then reload Discord (`Cmd+R` / `Ctrl+R`) |
+| The bot is offline, or answers twice | `BOT_DISABLED=1`, or another bot (such as the old Python one) is running on the same token | Set `BOT_DISABLED=0`, stop every other process that uses this `DISCORD_TOKEN`, and restart the server (Step 8) |
+| The server stopped working after a `git pull` | The update added or changed packages | In the project folder run `pnpm i`, then start the server again with `pnpm dev:server`. If commands were added, also run `pnpm commands:deploy:guild` |
 
 ### `auth rejected: <reason>` codes (Terminal 1)
 
@@ -419,7 +475,7 @@ Next, run the full [Owner Testing Checklist](OWNER_TESTING.md) to verify desktop
 
 ---
 
-## 10. Moving to a Raspberry Pi Later
+## 11. Moving to a Raspberry Pi Later
 
 When you are ready to run the server 24/7 without keeping your Mac awake, follow the [Raspberry Pi Setup Guide](PI_SETUP.md). No code changes are required — once you have a named tunnel (Step 6, Path B), you only copy your `.env` and tunnel credentials to the Pi.
 

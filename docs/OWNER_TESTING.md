@@ -60,7 +60,7 @@ In a third Terminal tab, run all three checks (replace `<tunnel-host>` and `APP_
 2. On first launch, click **Authorize** when Discord asks for permission.
 
 ✅ **Expected:** The Activity opens on the **Home** screen, displays your account and balance (**3,000 Pelica** for a new player), and the connection indicator shows connected/OK.
-**If it fails:** Look at Terminal 1 for an `auth rejected: <reason>` line and check [Owner Setup Guide — Troubleshooting](OWNER_SETUP.md#9-troubleshooting).
+**If it fails:** Look at Terminal 1 for an `auth rejected: <reason>` line and check [Owner Setup Guide — Troubleshooting](OWNER_SETUP.md#10-troubleshooting).
 
 ---
 
@@ -131,7 +131,7 @@ Look at the log lines in **Terminal 1** while you use the Activity:
 - **Problem lines:** any line containing `auth rejected: <reason>` or an unhandled error.
 
 ✅ **Expected:** No `auth rejected:` or error lines appear during normal testing.
-**If it fails:** Match `<reason>` in [Owner Setup Guide — Troubleshooting](OWNER_SETUP.md#9-troubleshooting).
+**If it fails:** Match `<reason>` in [Owner Setup Guide — Troubleshooting](OWNER_SETUP.md#10-troubleshooting).
 
 ---
 
@@ -146,10 +146,30 @@ If any check fails and the troubleshooting table does not fix it, share:
 
 ---
 
-## Later Waves (Coming in Wave 2)
+## 10. Chat Commands (Wave 2)
 
-The checks below will be filled in when Wave 2 features land:
+Do [Owner Setup Guide — Step 8](OWNER_SETUP.md#8-turn-the-chat-bot-on) first: the old Python bot is stopped, `BOT_DISABLED=0`, the server is running, and `pnpm commands:deploy:guild` has been run. Run these in a text channel of your test server. Open the Activity next to the chat so you can compare numbers. Command names are shown in English, and Japanese Discord shows the Japanese names in brackets.
 
-- [ ] **Games** — *(Wave 2 placeholder: table join, betting, payout, balance update)*
-- [ ] **Chat commands** — *(Wave 2 placeholder: slash commands and launch intents)*
-- [ ] **Notifications** — *(Wave 2 placeholder: inbox messages and server announcements)*
+- [ ] **Balance matches the Activity.** `/pelica balance` (`/ペリカ 残高`) shows the same balance as the Activity's **Home** screen.
+- [ ] **Daily.** `/pelica daily` (`/ペリカ デイリー`) pays the daily bonus once. Running it again right away says to wait. The balance in the Activity updates to match.
+- [ ] **Transfer.** `/pelica transfer` (`/ペリカ 送金`) sends a small amount to another member (or a second test account). Both balances change by the same amount.
+- [ ] **A casino game.** `/casino slots` (`/カジノ スロット`) with a small bet. The reply shows the result, and the balance changes by the win or loss.
+- [ ] **Horse stable.** `/horse stable` (`/競馬 厩舎`) opens your stable without an error (an empty stable is fine).
+- [ ] **A market order.** `/market order` (`/証券 注文`) places a small order. The reply confirms it, and the cash and holdings change as expected.
+- [ ] **A loan offer.** `/loan offer` (`/貸付 提案`) to another member shows the offer. They can see it, and nothing moves until they accept.
+- [ ] **Announcement channel.** `/admin notifications` (`/運営 通知設定`) with `channel` set to a test channel, and the big-win threshold set low (for example `1000`). Then win a game that pays at least the threshold. A big-win announcement posts in that channel.
+- [ ] **Opt-in DM.** If you have turned on DMs for a kind of notification, the bot sends you a direct message when that event happens. Without the opt-in, no DM arrives.
+- [ ] **Inbox.** The same event appears in the Activity's inbox, whether or not you opted in to the DM.
+- [ ] **Language.** Switch Discord to Japanese: command names and replies are Japanese. Switch back to English: they are English.
+
+✅ **Expected:** Every command answers within a few seconds, with no `The application did not respond` message, and every balance matches between chat and Activity.
+**If it fails:** Match the symptom in [Owner Setup Guide — Troubleshooting](OWNER_SETUP.md#10-troubleshooting). If it is not there, report it (Step 9).
+
+---
+
+## Later Waves
+
+The checks below will be filled in as the remaining Wave 2 work lands:
+
+- [ ] **Game screens** — *(placeholder: table join, betting, payout, balance update inside the Activity)*
+- [ ] **Remaining chat commands** — *(placeholder: commands not yet wired to the bot)*

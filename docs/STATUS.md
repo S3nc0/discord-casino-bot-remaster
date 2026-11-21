@@ -40,17 +40,33 @@ Current wave: 2 — Features
 
 | Task | Scope | Owner | State |
 | --- | --- | --- | --- |
-| 2.D0 | Theme re-tune proposal | F2 | in progress (waiting on owner approval) |
-| 2.A0 | Horse breeding design | A1 | in progress (waiting on owner approval) |
-| 2.1 | Casino games | B2-A | todo |
-| 2.2 | Races/arena/work/quiz/lottery/polls/missions/ranking/daily | B2-B | todo |
-| 2.3 | Finance | B3 | todo |
-| 2.4 | Unit tests | T1 | todo |
-| 2.5 | Screens + motion | F2 | todo |
-| 2.6 | Audio + FX + CREDITS.md | F3 | todo |
-| 2.7 | Slash commands (EN + JA) | B4 | todo |
-| 2.8 | Announcer/webhooks/DM queue/launch buttons | B4 | todo |
+| 2.D0 | Theme re-tune proposal | F2 | done (PR #32, round 2 approved; applying it to screens is part of 2.5) |
+| 2.A0 | Horse breeding design | A1 | done (PR #30, owner decisions recorded) |
+| 2.A1 | Wave 2 contract batch | A1 | done (PR #38) |
+| 2.1 | Casino games | B2-A | server side done (PR #34, #40: games, services, handlers, daily event schedule, chinchiro lobby, insurance refunds); game screens remain |
+| 2.2 | Races/arena/work/quiz/lottery/polls/missions/ranking/daily | B2-B | done (PR #37, breeding in PR #39) |
+| 2.3 | Finance | B3 | done (PR #36: Teiai Bank, loans, kyosai, stocks/crypto, companies, player market) |
+| 2.4 | Unit tests | T1 | todo (modules above ship their own tests) |
+| 2.5 | Screens + motion | F2 | todo (theme to be applied, game screens) |
+| 2.6 | Audio + FX + CREDITS.md | F3 | done (PR #31) |
+| 2.7 | Slash commands (EN + JA) | B4 | in progress (registry PR #33, wired commands PR #42; remaining commands still to wire) |
+| 2.8 | Announcer/webhooks/DM queue/launch buttons | B4 | done (notify module PR #35; notify runtime, launch buttons, admin notifications PR #42) |
+| 2.W | Wire Wave 2 modules into the running server | B1 | done (PR #41) |
+| 2.SC5 | Owner docs: bot is live, command registration, env pitfalls | SC | this PR |
 | Gate 2 | Wave 2 gate | Leader | todo |
+
+### Wave 2 progress
+
+Merged: PR #33 to #42 (bot core and command registry, casino games, notify module, finance, horse/arena/labor/quiz/lottery/polls/shop, shared contract batch, horse breeding, casino daily events, server wiring, notify runtime with launch buttons and admin notifications).
+
+The chat bot is live on the server. Owners register commands with `pnpm commands:deploy:guild` (see the [Owner Setup Guide](OWNER_SETUP.md#8-turn-the-chat-bot-on)) and verify them with the chat checklist in the [Owner Testing Checklist](OWNER_TESTING.md#10-chat-commands-wave-2).
+
+Remaining before Gate 2:
+
+- The rest of the chat commands (not yet wired to the bot).
+- The approved theme applied across the Activity.
+- Game screens and motion.
+- Gate 2 itself.
 
 ## Wave 3 — Integration
 
@@ -74,7 +90,7 @@ Current wave: 2 — Features
 
 ## Blockers
 
-Game screens (F2) wait on the theme approval; breeding build waits on the design approval.
+None. The theme and the breeding design are approved; game screens and the remaining chat commands are the open Wave 2 work.
 
 ## Notes
 
