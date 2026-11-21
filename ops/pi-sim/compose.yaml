@@ -1,0 +1,27 @@
+services:
+  server:
+    build:
+      context: ../..
+      dockerfile: ops/pi-sim/Dockerfile
+      platforms:
+        - linux/arm64
+    platform: linux/arm64
+    image: discord-casino-pi-sim:local
+    mem_limit: 512m
+    cpus: 2
+    init: true
+    restart: unless-stopped
+    env_file:
+      - path: ../../.env
+        required: false
+    environment:
+      NODE_ENV: production
+      PORT: ${PORT:-3001}
+      DATABASE_PATH: ${DATABASE_PATH:-/app/data/casino.db}
+    ports:
+      - '${PORT:-3001}:${PORT:-3001}'
+    volumes:
+      - pi_sim_data:/app/data
+
+volumes:
+  pi_sim_data:
