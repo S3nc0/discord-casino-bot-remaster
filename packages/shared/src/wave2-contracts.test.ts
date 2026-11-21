@@ -154,7 +154,29 @@ describe('notification and inbox kinds', () => {
 describe('wave 2 i18n keys', () => {
   it('moves the bot and notify keys into the shared dictionaries', () => {
     const keys = Object.keys(en);
-    expect(keys.filter((k) => k.startsWith('bot.'))).toHaveLength(16);
+    // The original bot keys stay; later waves add more `bot.*` keys, so no exact count.
+    for (const key of [
+      'bot.balance.title',
+      'bot.balance.noAccount',
+      'bot.settings.status',
+      'bot.settings.updated',
+      'bot.settings.footer',
+      'bot.help.title',
+      'bot.help.body',
+      'bot.help.commandsTitle',
+      'bot.help.commandsList',
+      'bot.activity.placeholder',
+      'bot.comingSoon.title',
+      'bot.comingSoon.body',
+      'bot.guard.guildOnly',
+      'bot.guard.ownerOnly',
+      'bot.guard.dmOnly',
+      'bot.error.unknownCommand',
+    ]) {
+      expect(keys).toContain(key);
+      expect(Object.keys(ja)).toContain(key);
+    }
+    expect(Object.keys(ja).sort()).toEqual([...keys].sort());
     expect(keys).toContain('notify.dm_disabled.title');
     expect(keys).toContain('notify.event.LotteryDrawn.won');
     expect(t('ja', 'bot.balance.title', { name: 'A' })).toBe('A の残高');
