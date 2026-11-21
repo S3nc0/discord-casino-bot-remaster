@@ -1,5 +1,11 @@
 import { EventEmitter } from 'node:events';
-import type { BalanceUpdate, DomainEvent, DomainEventMap, DomainEventType } from '@casino/shared';
+import type {
+  BalanceUpdate,
+  DomainEvent,
+  DomainEventMap,
+  DomainEventType,
+  InboxUnread,
+} from '@casino/shared';
 
 type Listener<T> = (event: T) => void;
 
@@ -38,6 +44,15 @@ export class EventBus {
 
   onBalance(listener: Listener<BalanceUpdate>): () => void {
     return this.subscribe('balance', listener as Listener<unknown>);
+  }
+
+  /** The unread inbox count of one user in one guild changed (goes to `user:{id}`). */
+  publishInboxUnread(update: InboxUnread & { userId: string }): void {
+    this.dispatch('inbox:unread', update);
+  }
+
+  onInboxUnread(listener: Listener<InboxUnread & { userId: string }>): () => void {
+    return this.subscribe('inbox:unread', listener as Listener<unknown>);
   }
 
   private subscribe(channel: string, listener: Listener<unknown>): () => void {

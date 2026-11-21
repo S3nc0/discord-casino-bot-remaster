@@ -96,6 +96,12 @@ export class IdentityRepo {
       .run(status, decidedBy, at, at, guildId);
   }
 
+  getGuildName(guildId: string): string | null {
+    const row = this.store.stmt('SELECT name FROM guilds WHERE guild_id = ?').get(guildId) as
+      { name: string | null } | undefined;
+    return row?.name ?? null;
+  }
+
   getUserLocale(userId: string): string | null {
     const row = this.store
       .stmt('SELECT locale FROM user_settings WHERE user_id = ?')
@@ -103,10 +109,10 @@ export class IdentityRepo {
     return row?.locale ?? null;
   }
 
-  getGuildLocale(guildId: string): string | null {
+  getGuildLocale(guildId: string): 'en' | 'ja' | null {
     const row = this.store
       .stmt('SELECT locale FROM guild_config WHERE guild_id = ?')
-      .get(guildId) as { locale: string | null } | undefined;
+      .get(guildId) as { locale: 'en' | 'ja' | null } | undefined;
     return row?.locale ?? null;
   }
 }
