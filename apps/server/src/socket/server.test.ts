@@ -1,6 +1,9 @@
+import { Value } from 'typebox/value';
 import { io as connect, type Socket as ClientSocket } from 'socket.io-client';
 import { afterEach, describe, expect, it } from 'vitest';
 import {
+  InboxUnread,
+  Participants,
   SOCKET_PATH,
   rooms,
   type ClientToServerEvents,
@@ -247,6 +250,7 @@ describe('rooms and fan-out', () => {
     const { sessionToken } = await login();
     const client = open(url, { token: sessionToken });
     await connected(client);
+    await settle(); // the connect-time instance:participants has arrived
     const got: unknown[] = [];
     client.onAny((...args) => got.push(args));
     server.io
@@ -394,5 +398,174 @@ describe('table provider', () => {
     client.emit('table:leave', { game: 'blackjack' });
     await settle();
     expect(socket?.rooms.has(rooms.table(INSTANCE, 'blackjack'))).toBe(false);
+  });
+});
+
+/** Log in as another user in the same instance (the fake Discord answers for whoever is set). */
+async function loginAs(id: string, username: string): Promise<string> {
+  server.discord.state.user = { id, username, global_name: null, avatar: null };
+  server.discord.state.instance = {
+    instance_id: INSTANCE,
+    location: { guild_id: GUILD },
+    users: [USER, OTHER_USER],
+  };
+  return (await login()).sessionToken;
+}
+
+const collect = <K extends keyof ServerToClientEvents>(c: Client, event: K) => {
+  const seen: Parameters<ServerToClientEvents[K]>[0][] = [];
+  (c as unknown as { on(e: string, f: (p: never) => void): void }).on(event, ((p: never) =>
+    seen.push(p)) as never);
+  return seen;
+};
+
+describe('instance:participants', () => {
+  it('sends the full list to the new socket and the room, ordered by join time', async () => {
+    const url = await start();
+    const aliceToken = await loginAs(USER, 'alice');
+    const bobToken = await loginAs(OTHER_USER, 'bob');
+
+    const alice = open(url, { token: aliceToken });
+    const aliceSeen = collect(alice, 'instance:participants');
+    await connected(alice);
+    await settle();
+    expect(aliceSeen).toHaveLength(1);
+    expect(aliceSeen[0]).toMatchObject({
+      guildId: GUILD,
+      instanceId: INSTANCE,
+      users: [{ id: USER, username: 'alice', globalName: null, avatar: null }],
+    });
+    expect(Value.Check(Participants, aliceSeen[0])).toBe(true);
+
+    const bob = open(url, { token: bobToken });
+    const bobSeen = collect(bob, 'instance:participants');
+    await connected(bob);
+    await settle();
+    // bob got the list right after joining; alice got the update
+    expect(bobSeen.at(-1)?.users.map((u) => u.id)).toEqual([USER, OTHER_USER]);
+    expect(aliceSeen.at(-1)?.users.map((u) => u.id)).toEqual([USER, OTHER_USER]);
+    expect(aliceSeen.at(-1)?.users[1]?.username).toBe('bob');
+  });
+
+  it('updates when the last socket of a user leaves, not when a second socket of the user does', async () => {
+    const url = await start();
+    const aliceToken = await loginAs(USER, 'alice');
+    const bobToken = await loginAs(OTHER_USER, 'bob');
+    const alice = open(url, { token: aliceToken });
+    await connected(alice);
+    const seen = collect(alice, 'instance:participants');
+
+    const bob1 = open(url, { token: bobToken });
+    const bob2 = open(url, { token: bobToken });
+    await Promise.all([connected(bob1), connected(bob2)]);
+    await settle();
+    expect(seen.at(-1)?.users.map((u) => u.id)).toEqual([USER, OTHER_USER]); // bob listed once
+    const before = seen.length;
+
+    bob1.close();
+    await settle(150);
+    expect(seen).toHaveLength(before); // bob still has a socket
+
+    bob2.close();
+    await settle(150);
+    expect(seen.length).toBe(before + 1);
+    expect(seen.at(-1)?.users.map((u) => u.id)).toEqual([USER]);
+  });
+
+  it('is scoped to the instance', async () => {
+    const url = await start();
+    const aliceToken = await loginAs(USER, 'alice');
+    const alice = open(url, { token: aliceToken });
+    await connected(alice);
+    await settle();
+    const seen = collect(alice, 'instance:participants');
+    // a different instance in the same guild
+    server.discord.state.user = {
+      id: OTHER_USER,
+      username: 'bob',
+      global_name: null,
+      avatar: null,
+    };
+    server.discord.state.instance = {
+      instance_id: 'i-other',
+      location: { guild_id: GUILD },
+      users: [OTHER_USER],
+    };
+    const other = (await login({ instanceId: 'i-other' })).sessionToken;
+    await connected(open(url, { token: other }));
+    await settle();
+    expect(seen).toEqual([]);
+  });
+});
+
+describe('inbox:unread', () => {
+  const addItems = (userId: string, guildId: string, n: number): number[] =>
+    Array.from({ length: n }, (_, i) =>
+      Number(
+        server.store.db
+          .prepare(
+            'INSERT INTO inbox (user_id, guild_id, kind, payload, created_at) VALUES (?, ?, ?, ?, 0)',
+          )
+          .run(
+            userId,
+            guildId,
+            'daily_ready',
+            JSON.stringify({ type: 'DailyReady', guildId, at: i, userId }),
+          ).lastInsertRowid,
+      ),
+    );
+
+  it('inbox:read acks the count and every socket of the user hears inbox:unread, nobody else', async () => {
+    const url = await start();
+    const aliceToken = await loginAs(USER, 'alice');
+    const bobToken = await loginAs(OTHER_USER, 'bob');
+    const ids = addItems(USER, GUILD, 3);
+    addItems(OTHER_USER, GUILD, 2);
+
+    const tab1 = open(url, { token: aliceToken });
+    const tab2 = open(url, { token: aliceToken });
+    const bob = open(url, { token: bobToken });
+    await Promise.all([connected(tab1), connected(tab2), connected(bob)]);
+    const seen1 = collect(tab1, 'inbox:unread');
+    const seen2 = collect(tab2, 'inbox:unread');
+    const seenBob = collect(bob, 'inbox:unread');
+
+    const ack = await new Promise((r) =>
+      tab1.emit('inbox:read', { ids: [ids[0] ?? 0] }, r as never),
+    );
+    expect(ack).toEqual({ ok: true, data: { unread: 2 } });
+    await settle();
+    expect(seen1).toEqual([{ guildId: GUILD, unread: 2 }]);
+    expect(seen2).toEqual([{ guildId: GUILD, unread: 2 }]);
+    expect(seenBob).toEqual([]);
+    expect(Value.Check(InboxUnread, seen1[0])).toBe(true);
+  });
+
+  it("also fires for a read over HTTP, and ignores ids that are not the session user's", async () => {
+    const url = await start();
+    const aliceToken = await loginAs(USER, 'alice');
+    const alice = open(url, { token: aliceToken });
+    await connected(alice);
+    const seen = collect(alice, 'inbox:unread');
+    const mine = addItems(USER, GUILD, 2);
+    const theirs = addItems(OTHER_USER, GUILD, 1);
+
+    const res = await server.app.inject({
+      method: 'POST',
+      url: '/api/inbox/read',
+      headers: { ...server.signed(), authorization: `Bearer ${aliceToken}` },
+      payload: { all: true },
+    });
+    expect(res.json()).toEqual({ unread: 0 });
+    await settle();
+    expect(seen).toEqual([{ guildId: GUILD, unread: 0 }]);
+
+    const ack = await new Promise((r) =>
+      alice.emit('inbox:read', { ids: [...theirs, ...mine] }, r as never),
+    );
+    expect(ack).toEqual({ ok: true, data: { unread: 0 } });
+    expect(
+      server.store.db.prepare('SELECT COUNT(*) AS n FROM inbox WHERE read_at IS NULL').get(),
+    ).toEqual({ n: 1 });
   });
 });
