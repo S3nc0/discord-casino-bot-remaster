@@ -128,6 +128,14 @@ Rules for callers:
 - `isDeltaAllowed(reason, delta)` must hold for every row. When a legacy flow had one string
   for both directions there are two reasons (`horse_retirement` / `horse_retirement_fee`,
   `quiz_author_reward` / `quiz_author_clawback`, `admin_grant` / `admin_revoke`).
+- Wave 2 additions: `horse_breeding_fee` (sink, the 15,000 breeding fee), `quiz_author_pay`
+  (sink: a user author pays a correct answer's reward; the answerer's `quiz_reward` is a faucet
+  because a shortfall becomes the author's Teiai debt, so the rows need not sum to zero) and
+  `game_insurance_refund` (faucet, see below).
+- **Decision: the insurance refund is a faucet, `game_insurance_refund`.** No player pays it in
+  the same transaction (the item's price already left as `shop_buy`), so it is not a transfer.
+  It is not `game_refund` either: that one returns the stake of a voided round, and history
+  (`保険券で半額返金:{game}`), stats and the supply check must tell the two apart.
 - Gross then deduction: credit the gross amount, then debit the cut as its own sink row
   (`teiai_skim` on daily and labor income, `capital_gains_tax` on profitable sells and margin
   closes, `marketplace_fee` / `kyosai_fee` on sale proceeds, `debt_withholding` on income).
@@ -179,7 +187,13 @@ guilds expects the same app. Audio stays muted until the first user gesture even
 on. After a change the client re-runs `resolveLocale` with `localeHints`; the token's `loc`
 catches up at the next silent refresh.
 
-**Inbox.** Per user and guild. New items arrive as `inbox:new` on `user:{id}`, followed by
+**Inbox.** Per user and guild. `InboxItem.kind` is an `InboxKind`: the opt-in
+`NOTIFICATION_KINDS` (each sourced from one domain event, `NOTIFICATION_SOURCE`; `horse_foaled`
+← `HorseFoaled`) plus `SYSTEM_INBOX_KINDS`. **Decision: the closed-DM notice is the kind
+`dm_disabled`.** It names what the user sees (their DMs were switched off); `dm_closed` stays
+only the DM send-failure reason (Discord 50007) and the notice's `reason` field. It is
+inbox-only, has no DM preference, and its `event` is a `DmDisabledNotice`, not a domain
+event. New items arrive as `inbox:new` on `user:{id}`, followed by
 `inbox:unread` (`{ guildId, unread }`), which is also sent after every read (HTTP or the
 `inbox:read` socket event), so every open instance shows the same count.
 
@@ -195,8 +209,12 @@ a minute; races as a timeline.
 The union (`DOMAIN_EVENT_TYPES`, `packages/shared/src/events.ts`): `GameSettled`, `BigWin`,
 `Jackpot`, `RaceScheduled`, `RaceFinished`, `HorseRetired`, `MarketTick`, `MarketMove`,
 `LoanDue`, `BankruptcyGraceStarted`, `BankruptcyDeclared`, `MissionCompleted`, `TitleAwarded`,
-`OrderFilled`, `MarketplaceOutbid`, `DailyReady`, `CompanyBankrupt`, `LotteryDrawn`. Every event
-carries `guildId` and `at`. **Decision: bankruptcy is two events.** `BankruptcyGraceStarted`
+`OrderFilled`, `MarketplaceOutbid`, `DailyReady`, `CompanyBankrupt`, `LotteryDrawn`,
+`HorseFoaled` (a bred foal, [horse-breeding.md](spec/horse-breeding.md) §5; announced only at
+`statTotal >= FOAL_ANNOUNCE_MIN_TOTAL` = 205). Every event carries `guildId` and `at`.
+`GameSettled.tags` (optional, snake_case, at most 16) carries the round's game-specific labels
+(`natural`, `double_win`, `jackpot`, …) for missions and the announcer, so a chat round and an
+Activity round count the same. **Decision: bankruptcy is two events.** `BankruptcyGraceStarted`
 opens the 24 h window and can end without a bankruptcy (debt repaid below the threshold);
 `BankruptcyDeclared` (`cause`: `voluntary`, `forced`, `escape`) is the bankruptcy itself, with
 debt before and after compression. A phase field on one event would make its other fields
@@ -215,7 +233,10 @@ socket right after it joins.
 ## i18n, legacy import, secrets
 
 Dictionaries `packages/shared/i18n/{en,ja}.ts`, flat keys; `ja` is typed against `en`, every
-`ErrorCode` has `error.<code>`, and `pnpm i18n:check` fails CI on drift. Locale: user setting,
+`ErrorCode` has `error.<code>`, every `InboxKind` has `inbox.kind.<kind>`, and `pnpm i18n:check`
+fails CI on drift. Server-side text lives there too: `bot.*` (chat replies), `notify.*`
+(announcements, personas, DMs, inbox notes), `horse.*` (breeding), `finance.*` (toasts); no
+module keeps a local dictionary. Locale: user setting,
 client locale, guild locale, `en`.
 
 `apps/server/scripts/import-legacy.ts` imports `data/casino.db` (Python bot stopped) per
@@ -225,7 +246,8 @@ DB_SCHEMA.md and fails on any Pelica difference. Never run both bots on one toke
 `ServerEnv` (tested). The server validates env at start-up. Optional keys have
 `SERVER_ENV_DEFAULTS`: `PORT` 3001, `HOST` `127.0.0.1`, `DATABASE_PATH` `./data/casino.sqlite`
 (never the legacy `data/casino.db`, which only the importer reads), `LOG_LEVEL` `info`,
-`NODE_ENV` `production`. `HOST` stays on loopback: the tunnel connects
+`NODE_ENV` `production`, `BOT_DISABLED` `0` (`1` skips the chat bot's gateway login; HTTP,
+Socket.io and jobs still run). `HOST` stays on loopback: the tunnel connects
 locally and `trustProxy` is on, so a directly reachable server would accept forged
 `X-Forwarded-For` (a container is the only reason to bind elsewhere). Pino `redact.paths`:
 `req.headers.authorization`, `req.headers.cookie`, `req.headers["x-discord-proxy-payload"]`,

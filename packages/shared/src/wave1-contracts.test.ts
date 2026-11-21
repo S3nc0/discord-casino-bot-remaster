@@ -51,13 +51,22 @@ describe('server env contract', () => {
       expect.arrayContaining(['PORT', 'HOST', 'DATABASE_PATH', 'LOG_LEVEL']),
     );
     expect([...OPTIONAL_SERVER_ENV_KEYS].sort()).toEqual(
-      ['DATABASE_PATH', 'HOST', 'LOG_LEVEL', 'NODE_ENV', 'PORT', 'REQUIRE_PROXY_SIGNATURE'].sort(),
+      [
+        'BOT_DISABLED',
+        'DATABASE_PATH',
+        'HOST',
+        'LOG_LEVEL',
+        'NODE_ENV',
+        'PORT',
+        'REQUIRE_PROXY_SIGNATURE',
+      ].sort(),
     );
     expect(SERVER_ENV_DEFAULTS).toMatchObject({
       PORT: '3001',
       HOST: '127.0.0.1',
       DATABASE_PATH: './data/casino.sqlite',
       LOG_LEVEL: 'info',
+      BOT_DISABLED: '0',
     });
     const required = SERVER_ENV_KEYS.filter((k) => !OPTIONAL_SERVER_ENV_KEYS.includes(k as never));
     expect(Object.keys(REQUIRED_ENV).sort()).toEqual([...required].sort());
@@ -76,6 +85,13 @@ describe('server env contract', () => {
     expect(Value.Check(ServerEnv, { ...env, HOST: 'a b' })).toBe(false);
     expect(Value.Check(ServerEnv, { ...env, DATABASE_PATH: '' })).toBe(false);
     expect(SERVER_ENV_DEFAULTS.DATABASE_PATH).not.toMatch(/casino\.db$/);
+  });
+
+  it('BOT_DISABLED is optional, defaults to 0 and accepts only 0 or 1', () => {
+    expect(Value.Check(ServerEnv, { ...REQUIRED_ENV, BOT_DISABLED: '0' })).toBe(true);
+    expect(Value.Check(ServerEnv, { ...REQUIRED_ENV, BOT_DISABLED: '1' })).toBe(true);
+    expect(Value.Check(ServerEnv, { ...REQUIRED_ENV, BOT_DISABLED: 'yes' })).toBe(false);
+    expect(Value.Check(ServerEnv, { ...REQUIRED_ENV, BOT_DISABLED: '' })).toBe(false);
   });
 });
 
