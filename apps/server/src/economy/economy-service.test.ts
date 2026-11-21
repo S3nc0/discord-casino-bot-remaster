@@ -2,7 +2,13 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { manualClock, type BalanceUpdate } from '@casino/shared';
+import {
+  LEDGER_REASONS,
+  LEDGER_REASON_SIGN,
+  isDeltaAllowed,
+  manualClock,
+  type BalanceUpdate,
+} from '@casino/shared';
 import { IdentityRepo } from '../db/identity.ts';
 import { migrations } from '../db/migrations/index.ts';
 import { openStore, type Store } from '../db/store.ts';
@@ -16,7 +22,7 @@ import {
   USER,
   memoryStore,
 } from '../runtime/test-kit.ts';
-import { EconomyService, INITIAL_BALANCE } from './economy-service.ts';
+import { EconomyService, INITIAL_BALANCE, LedgerSignError } from './economy-service.ts';
 
 function setup(store: Store = memoryStore()) {
   const clock = manualClock(START_MS);
@@ -379,5 +385,86 @@ describe('atomic multi-step changes', () => {
     expect(updates).toMatchObject([
       { guildId: GUILD, userId: USER, balance: 3005, delta: 5, reason: 'admin_grant' },
     ]);
+  });
+});
+
+describe('reason signs (LEDGER_REASON_SIGN)', () => {
+  const cases = LEDGER_REASONS.map((reason) => [reason, LEDGER_REASON_SIGN[reason]] as const);
+
+  it.each(cases)('%s: posts its own sign and rejects the opposite one', (reason, sign) => {
+    const { economy, store, updates } = setup();
+    economy.ensureMember(GUILD, USER); // 3,000, so a debit of 5 is always covered
+    updates.length = 0;
+    const rows = (): number =>
+      (store.db.prepare('SELECT COUNT(*) AS n FROM ledger').get() as { n: number }).n;
+    const before = rows();
+
+    const allowed = economy.apply({ guildId: GUILD, userId: USER, delta: sign * 5, reason });
+    expect(allowed.entry).toMatchObject({ reason, delta: sign * 5, balanceAfter: 3000 + sign * 5 });
+    expect(rows()).toBe(before + 1);
+
+    const error = failure(() =>
+      economy.apply({ guildId: GUILD, userId: USER, delta: -sign * 5, reason }),
+    );
+    expect(error).toBeInstanceOf(LedgerSignError);
+    expect(error).toMatchObject({ code: 'invalid_payload', status: 400, reason, delta: -sign * 5 });
+    expect(error.message).toContain(sign === 1 ? 'positive' : 'negative');
+    expect(rows()).toBe(before + 1);
+    expect(economy.getBalance(GUILD, USER)).toBe(3000 + sign * 5);
+    expect(updates).toHaveLength(1);
+  });
+
+  it('covers every reason and agrees with isDeltaAllowed', () => {
+    expect(cases.length).toBe(LEDGER_REASONS.length);
+    for (const [reason, sign] of cases) {
+      expect(isDeltaAllowed(reason, sign * 5)).toBe(true);
+      expect(isDeltaAllowed(reason, -sign * 5)).toBe(false);
+    }
+  });
+
+  it('credit and debit are checked too, even when the amount itself is valid', () => {
+    const { economy } = setup();
+    expect(
+      failure(() =>
+        economy.credit({ guildId: GUILD, userId: USER, amount: 10, reason: 'game_stake' }),
+      ),
+    ).toBeInstanceOf(LedgerSignError);
+    expect(
+      failure(() =>
+        economy.debit({ guildId: GUILD, userId: USER, amount: 10, reason: 'game_payout' }),
+      ),
+    ).toBeInstanceOf(LedgerSignError);
+    // nothing was written, not even the start grant (the whole call rolled back)
+    expect(economy.hasAccount(GUILD, USER)).toBe(false);
+  });
+
+  it('a wrong sign inside applyAll rolls the whole batch back', () => {
+    const { economy, updates } = setup();
+    economy.ensureMember(GUILD, USER);
+    economy.ensureMember(GUILD, OTHER_USER);
+    updates.length = 0;
+    const error = failure(() =>
+      economy.applyAll([
+        { guildId: GUILD, userId: USER, delta: -100, reason: 'transfer_out' },
+        { guildId: GUILD, userId: OTHER_USER, delta: -100, reason: 'transfer_in' },
+      ]),
+    );
+    expect(error).toBeInstanceOf(LedgerSignError);
+    expect(economy.getBalance(GUILD, USER)).toBe(3000);
+    expect(economy.getBalance(GUILD, OTHER_USER)).toBe(3000);
+    expect(updates).toEqual([]);
+  });
+
+  it('a replayed key with the wrong sign is rejected, not replayed', () => {
+    const { economy } = setup();
+    const ok = {
+      guildId: GUILD,
+      userId: USER,
+      delta: -10,
+      reason: 'game_stake',
+      idempotencyKey: 'k',
+    } as const;
+    economy.apply(ok);
+    expect(failure(() => economy.apply({ ...ok, delta: 10 }))).toBeInstanceOf(LedgerSignError);
   });
 });

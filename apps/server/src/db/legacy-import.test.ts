@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import Database from 'better-sqlite3';
 import { afterEach, describe, expect, it } from 'vitest';
-import { manualClock } from '@casino/shared';
+import { isDeltaAllowed, manualClock } from '@casino/shared';
 import { EconomyService } from '../economy/economy-service.ts';
 import { START_MS, memoryStore } from '../runtime/test-kit.ts';
 import { IdentityRepo } from './identity.ts';
@@ -123,6 +123,18 @@ describe('planImport (dry run)', () => {
 });
 
 describe('runImport', () => {
+  it('every ledger row it writes has a sign its reason allows', () => {
+    const t = target();
+    runImport({ legacyPath: legacyDb(), target: t, apply: true, clock: t.clock });
+    const rows = t.store.db.prepare('SELECT reason, delta FROM ledger').all() as {
+      reason: string;
+      delta: number;
+    }[];
+    expect(new Set(rows.map((r) => r.reason))).toEqual(new Set(['legacy_import', 'game_refund']));
+    for (const row of rows)
+      expect(isDeltaAllowed(row.reason as 'legacy_import', row.delta), row.reason).toBe(true);
+  });
+
   it('dry run touches nothing', () => {
     const t = target();
     const report = runImport({ legacyPath: legacyDb(), target: t, apply: false, clock: t.clock });

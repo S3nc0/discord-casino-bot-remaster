@@ -1,5 +1,5 @@
 import type { Clock, LedgerReason } from '@casino/shared';
-import { isLedgerReason } from '@casino/shared';
+import { isDeltaAllowed, isLedgerReason, LEDGER_REASON_SIGN } from '@casino/shared';
 import type { IdentityRepo } from '../db/identity.ts';
 import type { Store } from '../db/store.ts';
 import type { EventBus } from '../runtime/bus.ts';
@@ -77,6 +77,24 @@ function toEntry(row: LedgerRow): LedgerEntry {
     idempotencyKey: row.idempotency_key,
     createdAt: row.created_at,
   };
+}
+
+/**
+ * A change whose sign the reason does not allow (a payout that debits, a stake that credits).
+ * Code `invalid_payload`, so it surfaces as a client error if user input ever reaches it; in
+ * practice it marks a bug in the calling service.
+ */
+export class LedgerSignError extends AppError {
+  readonly reason: LedgerReason;
+  readonly delta: number;
+
+  constructor(reason: LedgerReason, delta: number) {
+    const required = LEDGER_REASON_SIGN[reason] === 1 ? 'positive' : 'negative';
+    super('invalid_payload', { message: `ledger reason ${reason} requires a ${required} delta` });
+    this.name = 'LedgerSignError';
+    this.reason = reason;
+    this.delta = delta;
+  }
 }
 
 /**
@@ -276,6 +294,9 @@ export class EconomyService {
     if (!Number.isSafeInteger(change.delta) || change.delta === 0)
       bad('delta must be a non-zero integer');
     if (!isLedgerReason(change.reason)) bad('unknown ledger reason');
+    if (!isDeltaAllowed(change.reason, change.delta)) {
+      throw new LedgerSignError(change.reason, change.delta);
+    }
     if (!/^[0-9]{17,20}$/.test(change.guildId) || !/^[0-9]{17,20}$/.test(change.userId)) {
       bad('invalid account id');
     }
