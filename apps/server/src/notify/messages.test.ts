@@ -1,11 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import type { DomainEvent, DomainEventOf } from '@casino/shared';
-import { checkParity, LOCALES, type Locale } from '@casino/shared/i18n';
+import { dictionaries, LOCALES, type Locale } from '@casino/shared/i18n';
 import {
   EVENT_META,
   isSubscribedEvent,
-  NOTIFY_MESSAGES_EN,
-  NOTIFY_MESSAGES_JA,
   renderAnnouncementBatch,
   renderDmBatch,
   renderEventCopy,
@@ -14,11 +12,13 @@ import {
   type SubscribedEventType,
 } from './messages.ts';
 import {
+  botColor,
   createEmbedTheme,
   defaultEmbedTheme,
   EMBED_ROLE_COLORS,
   EMBED_ROLE_HEX,
   EMBED_ROLES,
+  embedColor,
 } from './theme.ts';
 
 const G = '234567890123456789';
@@ -136,6 +136,18 @@ const SAMPLE_EVENTS: { [K in SubscribedEventType]: DomainEventOf<K> } = {
     horseId: 9,
     payout: 65_000,
   },
+  HorseFoaled: {
+    type: 'HorseFoaled',
+    guildId: G,
+    at: AT,
+    userId: U1,
+    foalId: 42,
+    foalName: 'Starlight',
+    parentIds: [3, 7],
+    statTotal: 207,
+    generation: 2,
+    maturesAt: AT + 86_400_000,
+  },
   LoanDue: {
     type: 'LoanDue',
     guildId: G,
@@ -180,21 +192,16 @@ const SAMPLE_EVENTS: { [K in SubscribedEventType]: DomainEventOf<K> } = {
   },
 };
 
-describe('notify messages & i18n parity', () => {
-  it('has exact EN/JA key and placeholder parity for all local notify keys', () => {
-    const problems = checkParity({ en: NOTIFY_MESSAGES_EN, ja: NOTIFY_MESSAGES_JA });
-    expect(problems).toEqual([]);
-  });
-
-  it('maps every one of the 17 subscribed events to EN and JA keys and renders without leftover placeholders', () => {
-    expect(SUBSCRIBED_EVENT_TYPES).toHaveLength(17);
+describe('notify messages & shared i18n', () => {
+  it('maps every one of the 18 subscribed events to shared EN and JA keys and renders without leftover placeholders', () => {
+    expect(SUBSCRIBED_EVENT_TYPES).toHaveLength(18);
 
     for (const type of SUBSCRIBED_EVENT_TYPES) {
       const meta = EVENT_META[type];
-      expect(NOTIFY_MESSAGES_EN[meta.titleKey]).toBeTruthy();
-      expect(NOTIFY_MESSAGES_JA[meta.titleKey]).toBeTruthy();
-      expect(NOTIFY_MESSAGES_EN[meta.bodyKey]).toBeTruthy();
-      expect(NOTIFY_MESSAGES_JA[meta.bodyKey]).toBeTruthy();
+      expect(dictionaries.en[meta.titleKey]).toBeTruthy();
+      expect(dictionaries.ja[meta.titleKey]).toBeTruthy();
+      expect(dictionaries.en[meta.bodyKey]).toBeTruthy();
+      expect(dictionaries.ja[meta.bodyKey]).toBeTruthy();
 
       const event = SAMPLE_EVENTS[type];
       for (const locale of LOCALES) {
@@ -210,6 +217,25 @@ describe('notify messages & i18n parity', () => {
       const jaCopy = renderEventCopy('ja', event);
       expect(enCopy.body).not.toBe(jaCopy.body);
     }
+  });
+
+  it('renders both promising (statTotal >= 205) and regular (< 205) HorseFoaled copies in EN and JA', () => {
+    const regularFoal: SubscribedDomainEvent = { ...SAMPLE_EVENTS.HorseFoaled, statTotal: 198 };
+    const promisingFoal = SAMPLE_EVENTS.HorseFoaled;
+
+    for (const locale of LOCALES) {
+      const reg = renderEventCopy(locale, regularFoal);
+      const prom = renderEventCopy(locale, promisingFoal);
+      expect(reg.role).toBe('race');
+      expect(prom.role).toBe('gold');
+      expect(reg.title).toContain('Starlight');
+      expect(prom.body).toContain('Starlight');
+      expect(prom.body).toContain(`<@${U1}>`);
+      expect(reg.body).not.toMatch(/\{[A-Za-z0-9_]+\}/);
+      expect(prom.body).not.toMatch(/\{[A-Za-z0-9_]+\}/);
+    }
+    expect(embedColor('dark')).toBe(0x192121);
+    expect(botColor('primary')).toBe(EMBED_ROLE_COLORS.primary);
   });
 
   it('renders variant branches (crash, refunded, escape, owner_bankrupt, sell, non-weekly title) in EN and JA', () => {

@@ -24,7 +24,7 @@ import { NotifyConfigService } from './config-service.ts';
 import { computeRetryBackoffMs, DmQueue, groupDigestRows, type QueuedDmRow } from './dm-queue.ts';
 import { InboxWriter } from './inbox-writer.ts';
 import { attachNotify } from './index.ts';
-import { createFakeDiscordPort, type NotifyInboxItem, type RealtimeNotifyPort } from './ports.ts';
+import { createFakeDiscordPort, type RealtimeNotifyPort } from './ports.ts';
 
 const DEFAULT_CHANNEL = '456789012345678901';
 const silentLogger = createLogger({ level: 'silent' });
@@ -42,7 +42,7 @@ function makeDmHarness(
   const clock = manualClock(START_MS);
   const bus = new EventBus();
   const port = options.port ?? createFakeDiscordPort();
-  const inboxNewEvents: { userId: string; item: NotifyInboxItem }[] = [];
+  const inboxNewEvents: { userId: string; item: InboxItem }[] = [];
   const toastEvents: { userId: string; toast: Toast }[] = [];
   const unreadEvents: { userId: string; guildId: string; unread: number }[] = [];
 

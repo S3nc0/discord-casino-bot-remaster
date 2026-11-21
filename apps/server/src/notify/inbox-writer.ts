@@ -1,4 +1,4 @@
-import type { Clock, NotificationKind } from '@casino/shared';
+import type { Clock, DmDisabledNotice, InboxItem, NotificationKind } from '@casino/shared';
 import type { Store } from '../db/store.ts';
 import type { EventBus } from '../runtime/bus.ts';
 import type { NotifyConfigService } from './config-service.ts';
@@ -7,10 +7,10 @@ import {
   buildNotificationToast,
   type SubscribedDomainEvent,
 } from './messages.ts';
-import type { DmDisabledNotice, NotifyInboxItem, RealtimeNotifyPort } from './ports.ts';
+import type { RealtimeNotifyPort } from './ports.ts';
 
 export interface InboxWriteResult {
-  item: NotifyInboxItem;
+  item: InboxItem;
   unread: number;
 }
 
@@ -66,7 +66,7 @@ export class InboxWriter {
 
       const id = Number(info.lastInsertRowid);
       const unread = this.countUnread(userId, event.guildId);
-      const item: NotifyInboxItem = {
+      const item: InboxItem = {
         id,
         guildId: event.guildId,
         kind,
@@ -109,7 +109,7 @@ export class InboxWriter {
 
       const id = Number(info.lastInsertRowid);
       const unread = this.countUnread(userId, guildId);
-      const item: NotifyInboxItem = {
+      const item: InboxItem = {
         id,
         guildId,
         kind: 'dm_disabled',

@@ -1,35 +1,6 @@
-import {
-  rooms,
-  type DomainEvent,
-  type InboxItem,
-  type NotificationKind,
-  type Toast,
-} from '@casino/shared';
+import { rooms, type InboxItem, type ScreenId, type Toast } from '@casino/shared';
+import type { Locale } from '@casino/shared/i18n';
 import type { CasinoServer } from '../socket/server.ts';
-
-/**
- * TODO(A1): Add `'dm_disabled'` to `NOTIFICATION_KINDS` and a `DmDisabled` notice payload to
- * `packages/shared/src/notify.ts` (and `inbox.kind.dm_disabled` to `packages/shared/i18n/{en,ja}.ts`).
- */
-export type LocalNotificationKind = 'dm_disabled';
-export type NotifyInboxKind = NotificationKind | LocalNotificationKind;
-
-export interface DmDisabledNotice {
-  type: 'DmDisabled';
-  guildId: string;
-  at: number;
-  userId: string;
-  reason: 'dm_closed';
-}
-
-export interface NotifyInboxItem {
-  id: number;
-  guildId: string;
-  kind: NotifyInboxKind;
-  event: DomainEvent | DmDisabledNotice;
-  createdAt: number;
-  readAt: number | null;
-}
 
 export interface EmbedField {
   name: string;
@@ -49,8 +20,12 @@ export interface DiscordEmbed {
 export interface ChannelMessage {
   content?: string;
   embeds?: readonly DiscordEmbed[];
-  /** Hint for B4a to attach an "Open in Activity" button when the source was a chat command. */
+  /** When true, attach a LAUNCH_ACTIVITY button pointing to `activityScreen` (default `'home'`). */
   openInActivity?: boolean;
+  /** Target Activity screen for the launch button when `openInActivity` is true. */
+  activityScreen?: ScreenId;
+  /** Display locale used to localize the launch button label. */
+  locale?: Locale;
 }
 
 export interface WebhookIdentity {
@@ -101,7 +76,7 @@ export type DmSendResult =
 
 /**
  * Discord I/O port consumed by the notify module.
- * B4a's discord.js client implements this interface; tests and bot-disabled boots use the fake/noop port.
+ * Implemented over discord.js in `discord-port.ts`; tests and `BOT_DISABLED=1` use fake/noop ports.
  */
 export interface DiscordNotifyPort {
   postToChannel(channelId: string, message: ChannelMessage): Promise<ChannelPostResult>;
@@ -117,7 +92,7 @@ export interface DiscordNotifyPort {
 
 /** Socket.io emission port for per-user live inbox updates and toasts. */
 export interface RealtimeNotifyPort {
-  emitInboxNew(userId: string, item: NotifyInboxItem): void;
+  emitInboxNew(userId: string, item: InboxItem): void;
   emitToast(userId: string, toast: Toast): void;
 }
 
@@ -125,8 +100,7 @@ export interface RealtimeNotifyPort {
 export function createSocketRealtimePort(io: Pick<CasinoServer, 'to'>): RealtimeNotifyPort {
   return {
     emitInboxNew(userId, item) {
-      // Cast needed only while `'dm_disabled'` is a local extension awaiting A1's shared contract batch.
-      io.to(rooms.user(userId)).emit('inbox:new', item as InboxItem);
+      io.to(rooms.user(userId)).emit('inbox:new', item);
     },
     emitToast(userId, toast) {
       io.to(rooms.user(userId)).emit('toast', toast);

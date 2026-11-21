@@ -82,6 +82,8 @@ export function buildDmDedupeKey(
       return `${kind}:${event.guildId}:${userId}:race:${event.raceId}`;
     case 'HorseRetired':
       return `${kind}:${event.guildId}:${userId}:horse:${event.horseId}`;
+    case 'HorseFoaled':
+      return `${kind}:${event.guildId}:${userId}:foal:${event.foalId}`;
     case 'LoanDue':
       return `${kind}:${event.guildId}:${userId}:loan:${event.loanId}:${event.dueAt}`;
     case 'BankruptcyGraceStarted':

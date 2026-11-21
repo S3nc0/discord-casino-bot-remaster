@@ -139,10 +139,45 @@ describe('boot', () => {
       await close();
     };
     const runtime = await startRuntime(server, config, { env: { BOT_DISABLED: '1' } });
+    const stopNotify = runtime.notify.stop;
+    runtime.notify.stop = () => {
+      order.push('notify');
+      stopNotify();
+    };
     await runtime.stop();
     await runtime.stop();
-    expect(order).toEqual(['scheduler', 'server']);
+    expect(order).toEqual(['scheduler', 'notify', 'server']);
     expect(() => server.store.stmt('SELECT 1').get()).toThrow();
+  });
+
+  it('starts notify runtime with no-op port when BOT_DISABLED=1 and records inbox notifications', async () => {
+    const { driver } = handDriver();
+    const { server } = bootServer({ cronDriver: driver, env: { BOT_DISABLED: '1' } });
+    const runtime = await startRuntime(server, server.config, {
+      env: { BOT_DISABLED: '1' },
+    });
+    open.runtime = runtime;
+    expect(runtime.bot.client).toBeNull();
+
+    server.bus.publishDomain({
+      type: 'DailyReady',
+      guildId: GUILD,
+      at: server.clock.now(),
+      userId: USER,
+    });
+    const flushed = await runtime.notify.flush();
+    expect(flushed.announcements.failed).toBe(0);
+    expect(server.inbox.unread(USER, GUILD)).toBe(1);
+
+    await runtime.stop();
+    open.runtime = undefined;
+    // After shutdown, notify is unsubscribed.
+    server.bus.publishDomain({
+      type: 'DailyReady',
+      guildId: GUILD,
+      at: server.clock.now() + 1,
+      userId: USER,
+    });
   });
 });
 
