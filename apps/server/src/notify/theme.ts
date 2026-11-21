@@ -1,8 +1,6 @@
 /**
- * Embed colour roles for announcements and DMs.
- *
- * TODO(B4a/integration): B4a defines `bot/theme.ts` in parallel; unify on a single shared
- * role→hex map once bot/ and notify/ are integrated.
+ * Unified Bitbloom embed color palette for Discord chat replies, announcements, and DMs.
+ * Keep every Discord embed color role mapped here so theme re-tunes are a one-file change.
  */
 export const EMBED_ROLES = [
   'primary',
@@ -17,11 +15,12 @@ export const EMBED_ROLES = [
   'market',
   'bank',
   'neutral',
+  'dark',
 ] as const;
 
 export type EmbedRole = (typeof EMBED_ROLES)[number];
 
-/** Role → 24-bit RGB hex integer, aligned with `bot/theme.ts` and Bitbloom (`design/bitbloom/tokens.css`). */
+/** Role → 24-bit RGB hex integer, aligned with Bitbloom (`design/bitbloom/tokens.css`). */
 export const EMBED_ROLE_COLORS: Readonly<Record<EmbedRole, number>> = Object.freeze({
   primary: 0x00867e, // --teal-50
   secondary: 0xe76d1e, // --orange-60
@@ -35,9 +34,10 @@ export const EMBED_ROLE_COLORS: Readonly<Record<EmbedRole, number>> = Object.fre
   market: 0x0077dc, // --blue-50
   bank: 0x93000f, // --red-30
   neutral: 0x6f7979, // --neutral-50
+  dark: 0x192121, // --neutral-12
 });
 
-/** Role → `#RRGGBB` string map (mirrors `bot/theme.ts`). */
+/** Role → `#RRGGBB` string map. */
 export const EMBED_ROLE_HEX: Readonly<Record<EmbedRole, `#${string}`>> = Object.freeze({
   primary: '#00867e',
   secondary: '#e76d1e',
@@ -51,6 +51,7 @@ export const EMBED_ROLE_HEX: Readonly<Record<EmbedRole, `#${string}`>> = Object.
   market: '#0077dc',
   bank: '#93000f',
   neutral: '#6f7979',
+  dark: '#192121',
 });
 
 export interface EmbedTheme {
@@ -69,3 +70,11 @@ export function createEmbedTheme(overrides: Partial<Record<EmbedRole, number>> =
 }
 
 export const defaultEmbedTheme: EmbedTheme = createEmbedTheme();
+
+/** Look up the Discord embed color integer for a Bitbloom color role. */
+export function embedColor(role: EmbedRole): number {
+  return EMBED_ROLE_COLORS[role];
+}
+
+/** Alias kept for bot call sites. */
+export const botColor = embedColor;

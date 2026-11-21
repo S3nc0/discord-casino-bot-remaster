@@ -8,11 +8,14 @@ export {
   type BotDisabledReason,
   type BotHandle,
   type CreateBotClientDeps,
+  type StartBotConfig,
   type StartBotOptions,
+  type StartBotServices,
 } from './client.ts';
 export {
   COMMAND_META_BY_PATH,
   COMMAND_SPECS,
+  WIRED_COMMAND_PATHS,
   buildSlashCommands,
   getCommandMeta,
   getCommandPath,
@@ -37,14 +40,6 @@ export {
   type DeployScope,
   type RestPutClient,
 } from './deploy.ts';
-export {
-  botEn,
-  botJa,
-  tb,
-  type BotLocalMessageKey,
-  type BotLocalMessages,
-  type BotMessageKey,
-} from './i18n.ts';
 export { resolveBotLocale, type BotLocaleInput } from './locale.ts';
 export {
   OPEN_ACTIVITY_BUTTON_ID,
@@ -52,4 +47,10 @@ export {
   createInteractionHandler,
   type BotRouterDeps,
 } from './router.ts';
-export { BOT_THEME_COLORS, botColor, type BotColorRole } from './theme.ts';
+export {
+  EMBED_ROLE_COLORS,
+  botColor,
+  embedColor,
+  type EmbedRole,
+  type EmbedTheme,
+} from '../notify/theme.ts';

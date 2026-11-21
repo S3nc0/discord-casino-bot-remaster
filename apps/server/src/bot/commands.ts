@@ -1,5 +1,6 @@
 import {
   InteractionContextType,
+  PermissionFlagsBits,
   SlashCommandBuilder,
   SlashCommandSubcommandBuilder,
   SlashCommandSubcommandGroupBuilder,
@@ -34,6 +35,9 @@ export interface CommandLeafMetadata {
   readonly module: string;
   readonly ephemeral: boolean;
   readonly implemented?: boolean;
+  readonly contextOverride?: CommandContext;
+  readonly ownerOnlyOverride?: boolean;
+  readonly manageGuildOrOwner?: boolean;
 }
 
 export interface CommandLeafNode extends CommandLeafMetadata {
@@ -70,6 +74,8 @@ export interface CommandGroupNode {
   readonly description: string;
   readonly jaDescription: string;
   readonly context: CommandContext;
+  readonly subcommandDefaultContext?: CommandContext;
+  readonly defaultMemberPermissions?: bigint;
   readonly ownerOnly?: boolean;
   readonly children: readonly (
     (SubcommandSpec & { readonly kind: 'subcommand' }) | SubcommandGroupSpec
@@ -82,6 +88,7 @@ export interface ResolvedCommandMeta extends CommandLeafMetadata {
   readonly path: string;
   readonly context: CommandContext;
   readonly ownerOnly: boolean;
+  readonly manageGuildOrOwner: boolean;
 }
 
 const SYMBOL_CHOICES: readonly CommandChoiceSpec<string>[] = [
@@ -1569,11 +1576,59 @@ export const COMMAND_SPECS: readonly TopLevelCommandSpec[] = [
     kind: 'group',
     name: 'admin',
     jaName: '運営',
-    description: '[Admin] Bot owner server, economy & event controls (DM only)',
-    jaDescription: '[管理者] Bot を使えるサーバーの管理。Bot とのDMで使えます',
-    context: 'dm',
+    description: '[Admin] Server notifications & owner controls',
+    jaDescription: '[管理者] サーバー通知設定・Bot オーナー管理コマンド',
+    context: 'any',
+    subcommandDefaultContext: 'dm',
+    defaultMemberPermissions: PermissionFlagsBits.ManageGuild,
     ownerOnly: true,
     children: [
+      {
+        kind: 'subcommand',
+        name: 'notifications',
+        jaName: '通知設定',
+        description: '[Admin] View or update server notification settings',
+        jaDescription: '[管理者] サーバーの通知設定を確認・変更する',
+        module: 'notify',
+        ephemeral: true,
+        implemented: true,
+        contextOverride: 'any',
+        ownerOnlyOverride: false,
+        manageGuildOrOwner: true,
+        options: [
+          {
+            kind: 'channel',
+            name: 'channel',
+            jaName: 'チャンネル',
+            description: 'Announcement channel for this server',
+            jaDescription: '告知を投稿するチャンネル',
+          },
+          {
+            kind: 'integer',
+            name: 'threshold',
+            jaName: '大当たり基準',
+            description: 'Minimum net win in Pelica to announce (0-100,000,000)',
+            jaDescription: '大当たり告知の最低純利益ペリカ（0〜100,000,000）',
+            minValue: 0,
+            maxValue: 100_000_000,
+          },
+          {
+            kind: 'boolean',
+            name: 'personas',
+            jaName: 'ペルソナ',
+            description: 'Enable webhook personas (Race Caller, Market News, Teiai Bank)',
+            jaDescription: 'Webhook ペルソナ（実況・市況ニュース・帝愛銀行）のオン/オフ',
+          },
+          {
+            kind: 'boolean',
+            name: 'enabled',
+            jaName: '告知有効',
+            description: 'Enable or pause guild announcements',
+            jaDescription: 'サーバー告知のオン/オフ',
+          },
+          ADMIN_GUILD_OPT,
+        ],
+      },
       {
         kind: 'subcommand',
         name: 'grant',
@@ -2302,6 +2357,10 @@ export function buildSlashCommands(
       return builder.toJSON();
     }
 
+    if (spec.defaultMemberPermissions !== undefined) {
+      builder.setDefaultMemberPermissions(spec.defaultMemberPermissions);
+    }
+
     for (const child of spec.children) {
       if (child.kind === 'subcommand') {
         builder.addSubcommand(buildSubcommand(child));
@@ -2313,43 +2372,92 @@ export function buildSlashCommands(
   });
 }
 
+/** Command paths wired to backend services in Wave 2 (in addition to `implemented: true` on spec nodes). */
+export const WIRED_COMMAND_PATHS: ReadonlySet<string> = new Set([
+  'pelica daily',
+  'pelica repay',
+  'pelica bank',
+  'pelica missions',
+  'pelica ranking',
+  'pelica transfer',
+  'pelica history',
+  'casino pachinko',
+  'casino slots',
+  'casino roulette',
+  'horse stable',
+  'horse card',
+  'arena tournament',
+  'labor work',
+  'quiz withdraw',
+  'poll create',
+  'market board',
+  'market holdings',
+  'market order spot',
+  'market order margin',
+  'market order call',
+  'market order put',
+  'market order pair',
+  'market order bond',
+  'loan offer',
+  'loan request',
+  'loan repay',
+  'kyosai status',
+  'kyosai bid',
+  'kyosai offer',
+  'kyosai accept',
+  'kyosai cancel',
+  'kyosai propose',
+  'kyosai vote',
+  'company found',
+  'company status',
+  'company invest',
+  'company dividend',
+]);
+
 function indexCommandLeaves(): ReadonlyMap<string, ResolvedCommandMeta> {
   const map = new Map<string, ResolvedCommandMeta>();
   for (const top of COMMAND_SPECS) {
     if (top.kind === 'leaf') {
+      const implemented = top.implemented === true || WIRED_COMMAND_PATHS.has(top.name);
       map.set(top.name, {
         path: top.name,
-        context: top.context,
-        ownerOnly: false,
+        context: top.contextOverride ?? top.context,
+        ownerOnly: top.ownerOnlyOverride ?? false,
+        manageGuildOrOwner: top.manageGuildOrOwner ?? false,
         module: top.module,
         ephemeral: top.ephemeral,
-        ...(top.implemented !== undefined ? { implemented: top.implemented } : {}),
+        ...(implemented ? { implemented: true } : {}),
       });
       continue;
     }
 
-    const ownerOnly = top.ownerOnly ?? false;
+    const defaultOwnerOnly = top.ownerOnly ?? false;
+    const defaultContext = top.subcommandDefaultContext ?? top.context;
     for (const child of top.children) {
       if (child.kind === 'subcommand') {
         const path = `${top.name} ${child.name}`;
+        const implemented = child.implemented === true || WIRED_COMMAND_PATHS.has(path);
         map.set(path, {
           path,
-          context: top.context,
-          ownerOnly,
+          context: child.contextOverride ?? defaultContext,
+          ownerOnly: child.ownerOnlyOverride ?? defaultOwnerOnly,
+          manageGuildOrOwner: child.manageGuildOrOwner ?? false,
           module: child.module,
           ephemeral: child.ephemeral,
-          ...(child.implemented !== undefined ? { implemented: child.implemented } : {}),
+          ...(implemented ? { implemented: true } : {}),
         });
       } else {
         for (const sub of child.subcommands) {
           const path = `${top.name} ${child.name} ${sub.name}`;
+          const implemented = sub.implemented === true || WIRED_COMMAND_PATHS.has(path);
           map.set(path, {
             path,
-            context: top.context,
-            ownerOnly,
+            context: sub.contextOverride ?? defaultContext,
+            ownerOnly: sub.ownerOnlyOverride ?? defaultOwnerOnly,
+            manageGuildOrOwner: sub.manageGuildOrOwner ?? false,
             module: sub.module,
             ephemeral: sub.ephemeral,
-            ...(sub.implemented !== undefined ? { implemented: sub.implemented } : {}),
+            ...(implemented ? { implemented: true } : {}),
           });
         }
       }

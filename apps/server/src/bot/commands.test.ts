@@ -191,6 +191,7 @@ describe('command registry', () => {
       'company holdings',
       'help',
       'settings',
+      'admin notifications',
       'admin grant',
       'admin set-balance',
       'admin pachinko-stats',
@@ -223,7 +224,10 @@ describe('command registry', () => {
   it('sets contexts and ownerOnly metadata accurately', () => {
     const byName = new Map(jsonCommands.map((c) => [c.name, c]));
 
+    // The admin group is reachable in guilds (for /admin notifications) and DMs; the owner-only
+    // subcommands are rejected outside DMs by the router, see getCommandMeta below.
     expect(byName.get('admin')?.contexts).toEqual([
+      InteractionContextType.Guild,
       InteractionContextType.BotDM,
       InteractionContextType.PrivateChannel,
     ]);
@@ -244,6 +248,13 @@ describe('command registry', () => {
       ownerOnly: true,
       context: 'dm',
       ephemeral: true,
+    });
+    expect(getCommandMeta('admin notifications')).toMatchObject({
+      ownerOnly: false,
+      manageGuildOrOwner: true,
+      context: 'any',
+      ephemeral: true,
+      implemented: true,
     });
     expect(getCommandMeta('pelica balance')).toMatchObject({
       ownerOnly: false,

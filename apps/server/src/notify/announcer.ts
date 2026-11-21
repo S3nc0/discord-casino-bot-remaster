@@ -1,4 +1,4 @@
-import type { Clock } from '@casino/shared';
+import { FOAL_ANNOUNCE_MIN_TOTAL, type Clock } from '@casino/shared';
 import type { Logger } from 'pino';
 import type { GuildNotifyConfig, NotifyConfigService } from './config-service.ts';
 import {
@@ -84,6 +84,9 @@ export function shouldAnnounceEvent(event: SubscribedDomainEvent, cfg: GuildNoti
   if (!cfg.eventTypes[event.type].enabled) return false;
   if (event.type === 'GameSettled') {
     return event.net > 0 && event.payout >= cfg.bigWinThreshold;
+  }
+  if (event.type === 'HorseFoaled') {
+    return event.statTotal >= FOAL_ANNOUNCE_MIN_TOTAL;
   }
   return true;
 }

@@ -1,8 +1,8 @@
 import type { Clock } from '@casino/shared';
-import type { Locale } from '@casino/shared/i18n';
+import { t, type Locale } from '@casino/shared/i18n';
 import type { Logger } from 'pino';
 import type { Store } from '../db/store.ts';
-import { translateNotify, type PersonaId } from './messages.ts';
+import type { PersonaId } from './messages.ts';
 import type {
   ChannelMessage,
   ChannelPostResult,
@@ -94,7 +94,7 @@ export class WebhookPersonaManager {
   identity(persona: PersonaId, locale: Locale): WebhookIdentity {
     const def = PERSONA_DEFINITIONS[persona];
     return {
-      name: translateNotify(locale, def.nameKey),
+      name: t(locale, def.nameKey),
       avatarUrl: this.avatarUrls[persona] ?? `${this.avatarBaseUrl}${def.defaultAvatarPath}`,
     };
   }

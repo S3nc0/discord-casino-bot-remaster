@@ -25,11 +25,13 @@ import { defaultEmbedTheme, type EmbedTheme } from './theme.ts';
 
 export * from './announcer.ts';
 export * from './config-service.ts';
+export * from './discord-port.ts';
 export * from './dm-queue.ts';
 export * from './inbox-writer.ts';
 export * from './messages.ts';
 export * from './personas.ts';
 export * from './ports.ts';
+export * from './runtime.ts';
 export * from './theme.ts';
 
 export interface AttachNotifyOptions {
@@ -39,12 +41,12 @@ export interface AttachNotifyOptions {
   logger: Logger;
   /** Fallback channel ID from `ANNOUNCE_CHANNEL_ID`. */
   defaultAnnounceChannelId: string;
-  /** Discord I/O port (implemented by B4a's bot). Defaults to a safe no-op port when omitted. */
+  /** Discord I/O port (implemented over discord.js in `discord-port.ts`). Defaults to a safe no-op port when omitted. */
   port?: DiscordNotifyPort;
   /** Socket.io server or custom realtime emitter for `inbox:new` and `toast`. */
   io?: Pick<CasinoServer, 'to'>;
   realtime?: RealtimeNotifyPort;
-  /** Embed role→color theme (mirrors `bot/theme.ts`). */
+  /** Embed role→color theme. */
   theme?: EmbedTheme;
   /** Base URL for default persona avatar images (e.g. `PUBLIC_API_ORIGIN`). */
   avatarBaseUrl?: string;
@@ -79,6 +81,7 @@ export function notificationRecipients(event: SubscribedDomainEvent): string[] {
     case 'RaceFinished':
       return [...new Set([...event.ownerIds, ...event.bettorIds])];
     case 'HorseRetired':
+    case 'HorseFoaled':
     case 'LoanDue':
     case 'BankruptcyGraceStarted':
     case 'DailyReady':
@@ -93,7 +96,7 @@ export function notificationRecipients(event: SubscribedDomainEvent): string[] {
 
 /**
  * Wire the notify module onto the in-process `EventBus`:
- * - Subscribes to all 17 domain events.
+ * - Subscribes to all 18 domain events.
  * - Routes guild announcements through `Announcer` + optional `WebhookPersonaManager`.
  * - Routes personal notifications through `InboxWriter` (DB + live Socket.io) and opt-in `DmQueue`.
  */

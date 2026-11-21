@@ -1,9 +1,9 @@
 import {
-  ActionRowBuilder,
-  ButtonBuilder,
-  ButtonStyle,
   EmbedBuilder,
   MessageFlags,
+  PermissionFlagsBits,
+  type ActionRowBuilder,
+  type ButtonBuilder,
   type ButtonInteraction,
   type ChatInputCommandInteraction,
   type Interaction,
@@ -11,18 +11,29 @@ import {
   type User,
 } from 'discord.js';
 import type { Logger } from 'pino';
-import type { LanguageSetting } from '@casino/shared';
-import { errorMessageKey, formatPelica, type Locale } from '@casino/shared/i18n';
+import type { LanguageSetting, LaunchIntentService, ScreenId } from '@casino/shared';
+import { errorMessageKey, formatPelica, t, type Locale } from '@casino/shared/i18n';
 import type { IdentityRepo } from '../db/identity.ts';
 import type { SettingsRepo } from '../db/settings.ts';
+import type { Store } from '../db/store.ts';
 import type { EconomyService } from '../economy/economy-service.ts';
+import type { FinanceServices } from '../finance/index.ts';
+import type { CasinoGames } from '../games/index.ts';
+import type { NonCasinoGames } from '../games/progression/index.ts';
+import type { NotifyConfigService } from '../notify/config-service.ts';
+import {
+  buildLaunchActivityRow,
+  buildLaunchButtonId,
+  parseLaunchButtonId,
+} from '../notify/discord-port.ts';
+import { botColor } from '../notify/theme.ts';
 import { AppError } from '../runtime/errors.ts';
+import { handleAdminNotifications } from './admin-notifications.ts';
 import { getCommandMeta, getCommandPath, type ResolvedCommandMeta } from './commands.ts';
-import { tb } from './i18n.ts';
 import { resolveBotLocale } from './locale.ts';
-import { botColor } from './theme.ts';
+import { dispatchWiredCommand } from './wired-commands.ts';
 
-export const OPEN_ACTIVITY_BUTTON_ID = 'bot:open-activity';
+export const OPEN_ACTIVITY_BUTTON_ID = buildLaunchButtonId('home');
 
 export interface BotRouterDeps {
   identity: IdentityRepo;
@@ -32,17 +43,37 @@ export interface BotRouterDeps {
   ownerIds: ReadonlySet<string>;
   allowedGuildIds: ReadonlySet<string>;
   requireApproval: boolean;
+  launchIntents?: LaunchIntentService;
+  notifyConfig?: NotifyConfigService;
+  store?: Store;
+  casino?: CasinoGames;
+  finance?: FinanceServices;
+  games?: NonCasinoGames;
 }
 
-/** Build the placeholder button row; B4b replaces this with LAUNCH_ACTIVITY. */
-export function buildOpenActivityRow(locale: Locale): ActionRowBuilder<ButtonBuilder> {
-  return new ActionRowBuilder<ButtonBuilder>().addComponents(
-    new ButtonBuilder()
-      .setCustomId(OPEN_ACTIVITY_BUTTON_ID)
-      .setLabel(tb(locale, 'launch.openInActivity'))
-      .setStyle(ButtonStyle.Primary),
-  );
+/** Build an "Open in Activity" button row targeting a specific Activity screen. */
+export function buildOpenActivityRow(
+  locale: Locale,
+  screen: ScreenId = 'home',
+): ActionRowBuilder<ButtonBuilder> {
+  return buildLaunchActivityRow(locale, screen);
 }
+
+const COMING_SOON_SCREEN: Readonly<Record<string, ScreenId>> = {
+  'casino chinchiro': 'chinchiro',
+  'casino chinchiro-table': 'chinchiro',
+  'casino blackjack': 'blackjack',
+  'pelica bankrupt': 'bank',
+  'pelica leaderboard': 'ranking',
+  'labor ranking': 'work',
+  'quiz play': 'quiz',
+  'quiz post': 'quiz',
+  shop: 'shop',
+  'market settle': 'market',
+  'market order write': 'market',
+  'loan list': 'loans',
+  'company holdings': 'companies',
+};
 
 function displayNameOf(user: Pick<User, 'globalName' | 'username'>): string {
   return user.globalName ?? user.username;
@@ -98,9 +129,23 @@ function checkCommandAccess(
   meta: ResolvedCommandMeta,
   interaction: ChatInputCommandInteraction,
 ): void {
-  if (meta.ownerOnly && !deps.ownerIds.has(interaction.user.id)) {
+  const isOwner = deps.ownerIds.has(interaction.user.id);
+
+  if (meta.manageGuildOrOwner) {
+    if (interaction.guildId === null) {
+      if (!isOwner) {
+        throw new AppError('forbidden', { reason: 'owner_only' });
+      }
+    } else if (
+      !isOwner &&
+      interaction.memberPermissions?.has(PermissionFlagsBits.ManageGuild) !== true
+    ) {
+      throw new AppError('forbidden', { reason: 'manage_guild_or_owner' });
+    }
+  } else if (meta.ownerOnly && !isOwner) {
     throw new AppError('forbidden', { reason: 'owner_only' });
   }
+
   if (meta.context === 'dm' && interaction.guildId !== null) {
     throw new AppError('forbidden', { reason: 'dm_only' });
   }
@@ -145,8 +190,8 @@ async function handleBalance(
   } else if (!deps.economy.hasAccount(guildId, target.id)) {
     const embed = new EmbedBuilder()
       .setColor(botColor('neutral'))
-      .setTitle(tb(locale, 'bot.balance.title', { name: displayNameOf(target) }))
-      .setDescription(tb(locale, 'bot.balance.noAccount'));
+      .setTitle(t(locale, 'bot.balance.title', { name: displayNameOf(target) }))
+      .setDescription(t(locale, 'bot.balance.noAccount'));
     await sendReply(interaction, { embeds: [embed] });
     return;
   }
@@ -154,16 +199,16 @@ async function handleBalance(
   const balance = deps.economy.getBalance(guildId, target.id);
   const embed = new EmbedBuilder()
     .setColor(botColor('primary'))
-    .setTitle(tb(locale, 'bot.balance.title', { name: displayNameOf(target) }))
+    .setTitle(t(locale, 'bot.balance.title', { name: displayNameOf(target) }))
     .addFields({
-      name: tb(locale, 'shell.balance'),
+      name: t(locale, 'shell.balance'),
       value: `**${formatPelica(locale, balance)}**`,
       inline: true,
     });
 
   await sendReply(interaction, {
     embeds: [embed],
-    components: [buildOpenActivityRow(locale)],
+    components: [buildOpenActivityRow(locale, 'home')],
   });
 }
 
@@ -194,14 +239,14 @@ async function handleSettings(
     });
     const embed = new EmbedBuilder()
       .setColor(botColor('success'))
-      .setTitle(tb(nextLocale, 'settings.title'))
+      .setTitle(t(nextLocale, 'settings.title'))
       .setDescription(
-        tb(nextLocale, 'bot.settings.updated', {
-          language: tb(nextLocale, `settings.language.${updated.language}`),
-          resolved: tb(nextLocale, `settings.language.${nextLocale}`),
+        t(nextLocale, 'bot.settings.updated', {
+          language: t(nextLocale, `settings.language.${updated.language}`),
+          resolved: t(nextLocale, `settings.language.${nextLocale}`),
         }),
       )
-      .setFooter({ text: tb(nextLocale, 'bot.settings.footer') });
+      .setFooter({ text: t(nextLocale, 'bot.settings.footer') });
     await sendReply(interaction, {
       embeds: [embed],
       flags: MessageFlags.Ephemeral,
@@ -211,14 +256,14 @@ async function handleSettings(
 
   const embed = new EmbedBuilder()
     .setColor(botColor('info'))
-    .setTitle(tb(locale, 'settings.title'))
+    .setTitle(t(locale, 'settings.title'))
     .setDescription(
-      tb(locale, 'bot.settings.status', {
-        language: tb(locale, `settings.language.${current.language}`),
-        resolved: tb(locale, `settings.language.${locale}`),
+      t(locale, 'bot.settings.status', {
+        language: t(locale, `settings.language.${current.language}`),
+        resolved: t(locale, `settings.language.${locale}`),
       }),
     )
-    .setFooter({ text: tb(locale, 'bot.settings.footer') });
+    .setFooter({ text: t(locale, 'bot.settings.footer') });
 
   await sendReply(interaction, {
     embeds: [embed],
@@ -229,16 +274,16 @@ async function handleSettings(
 async function handleHelp(interaction: ChatInputCommandInteraction, locale: Locale): Promise<void> {
   const embed = new EmbedBuilder()
     .setColor(botColor('primary'))
-    .setTitle(tb(locale, 'bot.help.title'))
-    .setDescription(tb(locale, 'bot.help.body'))
+    .setTitle(t(locale, 'bot.help.title'))
+    .setDescription(t(locale, 'bot.help.body'))
     .addFields({
-      name: tb(locale, 'bot.help.commandsTitle'),
-      value: tb(locale, 'bot.help.commandsList'),
+      name: t(locale, 'bot.help.commandsTitle'),
+      value: t(locale, 'bot.help.commandsList'),
     });
 
   await sendReply(interaction, {
     embeds: [embed],
-    components: [buildOpenActivityRow(locale)],
+    components: [buildOpenActivityRow(locale, 'home')],
     flags: MessageFlags.Ephemeral,
   });
 }
@@ -250,20 +295,22 @@ async function replyComingSoon(
 ): Promise<void> {
   const embed = new EmbedBuilder()
     .setColor(botColor('warning'))
-    .setTitle(tb(locale, 'bot.comingSoon.title'))
-    .setDescription(tb(locale, 'bot.comingSoon.body', { command: commandPath }));
+    .setTitle(t(locale, 'bot.comingSoon.title'))
+    .setDescription(t(locale, 'bot.comingSoon.body', { command: commandPath }));
 
+  const screen = COMING_SOON_SCREEN[commandPath];
   await sendReply(interaction, {
     embeds: [embed],
+    ...(screen ? { components: [buildOpenActivityRow(locale, screen)] } : {}),
     flags: MessageFlags.Ephemeral,
   });
 }
 
 function localizedErrorMessage(locale: Locale, error: AppError): string {
-  if (error.authReason === 'owner_only') return tb(locale, 'bot.guard.ownerOnly');
-  if (error.authReason === 'dm_only') return tb(locale, 'bot.guard.dmOnly');
-  if (error.authReason === 'guild_only') return tb(locale, 'bot.guard.guildOnly');
-  return tb(locale, errorMessageKey(error.code));
+  if (error.authReason === 'owner_only') return t(locale, 'bot.guard.ownerOnly');
+  if (error.authReason === 'dm_only') return t(locale, 'bot.guard.dmOnly');
+  if (error.authReason === 'guild_only') return t(locale, 'bot.guard.guildOnly');
+  return t(locale, errorMessageKey(error.code));
 }
 
 async function replyError(
@@ -274,7 +321,7 @@ async function replyError(
   context: { commandPath?: string; customId?: string },
 ): Promise<void> {
   const message =
-    error instanceof AppError ? localizedErrorMessage(locale, error) : tb(locale, 'error.internal');
+    error instanceof AppError ? localizedErrorMessage(locale, error) : t(locale, 'error.internal');
 
   if (!(error instanceof AppError)) {
     deps.logger.error(
@@ -309,14 +356,13 @@ async function dispatchChatInput(
   if (!meta) {
     const embed = new EmbedBuilder()
       .setColor(botColor('error'))
-      .setDescription(tb(locale, 'bot.error.unknownCommand'));
+      .setDescription(t(locale, 'bot.error.unknownCommand'));
     await sendReply(interaction, { embeds: [embed], flags: MessageFlags.Ephemeral });
     return;
   }
 
   checkCommandAccess(deps, meta, interaction);
 
-  // Single command dispatch switch: wiring future B2/B3 services is a one-line change per case.
   switch (meta.path) {
     case 'pelica balance':
       await handleBalance(deps, interaction, locale);
@@ -327,21 +373,45 @@ async function dispatchChatInput(
     case 'help':
       await handleHelp(interaction, locale);
       return;
-    default:
-      await replyComingSoon(interaction, locale, meta.path);
+    case 'admin notifications':
+      await handleAdminNotifications(deps, interaction, locale, sendReply);
+      return;
+    default: {
+      syncCallerProfile(deps.identity, interaction.user);
+      const handled = await dispatchWiredCommand(deps, meta.path, interaction, locale, sendReply);
+      if (!handled) {
+        await replyComingSoon(interaction, locale, meta.path);
+      }
+    }
   }
 }
 
-async function dispatchButton(interaction: ButtonInteraction, locale: Locale): Promise<void> {
-  if (interaction.customId === OPEN_ACTIVITY_BUTTON_ID) {
+async function dispatchButton(
+  deps: BotRouterDeps,
+  interaction: ButtonInteraction,
+  locale: Locale,
+): Promise<void> {
+  const screen = parseLaunchButtonId(interaction.customId);
+  if (!screen) return;
+
+  if (interaction.guildId === null) {
     const embed = new EmbedBuilder()
-      .setColor(botColor('info'))
-      .setDescription(tb(locale, 'bot.activity.placeholder'));
+      .setColor(botColor('warning'))
+      .setDescription(t(locale, 'shell.noGuild'));
     await sendReply(interaction, {
       embeds: [embed],
       flags: MessageFlags.Ephemeral,
     });
+    return;
   }
+
+  syncCallerProfile(deps.identity, interaction.user);
+  deps.launchIntents?.create({
+    userId: interaction.user.id,
+    guildId: interaction.guildId,
+    screen,
+  });
+  await interaction.launchActivity();
 }
 
 /** Create the Discord interaction handler for slash commands and bot buttons. */
@@ -370,7 +440,7 @@ export function createInteractionHandler(
     }
 
     try {
-      await dispatchButton(interaction, locale);
+      await dispatchButton(deps, interaction, locale);
     } catch (error) {
       await replyError(deps, interaction, locale, error, { customId: interaction.customId });
     }

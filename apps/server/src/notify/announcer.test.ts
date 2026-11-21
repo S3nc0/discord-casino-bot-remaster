@@ -541,4 +541,25 @@ describe('Announcer batching, threshold, rate-limiting, language, and personas',
     await h2.announcer.flushAll();
     expect(flakyPort.channelPosts).toHaveLength(1);
   });
+
+  it('announces HorseFoaled in the guild channel only when statTotal >= 205', async () => {
+    const h = makeHarness({ batchWindowMs: 0 });
+    const baseFoal = {
+      type: 'HorseFoaled' as const,
+      guildId: GUILD,
+      at: h.clock.now(),
+      userId: USER,
+      foalId: 10,
+      foalName: 'Comet',
+      parentIds: [1, 2] as [number, number],
+      generation: 1,
+      maturesAt: h.clock.now() + 86_400_000,
+    };
+
+    expect(h.announcer.enqueue({ ...baseFoal, statTotal: 204 })).toBe(false);
+    expect(h.announcer.enqueue({ ...baseFoal, foalId: 11, statTotal: 205 })).toBe(true);
+    await h.announcer.flushAll();
+    expect(h.port.channelPosts).toHaveLength(1);
+    expect(h.port.channelPosts[0]?.message.embeds?.[0]?.description).toContain('Comet');
+  });
 });
