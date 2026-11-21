@@ -12,6 +12,7 @@ import { RateLimiter } from '../../runtime/rate-limit.ts';
 import type { SocketHandlers } from '../../socket/server.ts';
 import type { BlackjackService } from './blackjack.ts';
 import type { ChinchiroService } from './chinchiro.ts';
+import type { ChinchiroTableService } from './chinchiro-table.ts';
 import type { PachinkoService } from './pachinko.ts';
 import type { RouletteService } from './roulette.ts';
 import type { SlotsService } from './slots.ts';
@@ -21,6 +22,7 @@ import type { Caller } from './types.ts';
 export interface CasinoServices {
   core: CasinoCore;
   chinchiro: ChinchiroService;
+  chinchiroTable: ChinchiroTableService;
   slots: SlotsService;
   pachinko: PachinkoService;
   blackjack: BlackjackService;
@@ -115,6 +117,9 @@ export function createCasinoHandlers(
     tableSnapshot(scope, game): TableSnapshot | null {
       if (game === 'blackjack') return games.blackjack.snapshot(scope.guildId, scope.instanceId);
       if (game === 'roulette') return games.roulette.snapshot(scope.guildId, scope.instanceId);
+      if (game === 'chinchiro') {
+        return games.chinchiroTable.snapshot(scope.guildId, scope.instanceId);
+      }
       return null;
     },
 
@@ -127,6 +132,17 @@ export function createCasinoHandlers(
       try {
         switch (intent.game) {
           case 'chinchiro':
+            // `args.table`: sit at (or open) the shared lobby instead of playing solo.
+            if (intent.args?.['table'] === true) {
+              return accepted(
+                caller,
+                key,
+                games.chinchiroTable.sit(caller, {
+                  ...base,
+                  ...(intent.roundId === undefined ? {} : { roundId: intent.roundId }),
+                }),
+              );
+            }
             return accepted(caller, key, games.chinchiro.start(caller, base));
           case 'slots':
             return accepted(caller, key, games.slots.play(caller, base));
@@ -183,8 +199,15 @@ export function createCasinoHandlers(
       const caller = callerOf(scope);
       const base = { roundId: intent.roundId, idempotencyKey: key };
       try {
-        if (intent.game === 'chinchiro' && intent.action === 'roll') {
-          return accepted(caller, key, games.chinchiro.roll(caller, base));
+        if (intent.game === 'chinchiro') {
+          switch (intent.action) {
+            case 'roll':
+              return accepted(caller, key, games.chinchiro.roll(caller, base));
+            case 'stand':
+              return accepted(caller, key, games.chinchiroTable.stand(caller, base));
+            case 'begin':
+              return accepted(caller, key, games.chinchiroTable.begin(caller, base));
+          }
         }
         if (intent.game === 'blackjack') {
           switch (intent.action) {

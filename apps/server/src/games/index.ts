@@ -4,6 +4,7 @@ import type { CasinoServer } from '../socket/server.ts';
 import type { SocketHandlers } from '../socket/server.ts';
 import { BlackjackService } from './casino/blackjack.ts';
 import { ChinchiroService } from './casino/chinchiro.ts';
+import { ChinchiroTableService } from './casino/chinchiro-table.ts';
 import { timerScheduler, type GameContext } from './casino/context.ts';
 import { CasinoCore } from './casino/core.ts';
 import { createCasinoHandlers, type HandlerLimits } from './casino/handlers.ts';
@@ -18,6 +19,7 @@ export type { CasinoDeps, CasinoPorts, Caller, RoundSettled, Scheduler } from '.
 export interface CasinoGames {
   core: CasinoCore;
   chinchiro: ChinchiroService;
+  chinchiroTable: ChinchiroTableService;
   slots: SlotsService;
   pachinko: PachinkoService;
   blackjack: BlackjackService;
@@ -58,6 +60,7 @@ export function createCasinoGames(
   const services = {
     core,
     chinchiro: new ChinchiroService(ctx),
+    chinchiroTable: new ChinchiroTableService(ctx),
     slots: new SlotsService(ctx),
     pachinko: new PachinkoService(ctx),
     blackjack: new BlackjackService(ctx),

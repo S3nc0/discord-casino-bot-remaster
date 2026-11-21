@@ -7,3 +7,5 @@ export * as slots from './slots/index.ts';
 export * as blackjack from './blackjack/index.ts';
 export * as roulette from './roulette/index.ts';
 export * as pachinko from './pachinko/index.ts';
+export * from './common/events.ts';
+export * as chinchiroTable from './chinchiro/table.ts';

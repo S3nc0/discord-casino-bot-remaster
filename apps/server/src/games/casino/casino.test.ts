@@ -1,3 +1,5 @@
+import { dayStartMs, localDayNumber } from '@casino/domain/progression';
+import { suddenEventOn } from '@casino/domain/casino';
 import { createSeededRng, type IntentAck } from '@casino/shared';
 import { describe, expect, it } from 'vitest';
 import { AppError } from '../../runtime/errors.ts';
@@ -74,6 +76,8 @@ describe('slots', () => {
       true,
     );
     expect(eventsOf(rigged.events, 'Jackpot')).toMatchObject([{ amount: 20_050, game: 'slots' }]);
+    expect(eventsOf(rigged.events, 'GameSettled')[0]?.tags).toEqual(['jackpot']);
+    expect(eventsOf(s.events, 'GameSettled')[0]).not.toHaveProperty('tags');
   });
 
   it('replays an idempotency key without a second charge, and refuses a changed body', () => {
@@ -344,6 +348,20 @@ describe('blackjack', () => {
     }
   });
 
+  it('puts the round labels on GameSettled: natural, and double_win after a won double', () => {
+    const tagged = new Set<string>();
+    for (let seed = 1; seed <= 200; seed++) {
+      const s = setup({ rng: createSeededRng(seed) });
+      const v = view(s.games.blackjack.startSolo(s.caller(), { stake: 100 }));
+      if (v.phase === 'player') s.games.blackjack.double(s.caller(), { roundId: v.roundId });
+      const settled = eventsOf(s.events, 'GameSettled')[0]!;
+      for (const tag of settled.tags ?? []) tagged.add(tag);
+      if (v.phase !== 'player' && settled.net > 0) expect(settled.tags).toContain('natural');
+      if (settled.tags?.includes('double_win')) expect(settled.net).toBeGreaterThan(0);
+    }
+    expect([...tagged].sort()).toEqual(['double_win', 'natural']);
+  });
+
   it('doubles: extra stake from cash, one card, then pays on the whole escrow', () => {
     let tested = 0;
     for (let seed = 1; seed <= 60 && tested < 5; seed++) {
@@ -485,7 +503,22 @@ describe('ports', () => {
     const lost = t.games.slots.play(t.caller(), { stake: 400 }).response;
     expect(lost.settlement).toMatchObject({ insured: 200, payout: 200, net: -200 });
     expect(consumed).toEqual([USER]);
-    expect(t.economy.history(GUILD, USER).some((e) => e.reason === 'game_refund')).toBe(true);
+    const refunds = t.economy
+      .history(GUILD, USER)
+      .filter((e) => e.reason === 'game_insurance_refund');
+    expect(refunds.map((e) => e.delta)).toEqual([200]);
+    expect(t.economy.history(GUILD, USER).some((e) => e.reason === 'game_refund')).toBe(false);
+  });
+
+  it("boosts the game of the guild's daily event by default, and only inside its window", () => {
+    const s = setup();
+    const event = suddenEventOn(GUILD, localDayNumber(s.clock.now()));
+    const other = event.game === 'slots' ? 'roulette' : 'slots';
+    s.clock.set(dayStartMs(localDayNumber(s.clock.now())) + (event.startMin + 1) * 60_000);
+    expect(s.games.core.ports.eventBoost(GUILD, event.game, s.clock.now())).toBe(0.5);
+    expect(s.games.core.ports.eventBoost(GUILD, other, s.clock.now())).toBe(0);
+    s.clock.advance(31 * 60_000);
+    expect(s.games.core.ports.eventBoost(GUILD, event.game, s.clock.now())).toBe(0);
   });
 });
 
