@@ -6,7 +6,6 @@ import {
   ENTRY_FEE,
   FIELD_SIZE,
   GOLD_CARROT_MAX,
-  HORSE_VOUCHER_PRICE,
   isMajorRace,
   isValidLook,
   makeAllOdds,
@@ -21,6 +20,7 @@ import {
   SILKS,
   styleOf,
   validateBet,
+  valueOf,
   validateHorseName,
   type BetKind,
   type Entrant,
@@ -57,6 +57,13 @@ interface HorseRow {
   races: number;
   wins: number;
   places: number;
+  generation: number;
+  parent_a_id: number | null;
+  parent_b_id: number | null;
+  matures_at: number | null;
+  last_bred_at: number | null;
+  foal_count: number;
+  base_value: number;
 }
 
 interface RaceRow {
@@ -106,6 +113,14 @@ export interface HorseView {
   wins: number;
   places: number;
   retireValue: number;
+  /** 0 for voucher, seized and legacy horses; parents + 1 for bred ones. */
+  generation: number;
+  parentIds: [number, number] | null;
+  /** Epoch ms a foal can race from; null for horses that were never foals. */
+  maturesAt: number | null;
+  lastBredAt: number | null;
+  foalCount: number;
+  baseValue: number;
 }
 
 export interface RaceTimeline {
@@ -169,6 +184,13 @@ export class RaceService {
       wins: h.wins,
       places: h.places,
       retireValue: retireValue(h.races, h.wins, h.places),
+      generation: h.generation,
+      parentIds:
+        h.parent_a_id !== null && h.parent_b_id !== null ? [h.parent_a_id, h.parent_b_id] : null,
+      maturesAt: h.matures_at,
+      lastBredAt: h.last_bred_at,
+      foalCount: h.foal_count,
+      baseValue: h.base_value,
     };
   }
 
@@ -183,7 +205,7 @@ export class RaceService {
   /** Net-worth value of a player's horses. */
   horseValue(guildId: string, userId: string): number {
     return this.stable(guildId, userId).reduce(
-      (sum, h) => sum + Math.max(0, HORSE_VOUCHER_PRICE + h.retireValue),
+      (sum, h) => sum + valueOf(h.baseValue, h.retireValue),
       0,
     );
   }
@@ -485,6 +507,8 @@ export class RaceService {
         throw new GameRuleError('entry_closed');
       if (ctx.clock.now() < race.entry_open) throw new GameRuleError('entry_not_open');
       if (h.races >= MAX_RACES) throw new GameRuleError('retired_by_age', { max_races: MAX_RACES });
+      if (h.matures_at !== null && ctx.clock.now() < h.matures_at)
+        throw new GameRuleError('foal_immature', { time: h.matures_at, at: h.matures_at });
       const entries = ctx.store
         .stmt('SELECT owner_id, name, horse_id FROM horse_entries WHERE race_id = ?')
         .all(raceId) as { owner_id: string; name: string; horse_id: number }[];

@@ -5,6 +5,8 @@ export type Stats = Record<StatKey, number>;
 export const STAT_MIN = 20;
 export const STAT_MAX = 80;
 export const STAT_TOTAL = 200;
+/** No horse's stat total may pass this (a 200 voucher horse plus one gold carrot). */
+export const TOTAL_CAP = 210;
 export const CARROT_POINTS = 5;
 export const GOLD_CARROT_POINTS = 5;
 export const GOLD_CARROT_MAX = 1;
@@ -45,7 +47,8 @@ export function styleOf(stats: Stats): RunningStyle {
   return STYLE_OF_STAT[best];
 }
 
-export type StatError = 'select_distinct_stats' | 'stat_at_min' | 'stat_at_max';
+export type StatError =
+  'select_distinct_stats' | 'stat_at_min' | 'stat_at_max' | 'gold_carrot_total_cap';
 
 /** Carrot: move 5 points from `src` to `dst`. The total stays the same. */
 export function moveCarrot(
@@ -74,6 +77,7 @@ export function addGoldCarrot(
   for (const key of STAT_KEYS) {
     if (next[key] > STAT_MAX) return { ok: false, error: 'stat_at_max', stat: key };
   }
+  if (statSum(next) > TOTAL_CAP) return { ok: false, error: 'gold_carrot_total_cap' };
   return { ok: true, stats: next };
 }
 

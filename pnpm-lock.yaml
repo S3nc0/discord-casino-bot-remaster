@@ -233,6 +233,9 @@ importers:
       '@types/better-sqlite3':
         specifier: 9.6.0
         version: 9.6.0
+      fast-check:
+        specifier: 4.10.2
+        version: 4.10.2
       socket.io-client:
         specifier: 4.8.4
         version: 4.8.4

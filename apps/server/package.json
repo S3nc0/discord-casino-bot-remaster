@@ -23,6 +23,7 @@
   },
   "devDependencies": {
     "@types/better-sqlite3": "9.6.0",
+    "fast-check": "4.10.2",
     "socket.io-client": "4.8.4",
     "tsup": "9.0.0"
   }

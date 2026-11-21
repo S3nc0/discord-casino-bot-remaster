@@ -478,6 +478,7 @@ describe('quiz', () => {
     // 3 eligible answerers, 1 right: author entitled to base 100 + bonus + participation, paid as it goes
     expect(economy.getBalance(GUILD, USER)).toBeGreaterThan(3000 - 100);
     expect(h.reasons(USER)).toContain('quiz_author_reward');
+    expect(h.reasons(USER)).toContain('quiz_author_pay');
     clock.advance(4 * 24 * H);
     expect(games.quiz.settleExpired()).toEqual([quiz.id]);
     expect(() => games.quiz.answer(GUILD, '123456789012345673', quiz.id, 0)).toThrow(/quiz_ended/);

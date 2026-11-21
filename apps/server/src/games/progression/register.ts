@@ -8,6 +8,7 @@ import { ArenaService } from '../arena/service.ts';
 import { LotteryService } from '../lottery/service.ts';
 import { PollService } from '../poll/service.ts';
 import { QuizService } from '../quiz/service.ts';
+import { BreedingService } from '../race/breeding.ts';
 import { RaceService } from '../race/service.ts';
 import { ShopService } from '../shop/service.ts';
 import { WorkService } from '../work/service.ts';
@@ -39,6 +40,7 @@ export interface NonCasinoDeps {
 export interface NonCasinoGames {
   progression: ProgressionService;
   race: RaceService;
+  breeding: BreedingService;
   arena: ArenaService;
   work: WorkService;
   quiz: QuizService;
@@ -58,6 +60,7 @@ export function createNonCasinoGames(deps: NonCasinoDeps): NonCasinoGames {
   const ctx: GamesCtx = { ...deps };
   const progression = new ProgressionService(ctx);
   const race = new RaceService(ctx);
+  const breeding = new BreedingService(ctx);
   const arena = new ArenaService(ctx);
   const work = new WorkService(ctx);
   const shop = new ShopService(ctx);
@@ -87,6 +90,7 @@ export function createNonCasinoGames(deps: NonCasinoDeps): NonCasinoGames {
   return {
     progression,
     race,
+    breeding,
     arena,
     work,
     quiz,
