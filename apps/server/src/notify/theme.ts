@@ -78,4 +78,3 @@ export function embedColor(role: EmbedRole): number {
 
 /** Alias kept for bot call sites. */
 export const botColor = embedColor;
-

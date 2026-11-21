@@ -38,8 +38,7 @@ export type NotifyRuntimeHandle = NotifyHandle;
 export function startNotifyRuntime(deps: StartNotifyRuntimeDeps): NotifyRuntimeHandle {
   const store = deps.db instanceof Store ? deps.db : new Store(deps.db);
   const port = deps.client ? createDiscordNotifyPort(deps.client) : createNoopDiscordPort();
-  const defaultAnnounceChannelId =
-    deps.env.announceChannelId ?? deps.env.ANNOUNCE_CHANNEL_ID ?? '';
+  const defaultAnnounceChannelId = deps.env.announceChannelId ?? deps.env.ANNOUNCE_CHANNEL_ID ?? '';
   const avatarBaseUrl = deps.env.publicApiOrigin ?? deps.env.PUBLIC_API_ORIGIN;
 
   return attachNotify({

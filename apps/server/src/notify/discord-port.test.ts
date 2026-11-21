@@ -71,7 +71,12 @@ function makeFakeClient(
   return { client, restPost, channelsFetch, usersFetch, guildsFetch };
 }
 
-function apiError(props: { code?: number | string; status?: number; retryAfter?: number; message?: string }) {
+function apiError(props: {
+  code?: number | string;
+  status?: number;
+  retryAfter?: number;
+  message?: string;
+}) {
   return Object.assign(new Error(props.message ?? 'discord error'), props);
 }
 
@@ -185,7 +190,9 @@ describe('createDiscordNotifyPort', () => {
         allowed: {
           send: vi.fn(),
           createWebhook: createOk,
-          permissionsFor: vi.fn(() => ({ has: (bit: bigint) => bit === PermissionFlagsBits.ManageWebhooks })),
+          permissionsFor: vi.fn(() => ({
+            has: (bit: bigint) => bit === PermissionFlagsBits.ManageWebhooks,
+          })),
         },
         noPerms: {
           send: vi.fn(),
@@ -240,9 +247,10 @@ describe('createDiscordNotifyPort', () => {
     });
     const port = createDiscordNotifyPort(client);
 
-    expect(
-      await port.sendDm('u1', { embeds: [{ title: 'Hi' }], openInActivity: true }),
-    ).toEqual({ ok: true, messageId: 'dm-1' });
+    expect(await port.sendDm('u1', { embeds: [{ title: 'Hi' }], openInActivity: true })).toEqual({
+      ok: true,
+      messageId: 'dm-1',
+    });
     expect(okSend.mock.calls[0]?.[0]).not.toHaveProperty('components');
 
     expect(await port.sendDm('uClosed', { content: 'hi' })).toMatchObject({
@@ -387,9 +395,9 @@ describe('startNotifyRuntime', () => {
     });
     const res = await runtime.flush();
     expect(res.announcements.failed).toBe(0);
-    expect(
-      store.stmt('SELECT COUNT(*) AS n FROM inbox WHERE user_id = ?').get(USER),
-    ).toEqual({ n: 1 });
+    expect(store.stmt('SELECT COUNT(*) AS n FROM inbox WHERE user_id = ?').get(USER)).toEqual({
+      n: 1,
+    });
 
     runtime.stop();
     bus.publishDomain({
@@ -398,8 +406,8 @@ describe('startNotifyRuntime', () => {
       at: clock.now() + 1,
       userId: USER,
     });
-    expect(
-      store.stmt('SELECT COUNT(*) AS n FROM inbox WHERE user_id = ?').get(USER),
-    ).toEqual({ n: 1 });
+    expect(store.stmt('SELECT COUNT(*) AS n FROM inbox WHERE user_id = ?').get(USER)).toEqual({
+      n: 1,
+    });
   });
 });

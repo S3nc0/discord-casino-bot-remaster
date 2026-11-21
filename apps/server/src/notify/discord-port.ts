@@ -237,11 +237,14 @@ export function createDiscordNotifyPort(client: Client | DiscordPortClient): Dis
         if (identity?.name) body.username = identity.name;
         if (identity?.avatarUrl) body.avatar_url = identity.avatarUrl;
 
-        const response = (await discord.rest.post(Routes.webhook(webhook.webhookId, webhook.token), {
-          body,
-          query: new URLSearchParams({ wait: 'true' }),
-          auth: false,
-        })) as { id?: unknown } | null;
+        const response = (await discord.rest.post(
+          Routes.webhook(webhook.webhookId, webhook.token),
+          {
+            body,
+            query: new URLSearchParams({ wait: 'true' }),
+            auth: false,
+          },
+        )) as { id?: unknown } | null;
 
         return {
           ok: true,
