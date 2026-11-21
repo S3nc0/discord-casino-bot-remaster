@@ -74,7 +74,7 @@ describe('settings store', () => {
   it('hydrate does not count as an edit and clamps bad server data', () => {
     useSettingsStore
       .getState()
-      .hydrate(parseSettings({ language: 'ja', sound: { sfx: 900 }, theme: 'neon' }));
+      .hydrate(parseSettings({ language: 'ja', sound: { sfx: 900 }, theme: 'sepia' }));
     const s = useSettingsStore.getState();
     expect(s).toMatchObject({ language: 'ja', theme: 'auto', loaded: true, revision: 0 });
     expect(s.sound.sfx).toBe(100);
