@@ -85,7 +85,7 @@ export class AuthController {
       instanceId: sdk.instanceId,
       sessionToken: response.sessionToken,
       expiresAt: response.expiresAt,
-      serverLocale: response.locale,
+      guildLocale: response.locale,
     });
     return response;
   }

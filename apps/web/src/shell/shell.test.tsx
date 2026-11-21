@@ -5,12 +5,16 @@ import { SCREEN_IDS } from '@casino/shared';
 import { screenRoutes } from '../screens/index.ts';
 import { layoutFor } from './layout.ts';
 import { createMockApi } from './mockApi.ts';
-import { NavigationBar } from './NavigationBar.tsx';
+import { MainNavigation } from './NavigationBar.tsx';
 import { RuntimeContext, ShellRuntime } from './runtime.ts';
 import { readConfig } from './config.ts';
 import { SettingsScreen } from './SettingsScreen.tsx';
-import { Snackbar } from './Snackbar.tsx';
-import { resolveTheme } from './theme.ts';
+import { Toasts } from './Snackbar.tsx';
+import { Themed } from './Themed.tsx';
+import { InboxScreen } from './InboxScreen.tsx';
+import { DISCORD_CDN_ORIGIN } from '@casino/shared';
+import { Participants } from './Participants.tsx';
+import { motionToReducedMotion } from './theme.ts';
 import { useInboxStore } from './stores/inbox.ts';
 import { useNavStore } from './stores/nav.ts';
 import { useSessionStore } from './stores/session.ts';
@@ -81,7 +85,7 @@ describe('rendering', () => {
     for (const id of SCREEN_IDS) {
       const Route = screenRoutes[id];
       const view = render(<Route />);
-      expect(view.container.querySelector('h1')?.textContent).toBeTruthy();
+      expect(view.container.querySelector('h1, h3')?.textContent).toBeTruthy();
       view.unmount();
     }
   });
@@ -89,17 +93,115 @@ describe('rendering', () => {
   it('re-renders everything in Japanese after the language setting changes', () => {
     useSettingsStore.getState().update({ language: 'en' });
     const view = show(<SettingsScreen />);
-    expect(view.html()).toContain('Animations');
+    expect(view.html()).toContain('Follow system');
     act(() => useSettingsStore.getState().update({ language: 'ja' }));
     expect(view.html()).toContain('アニメーション');
     expect(view.html()).not.toContain('Animations');
   });
 
-  it('writes edits to the settings store from the controls', () => {
+  it('writes edits to the settings store from the kit controls', () => {
     const view = show(<SettingsScreen />);
-    const checkbox = view.container.querySelectorAll<HTMLInputElement>('input[type=checkbox]')[1]!;
-    act(() => checkbox.click());
-    expect(useSettingsStore.getState().animations).toBe(false);
+    const radio = (value: string) =>
+      view.container.querySelector<HTMLInputElement>(`input[type=radio][value="${value}"]`)!;
+    act(() => radio('reduced').click());
+    expect(useSettingsStore.getState().motion).toBe('reduced');
+    act(() => radio('dark').click());
+    expect(useSettingsStore.getState().theme).toBe('dark');
+    act(() => radio('ja').click());
+    expect(useSettingsStore.getState().language).toBe('ja');
+    const toggle = view.container.querySelector<HTMLInputElement>('input[role=switch]')!;
+    act(() => toggle.click());
+    expect(useSettingsStore.getState().sound.enabled).toBe(false);
+    expect(view.container.querySelector<HTMLInputElement>('input[type=range]')!.disabled).toBe(
+      true,
+    );
+  });
+
+  it('lists the inbox with a tab for unread items', () => {
+    const { runtime } = makeRuntime();
+    const mk = (id: number, readAt: number | null) =>
+      ({
+        id,
+        guildId: GUILD,
+        kind: 'loan_due',
+        event: {},
+        createdAt: id,
+        readAt,
+      }) as unknown as InboxItem;
+    useInboxStore.getState().set([mk(1, null), mk(2, 5)], 1);
+    const view = show(
+      <RuntimeContext.Provider value={runtime}>
+        <InboxScreen />
+      </RuntimeContext.Provider>,
+    );
+    expect(view.container.querySelectorAll('li.bb-list__item')).toHaveLength(2);
+    const tabs = view.container.querySelectorAll<HTMLButtonElement>('[role=tab]');
+    act(() => tabs[1]!.click());
+    expect(view.container.querySelectorAll('li.bb-list__item')).toHaveLength(1);
+  });
+
+  it('marks all read through the API and shows the server count', async () => {
+    const { runtime } = makeRuntime();
+    const calls: unknown[] = [];
+    runtime.api.markInboxRead = (request) => {
+      calls.push(request);
+      return Promise.resolve({ unread: 0 });
+    };
+    useInboxStore.getState().set(
+      [
+        {
+          id: 1,
+          guildId: GUILD,
+          kind: 'loan_due',
+          event: {},
+          createdAt: 1,
+          readAt: null,
+        } as unknown as InboxItem,
+      ],
+      1,
+    );
+    const view = show(
+      <RuntimeContext.Provider value={runtime}>
+        <InboxScreen />
+      </RuntimeContext.Provider>,
+    );
+    await act(async () => {
+      view.container.querySelector<HTMLButtonElement>('button.bb-btn')!.click();
+    });
+    expect(calls).toEqual([{ all: true }]);
+    expect(useInboxStore.getState().unread).toBe(0);
+  });
+
+  it('draws participant avatars from the CDN base', () => {
+    const { runtime } = makeRuntime();
+    useSessionStore
+      .getState()
+      .setParticipants([
+        { id: '200000000000000001', username: 'p', globalName: 'P', avatar: 'abc' },
+      ]);
+    const view = show(
+      <RuntimeContext.Provider value={runtime}>
+        <Participants />
+      </RuntimeContext.Provider>,
+    );
+    expect(view.container.querySelector('img')?.getAttribute('src')).toBe(
+      `${DISCORD_CDN_ORIGIN}/avatars/200000000000000001/abc.png?size=64`,
+    );
+  });
+
+  it('themes the document from the settings', () => {
+    show(
+      <Themed>
+        <p>x</p>
+      </Themed>,
+    );
+    expect(document.documentElement.getAttribute('data-reduced-motion')).toBeNull();
+    act(() => useSettingsStore.getState().update({ theme: 'dark', motion: 'reduced' }));
+    expect(document.documentElement.getAttribute('data-theme')).toBe('dark');
+    expect(document.documentElement.getAttribute('data-reduced-motion')).toBe('true');
+    act(() => useSettingsStore.getState().update({ theme: 'light', motion: 'full' }));
+    expect(document.documentElement.getAttribute('data-theme')).toBe('light');
+    expect(document.documentElement.getAttribute('data-reduced-motion')).toBeNull();
   });
 
   it('shows the unread badge on the inbox button and updates it live', () => {
@@ -113,22 +215,22 @@ describe('rendering', () => {
         createdAt: id,
         readAt: null,
       }) as unknown as InboxItem;
-    useInboxStore.getState().set([item(1), item(2)]);
+    useInboxStore.getState().set([item(1), item(2)], 2);
     const view = show(
       <RuntimeContext.Provider value={runtime}>
-        <NavigationBar />
+        <MainNavigation />
       </RuntimeContext.Provider>,
     );
-    expect(view.container.querySelector('.nav__badge')?.textContent).toBe('2');
+    expect(view.container.querySelector('.bb-badge')?.textContent).toBe('2');
     act(() => useInboxStore.getState().add(item(3)));
-    expect(view.container.querySelector('.nav__badge')?.textContent).toBe('3');
+    expect(view.container.querySelector('.bb-badge')?.textContent).toBe('3');
     act(() => useInboxStore.getState().markRead([1, 2, 3], 9));
-    expect(view.container.querySelector('.nav__badge')).toBeNull();
+    expect(view.container.querySelector('.bb-badge')).toBeNull();
   });
 
   it('renders toasts in the active language', () => {
     useToastStore.getState().push({ tone: 'info', messageKey: 'inbox.kind.daily_ready' });
-    const view = show(<Snackbar />);
+    const view = show(<Toasts />);
     expect(view.html()).toContain('Daily bonus ready');
     act(() => useSettingsStore.getState().update({ language: 'ja' }));
     expect(view.html()).toContain('デイリーボーナス受け取り可');
@@ -155,20 +257,22 @@ describe('layout, theme and config', () => {
     expect(layoutFor(1024, 768)).toBe('desktop');
   });
 
-  it('follows the Discord colour scheme unless a theme is chosen', () => {
-    expect(resolveTheme('auto', true)).toBe('dark');
-    expect(resolveTheme('auto', false)).toBe('light');
-    expect(resolveTheme('light', true)).toBe('light');
+  it('maps the motion setting onto the kit: system follows the OS, the toggle forces it', () => {
+    expect(motionToReducedMotion('system')).toBe('system');
+    expect(motionToReducedMotion('full')).toBe('no-preference');
+    expect(motionToReducedMotion('reduced')).toBe('reduce');
   });
 
   it('uses the proxy only inside the Discord frame and mock only behind the flag', () => {
     expect(readConfig('?frame_id=1&instance_id=2', {})).toMatchObject({
       mode: 'discord',
       proxyPrefix: '/.proxy',
+      cdnBase: '/.proxy/discord-cdn',
     });
     expect(readConfig('', { VITE_MOCK_DISCORD: '1' })).toMatchObject({
       mode: 'mock',
       proxyPrefix: '',
+      cdnBase: DISCORD_CDN_ORIGIN,
     });
     expect(readConfig('', {}).mode).toBe('none');
     expect(readConfig('?screen=slots', { VITE_MOCK_DISCORD: '1' }).mockScreen).toBe('slots');

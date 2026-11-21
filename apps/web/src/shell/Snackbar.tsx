@@ -1,35 +1,26 @@
-import { useEffect } from 'react';
+import { Snackbar } from '@casino/ui';
 import { useT } from './i18n.ts';
-import { useToastStore, type ToastEntry } from './stores/toasts.ts';
+import { useToastStore } from './stores/toasts.ts';
 
-export const TOAST_LIFETIME_MS = 5_000;
+export const TOAST_LIFETIME_MS = 6_000;
 
-function ToastItem({ toast }: { toast: ToastEntry }) {
+/** Live toasts (socket `toast` and `inbox:new`, save errors), rendered with the kit's Snackbar. */
+export function Toasts() {
   const t = useT();
-  const dismiss = useToastStore((s) => s.dismiss);
-  useEffect(() => {
-    const handle = setTimeout(() => dismiss(toast.id), TOAST_LIFETIME_MS);
-    return () => clearTimeout(handle);
-  }, [toast.id, dismiss]);
-  return (
-    <li className="snackbar__item" data-tone={toast.tone}>
-      <span>{t(toast.messageKey, toast.params)}</span>
-      <button type="button" className="snackbar__close" onClick={() => dismiss(toast.id)}>
-        <span aria-hidden="true">×</span>
-        <span className="sr-only">{t('toast.dismiss')}</span>
-      </button>
-    </li>
-  );
-}
-
-/** Live toasts (socket `toast` and `inbox:new`, save errors). Minimal until packages/ui has Snackbar. */
-export function Snackbar() {
   const toasts = useToastStore((s) => s.toasts);
+  const dismiss = useToastStore((s) => s.dismiss);
   return (
-    <ul className="snackbar" role="status" aria-live="polite">
+    <div className="toasts">
       {toasts.map((toast) => (
-        <ToastItem key={toast.id} toast={toast} />
+        <Snackbar
+          key={toast.id}
+          message={t(toast.messageKey, toast.params)}
+          dismissLabel={t('toast.dismiss')}
+          durationMs={TOAST_LIFETIME_MS}
+          onDismiss={() => dismiss(toast.id)}
+          data-tone={toast.tone}
+        />
       ))}
-    </ul>
+    </div>
   );
 }

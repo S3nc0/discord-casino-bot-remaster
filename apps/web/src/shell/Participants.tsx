@@ -1,33 +1,32 @@
-import type { PublicUser } from '@casino/shared';
+import { avatarUrl } from '@casino/shared';
+import { Avatar } from '@casino/ui';
 import { useT } from './i18n.ts';
 import { useRuntime } from './runtime.ts';
 import { useSessionStore } from './stores/session.ts';
 
 const MAX_SHOWN = 5;
 
-/** Needs a Developer Portal mapping `/cdn` → Discord's CDN host (see report). */
-export function avatarUrl(user: PublicUser, proxyPrefix: string): string | null {
-  return user.avatar ? `${proxyPrefix}/cdn/avatars/${user.id}/${user.avatar}.png?size=64` : null;
-}
-
+/** Avatars of the people in this Activity instance (SDK list, or the socket's as fallback). */
 export function Participants() {
   const t = useT();
   const { config } = useRuntime();
   const users = useSessionStore((s) => s.participants);
   if (users.length === 0) return null;
-  const shown = users.slice(0, MAX_SHOWN);
   return (
     <ul className="participants" aria-label={t('shell.players')}>
-      {shown.map((user) => {
+      {users.slice(0, MAX_SHOWN).map((user) => {
         const name = user.globalName ?? user.username;
-        const src = avatarUrl(user, config.proxyPrefix);
         return (
-          <li key={user.id} className="participants__avatar" title={name}>
-            {src ? (
-              <img src={src} alt={name} width={28} height={28} />
-            ) : (
-              <span aria-label={name}>{name.slice(0, 1)}</span>
-            )}
+          <li key={user.id} className="participants__item">
+            <Avatar>
+              <img
+                src={avatarUrl(user, { base: config.cdnBase, size: 64 })}
+                alt={name}
+                title={name}
+                width={40}
+                height={40}
+              />
+            </Avatar>
           </li>
         );
       })}

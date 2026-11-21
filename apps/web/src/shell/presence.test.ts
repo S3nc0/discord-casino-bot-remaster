@@ -32,7 +32,7 @@ describe('PresenceController', () => {
       instanceId: INSTANCE,
       sessionToken: 't',
       expiresAt: 1,
-      serverLocale: 'en',
+      guildLocale: 'en',
     });
   });
   afterEach(() => controller?.stop());

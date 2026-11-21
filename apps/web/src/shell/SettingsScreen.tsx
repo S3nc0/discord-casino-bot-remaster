@@ -1,92 +1,84 @@
 import { useId } from 'react';
+import {
+  LANGUAGE_SETTINGS,
+  MOTION_SETTINGS,
+  THEME_SETTINGS,
+  type LanguageSetting,
+  type MotionSetting,
+  type ThemeSetting,
+} from '@casino/shared';
+import { RadioGroup, Slider, Surface, Switch } from '@casino/ui';
 import { useT } from './i18n.ts';
-import { useSettingsStore, type LanguageSetting, type ThemeSetting } from './stores/settings.ts';
+import { useSettingsStore } from './stores/settings.ts';
 
-const LANGUAGES: readonly LanguageSetting[] = ['auto', 'en', 'ja'];
-const THEMES: readonly ThemeSetting[] = ['auto', 'light', 'dark'];
-
+/** Every control writes to the store at once; `SettingsSync` saves it through the API. */
 export function SettingsScreen() {
   const t = useT();
   const id = useId();
-  const { language, theme, sound, animations, update } = useSettingsStore();
+  const { language, theme, sound, motion, update } = useSettingsStore();
+  const percent = (value: number) => `${value}%`;
   return (
-    <form
-      className="panel settings"
-      aria-labelledby={`${id}-title`}
-      onSubmit={(e) => e.preventDefault()}
-    >
-      <h1 id={`${id}-title`}>{t('settings.title')}</h1>
+    <Surface label={t('settings.title')}>
+      <form className="settings" onSubmit={(e) => e.preventDefault()}>
+        <h1>{t('settings.title')}</h1>
 
-      <div className="field">
-        <label htmlFor={`${id}-lang`}>{t('settings.language')}</label>
-        <select
-          id={`${id}-lang`}
+        <RadioGroup
+          legend={t('settings.language')}
+          name={`${id}-language`}
           value={language}
-          onChange={(e) => update({ language: e.target.value as LanguageSetting })}
-        >
-          {LANGUAGES.map((value) => (
-            <option key={value} value={value}>
-              {t(`settings.language.${value}`)}
-            </option>
-          ))}
-        </select>
-      </div>
+          onChange={(value) => update({ language: value as LanguageSetting })}
+          options={LANGUAGE_SETTINGS.map((value) => ({
+            value,
+            label: t(`settings.language.${value}`),
+          }))}
+        />
 
-      <div className="field">
-        <label htmlFor={`${id}-theme`}>{t('settings.theme')}</label>
-        <select
-          id={`${id}-theme`}
+        <RadioGroup
+          legend={t('settings.theme')}
+          name={`${id}-theme`}
           value={theme}
-          onChange={(e) => update({ theme: e.target.value as ThemeSetting })}
-        >
-          {THEMES.map((value) => (
-            <option key={value} value={value}>
-              {t(`settings.theme.${value}`)}
-            </option>
-          ))}
-        </select>
-      </div>
+          onChange={(value) => update({ theme: value as ThemeSetting })}
+          options={THEME_SETTINGS.map((value) => ({ value, label: t(`settings.theme.${value}`) }))}
+        />
 
-      <fieldset className="field">
-        <legend>{t('settings.sound')}</legend>
-        <label className="check">
-          <input
-            type="checkbox"
+        <fieldset className="settings__group">
+          <legend>{t('settings.sound')}</legend>
+          <Switch
+            label={t('settings.sound.enabled')}
             checked={sound.enabled}
-            onChange={(e) => update({ sound: { enabled: e.target.checked } })}
+            onChange={(enabled) => update({ sound: { enabled } })}
           />
-          {t('settings.sound.enabled')}
-        </label>
-        <label htmlFor={`${id}-sfx`}>{t('settings.sound.sfx')}</label>
-        <input
-          id={`${id}-sfx`}
-          type="range"
-          min={0}
-          max={100}
-          value={sound.sfx}
-          disabled={!sound.enabled}
-          onChange={(e) => update({ sound: { sfx: Number(e.target.value) } })}
-        />
-        <label htmlFor={`${id}-music`}>{t('settings.sound.music')}</label>
-        <input
-          id={`${id}-music`}
-          type="range"
-          min={0}
-          max={100}
-          value={sound.music}
-          disabled={!sound.enabled}
-          onChange={(e) => update({ sound: { music: Number(e.target.value) } })}
-        />
-      </fieldset>
+          <Slider
+            label={t('settings.sound.sfx')}
+            value={sound.sfxVolume}
+            min={0}
+            max={100}
+            disabled={!sound.enabled}
+            formatValue={percent}
+            onChange={(sfxVolume) => update({ sound: { sfxVolume } })}
+          />
+          <Slider
+            label={t('settings.sound.music')}
+            value={sound.musicVolume}
+            min={0}
+            max={100}
+            disabled={!sound.enabled}
+            formatValue={percent}
+            onChange={(musicVolume) => update({ sound: { musicVolume } })}
+          />
+        </fieldset>
 
-      <label className="check">
-        <input
-          type="checkbox"
-          checked={animations}
-          onChange={(e) => update({ animations: e.target.checked })}
+        <RadioGroup
+          legend={t('settings.motion')}
+          name={`${id}-motion`}
+          value={motion}
+          onChange={(value) => update({ motion: value as MotionSetting })}
+          options={MOTION_SETTINGS.map((value) => ({
+            value,
+            label: t(`settings.motion.${value}`),
+          }))}
         />
-        {t('settings.motion')}
-      </label>
-    </form>
+      </form>
+    </Surface>
   );
 }

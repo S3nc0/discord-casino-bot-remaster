@@ -41,8 +41,8 @@ describe('settings sync (server API, not localStorage)', () => {
     const save = vi.spyOn(api, 'saveSettings');
     const { sync, timers } = make(api);
     sync.start();
-    useSettingsStore.getState().update({ sound: { sfx: 10 } });
-    useSettingsStore.getState().update({ sound: { sfx: 20 } });
+    useSettingsStore.getState().update({ sound: { sfxVolume: 10 } });
+    useSettingsStore.getState().update({ sound: { sfxVolume: 20 } });
     useSettingsStore.getState().update({ theme: 'dark' });
     const live = timers.filter((t) => t.live);
     expect(live).toHaveLength(1);
@@ -50,7 +50,7 @@ describe('settings sync (server API, not localStorage)', () => {
     live[0]?.fn();
     await flush();
     expect(save).toHaveBeenCalledTimes(1);
-    expect(save.mock.calls[0]?.[0]).toMatchObject({ theme: 'dark', sound: { sfx: 20 } });
+    expect(save.mock.calls[0]?.[0]).toMatchObject({ theme: 'dark', sound: { sfxVolume: 20 } });
     expect((await api.getSettings()).theme).toBe('dark');
   });
 

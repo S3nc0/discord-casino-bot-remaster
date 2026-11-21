@@ -5,7 +5,7 @@ import { useConnectionStore } from './stores/connection.ts';
 import { selectUnread, useInboxStore } from './stores/inbox.ts';
 import { useNavStore } from './stores/nav.ts';
 import { useSessionStore } from './stores/session.ts';
-import { DEFAULT_SETTINGS, parseSettings, useSettingsStore } from './stores/settings.ts';
+import { defaultSettings, parseSettings, useSettingsStore } from './stores/settings.ts';
 import { useToastStore } from './stores/toasts.ts';
 import { GUILD, USER_ID, resetStores } from './testing/fakes.ts';
 
@@ -37,7 +37,7 @@ describe('session store', () => {
       instanceId: 'i',
       sessionToken: 'tok',
       expiresAt: 5,
-      serverLocale: 'ja',
+      guildLocale: 'ja',
     });
     expect(useSessionStore.getState()).toMatchObject({ status: 'ready', sessionToken: 'tok' });
     s.fail('unauthorized');
@@ -65,33 +65,70 @@ describe('balance store', () => {
 
 describe('settings store', () => {
   it('merges nested sound edits and bumps the revision', () => {
-    useSettingsStore.getState().update({ sound: { sfx: 20 } });
+    useSettingsStore.getState().update({ sound: { sfxVolume: 20 } });
     const s = useSettingsStore.getState();
-    expect(s.sound).toEqual({ enabled: true, sfx: 20, music: DEFAULT_SETTINGS.sound.music });
+    expect(s.sound).toEqual({
+      enabled: true,
+      sfxVolume: 20,
+      musicVolume: defaultSettings().sound.musicVolume,
+    });
     expect(s.revision).toBe(1);
+  });
+
+  it('starts from the shared defaults: language auto, theme discord, motion system', () => {
+    expect(useSettingsStore.getState()).toMatchObject({
+      language: 'auto',
+      theme: 'discord',
+      motion: 'system',
+    });
   });
 
   it('hydrate does not count as an edit and clamps bad server data', () => {
     useSettingsStore
       .getState()
-      .hydrate(parseSettings({ language: 'ja', sound: { sfx: 900 }, theme: 'sepia' }));
+      .hydrate(
+        parseSettings({ language: 'ja', sound: { sfxVolume: 900 }, theme: 'sepia', motion: 'x' }),
+      );
     const s = useSettingsStore.getState();
-    expect(s).toMatchObject({ language: 'ja', theme: 'auto', loaded: true, revision: 0 });
-    expect(s.sound.sfx).toBe(100);
+    expect(s).toMatchObject({
+      language: 'ja',
+      theme: 'discord',
+      motion: 'system',
+      loaded: true,
+      revision: 0,
+    });
+    expect(s.sound.sfxVolume).toBe(100);
+  });
+
+  it('keeps the motion tri-state', () => {
+    for (const motion of ['full', 'reduced', 'system'] as const) {
+      useSettingsStore.getState().update({ motion });
+      expect(useSettingsStore.getState().snapshot().motion).toBe(motion);
+    }
   });
 });
 
 describe('inbox store', () => {
-  it('keeps newest first, de-duplicates, counts unread and marks read', () => {
+  it('keeps newest first, de-duplicates, tracks the server unread count and marks read', () => {
     const inbox = useInboxStore.getState();
-    inbox.set([item(1), item(2, 5000)]);
+    inbox.set([item(1), item(2, 5000)], 7);
+    expect(selectUnread(useInboxStore.getState())).toBe(7);
     inbox.add(item(3));
     inbox.add(item(3));
     expect(useInboxStore.getState().items.map((i) => i.id)).toEqual([3, 2, 1]);
-    expect(selectUnread(useInboxStore.getState())).toBe(2);
-    inbox.markRead([1, 3], 9000);
+    expect(selectUnread(useInboxStore.getState())).toBe(8);
+    inbox.setUnread(2);
+    inbox.markRead([1, 3, 2], 9000);
     expect(selectUnread(useInboxStore.getState())).toBe(0);
     expect(useInboxStore.getState().items.find((i) => i.id === 2)?.readAt).toBe(5000);
+  });
+
+  it('marks everything read', () => {
+    const inbox = useInboxStore.getState();
+    inbox.set([item(1), item(2)], 12);
+    inbox.markAllRead(10);
+    expect(useInboxStore.getState().unread).toBe(0);
+    expect(useInboxStore.getState().items.every((i) => i.readAt === 10)).toBe(true);
   });
 });
 

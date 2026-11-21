@@ -1,11 +1,17 @@
 import {
+  API_ROUTES,
   ERROR_CODES,
+  INBOX_PAGE_MAX,
   type ErrorCode,
-  type InboxItem,
+  type InboxPage,
+  type InboxReadRequest,
+  type InboxReadResponse,
+  type MeResponse,
   type TokenRequest,
   type TokenResponse,
+  type UserSettings,
 } from '@casino/shared';
-import { parseSettings, type Settings } from './stores/settings.ts';
+import { parseSettings } from './stores/settings.ts';
 
 export class ApiError extends Error {
   readonly code: ErrorCode;
@@ -20,22 +26,26 @@ export class ApiError extends Error {
   }
 }
 
-/**
- * HTTP surface the shell needs. `token` is in the shared contract. The other three are NOT:
- * the contract has no settings, inbox-list or balance endpoint yet, so the paths below are a
- * proposal (`GET|PUT /api/settings`, `GET /api/inbox`, `GET /api/balance`) and mock mode
- * serves them from memory.
- */
+export interface InboxRequest {
+  /** Only items with `id < before`. */
+  before?: number;
+  limit?: number;
+  unreadOnly?: boolean;
+}
+
+/** The HTTP routes of `API_ROUTES` the shell uses. */
 export interface Api {
   token(request: TokenRequest): Promise<TokenResponse>;
-  getSettings(): Promise<Settings>;
-  saveSettings(settings: Settings): Promise<Settings>;
-  getInbox(): Promise<InboxItem[]>;
-  getBalance(): Promise<number | null>;
+  getMe(): Promise<MeResponse>;
+  getSettings(): Promise<UserSettings>;
+  /** Replaces the whole document; resolves with the stored copy. */
+  saveSettings(settings: UserSettings): Promise<UserSettings>;
+  getInbox(query?: InboxRequest): Promise<InboxPage>;
+  markInboxRead(request: InboxReadRequest): Promise<InboxReadResponse>;
 }
 
 export interface HttpApiOptions {
-  /** Path prefix in front of `/api`, e.g. `/.proxy` inside Discord. */
+  /** Path prefix in front of the routes, e.g. `/.proxy` inside Discord. */
   prefix: string;
   getSessionToken: () => string | null;
   fetchImpl?: typeof fetch;
@@ -57,7 +67,7 @@ export function createHttpApi({ prefix, getSessionToken, fetchImpl }: HttpApiOpt
 
     let response: Response;
     try {
-      response = await doFetch(`${prefix}/api${path}`, init);
+      response = await doFetch(`${prefix}${path}`, init);
     } catch {
       throw new ApiError('internal', 0);
     }
@@ -79,16 +89,18 @@ export function createHttpApi({ prefix, getSessionToken, fetchImpl }: HttpApiOpt
   }
 
   return {
-    token: (request) => call<TokenResponse>('POST', '/token', request, false),
-    getSettings: async () => parseSettings(await call('GET', '/settings')),
-    saveSettings: async (settings) => parseSettings(await call('PUT', '/settings', settings)),
-    getInbox: async () => {
-      const body = await call<{ items?: InboxItem[] } | InboxItem[]>('GET', '/inbox');
-      return Array.isArray(body) ? body : (body.items ?? []);
+    token: (request) => call<TokenResponse>('POST', API_ROUTES.token, request, false),
+    getMe: () => call<MeResponse>('GET', API_ROUTES.me),
+    getSettings: async () => parseSettings(await call('GET', API_ROUTES.settings)),
+    saveSettings: async (settings) =>
+      parseSettings(await call('PUT', API_ROUTES.settings, settings)),
+    getInbox: (query = {}) => {
+      const params = new URLSearchParams();
+      if (query.before !== undefined) params.set('before', String(query.before));
+      params.set('limit', String(Math.min(query.limit ?? INBOX_PAGE_MAX, INBOX_PAGE_MAX)));
+      if (query.unreadOnly) params.set('unread', '1');
+      return call<InboxPage>('GET', `${API_ROUTES.inbox}?${params.toString()}`);
     },
-    getBalance: async () => {
-      const body = await call<{ balance?: unknown }>('GET', '/balance');
-      return typeof body.balance === 'number' ? body.balance : null;
-    },
+    markInboxRead: (request) => call<InboxReadResponse>('POST', API_ROUTES.inboxRead, request),
   };
 }

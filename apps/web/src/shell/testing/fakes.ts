@@ -6,7 +6,7 @@ import { useConnectionStore } from '../stores/connection.ts';
 import { useInboxStore } from '../stores/inbox.ts';
 import { useNavStore } from '../stores/nav.ts';
 import { useSessionStore } from '../stores/session.ts';
-import { DEFAULT_SETTINGS, useSettingsStore } from '../stores/settings.ts';
+import { defaultSettings, useSettingsStore } from '../stores/settings.ts';
 import { useToastStore } from '../stores/toasts.ts';
 
 export const GUILD = '100000000000000001';
@@ -20,7 +20,7 @@ export function resetStores(): void {
   useConnectionStore.setState({ status: 'offline', attempt: 0 });
   useNavStore.setState({ screen: 'home' });
   useToastStore.getState().clear();
-  useSettingsStore.setState({ ...structuredClone(DEFAULT_SETTINGS), loaded: false, revision: 0 });
+  useSettingsStore.setState({ ...structuredClone(defaultSettings()), loaded: false, revision: 0 });
 }
 
 export function tokenResponse(patch: Partial<TokenResponse> = {}): TokenResponse {

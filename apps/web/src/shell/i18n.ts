@@ -4,19 +4,19 @@ import {
   dictionaries,
   formatPelica,
   resolveLocale,
+  screenMessageKey,
   type Locale,
   type MessageParams,
 } from '@casino/shared/i18n';
-import { shellMessages } from './messages.ts';
 import { useSessionStore } from './stores/session.ts';
-import { useSettingsStore, type LanguageSetting } from './stores/settings.ts';
+import { useSettingsStore } from './stores/settings.ts';
 
 export interface LocaleInputs {
   /** Settings choice: 'auto' (or anything unknown) means "not chosen". */
-  language: LanguageSetting | string | null | undefined;
+  language: string | null | undefined;
   /** Discord client locale from the SDK. */
   sdkLocale: string | null | undefined;
-  /** Locale the server resolved for the guild/session. */
+  /** The guild's preferred locale. */
   guildLocale: string | null | undefined;
 }
 
@@ -32,14 +32,13 @@ export function pickLocale({ language, sdkLocale, guildLocale }: LocaleInputs): 
 const hasKey = (dict: object, key: string) => Object.prototype.hasOwnProperty.call(dict, key);
 
 /**
- * Translate shell or shared keys. Unknown keys (for example from a newer server) are shown
- * as is instead of throwing.
+ * Translate with the shared dictionaries. Keys the build does not know (for example a toast
+ * key from a newer server) are shown as is instead of throwing.
  */
 export function translate(locale: Locale, key: string, params?: MessageParams): string {
-  const shell: Record<string, string> = shellMessages[locale];
-  const shared: Record<string, string> = dictionaries[locale];
-  const text = hasKey(shell, key) ? shell[key] : hasKey(shared, key) ? shared[key] : undefined;
-  if (text === undefined) return key;
+  const dict: Record<string, string> = dictionaries[locale];
+  if (!hasKey(dict, key)) return key;
+  const text = dict[key] as string;
   if (!params) return text;
   return text.replace(/\{([A-Za-z0-9_]+)\}/g, (whole, name: string) => {
     const value = params[name];
@@ -48,16 +47,16 @@ export function translate(locale: Locale, key: string, params?: MessageParams): 
 }
 
 export function screenName(locale: Locale, screen: ScreenId): string {
-  return translate(locale, `screen.${screen}`);
+  return translate(locale, screenMessageKey(screen));
 }
 
 export { formatPelica };
 
-/** The active locale; components re-render when the setting, SDK locale or session changes. */
+/** The active locale; components re-render when the setting, SDK locale or guild locale changes. */
 export function useLocale(): Locale {
   const language = useSettingsStore((s) => s.language);
   const sdkLocale = useSessionStore((s) => s.sdkLocale);
-  const guildLocale = useSessionStore((s) => s.serverLocale);
+  const guildLocale = useSessionStore((s) => s.guildLocale);
   return pickLocale({ language, sdkLocale, guildLocale });
 }
 
@@ -70,6 +69,6 @@ export function useT(): Translate {
 
 export function currentLocale(): Locale {
   const { language } = useSettingsStore.getState();
-  const { sdkLocale, serverLocale } = useSessionStore.getState();
-  return pickLocale({ language, sdkLocale, guildLocale: serverLocale });
+  const { sdkLocale, guildLocale } = useSessionStore.getState();
+  return pickLocale({ language, sdkLocale, guildLocale });
 }

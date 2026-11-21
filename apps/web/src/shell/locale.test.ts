@@ -1,8 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { SCREEN_IDS } from '@casino/shared';
-import { checkParity } from '@casino/shared/i18n';
+import { NOTIFICATION_KINDS, SCREEN_IDS } from '@casino/shared';
+import { inboxKindMessageKey, screenMessageKey } from '@casino/shared/i18n';
 import { pickLocale, translate } from './i18n.ts';
-import { enShell, jaShell } from './messages.ts';
 
 describe('locale fallback order', () => {
   it('prefers the settings choice over everything', () => {
@@ -41,9 +40,15 @@ describe('translate', () => {
   });
 });
 
-describe('shell dictionaries', () => {
-  it('have the same keys and placeholders in en and ja, and a name for every screen', () => {
-    expect(checkParity({ en: enShell, ja: jaShell })).toEqual([]);
-    for (const id of SCREEN_IDS) expect(enShell[`screen.${id}`]).toBeTruthy();
+describe('shared dictionaries cover the shell', () => {
+  it('names every screen and inbox kind in both languages', () => {
+    for (const locale of ['en', 'ja'] as const) {
+      for (const id of SCREEN_IDS) {
+        expect(translate(locale, screenMessageKey(id))).not.toBe(`screen.${id}`);
+      }
+      for (const kind of NOTIFICATION_KINDS) {
+        expect(translate(locale, inboxKindMessageKey(kind))).not.toBe(`inbox.kind.${kind}`);
+      }
+    }
   });
 });
