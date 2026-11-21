@@ -1,40 +1,27 @@
 # Deploying `apps/web` to Cloudflare Pages
 
-The Discord Activity front end (`apps/web`) is a static Vite + React bundle hosted on Cloudflare Pages and mapped to `/` in the Discord Developer Portal.
+For the full step-by-step setup (including how to make sure you choose **Pages** instead of **Workers**), follow the owner setup guide:
 
-## Cloudflare Pages Build Settings
+- **English:** [Owner Setup Guide — Step 3: Cloudflare Pages](OWNER_SETUP.md#3-cloudflare-pages-host-the-web-app)
+- **日本語:** [オーナー向けセットアップガイド](OWNER_SETUP.ja.md)（手順 3）
 
-Configure the Pages project from the **repository root** (not `apps/web`), because `@casino/web` imports workspace packages (`@casino/shared` and `@casino/ui`):
+## Quick Reference
 
 | Setting | Value |
 | --- | --- |
-| **Project name** | `discord-casino-remaster` (recommended; becomes `discord-casino-remaster.pages.dev`) |
-| **Framework preset** | `None` (or `Vite`) |
-| **Root directory** | `/` |
+| **Framework preset** | `None` |
 | **Build command** | `pnpm --filter @casino/web build` |
 | **Build output directory** | `apps/web/dist` |
+| **Root directory** | *(leave empty — builds from the repository root so workspace packages resolve)* |
 
-### Environment Variables
+### Environment Variables (Production and Preview)
 
-Set under **Settings → Environment variables** (for both **Production** and **Preview**):
+- `NODE_VERSION` = `24`
+- `PNPM_VERSION` = `12.21.0`
+- `VITE_DISCORD_CLIENT_ID` = `APP_ID` (public — never put secrets in Cloudflare Pages)
+- `VITE_API_HOST` = optional; leave unset when using quick tunnels
 
-| Variable | Value | Purpose |
-| --- | --- | --- |
-| `NODE_VERSION` | `24` | Matches `.nvmrc` and root `package.json` `engines.node` |
-| `PNPM_VERSION` | `12.21.0` | Matches root `package.json` `packageManager` |
-| `VITE_DISCORD_CLIENT_ID` | Your Application ID | Public client ID (`DISCORD_CLIENT_ID`), required at build time |
-| `VITE_API_HOST` | *(leave unset for quick tunnels)* | Optional; omit while using `*.trycloudflare.com` quick tunnels |
+### Routing Notes
 
-Cloudflare Pages reads `"packageManager": "pnpm@12.21.0"` from the root `package.json` and installs workspace dependencies from `pnpm-lock.yaml` before running the build command.
-
-## Routing and Asset Notes
-
-- `apps/web/vite.config.ts` sets `base: '/'` and outputs to `apps/web/dist`.
-- All fonts and assets must be bundled into `apps/web/dist`; inside a Discord Activity iframe, external third-party URLs are blocked unless mapped in Developer Portal **URL Mappings**.
-- API and WebSocket requests go to `/api` (which Discord maps to `<api-host>/api` on your Cloudflare Tunnel). Do not add Pages Functions or `_redirects` rules for `/api` unless intentionally fronting the tunnel.
-
-## Verification
-
-1. Trigger a deployment on Cloudflare Pages and confirm `pnpm --filter @casino/web build` exits `0`.
-2. Open the deployed `https://<pages-host>` URL (for example `https://discord-casino-remaster.pages.dev`) in a browser and confirm static assets load with `200` status.
-3. Verify the Developer Portal **URL Mappings** `/` entry points to `<pages-host>` (host only, no `https://` and no trailing slash).
+- All fonts and assets are bundled into `apps/web/dist`; inside a Discord Activity iframe, unmapped third-party URLs are blocked.
+- `/api` traffic is routed by Discord **URL Mappings** to your tunnel (`<tunnel-host>/api`), not by Pages Functions or `_redirects`.
