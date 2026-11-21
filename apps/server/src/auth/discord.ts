@@ -66,7 +66,11 @@ export class DiscordApiError extends Error {
   }
 }
 
-const OAuthToken = Type.Object({ access_token: Type.String({ minLength: 1 }) });
+const OAuthToken = Type.Object({
+  access_token: Type.String({ minLength: 1 }),
+  /** Space-separated scopes Discord actually granted. */
+  scope: Type.Optional(Type.String()),
+});
 const DiscordUser = Type.Object({
   id: Type.String({ pattern: '^[0-9]{17,20}$' }),
   username: Type.String(),
@@ -130,8 +134,11 @@ export class DiscordApi {
     this.baseUrl = options.baseUrl ?? 'https://discord.com/api/v10';
   }
 
-  /** OAuth2 code → access token (the Activity flow has no redirect URI). */
-  async exchangeCode(code: string): Promise<string> {
+  /**
+   * OAuth2 code → access token (the Activity flow has no redirect URI) and the granted scopes.
+   * `scopes` is null when Discord did not say.
+   */
+  async exchangeCode(code: string): Promise<{ accessToken: string; scopes: string[] | null }> {
     const response = await this.call({
       method: 'POST',
       url: `${this.baseUrl}/oauth2/token`,
@@ -142,7 +149,11 @@ export class DiscordApi {
         code,
       },
     });
-    return this.parse(OAuthToken, response, 'token exchange').access_token;
+    const token = this.parse(OAuthToken, response, 'token exchange');
+    return {
+      accessToken: token.access_token,
+      scopes: token.scope === undefined ? null : token.scope.split(/[\s,]+/).filter(Boolean),
+    };
   }
 
   async getUser(accessToken: string): Promise<DiscordUserInfo> {

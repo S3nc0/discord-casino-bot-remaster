@@ -84,6 +84,8 @@ export interface FakeDiscordState {
   instance: { instance_id: string; location: { guild_id: string | null }; users: string[] } | null;
   /** Status for the token exchange; anything but 200 fails it. */
   exchangeStatus: number;
+  /** Scopes Discord reports as granted (space separated). */
+  scope: string;
 }
 
 export interface FakeDiscord extends HttpClient {
@@ -98,6 +100,7 @@ export function fakeDiscord(overrides: Partial<FakeDiscordState> = {}): FakeDisc
     guilds: [{ id: GUILD, name: 'Test Guild' }],
     instance: { instance_id: INSTANCE, location: { guild_id: GUILD }, users: [USER] },
     exchangeStatus: 200,
+    scope: 'identify guilds rpc.activities.write',
     ...overrides,
   };
   const requests: HttpRequest[] = [];
@@ -112,7 +115,7 @@ export function fakeDiscord(overrides: Partial<FakeDiscordState> = {}): FakeDisc
       if (path === '/oauth2/token') {
         response =
           state.exchangeStatus === 200
-            ? { status: 200, body: { access_token: 'discord-access-token' } }
+            ? { status: 200, body: { access_token: 'discord-access-token', scope: state.scope } }
             : { status: state.exchangeStatus, body: { error: 'invalid_grant' } };
       } else if (path === '/users/@me') {
         response = { status: 200, body: state.user };

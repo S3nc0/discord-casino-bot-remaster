@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { Value } from 'typebox/value';
-import { TokenResponse, type LaunchIntent } from '@casino/shared';
+import { MeResponse, TokenResponse, type LaunchIntent } from '@casino/shared';
 import {
   GUILD,
   INSTANCE,
@@ -97,8 +97,10 @@ describe('POST /api/token', () => {
       headers: { ...server.signed(), authorization: `Bearer ${sessionToken}` },
     });
     expect(me.statusCode).toBe(200);
+    expect(Value.Check(MeResponse, me.json())).toBe(true);
     expect(me.json()).toMatchObject({
-      guildId: GUILD,
+      guild: { id: GUILD, name: 'Test Guild' },
+      localeHints: { setting: 'auto', guild: null },
       instanceId: INSTANCE,
       locale: 'ja',
       balance: 3000,
@@ -157,6 +159,26 @@ describe('POST /api/token', () => {
     server.launchIntents.create({ userId: USER, guildId: GUILD, screen: 'daily' });
     expect((await call()).json<{ launchIntent: LaunchIntent }>().launchIntent.screen).toBe('daily');
     expect((await call()).json()).toEqual({ launchIntent: null });
+  });
+
+  it('accepts the extra rpc.activities.write grant, and a grant of just identify and guilds', async () => {
+    server = createTestServer({ discord: { scope: 'identify guilds rpc.activities.write' } });
+    expect((await token()).statusCode).toBe(200);
+    await server.close();
+    server = createTestServer({ discord: { scope: 'guilds identify' } });
+    expect((await token()).statusCode).toBe(200);
+  });
+
+  it('403 when the grant lacks identify or guilds', async () => {
+    for (const scope of ['identify', 'guilds rpc.activities.write', '']) {
+      server = createTestServer({ discord: { scope } });
+      const res = await token();
+      expect(res.statusCode, scope).toBe(403);
+      expect(res.json()).toEqual({ error: 'forbidden' });
+      expect(server.economy.hasAccount(GUILD, USER)).toBe(false);
+      await server.close();
+    }
+    server = createTestServer();
   });
 
   it('401 when Discord rejects the code', async () => {

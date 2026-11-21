@@ -5,6 +5,7 @@ import type {
   TokenRequest,
   TokenResponse,
 } from '@casino/shared';
+import { REQUIRED_SERVER_SCOPES } from '@casino/shared';
 import { resolveLocale } from '@casino/shared/i18n';
 import type { Logger } from 'pino';
 import type { IdentityRepo } from '../db/identity.ts';
@@ -47,7 +48,13 @@ export class TokenFlow {
     let guilds;
     let instance;
     try {
-      accessToken = await discord.exchangeCode(request.code);
+      const grant = await discord.exchangeCode(request.code);
+      accessToken = grant.accessToken;
+      // Extra scopes (such as rpc.activities.write for rich presence) are fine; the ones this
+      // flow reads with must be there.
+      if (grant.scopes && !REQUIRED_SERVER_SCOPES.every((scope) => grant.scopes?.includes(scope))) {
+        throw new AppError('forbidden', { message: 'authorization is missing a required scope' });
+      }
       user = await discord.getUser(accessToken);
       guilds = await discord.getUserGuilds(accessToken);
     } catch (error) {

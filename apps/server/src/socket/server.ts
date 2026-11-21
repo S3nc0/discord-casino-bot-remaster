@@ -15,9 +15,9 @@ import {
   type ClientToServerEvents,
   type ErrorCode,
   type GameId,
-  type InboxRead,
   type InterServerEvents,
   type IntentAck,
+  type Participants,
   type PresenceScreen,
   type ProxySignatureVerifier,
   type RoomScope,
@@ -27,6 +27,8 @@ import {
 } from '@casino/shared';
 import type { Logger } from 'pino';
 import type { SessionService } from '../auth/sessions.ts';
+import type { IdentityRepo } from '../db/identity.ts';
+import type { InboxService } from '../db/inbox.ts';
 import type { EventBus } from '../runtime/bus.ts';
 import { RateLimiter } from '../runtime/rate-limit.ts';
 
@@ -53,13 +55,14 @@ export interface SocketHandlers {
   bet?(scope: RoomScope, intent: BetIntent): Promise<IntentAck> | IntentAck;
   action?(scope: RoomScope, intent: ActionIntent): Promise<IntentAck> | IntentAck;
   presence?(scope: RoomScope, payload: PresenceScreen): void;
-  inboxRead?(scope: RoomScope, payload: InboxRead): { unread: number };
 }
 
 export interface SocketServerOptions {
   httpServer: HttpServer;
   sessions: SessionService;
   bus: EventBus;
+  identity: IdentityRepo;
+  inbox: InboxService;
   clock: Clock;
   logger: Logger;
   /** null disables the upgrade signature check (development only). */
@@ -95,9 +98,62 @@ export function joinScoped(socket: CasinoSocket, room: string): boolean {
   return true;
 }
 
+/**
+ * Who is connected to each Activity instance, ordered by when each user first connected.
+ * A user with several sockets (two tabs, a reconnect overlap) appears once and leaves with
+ * their last socket.
+ */
+class InstanceParticipants {
+  private readonly identity: IdentityRepo;
+  private readonly instances = new Map<string, Map<string, Set<string>>>();
+
+  constructor(identity: IdentityRepo) {
+    this.identity = identity;
+  }
+
+  add(scope: RoomScope, socketId: string): void {
+    let users = this.instances.get(scope.instanceId);
+    if (!users) this.instances.set(scope.instanceId, (users = new Map()));
+    let sockets = users.get(scope.userId);
+    if (!sockets) users.set(scope.userId, (sockets = new Set()));
+    sockets.add(socketId);
+  }
+
+  /** Returns true when this was the user's last socket in the instance. */
+  remove(scope: RoomScope, socketId: string): boolean {
+    const users = this.instances.get(scope.instanceId);
+    const sockets = users?.get(scope.userId);
+    if (!users || !sockets) return false;
+    sockets.delete(socketId);
+    if (sockets.size > 0) return false;
+    users.delete(scope.userId);
+    if (users.size === 0) this.instances.delete(scope.instanceId);
+    return true;
+  }
+
+  snapshot(scope: RoomScope): Participants {
+    const ids = [...(this.instances.get(scope.instanceId)?.keys() ?? [])];
+    return {
+      guildId: scope.guildId,
+      instanceId: scope.instanceId,
+      users: ids.map((id) => {
+        const user = this.identity.getUser(id);
+        return {
+          id,
+          username: user?.username ?? '',
+          globalName: user?.globalName ?? null,
+          avatar: user?.avatar ?? null,
+        };
+      }),
+    };
+  }
+}
+
 export function attachSocketServer(options: SocketServerOptions): SocketServer {
   const { sessions, bus, clock, logger } = options;
+  const { identity, inbox } = options;
   const handlers = options.handlers ?? {};
+  const participants = new InstanceParticipants(identity);
   const eventLimiter = new RateLimiter({
     limit: options.eventsPer10s ?? 100,
     windowMs: 10_000,
@@ -163,6 +219,20 @@ export function attachSocketServer(options: SocketServerOptions): SocketServer {
     ]) {
       joinScoped(socket, room);
     }
+
+    // Everyone in the instance (the new socket included) gets the full list.
+    participants.add(scope, socket.id);
+    io.to(rooms.instance(scope.instanceId)).emit(
+      'instance:participants',
+      participants.snapshot(scope),
+    );
+    socket.on('disconnect', () => {
+      if (!participants.remove(scope, socket.id)) return;
+      io.to(rooms.instance(scope.instanceId)).emit(
+        'instance:participants',
+        participants.snapshot(scope),
+      );
+    });
 
     // Disconnect at the token's expiry even if the client stays quiet.
     const remaining = Math.max(0, socket.data.expiresAt - clock.now());
@@ -242,9 +312,16 @@ export function attachSocketServer(options: SocketServerOptions): SocketServer {
       handlers.presence?.(scope, payload);
     });
 
+    // Same effect as POST /api/inbox/read; the unread count also reaches the user's other
+    // sockets as `inbox:unread`.
     socket.on('inbox:read', (payload, ack) => {
-      if (!handlers.inboxRead) return ack({ ok: false, error: 'feature_disabled' });
-      return ack({ ok: true, data: handlers.inboxRead(scope, payload) });
+      try {
+        const unread = inbox.markRead(scope.userId, scope.guildId, payload);
+        ack({ ok: true, data: { unread } });
+      } catch (error) {
+        logger.error({ err: error }, 'inbox read failed');
+        ack({ ok: false, error: 'internal' });
+      }
     });
   });
 
@@ -262,6 +339,9 @@ export function attachSocketServer(options: SocketServerOptions): SocketServer {
   const offBalance = bus.onBalance((update) => {
     io.to(rooms.user(update.userId)).emit('balance:update', update);
   });
+  const offUnread = bus.onInboxUnread(({ userId, guildId, unread }) => {
+    io.to(rooms.user(userId)).emit('inbox:unread', { guildId, unread });
+  });
 
   return {
     io,
@@ -269,6 +349,7 @@ export function attachSocketServer(options: SocketServerOptions): SocketServer {
       offRevoke();
       offDomain();
       offBalance();
+      offUnread();
       eventLimiter.stop();
       io.local.disconnectSockets(true);
       await io.close();
