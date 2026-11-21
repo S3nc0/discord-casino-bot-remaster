@@ -7,6 +7,8 @@ import { createProxySignatureVerifier } from '../auth/proxy-verifier.ts';
 import { SessionService } from '../auth/sessions.ts';
 import { TokenFlow } from '../auth/token-flow.ts';
 import { IdentityRepo } from '../db/identity.ts';
+import { InboxService } from '../db/inbox.ts';
+import { SettingsRepo } from '../db/settings.ts';
 import { migrations } from '../db/migrations/index.ts';
 import { openStore, type Store } from '../db/store.ts';
 import { EconomyService } from '../economy/economy-service.ts';
@@ -39,6 +41,8 @@ export interface CasinoServices {
   store: Store;
   identity: IdentityRepo;
   economy: EconomyService;
+  settings: SettingsRepo;
+  inbox: InboxService;
   sessions: SessionService;
   launchIntents: LaunchIntentService;
   bus: EventBus;
@@ -63,6 +67,8 @@ export function createServer(options: CreateServerOptions): CasinoServices {
     });
   const identity = new IdentityRepo(store, () => clock.now());
   const economy = new EconomyService({ store, identity, clock, bus });
+  const settings = new SettingsRepo(store, clock);
+  const inbox = new InboxService({ store, clock, bus });
   const sessions = new SessionService({
     secret: config.sessionSecret,
     clock,
@@ -97,6 +103,8 @@ export function createServer(options: CreateServerOptions): CasinoServices {
     store,
     identity,
     economy,
+    settings,
+    inbox,
     sessions,
     tokenFlow,
     launchIntents,
@@ -108,6 +116,8 @@ export function createServer(options: CreateServerOptions): CasinoServices {
     httpServer: app.server,
     sessions,
     bus,
+    identity,
+    inbox,
     clock,
     logger,
     proxyVerifier,
@@ -130,6 +140,8 @@ export function createServer(options: CreateServerOptions): CasinoServices {
     store,
     identity,
     economy,
+    settings,
+    inbox,
     sessions,
     launchIntents,
     bus,

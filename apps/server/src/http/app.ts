@@ -5,40 +5,34 @@ import Fastify, {
   type FastifyReply,
   type FastifyRequest,
 } from 'fastify';
-import { Type } from 'typebox';
 import { Value } from 'typebox/value';
 import {
+  API_ROUTES,
+  InboxQuery,
+  InboxReadRequest,
+  LaunchIntentConsumeRequest,
   PROXY_HEADERS,
-  PublicUser,
-  Snowflake,
-  LocaleSchema,
+  SettingsUpdateRequest,
   TokenRequest,
-  EpochMs,
-  Pelica,
-  InstanceId,
   type ApiError,
   type Clock,
+  type InboxReadResponse,
+  type LaunchIntentConsumeResponse,
   type LaunchIntentService,
+  type MeResponse,
   type ProxySignatureVerifier,
   type SessionClaims,
+  type SettingsResponse,
 } from '@casino/shared';
 import type { SessionService } from '../auth/sessions.ts';
 import type { TokenFlow } from '../auth/token-flow.ts';
+import type { InboxService } from '../db/inbox.ts';
 import type { IdentityRepo } from '../db/identity.ts';
+import type { SettingsRepo } from '../db/settings.ts';
 import type { Store } from '../db/store.ts';
 import type { EconomyService } from '../economy/economy-service.ts';
 import { AppError } from '../runtime/errors.ts';
 import { RateLimiter } from '../runtime/rate-limit.ts';
-
-/** Response of `GET /api/me`. Not in the shared contract yet (see the task report). */
-export const MeResponse = Type.Object({
-  user: PublicUser,
-  guildId: Snowflake,
-  instanceId: InstanceId,
-  locale: LocaleSchema,
-  balance: Pelica,
-  expiresAt: EpochMs,
-});
 
 declare module 'fastify' {
   interface FastifyRequest {
@@ -68,6 +62,8 @@ export interface AppDeps {
   store: Store;
   identity: IdentityRepo;
   economy: EconomyService;
+  settings: SettingsRepo;
+  inbox: InboxService;
   sessions: SessionService;
   tokenFlow: TokenFlow;
   launchIntents: LaunchIntentService;
@@ -78,7 +74,7 @@ export interface AppDeps {
   trustProxy?: boolean;
 }
 
-const HEALTH_PATH = '/api/health';
+const HEALTH_PATH = API_ROUTES.health;
 
 function header(request: FastifyRequest, name: string): string | undefined {
   const value = request.headers[name];
@@ -186,7 +182,7 @@ export function buildApp(deps: AppDeps): FastifyInstance {
     return { status: 'ok', db: 'ok', uptimeSeconds: Math.floor(process.uptime()) };
   });
 
-  app.post('/api/token', async (request) => {
+  app.post(API_ROUTES.token, async (request) => {
     limitHit(tokenLimiter, request.ip);
     if (!Value.Check(TokenRequest, request.body)) throw new AppError('invalid_payload');
     return deps.tokenFlow.exchange(request.body);
@@ -210,9 +206,13 @@ export function buildApp(deps: AppDeps): FastifyInstance {
       return hookDone();
     });
 
-    authed.get('/api/me', (request) => {
-      const session = request.session;
-      if (!session) throw new AppError('unauthorized');
+    const sessionOf = (request: FastifyRequest): SessionClaims => {
+      if (!request.session) throw new AppError('unauthorized');
+      return request.session;
+    };
+
+    authed.get(API_ROUTES.me, (request): MeResponse => {
+      const session = sessionOf(request);
       const user = deps.identity.getUser(session.sub);
       if (!user) throw new AppError('not_found');
       return {
@@ -222,18 +222,51 @@ export function buildApp(deps: AppDeps): FastifyInstance {
           globalName: user.globalName,
           avatar: user.avatar,
         },
-        guildId: session.gid,
+        guild: { id: session.gid, name: deps.identity.getGuildName(session.gid) },
         instanceId: session.iid,
-        locale: session.loc,
         balance: deps.economy.getBalance(session.gid, session.sub),
+        locale: session.loc,
+        localeHints: {
+          setting: deps.settings.get(session.sub).language,
+          guild: deps.identity.getGuildLocale(session.gid),
+        },
         expiresAt: session.exp * 1000,
       };
     });
 
+    // Settings are global per user; the whole document is replaced.
+    authed.get(API_ROUTES.settings, (request): SettingsResponse => {
+      return deps.settings.get(sessionOf(request).sub);
+    });
+
+    authed.put(API_ROUTES.settings, (request): SettingsResponse => {
+      const session = sessionOf(request);
+      if (!Value.Check(SettingsUpdateRequest, request.body)) throw new AppError('invalid_payload');
+      return deps.settings.put(session.sub, request.body);
+    });
+
+    authed.get(API_ROUTES.inbox, (request) => {
+      const session = sessionOf(request);
+      if (!Value.Check(InboxQuery, request.query)) throw new AppError('invalid_payload');
+      const { before, limit, unread } = request.query;
+      return deps.inbox.page(session.sub, session.gid, {
+        ...(before === undefined ? {} : { before: Number(before) }),
+        ...(limit === undefined ? {} : { limit: Number(limit) }),
+        unreadOnly: unread === '1',
+      });
+    });
+
+    authed.post(API_ROUTES.inboxRead, (request): InboxReadResponse => {
+      const session = sessionOf(request);
+      if (!Value.Check(InboxReadRequest, request.body)) throw new AppError('invalid_payload');
+      return { unread: deps.inbox.markRead(session.sub, session.gid, request.body) };
+    });
+
     // The Activity consumes its own pending intent (one that arrived after the token call).
-    authed.post('/api/launch-intent/consume', (request) => {
-      const session = request.session;
-      if (!session) throw new AppError('unauthorized');
+    authed.post(API_ROUTES.launchIntentConsume, (request): LaunchIntentConsumeResponse => {
+      const session = sessionOf(request);
+      const body: unknown = request.body ?? {};
+      if (!Value.Check(LaunchIntentConsumeRequest, body)) throw new AppError('invalid_payload');
       return { launchIntent: deps.launchIntents.consume(session.sub, session.gid) };
     });
 
