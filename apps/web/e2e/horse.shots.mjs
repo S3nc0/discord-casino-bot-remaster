@@ -3,6 +3,7 @@
 // Needs the dev server in mock mode (`VITE_MOCK_DISCORD=1 pnpm --filter @casino/web exec vite --port 5361`)
 // and Playwright (`PLAYWRIGHT_DIR` = a folder whose node_modules has playwright-core, `CHROME` = a
 // Chrome executable). Nothing here is part of the app bundle or the lockfile.
+import process from 'node:process';
 import { createRequire } from 'node:module';
 import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
@@ -26,7 +27,7 @@ async function session(scheme, locale, run) {
     reducedMotion: 'no-preference',
   });
   const page = await context.newPage();
-  page.on('pageerror', (e) => console.error('pageerror', e.message));
+  page.on('pageerror', (e) => process.stderr.write(`pageerror ${e.message}\n`));
   const open = async (screen) => {
     await page.goto(`${BASE}/?screen=${screen}&locale=${locale}`);
     await page.waitForSelector(`[data-screen="${screen}"]`, { timeout: 15000 });
@@ -39,8 +40,6 @@ async function session(scheme, locale, run) {
   await run({ page, open, shot });
   await context.close();
 }
-
-const text = (page, re) => page.getByText(re).first();
 
 async function horseFlow({ page, open, shot }, ja) {
   await open('horse');
@@ -82,7 +81,7 @@ async function stableFlow({ page, open, shot }, ja) {
   await shot('horse-breed');
 }
 
-async function arenaFlow({ page, open, shot }, ja) {
+async function arenaFlow({ page, open, shot }) {
   await open('arena');
   await page.waitForSelector('.hr-fighter');
   await shot('arena');
@@ -95,14 +94,14 @@ for (const scheme of ['dark', 'light']) {
   await session(scheme, 'en', async (ctx) => {
     await horseFlow(ctx, false);
     await stableFlow(ctx, false);
-    await arenaFlow(ctx, false);
+    await arenaFlow(ctx);
   });
 }
 await session('dark', 'ja', async (ctx) => {
   await horseFlow(ctx, true);
   await stableFlow(ctx, true);
-  await arenaFlow(ctx, true);
+  await arenaFlow(ctx);
 });
 
 await browser.close();
-console.log(shots.join('\n'));
+process.stdout.write(`${shots.join('\n')}\n`);
