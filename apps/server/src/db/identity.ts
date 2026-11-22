@@ -57,6 +57,36 @@ export class IdentityRepo {
   }
 
   /**
+   * Known members of a guild whose name contains `query` (case-insensitive), the caller left out.
+   * Used by pickers (transfer recipient); at most `limit` rows, by display name.
+   */
+  searchMembers(guildId: string, query: string, exceptUserId: string, limit = 20): UserProfile[] {
+    const like = `%${query.replace(/[\\%_]/g, (c) => `\\${c}`)}%`;
+    return (
+      this.store
+        .stmt(
+          `SELECT u.user_id, u.username, u.global_name, u.avatar
+             FROM guild_members m JOIN users u ON u.user_id = m.user_id
+            WHERE m.guild_id = ? AND m.user_id != ?
+              AND (u.username LIKE ? ESCAPE '\\' OR COALESCE(u.global_name, '') LIKE ? ESCAPE '\\')
+            ORDER BY COALESCE(NULLIF(u.global_name, ''), u.username) COLLATE NOCASE, u.user_id
+            LIMIT ?`,
+        )
+        .all(guildId, exceptUserId, like, like, limit) as {
+        user_id: string;
+        username: string;
+        global_name: string | null;
+        avatar: string | null;
+      }[]
+    ).map((row) => ({
+      userId: row.user_id,
+      username: row.username,
+      globalName: row.global_name,
+      avatar: row.avatar,
+    }));
+  }
+
+  /**
    * Insert the guild (and its config row) if unknown. The status only applies to a new row;
    * an existing guild keeps the decision already made.
    */

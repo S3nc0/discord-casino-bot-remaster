@@ -509,6 +509,24 @@ export class ProgressionService {
     return weeklyRank(this.weeklyRows(guildId, week), userId);
   }
 
+  /** The latest weekly champion and how many weeks they won in total. */
+  lastChampion(
+    guildId: string,
+  ): { userId: string; week: string; net: number; wins: number } | null {
+    const r = this.ctx.store
+      .stmt(
+        'SELECT user_id, week, net FROM weekly_champions WHERE guild_id = ? ORDER BY week DESC LIMIT 1',
+      )
+      .get(guildId) as { user_id: string; week: string; net: number } | undefined;
+    if (!r) return null;
+    const wins = (
+      this.ctx.store
+        .stmt('SELECT COUNT(*) AS n FROM weekly_champions WHERE guild_id = ? AND user_id = ?')
+        .get(guildId, r.user_id) as { n: number }
+    ).n;
+    return { userId: r.user_id, week: r.week, net: r.net, wins };
+  }
+
   /**
    * Job (every 5 minutes, per guild): after Monday 00:00 settle the week that just ended once.
    * The first run only seeds `weekly_state`, so a new guild does not announce an empty past week.

@@ -73,6 +73,26 @@ export class PollService {
     };
   }
 
+  /** Open polls first (closing soonest), then the most recently closed, `limit` in total. */
+  list(guildId: string, limit = 20): PollView[] {
+    const ids = this.ctx.store
+      .stmt(
+        `SELECT id FROM polls WHERE guild_id = ?
+          ORDER BY (status = 'open') DESC, CASE WHEN status = 'open' THEN closes_at END ASC, id DESC
+          LIMIT ?`,
+      )
+      .all(guildId, limit) as { id: number }[];
+    return ids.map(({ id }) => this.get(id) as PollView);
+  }
+
+  /** What `userId` voted: true yes, false no, null not voted. */
+  voteOf(pollId: number, userId: string): boolean | null {
+    const r = this.ctx.store
+      .stmt('SELECT yes FROM poll_votes WHERE poll_id = ? AND user_id = ?')
+      .get(pollId, userId) as { yes: number } | undefined;
+    return r ? r.yes === 1 : null;
+  }
+
   create(input: { guildId: string; creatorId: string; title: string; minutes?: number }): PollView {
     const { ctx } = this;
     return ctx.store.transaction(() => {

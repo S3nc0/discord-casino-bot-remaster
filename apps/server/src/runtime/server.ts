@@ -20,6 +20,7 @@ import {
 } from '../games/index.ts';
 import { Inventory } from '../games/shop/inventory.ts';
 import { createNonCasinoGames, type NonCasinoGames } from '../games/progression/index.ts';
+import { registerLifeRoutes } from '../http/activity/life.ts';
 import { buildApp, type RateLimits } from '../http/app.ts';
 import { attachSocketServer, type CasinoServer, type SocketHandlers } from '../socket/server.ts';
 import {
@@ -169,6 +170,16 @@ export function createServer(options: CreateServerOptions): CasinoServices {
     offsetHours: utcOffsetHours,
   });
   lazy.games = games;
+  registerLifeRoutes(app, {
+    sessions,
+    identity,
+    economy,
+    store,
+    clock,
+    games,
+    teiai: teiaiPort,
+    offsetHours: utcOffsetHours,
+  });
   const casino = createCasinoGames({
     store,
     economy,

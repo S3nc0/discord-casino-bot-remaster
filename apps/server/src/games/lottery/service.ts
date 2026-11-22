@@ -47,6 +47,16 @@ export class LotteryService {
     return r ? { ...r, entrants: this.entrants(r.id) } : null;
   }
 
+  /** The most recent raffle that is over (drawn, refunded or cancelled), for the result panel. */
+  latestEnded(guildId: string): RaffleView | null {
+    const r = this.ctx.store
+      .stmt(
+        `SELECT * FROM raffles WHERE guild_id = ? AND status != 'open' ORDER BY id DESC LIMIT 1`,
+      )
+      .get(guildId) as RaffleRow | undefined;
+    return r ? { ...r, entrants: this.entrants(r.id) } : null;
+  }
+
   host(input: { guildId: string; hostId: string; fee?: number; minutes?: number }): RaffleView {
     const { ctx } = this;
     return ctx.store.transaction(() => {

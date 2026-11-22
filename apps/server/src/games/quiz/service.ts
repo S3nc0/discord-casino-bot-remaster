@@ -266,6 +266,26 @@ export class QuizService {
     });
   }
 
+  /** Quizzes this player posted and that are still open, with how many answered and how many were right. */
+  authored(
+    guildId: string,
+    userId: string,
+  ): (QuizView & { answers: number; correct: number; earned: number })[] {
+    const rows = this.ctx.store
+      .stmt(
+        'SELECT * FROM quiz_questions WHERE guild_id = ? AND author_id = ? AND settled = 0 ORDER BY id',
+      )
+      .all(guildId, userId) as QuizRow[];
+    return rows.map((q) => {
+      const r = this.ctx.store
+        .stmt(
+          'SELECT COUNT(*) AS n, COALESCE(SUM(correct), 0) AS c FROM quiz_answers WHERE quiz_id = ? AND counted = 1',
+        )
+        .get(q.id) as { n: number; c: number };
+      return { ...this.view(q), answers: r.n, correct: r.c, earned: q.earned };
+    });
+  }
+
   /** The oldest open quiz this player has not answered (official ones, or other authors' in this guild). */
   next(guildId: string, userId: string): QuizView | null {
     const q = this.ctx.store
