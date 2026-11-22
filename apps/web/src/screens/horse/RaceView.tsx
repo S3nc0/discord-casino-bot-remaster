@@ -43,10 +43,13 @@ export function RaceView({ raceId, num, stable, onStableChange, onBack }: RaceVi
   const celebrated = useRef(false);
   const liveRef = useRef<HTMLDivElement | null>(null);
 
+  const finished = detail.data?.race.status === 'done';
   useEffect(() => {
+    // A finished race no longer changes: stop asking.
+    if (finished) return;
     const timer = setInterval(() => void reload(), POLL_MS);
     return () => clearInterval(timer);
-  }, [reload]);
+  }, [reload, finished]);
 
   const watch = useCallback(async () => {
     try {
