@@ -1,0 +1,295 @@
+/* Life screens (labor, quiz, lottery, polls, shop, missions, ranking, transfer).
+   Layout only: colours, type, borders and focus come from the @casino/ui tokens and components,
+   so light/dark and the round 2 theme apply on their own. Phone first (390px), 48px targets. */
+
+.life {
+  display: grid;
+  gap: var(--space-4);
+  width: 100%;
+  max-width: 40rem;
+  margin-inline: auto;
+  padding-block: var(--space-2);
+  box-sizing: border-box;
+}
+
+.life > * {
+  min-width: 0;
+}
+
+.life__head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.life__icon {
+  flex: none;
+}
+
+.life__title {
+  margin: 0;
+}
+
+/* One scrolling row, so eight links do not push the screen down. */
+.life__nav {
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  padding-bottom: var(--space-1);
+  scrollbar-width: none;
+}
+
+.life__nav::-webkit-scrollbar {
+  display: none;
+}
+
+.life__nav .bb-chip {
+  flex: none;
+}
+
+.life__list {
+  display: grid;
+  gap: var(--space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.life__row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2) var(--space-3);
+}
+
+.life__row > h2,
+.life__row > p {
+  margin: 0;
+}
+
+.life__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-top: var(--space-3);
+}
+
+.life__actions > .bb-btn {
+  flex: 1 1 8rem;
+}
+
+.life__note {
+  margin: 0;
+  color: var(--on-surface);
+  font-size: 16px;
+  line-height: 24px;
+}
+
+.life__note--strong {
+  font-weight: 700;
+}
+
+.life__empty,
+.life__loading {
+  margin: var(--space-6) 0;
+  color: var(--on-surface);
+  text-align: center;
+}
+
+.life__tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin: var(--space-2) 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.life__form {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.life__error {
+  margin: 0;
+  color: var(--error);
+  font-weight: 700;
+}
+
+.life__you {
+  color: var(--secondary);
+}
+
+.life__plus {
+  color: var(--success);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.life__minus {
+  color: var(--error);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.life__picked {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-weight: 700;
+}
+
+.life__feedback {
+  min-height: 24px;
+  margin: var(--space-2) 0 0;
+  color: var(--on-surface);
+  font-weight: 700;
+  text-align: center;
+}
+
+/* ---- stats ---- */
+.life-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(7rem, 1fr));
+  gap: var(--space-3);
+  margin-bottom: var(--space-3);
+}
+
+.life-stat {
+  display: grid;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.life-stat__label {
+  color: var(--on-surface);
+  font-size: 16px;
+  line-height: 24px;
+}
+
+.life-stat__value {
+  font: 600 24px / 32px var(--font-display);
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+
+.life-stat__value--coin {
+  color: var(--tertiary);
+}
+
+/* ---- labor ---- */
+.life-dig {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.life-dig__button {
+  min-height: 72px;
+  font-size: 24px;
+}
+
+.life-tool {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.life-tool__name {
+  margin: 0;
+  font-weight: 700;
+}
+
+/* ---- quiz ---- */
+.life__choices {
+  display: grid;
+  gap: var(--space-2);
+  margin: var(--space-3) 0;
+  padding: 0;
+  list-style: none;
+}
+
+.life__choice {
+  width: 100%;
+  min-height: 56px;
+  justify-content: flex-start;
+  text-align: left;
+  white-space: normal;
+}
+
+.life__choice[data-state='wrong'] {
+  outline: 2px solid var(--error);
+}
+
+.life__choice[data-state='right'] {
+  outline: 2px solid var(--success);
+}
+
+/* ---- missions ---- */
+.life-mission {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.life-mission__top {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+.life-mission__text {
+  flex: 1 1 12rem;
+  font-weight: 700;
+}
+
+.life-mission[data-done='true'] .life-mission__text {
+  text-decoration: line-through;
+  text-decoration-thickness: 2px;
+}
+
+/* ---- transfer ---- */
+.life__sum {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: var(--space-1) var(--space-3);
+  margin: 0;
+  font-variant-numeric: tabular-nums;
+}
+
+.life__sum dt,
+.life__sum dd {
+  margin: 0;
+}
+
+.life__sum dd {
+  text-align: right;
+}
+
+.life__sum-total {
+  color: var(--tertiary);
+  font-weight: 700;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .life * {
+    scroll-behavior: auto;
+    transition: none;
+    animation: none;
+  }
+}
+
+/* Card bodies stack their parts with air between them. */
+.life .bb-card__body {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.life .bb-card__body > .bb-btn,
+.life-dig__button {
+  width: 100%;
+}
+
+.life .bb-avatar {
+  display: inline-grid;
+  place-items: center;
+}
