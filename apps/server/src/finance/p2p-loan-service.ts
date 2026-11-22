@@ -68,6 +68,22 @@ export class P2pLoanService {
       .all(guildId, userId, userId, limit) as LoanRow[];
   }
 
+  /** Open borrow requests from other members that this member could fund (Activity loan board). */
+  listOpenRequests(
+    guildId: string,
+    exceptUserId: string,
+    nowMs = this.deps.clock.now(),
+    limit = 20,
+  ): LoanRow[] {
+    return this.deps.store
+      .stmt(
+        `SELECT * FROM loans
+         WHERE guild_id = ? AND status = 'request' AND borrower_id != ? AND offer_expires_at > ?
+         ORDER BY id DESC LIMIT ?`,
+      )
+      .all(guildId, exceptUserId, nowMs, limit) as LoanRow[];
+  }
+
   hasOverdueLoan(guildId: string, userId: string): boolean {
     const row = this.deps.store
       .stmt(

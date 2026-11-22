@@ -504,6 +504,16 @@ export class StocksService {
   // Spot & Crypto Trading
   // -------------------------------------------------------------------------
 
+  /** Recent recorded prices of one ticker in micro-Pelica, oldest first (Activity price chart). */
+  getPriceHistory(symbol: SymbolKey, limit = 48): number[] {
+    const rows = this.deps.store
+      .stmt(
+        'SELECT price_micros FROM market_prices WHERE symbol = ? ORDER BY recorded_at DESC, id DESC LIMIT ?',
+      )
+      .all(symbol, Math.max(1, Math.min(limit, 500))) as { price_micros: number }[];
+    return rows.reverse().map((r) => r.price_micros);
+  }
+
   getSpotHoldings(guildId: string, userId: string): SpotHoldingRow[] {
     return this.deps.store
       .stmt(

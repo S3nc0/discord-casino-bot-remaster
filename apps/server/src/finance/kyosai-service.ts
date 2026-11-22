@@ -617,6 +617,17 @@ export class KyosaiService {
     });
   }
 
+  /** Open unit offers a member sent or received (Activity Kyosai screen). */
+  listOffersFor(guildId: string, userId: string, nowMs = this.deps.clock.now()): KyosaiOfferRow[] {
+    return this.deps.store
+      .stmt(
+        `SELECT * FROM kyosai_offers
+         WHERE guild_id = ? AND status = 'open' AND expires_at > ? AND (seller_id = ? OR buyer_id = ?)
+         ORDER BY id DESC LIMIT 20`,
+      )
+      .all(guildId, nowMs, userId, userId) as KyosaiOfferRow[];
+  }
+
   acceptOffer(
     guildId: string,
     buyerId: string,

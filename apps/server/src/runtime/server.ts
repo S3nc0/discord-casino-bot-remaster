@@ -127,24 +127,6 @@ export function createServer(options: CreateServerOptions): CasinoServices {
     ? createProxySignatureVerifier(config.discord.publicKey)
     : null;
 
-  const app = buildApp({
-    logger,
-    clock,
-    store,
-    identity,
-    economy,
-    settings,
-    inbox,
-    sessions,
-    tokenFlow,
-    launchIntents,
-    proxyVerifier,
-    trustProxy: options.trustProxy ?? false,
-    exposeReasons: config.nodeEnv !== 'production',
-    requireProxySignature: config.requireProxySignature,
-    ...(options.rateLimits === undefined ? {} : { rateLimits: options.rateLimits }),
-  });
-
   // Game and finance services. The money modules and the games reach each other through the
   // adapters: the games' Teiai port runs on the finance services, the player market and
   // bankruptcy liquidation run on the shop inventory and the horses.
@@ -159,6 +141,25 @@ export function createServer(options: CreateServerOptions): CasinoServices {
       liquidateExternalAssets: createExternalLiquidation(() => (lazy.games as NonCasinoGames).shop),
     },
   );
+  const app = buildApp({
+    logger,
+    clock,
+    store,
+    identity,
+    economy,
+    settings,
+    inbox,
+    sessions,
+    tokenFlow,
+    launchIntents,
+    finance,
+    proxyVerifier,
+    trustProxy: options.trustProxy ?? false,
+    exposeReasons: config.nodeEnv !== 'production',
+    requireProxySignature: config.requireProxySignature,
+    ...(options.rateLimits === undefined ? {} : { rateLimits: options.rateLimits }),
+  });
+
   const teiaiPort = createTeiaiPort({ store, teiai: finance.teiai, clock });
   const games = createNonCasinoGames({
     store,

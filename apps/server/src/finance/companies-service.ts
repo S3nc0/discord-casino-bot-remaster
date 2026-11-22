@@ -203,6 +203,23 @@ export class CompaniesService {
     });
   }
 
+  /** Companies of other members that accept stakes, with the room left under the stake cap. */
+  listOpenCompanies(
+    guildId: string,
+    exceptUserId: string,
+    limit = 30,
+  ): (CompanyRow & { stakes_total: number })[] {
+    return this.deps.store
+      .stmt(
+        `SELECT c.*, COALESCE((SELECT SUM(s.amount) FROM company_stakes s
+                                WHERE s.guild_id = c.guild_id AND s.owner_id = c.user_id), 0) AS stakes_total
+           FROM companies c
+          WHERE c.guild_id = ? AND c.user_id != ?
+          ORDER BY c.level DESC, c.created_at ASC LIMIT ?`,
+      )
+      .all(guildId, exceptUserId, limit) as (CompanyRow & { stakes_total: number })[];
+  }
+
   /**
    * `/company holdings`: the companies this member holds a stake in, with what each stake is
    * worth now (`computeStakeValues`: capped by the company's funds plus facility value).

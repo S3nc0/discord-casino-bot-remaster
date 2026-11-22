@@ -128,6 +128,15 @@ export class PlayerMarketService {
     return row ?? null;
   }
 
+  /** Active listings of a guild, soonest end first (Activity player market). */
+  listActive(guildId: string, limit = 50): MarketplaceListingRow[] {
+    return this.deps.store
+      .stmt(
+        "SELECT * FROM marketplace_listings WHERE guild_id = ? AND status = 'active' ORDER BY end_at ASC, id ASC LIMIT ?",
+      )
+      .all(guildId, limit) as MarketplaceListingRow[];
+  }
+
   /** Create a fixed-price or timed-auction listing and escrow the item/horse. */
   listAsset(input: {
     readonly guildId: string;
