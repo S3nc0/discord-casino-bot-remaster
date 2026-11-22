@@ -20,6 +20,7 @@ import {
   useInt,
   useNumber,
   usePelica,
+  useSymbolName,
   useTimeLeft,
   useView,
   type Action,
@@ -52,9 +53,11 @@ function Board({
 }) {
   const t = useT();
   const num = useNumber();
+  const symbolName = useSymbolName();
   return (
     <div className="fin-board">
       {symbols.map((s) => {
+        const name = symbolName(s.key);
         const change = `${s.changeBps > 0 ? '+' : ''}${num(s.changeBps / 100, 2)}%`;
         const price = num(s.priceMicros / PRICE_SCALE, 2);
         return (
@@ -67,7 +70,7 @@ function Board({
             onClick={() => onPick(s.key)}
           >
             <div className="fin-symbol__head">
-              <strong>{s.name}</strong>
+              <strong>{name}</strong>
               <Tag hue={s.changeBps > 0 ? 'green' : s.changeBps < 0 ? 'red' : 'neutral'}>
                 {change}
               </Tag>
@@ -75,7 +78,7 @@ function Board({
             <p className="fin-symbol__price">{price}</p>
             <PixelChart
               points={s.history}
-              label={t('screen.finance.market.chartLabel', { name: s.name, change })}
+              label={t('screen.finance.market.chartLabel', { name, change })}
             />
             {s.pin !== 0 ? (
               <Tag hue="amber">
@@ -373,7 +376,7 @@ function Holdings({ view, action }: { view: FinanceMarketView; action: Action })
             <strong>
               {t('screen.finance.market.optionRow', {
                 id: o.id,
-                kind: o.kind.toUpperCase(),
+                kind: t(`screen.finance.market.mode.${o.kind}`),
                 symbol: o.symbol.toUpperCase() + (o.symbolB ? `/${o.symbolB.toUpperCase()}` : ''),
               })}
             </strong>

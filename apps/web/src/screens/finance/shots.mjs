@@ -46,6 +46,51 @@ const SHOTS = [
   { name: 'companies', screen: 'companies', wait: '[data-owner]' },
 ];
 
+/** Fails the run when a nav label or an amount breaks over two lines at 360 or 390 px. */
+async function checkLayout(browser) {
+  const problems = [];
+  for (const width of [360, 390]) {
+    for (const locale of ['en', 'ja']) {
+      const page = await browser.newPage({ viewport: { width, height: 900 } });
+      for (const screen of ['bank', 'kyosai', 'companies']) {
+        await page.goto(`${origin}/?screen=${screen}&locale=${locale}`);
+        await page.waitForSelector('.fin-panel');
+        const bad = await page.evaluate(() => {
+          const lines = (el) => {
+            const range = document.createRange();
+            range.selectNodeContents(el);
+            return new Set([...range.getClientRects()].map((r) => Math.round(r.top / 4))).size;
+          };
+          const out = [];
+          for (const item of document.querySelectorAll('.bb-nav-item')) {
+            const label = [...item.childNodes].find(
+              (n) => n.nodeType === 3 || (n.tagName === 'SPAN' && !n.className.includes('ind')),
+            );
+            const box = item.getBoundingClientRect();
+            if (
+              lines(label ?? item) > 1 ||
+              item.scrollWidth > item.clientWidth + 1 ||
+              box.height < 48
+            ) {
+              out.push(
+                `nav "${item.textContent}" ${Math.round(box.width)}x${Math.round(box.height)}`,
+              );
+            }
+          }
+          for (const v of document.querySelectorAll('.fin-stat__value')) {
+            if (!v.querySelector('.bb-tag') && lines(v) > 1) out.push(`amount "${v.textContent}"`);
+          }
+          return out;
+        });
+        for (const b of bad) problems.push(`${width}px ${locale} ${screen}: ${b}`);
+      }
+      await page.close();
+    }
+  }
+  if (problems.length > 0) throw new Error(`layout problems:\n${problems.join('\n')}`);
+  console.log('layout ok at 360 and 390 px, en and ja');
+}
+
 try {
   await ready();
   const browser = await chromium.launch({ executablePath: chrome, headless: true });
@@ -75,6 +120,7 @@ try {
       await context.close();
     }
   }
+  await checkLayout(browser);
   await browser.close();
   console.log(`saved to ${outDir}`);
 } finally {

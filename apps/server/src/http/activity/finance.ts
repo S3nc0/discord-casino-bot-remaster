@@ -57,6 +57,7 @@ import type { Store } from '../../db/store.ts';
 import type { EconomyService } from '../../economy/economy-service.ts';
 import type { FinanceServices } from '../../finance/index.ts';
 import type { ServiceResult } from '../../finance/teiai-service.ts';
+import { ITEM_LABELS } from '../../bot/shop-items.ts';
 import { IdempotencyStore } from '../../games/casino/idempotency.ts';
 import { AppError } from '../../runtime/errors.ts';
 import { RateLimiter } from '../../runtime/rate-limit.ts';
@@ -103,6 +104,12 @@ export function unwrapRule<T>(res: ServiceResult<T>): T {
     return 'conflict' as const;
   })();
   throw new AppError(code, { reason });
+}
+
+/** Catalog name of a listed item (`[ja, en]` in the shop catalog); horses carry their own name. */
+function itemName(kind: 'item' | 'horse', ref: string): { en: string; ja: string } | null {
+  const entry = kind === 'item' ? ITEM_LABELS[ref] : undefined;
+  return entry ? { ja: entry[0], en: entry[1] } : null;
 }
 
 export function registerFinanceRoutes(authed: FastifyInstance, ctx: FinanceRouteContext): void {
@@ -582,6 +589,7 @@ export function registerFinanceRoutes(authed: FastifyInstance, ctx: FinanceRoute
       seller: person(l.seller_id),
       kind: l.kind,
       ref: l.ref,
+      name: itemName(l.kind, l.ref),
       qty: l.qty,
       mode: l.mode,
       price: l.price,

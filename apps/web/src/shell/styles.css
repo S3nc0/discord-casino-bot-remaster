@@ -146,9 +146,20 @@ body {
   padding-bottom: var(--space-4);
 }
 
+.app[data-layout='mobile-portrait'] .shell-nav {
+  /* five labels share the width: tight side padding and gaps keep each one on a single line */
+  padding-inline: 2px;
+  gap: 0;
+}
+
 .app[data-layout='mobile-portrait'] .bb-nav-item {
   min-width: 0;
   flex: 1;
+  /* 13px bold fits ミッション / ランキング in 360 px; the 48px target height stays */
+  font-size: 13px;
+  line-height: 18px;
+  letter-spacing: -0.01em;
+  white-space: nowrap;
 }
 
 .panel {

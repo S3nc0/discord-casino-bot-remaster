@@ -222,6 +222,7 @@ export function createMockFinanceClient(options: { balance?: number } = {}): Fin
         seller: MIKA,
         kind: 'item',
         ref: 'relic_crown',
+        name: null,
         qty: 1,
         mode: 'auction',
         price: 5_000,
@@ -236,7 +237,8 @@ export function createMockFinanceClient(options: { balance?: number } = {}): Fin
         id: 22,
         seller: SORA,
         kind: 'item',
-        ref: 'dice_gold',
+        ref: 'skin_gold_dice',
+        name: { en: '🎲 Golden Dice', ja: '🎲 黄金の賽' },
         qty: 2,
         mode: 'fixed',
         price: 1_800,
@@ -252,6 +254,7 @@ export function createMockFinanceClient(options: { balance?: number } = {}): Fin
         seller: { id: '200000000000000001', name: 'Mock Player' },
         kind: 'horse',
         ref: 'Blue Comet',
+        name: null,
         qty: 1,
         mode: 'fixed',
         price: 24_000,
@@ -537,7 +540,7 @@ export function createMockFinanceClient(options: { balance?: number } = {}): Fin
     graceUntil: debt >= 15_000 ? now() + 18 * HOUR : null,
     blacklistUntil: null,
     graceDebt: 15_000,
-    bank: { cash: 2_400_000, available: 1_900_000, ratio: 0.42, level: 'normal', trustRate: 0.014 },
+    bank: { cash: 2_400_000, available: 1_900_000, ratio: 0.42, level: 'safe', trustRate: 0.014 },
   });
 
   const reads: { [K in keyof FinanceReads]: () => FinanceReads[K] } = {

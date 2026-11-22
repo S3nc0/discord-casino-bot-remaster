@@ -10,7 +10,15 @@ import { useT } from '../../shell/i18n.ts';
 import { RuntimeContext } from '../../shell/runtime.ts';
 import { useSessionStore } from '../../shell/stores/session.ts';
 import { useFinanceClient } from './client.ts';
-import { useAction, useInt, usePelica, useTimeLeft, useView, type Action } from './hooks.ts';
+import {
+  useAction,
+  useAssetName,
+  useInt,
+  usePelica,
+  useTimeLeft,
+  useView,
+  type Action,
+} from './hooks.ts';
 import { AmountField, Empty, ErrorBanner, LoadError, Panel } from './parts.tsx';
 
 /** Listing ids where somebody just bid above the signed-in player. */
@@ -69,6 +77,7 @@ function ListingCard({
   const client = useFinanceClient();
   const pelica = usePelica();
   const timeLeft = useTimeLeft();
+  const assetName = useAssetName();
   const [text, setText, amount] = useInt(String(listing.minNextBid));
   const auction = listing.mode === 'auction';
   const ref = (key: string): FinanceListingRefRequest => ({
@@ -79,7 +88,7 @@ function ListingCard({
     <Card variant="outlined" className="fin-row" data-listing={listing.id} data-mode={listing.mode}>
       <div className="fin-row__head">
         <strong>
-          {listing.ref}
+          {assetName(listing)}
           {listing.qty > 1 ? ` ×${listing.qty}` : ''}
         </strong>
         <Tag hue={auction ? 'violet' : 'teal'}>

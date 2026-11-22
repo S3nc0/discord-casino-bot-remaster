@@ -16,6 +16,7 @@ import CompaniesScreen from './CompaniesScreen.tsx';
 import KyosaiScreen from './KyosaiScreen.tsx';
 import LoansScreen from './LoansScreen.tsx';
 import MarketScreen from './MarketScreen.tsx';
+import { glueAmount } from './hooks.ts';
 import { PixelChart } from './PixelChart.tsx';
 import { FinanceClientContext } from './client.ts';
 import { createMockFinanceClient } from './mock.ts';
@@ -578,5 +579,90 @@ describe('copy', () => {
         expect(dictionaries.ja).toHaveProperty([`screen.finance.${family}.${v}`]);
       }
     }
+  });
+});
+
+describe('Japanese screens show no raw enum values', () => {
+  // Known enum and id strings the services send. None may reach a Japanese screen as is.
+  const RAW = new RegExp(
+    [
+      '\\b(safe|warn|danger|frozen|normal|junk|katagi|underground|bankrupt)\\b',
+      '\\b(offer|request|active|overdue|repaid|discharged|declined|cancelled|expired)\\b',
+      '\\b(fixed|auction|item|horse|farm|mine|long|short|spot|margin|bond)\\b',
+      '\\b(incoming|outgoing|lender|borrower|open)\\b',
+      '\\b(CALL|PUT|PAIR|LONG|SHORT|SPOT|MARGIN|BOND)\\b',
+      '\\b[a-z]+_[a-z_0-9]+\\b',
+    ].join('|'),
+  );
+  const noRaw = (view: Rendered, where: string) => {
+    const found = RAW.exec(text(view));
+    expect(
+      found?.[0],
+      `${where}: raw "${found?.[0]}" in ${text(view).slice(0, 200)}`,
+    ).toBeUndefined();
+  };
+  const tab = async (view: Rendered, index: number) =>
+    click(view.container.querySelectorAll('[role="tab"]')[index]!);
+
+  beforeEach(() => useSettingsStore.setState({ language: 'ja' }));
+
+  it('bank, loans, kyosai and companies', async () => {
+    for (const [name, ui] of [
+      ['bank', <BankScreen key="b" />],
+      ['loans', <LoansScreen key="l" />],
+      ['kyosai', <KyosaiScreen key="k" />],
+      ['companies', <CompaniesScreen key="c" />],
+    ] as const) {
+      const view = await show(ui, spy().client);
+      noRaw(view, name);
+      mounted?.unmount();
+      mounted = null;
+    }
+  });
+
+  it('the loan composer tabs and the kyosai vote form', async () => {
+    const view = await show(<LoansScreen />, spy().client);
+    await tab(view, 1);
+    noRaw(view, 'loans borrow tab');
+  });
+
+  it('market: board, every trade mode, holdings and the player market', async () => {
+    const view = await show(<MarketScreen />, spy().client);
+    noRaw(view, 'board');
+    await tab(view, 1);
+    for (const chip of [...view.container.querySelectorAll('.bb-chip')]) {
+      await click(chip);
+      noRaw(view, `trade chip ${chip.textContent}`);
+    }
+    await tab(view, 2);
+    noRaw(view, 'holdings');
+    await tab(view, 3);
+    noRaw(view, 'listings');
+    // Names, not ids, for the listed assets.
+    expect(text(view)).toContain('王家の黄金冠');
+    expect(text(view)).toContain('黄金の賽');
+  });
+
+  it('English shows the same assets by their English names', async () => {
+    useSettingsStore.setState({ language: 'en' });
+    const view = await show(<MarketScreen />, spy().client);
+    await tab(view, 3);
+    expect(text(view)).toContain('Royal golden crown');
+    expect(text(view)).toContain('Golden Dice');
+    expect(text(view)).not.toContain('relic_crown');
+  });
+});
+
+describe('amounts keep their unit', () => {
+  it('glues the unit to the number in both languages', () => {
+    expect(glueAmount('1,900,000ペリカ')).toBe('1,900,000\u2060ペ\u2060リ\u2060カ');
+    expect(glueAmount('12,400 Pelica')).toBe('12,400\u00a0Pelica');
+    expect(glueAmount('no number')).toBe('no number');
+  });
+
+  it('the bank cash stat is one unbreakable run', async () => {
+    useSettingsStore.setState({ language: 'ja' });
+    const view = await show(<BankScreen />, spy().client);
+    expect(text(view)).toContain('1,900,000\u2060ペ\u2060リ\u2060カ');
   });
 });

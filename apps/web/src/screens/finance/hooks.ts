@@ -140,9 +140,58 @@ export function useInt(initial = ''): [string, (text: string) => void, number | 
   return [text, set, value !== undefined && Number.isSafeInteger(value) ? value : undefined];
 }
 
+const WORD_JOINER = '\u2060';
+const NO_BREAK_SPACE = '\u00a0';
+
+/**
+ * Keep an amount and its unit on one line: a space becomes a no-break space, and a unit written
+ * straight after the digits (ペリカ) gets word joiners so the line cannot break inside it.
+ */
+export function glueAmount(text: string): string {
+  return text.replace(/(\d)(\s?)([^\d\s]+)$/u, (_, digit: string, space: string, unit: string) =>
+    space
+      ? `${digit}${NO_BREAK_SPACE}${unit}`
+      : `${digit}${WORD_JOINER}${[...unit].join(WORD_JOINER)}`,
+  );
+}
+
 export function usePelica(): (amount: number) => string {
   const locale = useLocale();
-  return useCallback((amount) => formatPelica(locale, amount), [locale]);
+  return useCallback((amount) => glueAmount(formatPelica(locale, amount)), [locale]);
+}
+
+/** Name of a ticker in the active language. */
+export function useSymbolName(): (symbol: string) => string {
+  const t = useT();
+  return useCallback((symbol) => t(`screen.finance.market.symbol.${symbol}`), [t]);
+}
+
+/**
+ * Display name of a listed asset: the catalog name in the active language, the relic name
+ * (with its star), or the horse's own name.
+ */
+export function useAssetName(): (listing: {
+  kind: 'item' | 'horse';
+  ref: string;
+  name: { en: string; ja: string } | null;
+}) => string {
+  const t = useT();
+  const locale = useLocale();
+  return useCallback(
+    (listing) => {
+      if (listing.name) return listing.name[locale];
+      if (listing.kind === 'item') {
+        const star = /^(relic_[a-z]+)_s(\d)$/.exec(listing.ref);
+        const base = star?.[1] ?? listing.ref;
+        const key = `screen.finance.item.${base}`;
+        const name = t(key);
+        if (name !== key)
+          return star?.[2] ? t('screen.finance.item.star', { name, star: star[2] }) : name;
+      }
+      return listing.ref;
+    },
+    [t, locale],
+  );
 }
 
 export function useNumber(): (amount: number, digits?: number) => string {

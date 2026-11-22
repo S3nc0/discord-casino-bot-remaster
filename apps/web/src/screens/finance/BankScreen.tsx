@@ -138,7 +138,10 @@ export default function BankScreen() {
             label={t('screen.finance.bank.ratio')}
             value={ratio === null ? '—' : `${num(ratio * 100, 1)}%`}
           />
-          <Stat label={t('screen.finance.bank.level')} value={data.bank.level} />
+          <Stat
+            label={t('screen.finance.bank.level')}
+            value={t(`screen.finance.bank.liquidity.${data.bank.level}`)}
+          />
           <Stat
             label={t('screen.finance.bank.trust')}
             value={`${num(data.bank.trustRate * 100, 2)}%`}

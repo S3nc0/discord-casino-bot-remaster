@@ -76,7 +76,7 @@
 /* ---- stats ---- */
 .fin-stats {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(9rem, 100%), 1fr));
   gap: var(--space-2);
 }
 
@@ -108,9 +108,10 @@
 
 .fin-stat__value {
   font-weight: 700;
-  font-size: 1.125rem;
+  /* an amount and its unit never split; a long one shrinks instead of wrapping */
+  font-size: clamp(0.9rem, 4.6vw, 1.125rem);
   font-variant-numeric: tabular-nums;
-  overflow-wrap: anywhere;
+  white-space: nowrap;
 }
 
 /* ---- rows and forms ---- */
@@ -236,4 +237,12 @@
   .fin-board {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
+}
+
+.fin-stat {
+  min-width: 0;
+}
+
+.fin-stat__value .bb-tag {
+  white-space: normal;
 }

@@ -459,6 +459,8 @@ export const FinanceListingView = Type.Object({
   seller: FinancePerson,
   kind: Type.Enum(['item', 'horse'] as const),
   ref: Type.String(),
+  /** Catalog name of an item in both languages; null for horses and ids without a catalog entry. */
+  name: Type.Union([Type.Object({ en: Type.String(), ja: Type.String() }), Type.Null()]),
   qty: Type.Integer(),
   mode: Type.Enum(['fixed', 'auction'] as const),
   price: Pelica,
