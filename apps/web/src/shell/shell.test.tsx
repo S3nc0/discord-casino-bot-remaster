@@ -1,8 +1,9 @@
 // @vitest-environment happy-dom
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { App } from '../App.tsx';
 import { SCREEN_IDS } from '@casino/shared';
 import { screenRoutes } from '../screens/index.ts';
+import { casinoRoutes } from '../screens/casino/lazy.tsx';
 import { layoutFor } from './layout.ts';
 import { createMockApi } from './mockApi.ts';
 import { MainNavigation } from './NavigationBar.tsx';
@@ -83,6 +84,8 @@ describe('rendering', () => {
 
   it('renders a placeholder for every screen id', () => {
     for (const id of SCREEN_IDS) {
+      // Screens that have been built carry their own tests (screens/casino/*.test.tsx).
+      if (id in casinoRoutes) continue;
       const Route = screenRoutes[id];
       const view = render(<Route />);
       expect(view.container.querySelector('h1, h3')?.textContent).toBeTruthy();
@@ -242,7 +245,10 @@ describe('rendering', () => {
     await act(async () => {
       await runtime.boot();
     });
-    expect(view.container.querySelector('[data-screen="slots"]')).not.toBeNull();
+    // Built screens load on first visit (lazy chunk), so wait for it.
+    await vi.waitFor(() =>
+      expect(view.container.querySelector('[data-screen="slots"]')).not.toBeNull(),
+    );
     expect(view.container.querySelector('.app')?.getAttribute('data-layout')).toBeTruthy();
     runtime.presence.stop();
     runtime.settings.stop();
