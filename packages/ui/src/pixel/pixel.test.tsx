@@ -16,7 +16,7 @@ const css = readFileSync(
 );
 
 describe('pixel art data', () => {
-  it('has the nine game icons on a 16 by 16 grid', () => {
+  it('has the game and item icons on a 16 by 16 grid', () => {
     expect([...GAME_ICON_NAMES]).toEqual([
       'dice',
       'slots',
@@ -27,6 +27,14 @@ describe('pixel art data', () => {
       'pickaxe',
       'sword',
       'coin',
+      'clover',
+      'crown',
+      'ticket',
+      'shield',
+      'flame',
+      'gem',
+      'carrot',
+      'drink',
     ]);
     for (const name of GAME_ICON_NAMES) {
       const rows = GAME_ICON_ROWS[name];

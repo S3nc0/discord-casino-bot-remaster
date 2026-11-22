@@ -197,18 +197,17 @@ function Dig({
             </ul>
           </div>
         ) : null}
+        <Progress
+          label={t('screen.life.work.dayCap', { done: view.dayClicks, cap: view.dayCap })}
+          value={Math.min(view.dayClicks, view.dayCap)}
+          max={view.dayCap}
+          valueLabel=""
+          variant={view.dayClicks >= view.dayCap ? 'success' : 'primary'}
+        />
+        <p className="life__note">
+          {t('screen.life.work.terrain', { terrain: t(`screen.life.work.terrain.${view.terrain}`) })}
+        </p>
       </Card>
-      <Progress
-        label={t('screen.life.work.dayCap', { done: view.dayClicks, cap: view.dayCap })}
-        value={Math.min(view.dayClicks, view.dayCap)}
-        max={view.dayCap}
-        valueLabel=""
-
-        variant={view.dayClicks >= view.dayCap ? 'success' : 'primary'}
-      />
-      <p className="life__note">
-        {t('screen.life.work.terrain', { terrain: t(`screen.life.work.terrain.${view.terrain}`) })}
-      </p>
       <ul className="life__list">
         {(['pick', 'glove'] as const).map((tool) => {
           const cost = view.upgrade[tool];

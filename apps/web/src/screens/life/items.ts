@@ -1,4 +1,5 @@
 import type { Locale } from '@casino/shared/i18n';
+import type { GameIconName } from '@casino/ui';
 
 /** Shop item labels `[ja, en]` per catalog id (catalogs/shop.yaml). Relics are named by i18n keys. */
 const ITEM_LABELS: Readonly<Record<string, readonly [ja: string, en: string]>> = {
@@ -61,8 +62,58 @@ const ITEM_LABELS: Readonly<Record<string, readonly [ja: string, en: string]>> =
   role_white: ['⚪ 白', '⚪ White'],
 };
 
-/** The shown name of a catalog item; unknown ids show as is. */
+/** The catalog text has a leading emoji; the screens show a pixel icon instead. */
+const LEADING_EMOJI = /^[\p{Extended_Pictographic}\u200d\ufe0f]+\s*/u;
+
+/** The shown name of a catalog item, without its emoji; unknown ids show as is. */
 export function itemLabel(locale: Locale, id: string): string {
   const label = ITEM_LABELS[id];
-  return label ? label[locale === 'ja' ? 0 : 1] : id;
+  return label ? label[locale === 'ja' ? 0 : 1].replace(LEADING_EMOJI, '') : id;
+}
+
+const ITEM_ICONS: Readonly<Record<string, GameIconName>> = {
+  title_rookie: 'dice',
+  title_broke: 'coin',
+  title_regular: 'slots',
+  title_zawa: 'cards',
+  title_underground: 'pickaxe',
+  title_lucky: 'clover',
+  title_emperor: 'crown',
+  title_creditor: 'coin',
+  title_fixer: 'sword',
+  title_100oku: 'stocks',
+  title_weekly_king: 'crown',
+  cardicon_slot: 'slots',
+  cardicon_gem: 'gem',
+  cardicon_fire: 'flame',
+  cardicon_moon: 'sword',
+  cardicon_dragon: 'flame',
+  cardicon_crown: 'crown',
+  daily_double: 'ticket',
+  insurance: 'shield',
+  streak_guard: 'flame',
+  labor_drink: 'drink',
+  horse_voucher: 'horse',
+  carrot: 'carrot',
+  gold_carrot: 'carrot',
+  insider_memo: 'stocks',
+  col_gold_bar: 'coin',
+  col_throne: 'crown',
+  col_stock: 'stocks',
+};
+
+const PREFIX_ICONS: Readonly<Record<string, GameIconName>> = {
+  title: 'crown',
+  cardcolor: 'cards',
+  cardicon: 'gem',
+  skin: 'dice',
+  col: 'gem',
+  role: 'gem',
+  relic: 'gem',
+};
+
+/** The pixel icon of a catalog item: its own, else one per family, else a coin. */
+export function itemIcon(id: string): GameIconName {
+  if (id === '?') return 'ticket';
+  return ITEM_ICONS[id] ?? PREFIX_ICONS[id.split('_')[0] ?? ''] ?? 'coin';
 }

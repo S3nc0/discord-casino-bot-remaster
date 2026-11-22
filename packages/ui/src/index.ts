@@ -59,6 +59,9 @@ export type { ProgressProps, ProgressVariant } from './components/Progress.tsx';
 export { Radio, RadioGroup } from './components/Radio.tsx';
 export type { RadioGroupProps, RadioOption, RadioProps } from './components/Radio.tsx';
 
+export { ScrollFade } from './components/ScrollFade.tsx';
+export type { ScrollFadeProps } from './components/ScrollFade.tsx';
+
 export { Slider } from './components/Slider.tsx';
 export type { SliderProps } from './components/Slider.tsx';
 

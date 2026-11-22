@@ -1,5 +1,13 @@
 import type { ReactNode } from 'react';
-import { Banner, Button, Chip, ChipGroup, GameIcon, type GameIconName } from '@casino/ui';
+import {
+  Banner,
+  Button,
+  Chip,
+  ChipGroup,
+  GameIcon,
+  ScrollFade,
+  type GameIconName,
+} from '@casino/ui';
 import type { ScreenId } from '@casino/shared';
 import { screenName, useLocale, useT } from '../../shell/i18n.ts';
 import { useNavStore } from '../../shell/stores/nav.ts';
@@ -23,13 +31,15 @@ export function LifeNav({ current }: { current: ScreenId }) {
   const locale = useLocale();
   const go = useNavStore((s) => s.go);
   return (
-    <ChipGroup label={t('screen.life.nav')} className="life__nav">
-      {LIFE_SCREENS.map(({ id }) => (
-        <Chip key={id} selected={id === current} onClick={() => go(id)}>
-          {screenName(locale, id)}
-        </Chip>
-      ))}
-    </ChipGroup>
+    <ScrollFade className="life__nav" revealSelector='[aria-pressed="true"]'>
+      <ChipGroup label={t('screen.life.nav')}>
+        {LIFE_SCREENS.map(({ id }) => (
+          <Chip key={id} selected={id === current} onClick={() => go(id)}>
+            {screenName(locale, id)}
+          </Chip>
+        ))}
+      </ChipGroup>
+    </ScrollFade>
   );
 }
 
