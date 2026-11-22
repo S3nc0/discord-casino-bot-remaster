@@ -1,4 +1,4 @@
-/* global process, fetch, setTimeout, console */
+/* global process, fetch, setTimeout, console, document */
 // Screenshot run for the finance screens: starts the web app against the in-memory mock API,
 // opens each main screen at 390 px in dark and light, and saves PNGs.
 //   pnpm --filter @casino/web exec node src/screens/finance/shots.mjs <outDir>
