@@ -1,5 +1,6 @@
-import { lazy, Suspense, type ComponentType } from 'react';
+import { lazy, Suspense, type ComponentType, type ReactNode } from 'react';
 import type { ScreenId } from '@casino/shared';
+import { screenName, useLocale, useT } from '../../shell/i18n.ts';
 
 const Bank = lazy(() => import('./BankScreen.tsx'));
 const Loans = lazy(() => import('./LoansScreen.tsx'));
@@ -7,33 +8,33 @@ const Kyosai = lazy(() => import('./KyosaiScreen.tsx'));
 const Market = lazy(() => import('./MarketScreen.tsx'));
 const Companies = lazy(() => import('./CompaniesScreen.tsx'));
 
-function Lazy({ children }: { children: React.ReactNode }) {
+/** While a screen's chunk loads, the title and a loading line show instead of a blank page. */
+function Loading({ screen }: { screen: ScreenId }) {
+  const t = useT();
+  const locale = useLocale();
   return (
-    <Suspense
-      fallback={
-        <p role="status" className="fin__loading">
-          …
-        </p>
-      }
-    >
-      {children}
-    </Suspense>
+    <section className="fin" data-screen={screen}>
+      <h1 className="fin__title">{screenName(locale, screen)}</h1>
+      <p role="status" className="fin__loading">
+        {t('common.loading')}
+      </p>
+    </section>
   );
 }
 
-const wrap = (name: string, element: () => React.ReactNode): ComponentType => {
-  const Screen = () => <Lazy>{element()}</Lazy>;
-  Screen.displayName = name;
+const wrap = (screen: ScreenId, element: () => ReactNode): ComponentType => {
+  const Screen = () => <Suspense fallback={<Loading screen={screen} />}>{element()}</Suspense>;
+  Screen.displayName = `Finance(${screen})`;
   return Screen;
 };
 
 /** Finance screens. Each loads its own chunk the first time the screen opens. */
 export const financeRoutes: Partial<Record<ScreenId, ComponentType>> = {
-  bank: wrap('Bank', () => <Bank />),
-  loans: wrap('Loans', () => <Loans />),
-  kyosai: wrap('Kyosai', () => <Kyosai />),
-  market: wrap('Market', () => <Market />),
-  stocks: wrap('Stocks', () => <Market screen="stocks" initialTab="trade" initialSymbol="teio" />),
-  crypto: wrap('Crypto', () => <Market screen="crypto" initialTab="trade" initialSymbol="cs" />),
-  companies: wrap('Companies', () => <Companies />),
+  bank: wrap('bank', () => <Bank />),
+  loans: wrap('loans', () => <Loans />),
+  kyosai: wrap('kyosai', () => <Kyosai />),
+  market: wrap('market', () => <Market />),
+  stocks: wrap('stocks', () => <Market screen="stocks" initialTab="trade" initialSymbol="teio" />),
+  crypto: wrap('crypto', () => <Market screen="crypto" initialTab="trade" initialSymbol="cs" />),
+  companies: wrap('companies', () => <Companies />),
 };
