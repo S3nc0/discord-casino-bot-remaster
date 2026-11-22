@@ -1,12 +1,11 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Banner, Button, GameIcon, Tag, TextField } from '@casino/ui';
+import { Banner, Button, GameIcon, isReducedMotionActive, Tag, TextField } from '@casino/ui';
 import type {
   RouletteBetAccepted,
   RouletteKindView,
   RouletteTableData,
   SpinFrameView,
 } from '@casino/shared';
-import { isReducedMotionActive } from '@casino/ui';
 import { useLocale, useT } from '../../shell/i18n.ts';
 import { STEP_MS } from './anim.ts';
 import { BetBar } from './BetBar.tsx';
@@ -130,7 +129,7 @@ export default function RouletteScreen() {
       if (myPayout.length > 0) sfx.play(myPayout.some((p) => p.net > 0) ? 'smallWin' : 'lose');
     }
     if (phase === 'spinning') sfx.play('reelTick');
-  }, [phase]); // eslint-disable-line
+  }, [phase]);
 
   const addLine = (kind: RouletteKindView, number?: number) => {
     sfx.arm();
