@@ -4,6 +4,7 @@ import { screenName, useLocale, useT } from '../shell/i18n.ts';
 import { HomeScreen } from '../shell/HomeScreen.tsx';
 import { financeRoutes } from './finance/routes.tsx';
 import { lazyScreen } from './life/lazy.tsx';
+import { casinoRoutes } from './casino/lazy.tsx';
 
 /** Home: the balance hero and the game tiles live in the shell. F2 builds the rest on top. */
 export function Home() {
@@ -44,7 +45,13 @@ function routeFor(screen: ScreenId): ComponentType {
   return Route;
 }
 
-/** One component per screen id. F2 replaces entries as screens are built. */
-export const screenRoutes: Readonly<Record<ScreenId, ComponentType>> = Object.fromEntries(
-  SCREEN_IDS.map((id) => [id, routeFor(id)]),
-) as Record<ScreenId, ComponentType>;
+const placeholders = Object.fromEntries(SCREEN_IDS.map((id) => [id, routeFor(id)])) as Record<
+  ScreenId,
+  ComponentType
+>;
+
+/** One component per screen id. Each slice spreads its own screens over the placeholders. */
+export const screenRoutes: Readonly<Record<ScreenId, ComponentType>> = {
+  ...placeholders,
+  ...casinoRoutes,
+};

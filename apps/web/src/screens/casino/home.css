@@ -1,0 +1,79 @@
+/* Daily bonus bar and the featured game on Home. Same rules as the rest: tokens only,
+   stepped motion, nothing smaller than 16px. */
+
+.daily {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-3);
+}
+
+.daily__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+.daily__head h2 {
+  margin: 0;
+}
+
+.daily__streak {
+  margin: 0;
+  font-weight: 700;
+}
+
+.daily__pips {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: var(--space-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.daily__pip {
+  height: 16px;
+  background: var(--surface-container-highest);
+  box-shadow: inset 0 0 0 2px var(--outline-variant);
+}
+
+.daily__pip[data-filled='true'] {
+  background: var(--tertiary);
+  box-shadow: inset 0 0 0 2px var(--yellow-accent, var(--tertiary));
+}
+
+.daily__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-3);
+}
+
+.daily__actions .bb-button:first-child {
+  flex: 1 1 12rem;
+}
+
+.daily__wait {
+  margin: 0;
+  font-weight: 700;
+}
+
+.featured .bb-card__title {
+  font-family: var(--font-display);
+}
+
+.featured__body {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.featured__body p {
+  margin: 0;
+}
+
+.featured__jackpot {
+  margin-top: var(--space-2);
+}

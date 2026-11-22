@@ -1,9 +1,9 @@
 import { Card, GameIcon, Skyline, Sparkle, type GameIconName } from '@casino/ui';
-import type { Locale } from '@casino/shared/i18n';
 import type { ScreenId } from '@casino/shared';
 import { screenName, useLocale, useT } from './i18n.ts';
 import { useBalanceStore } from './stores/balance.ts';
 import { useNavStore } from './stores/nav.ts';
+import { DailyBonus, FeaturedGame } from '../screens/casino/home.tsx';
 
 /** The four tiles on Home, each opening its game screen. */
 export const HOME_TILES: ReadonlyArray<{ screen: ScreenId; icon: GameIconName }> = [
@@ -12,9 +12,6 @@ export const HOME_TILES: ReadonlyArray<{ screen: ScreenId; icon: GameIconName }>
   { screen: 'blackjack', icon: 'cards' },
   { screen: 'horse', icon: 'horse' },
 ];
-
-// TODO(A1): add `home.games` to the shared dictionaries (en "Games", ja "ゲーム") and use t().
-const GAMES_LABEL: Record<Locale, string> = { en: 'Games', ja: 'ゲーム' };
 
 /** Balance hero under a pixel skyline, then the 4-up game tiles. */
 export function HomeScreen() {
@@ -41,9 +38,10 @@ export function HomeScreen() {
           <Sparkle className="home__spark home__spark--b" />
         </div>
       </Card>
+      <DailyBonus />
       <section className="home__games" aria-labelledby="home-games">
         <h2 className="bb-eyebrow" id="home-games">
-          {GAMES_LABEL[locale]}
+          {t('home.games')}
         </h2>
         <div className="home__tiles">
           {HOME_TILES.map(({ screen, icon }) => (
@@ -59,6 +57,7 @@ export function HomeScreen() {
           ))}
         </div>
       </section>
+      <FeaturedGame />
     </div>
   );
 }

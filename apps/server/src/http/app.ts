@@ -41,6 +41,7 @@ import { REASONS } from '../auth/reasons.ts';
 import type { FinanceServices } from '../finance/index.ts';
 import { AppError } from '../runtime/errors.ts';
 import { registerFinanceRoutes } from './activity/finance.ts';
+import { registerActivityRoutes, type ActivityDeps } from './activity/index.ts';
 import { RateLimiter } from '../runtime/rate-limit.ts';
 
 declare module 'fastify' {
@@ -89,6 +90,8 @@ export interface AppDeps {
   exposeReasons?: boolean;
   /** Refuse missing proxy signature headers (health and token excepted). */
   requireProxySignature?: boolean;
+  /** Routes of the Activity slices (casino, ...); see `http/activity`. */
+  activity?: ActivityDeps;
 }
 
 const HEALTH_PATH = API_ROUTES.health;
@@ -339,6 +342,7 @@ export function buildApp(deps: AppDeps): FastifyInstance {
     // Activity slices register here, one line each.
     if (deps.finance)
       registerFinanceRoutes(authed, { ...deps, finance: deps.finance, session: sessionOf });
+    registerActivityRoutes(authed, deps.activity ?? {}, sessionOf);
 
     done();
   });

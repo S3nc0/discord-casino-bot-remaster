@@ -201,6 +201,28 @@ export class EconomyService {
     return rows.map(toEntry);
   }
 
+  /**
+   * One page of an account's history, newest first. `before` is the id of the last row of the
+   * previous page; `nextBefore` is the cursor for the next, older page (null at the end).
+   */
+  historyPage(
+    guildId: string,
+    userId: string,
+    options: { before?: number; limit?: number } = {},
+  ): { items: LedgerEntry[]; nextBefore: number | null } {
+    const limit = Math.max(1, Math.min(options.limit ?? 20, 100));
+    const rows = this.store
+      .stmt(
+        `SELECT id, guild_id, user_id, delta, balance_after, reason, ref_type, ref_id,
+                idempotency_key, created_at
+         FROM ledger WHERE guild_id = ? AND user_id = ? AND id < ? ORDER BY id DESC LIMIT ?`,
+      )
+      .all(guildId, userId, options.before ?? Number.MAX_SAFE_INTEGER, limit + 1) as LedgerRow[];
+    const items = rows.slice(0, limit).map(toEntry);
+    const last = items[items.length - 1];
+    return { items, nextBefore: rows.length > limit && last ? last.id : null };
+  }
+
   private assertAmount(amount: number): void {
     if (!Number.isSafeInteger(amount) || amount <= 0) {
       throw new AppError('invalid_payload', { message: 'amount must be a positive integer' });

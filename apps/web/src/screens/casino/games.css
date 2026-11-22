@@ -1,0 +1,622 @@
+/* Casino screens. Colours, type and focus come from @casino/ui tokens; motion is stepped
+   (`steps()`), never eased, and every animation is off under reduced motion. */
+
+.cc-screen {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-4);
+  width: 100%;
+  max-width: 40rem;
+  margin-inline: auto;
+  padding-block: var(--space-3);
+  box-sizing: border-box;
+}
+
+.cc-screen > * {
+  min-width: 0;
+}
+
+.cc-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2) var(--space-3);
+}
+
+.cc-head__title {
+  margin: 0;
+}
+
+.cc-stack {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-4);
+}
+
+.cc-intro,
+.cc-note,
+.cc-status {
+  margin: 0;
+  color: var(--on-surface);
+}
+
+.cc-status {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: 24px;
+  font-weight: 700;
+}
+
+.cc-sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.cc-cta {
+  width: 100%;
+}
+
+.cc-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.cc-actions > * {
+  flex: 1 1 7rem;
+}
+
+.cc-link {
+  min-width: 48px;
+  min-height: 48px;
+  margin-left: auto;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--on-surface);
+  font: 700 16px / 24px var(--font-body);
+  cursor: pointer;
+}
+
+/* ---- bet controls ---- */
+.cc-bet {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-3);
+}
+
+.cc-bet__row {
+  display: grid;
+  grid-template-columns: 48px minmax(0, 1fr) 48px;
+  align-items: start;
+  gap: var(--space-2);
+}
+
+.cc-bet__row > .bb-icon-button {
+  margin-top: 28px;
+}
+
+.cc-bet__field,
+.cc-bet__field .bb-field__box {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.cc-bet__field input {
+  width: 100%;
+  min-width: 0;
+}
+
+.cc-bet__field input {
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+}
+
+/* ---- result ---- */
+.cc-result__line,
+.cc-result__tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin: var(--space-1) 0 0;
+}
+
+.cc-result__line {
+  font-weight: 700;
+}
+
+.cc-result__tags:empty {
+  display: none;
+}
+
+/* ---- recent rounds ---- */
+.cc-recent {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-2);
+}
+
+.cc-recent h2 {
+  margin: 0;
+}
+
+.cc-recent__empty {
+  margin: 0;
+}
+
+/* ---- dice (chinchiro) ---- */
+.cc-table {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-4);
+  padding: var(--space-4);
+  background: var(--surface-container-low);
+  box-shadow: 0 0 0 2px var(--outline-variant);
+}
+
+.cc-dice {
+  display: grid;
+  justify-items: center;
+  gap: var(--space-2);
+}
+
+.cc-dice__row {
+  display: flex;
+  gap: var(--space-3);
+}
+
+.cc-dice__hand {
+  min-height: 24px;
+  margin: 0;
+  font-weight: 700;
+  text-align: center;
+}
+
+.cc-dice__caption {
+  color: var(--on-surface-variant);
+}
+
+.cc-die {
+  display: block;
+  width: 64px;
+  height: 64px;
+  image-rendering: pixelated;
+  shape-rendering: crispEdges;
+}
+
+.cc-die__edge {
+  fill: var(--outline);
+}
+
+.cc-die__face {
+  fill: var(--surface-container-highest);
+}
+
+.cc-die__shade {
+  fill: var(--outline-variant);
+}
+
+.cc-die__pip {
+  fill: var(--on-surface);
+}
+
+.cc-die--rolling {
+  animation: cc-hop 0.36s steps(2) infinite;
+}
+
+@keyframes cc-hop {
+  50% {
+    transform: translateY(-6px);
+  }
+}
+
+.cc-seats {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.cc-seat {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  min-height: 48px;
+  padding: var(--space-2) var(--space-3);
+  background: var(--surface-container);
+  box-shadow: 0 0 0 2px var(--outline-variant);
+  overflow-wrap: anywhere;
+}
+
+.cc-seat[data-free='true'] {
+  background: transparent;
+  color: var(--on-surface-variant);
+}
+
+.cc-seatroll {
+  display: grid;
+  justify-items: center;
+  gap: var(--space-1);
+}
+
+.cc-seatroll[data-me='true'] {
+  padding: var(--space-2);
+  box-shadow: 0 0 0 2px var(--primary);
+}
+
+/* ---- slots ---- */
+.cc-machine {
+  display: flex;
+  justify-content: center;
+  gap: var(--space-2);
+  padding: var(--space-4);
+  background: var(--error-container);
+  box-shadow:
+    0 0 0 3px var(--outline),
+    0 4px 0 3px var(--pixel-shadow, var(--outline-variant));
+}
+
+.cc-reel {
+  display: grid;
+  place-items: center;
+  width: 80px;
+  height: 96px;
+  background: var(--surface-container-highest);
+  box-shadow: inset 0 0 0 2px var(--outline);
+}
+
+.cc-reel__symbol {
+  font-size: 44px;
+  line-height: 1;
+}
+
+.cc-reel[data-spinning='true'] .cc-reel__symbol {
+  animation: cc-reel 0.18s steps(2) infinite;
+}
+
+@keyframes cc-reel {
+  50% {
+    transform: translateY(6px);
+  }
+}
+
+.cc-paytable h2 {
+  margin: 0 0 var(--space-2);
+}
+
+.cc-paytable__list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-1) var(--space-4);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* ---- roulette ---- */
+.cc-wheel {
+  position: relative;
+  display: grid;
+  place-items: center;
+  min-height: 136px;
+  padding: var(--space-4);
+  background: var(--surface-container-low);
+  box-shadow: 0 0 0 2px var(--outline-variant);
+}
+
+.cc-wheel__icon {
+  width: 96px;
+  height: 96px;
+}
+
+.cc-wheel[data-moving='true'] .cc-wheel__icon {
+  animation: cc-spin 0.8s steps(8) infinite;
+}
+
+@keyframes cc-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.cc-wheel__ball {
+  position: absolute;
+  right: var(--space-4);
+  bottom: var(--space-3);
+  display: grid;
+  place-items: center;
+  min-width: 56px;
+  height: 56px;
+  padding-inline: var(--space-2);
+  background: var(--surface-container-highest);
+  box-shadow: 0 0 0 3px var(--outline);
+  font: 600 28px / 1 var(--font-display);
+  font-variant-numeric: tabular-nums;
+}
+
+.cc-wheel__ball[data-color='red'] {
+  background: var(--error-container);
+  color: var(--on-error-container);
+}
+
+.cc-wheel__ball[data-color='green'] {
+  background: var(--success-container);
+  color: var(--on-success-container);
+}
+
+.cc-wheel__ball[data-color='black'] {
+  background: var(--inverse-surface);
+  color: var(--inverse-on-surface);
+}
+
+.cc-numbers {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.cc-numbers li {
+  display: grid;
+  place-items: center;
+  min-width: 36px;
+  height: 36px;
+  background: var(--surface-container-highest);
+  box-shadow: inset 0 0 0 2px var(--outline-variant);
+  font: 600 16px / 1 var(--font-display);
+}
+
+.cc-numbers li[data-color='red'] {
+  background: var(--error-container);
+  color: var(--on-error-container);
+}
+
+.cc-numbers li[data-color='green'] {
+  background: var(--success-container);
+  color: var(--on-success-container);
+}
+
+.cc-numbers li[data-color='black'] {
+  background: var(--inverse-surface);
+  color: var(--inverse-on-surface);
+}
+
+.cc-history h2,
+.cc-slip h2 {
+  margin: 0 0 var(--space-2);
+}
+
+.cc-kinds {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-2);
+}
+
+.cc-kinds .bb-button {
+  padding-inline: var(--space-1);
+}
+
+.cc-numberpick {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
+  gap: var(--space-2);
+}
+
+.cc-lines {
+  display: grid;
+  gap: var(--space-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.cc-lines li {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: 48px;
+}
+
+/* ---- pachinko ---- */
+.cc-board {
+  position: relative;
+  height: 128px;
+  overflow: hidden;
+  background:
+    radial-gradient(circle at 8px 8px, var(--outline) 2px, transparent 2px) 0 0 / 32px 32px,
+    var(--surface-container-low);
+  box-shadow: 0 0 0 2px var(--outline-variant);
+  image-rendering: pixelated;
+}
+
+.cc-ball {
+  position: absolute;
+  top: 0;
+  left: calc(8% + var(--i) * 13%);
+  width: 12px;
+  height: 12px;
+  background: var(--tertiary);
+  box-shadow: inset -3px -3px 0 0 var(--yellow-accent, var(--tertiary-container));
+}
+
+.cc-board[data-falling='true'] .cc-ball {
+  animation: cc-fall 0.9s steps(8) infinite;
+  animation-delay: calc(var(--i) * 0.11s);
+}
+
+@keyframes cc-fall {
+  from {
+    transform: translateY(-12px);
+  }
+  to {
+    transform: translateY(128px);
+  }
+}
+
+.cc-sets {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.cc-set {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-1);
+  padding: var(--space-3);
+  background: var(--surface-container);
+  box-shadow: 0 0 0 2px var(--outline-variant);
+}
+
+.cc-set[data-hit='true'] {
+  box-shadow: 0 0 0 2px var(--tertiary);
+}
+
+.cc-set p {
+  margin: 0;
+}
+
+.cc-set__title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin: 0;
+  font: 600 20px / 28px var(--font-display);
+}
+
+.cc-chain {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1) var(--space-2);
+}
+
+.cc-sets-pick {
+  display: grid;
+  grid-template-columns: 48px minmax(0, 1fr) 48px;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.cc-sets-pick__value {
+  text-align: center;
+}
+
+/* ---- blackjack ---- */
+.cc-felt {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-3);
+  padding: var(--space-4);
+  background: var(--success-container);
+  color: var(--on-success-container);
+  box-shadow: 0 0 0 2px var(--outline);
+}
+
+.cc-hand {
+  display: grid;
+  gap: var(--space-1);
+}
+
+.cc-hand__label {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0;
+}
+
+.cc-cards {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+  min-height: 72px;
+}
+
+.cc-card {
+  display: grid;
+  place-items: center;
+  align-content: center;
+  width: 52px;
+  height: 72px;
+  background: var(--surface-container-highest);
+  color: var(--on-surface);
+  box-shadow:
+    0 0 0 2px var(--outline),
+    2px 3px 0 2px var(--outline-variant);
+  font: 600 20px / 1 var(--font-display);
+}
+
+.cc-card--red {
+  color: var(--red-accent, var(--error));
+}
+
+.cc-card__suit {
+  font-size: 24px;
+}
+
+.cc-card--down {
+  background: repeating-linear-gradient(
+    45deg,
+    var(--secondary-container) 0 4px,
+    var(--secondary) 4px 8px
+  );
+}
+
+.cc-card--empty {
+  background: transparent;
+  box-shadow: 0 0 0 2px var(--outline-variant);
+}
+
+.cc-card--fresh {
+  animation: cc-flip 0.24s steps(3) 1;
+}
+
+@keyframes cc-flip {
+  from {
+    transform: scaleX(0.2) translateY(-8px);
+  }
+  to {
+    transform: none;
+  }
+}
+
+/* ---- history ---- */
+.cc-ledger {
+  max-width: none;
+}
+
+/* ---- reduced motion ---- */
+@media (prefers-reduced-motion: reduce) {
+  .cc-die--rolling,
+  .cc-reel[data-spinning='true'] .cc-reel__symbol,
+  .cc-wheel[data-moving='true'] .cc-wheel__icon,
+  .cc-board[data-falling='true'] .cc-ball,
+  .cc-card--fresh {
+    animation: none;
+  }
+}
+
+[data-reduced-motion='true'] .cc-die--rolling,
+[data-reduced-motion='true'] .cc-reel[data-spinning='true'] .cc-reel__symbol,
+[data-reduced-motion='true'] .cc-wheel[data-moving='true'] .cc-wheel__icon,
+[data-reduced-motion='true'] .cc-board[data-falling='true'] .cc-ball,
+[data-reduced-motion='true'] .cc-card--fresh {
+  animation: none;
+}
