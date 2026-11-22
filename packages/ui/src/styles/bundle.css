@@ -353,6 +353,16 @@ button.bb-card:hover,
   align-items: center;
 }
 
+/* Short labels never split inside a word or a number-and-unit (偶数（2倍）, not 偶数（2 / 倍）):
+   keep-all stops Japanese breaking between any two characters, break-word still avoids overflow. */
+.bb-btn,
+.bb-chip,
+.bb-tag,
+.bb-tab {
+  word-break: keep-all;
+  overflow-wrap: break-word;
+}
+
 /* ScrollFade: a sideways-scrolling row with a fade on each edge that hides more content */
 .bb-scrollfade {
   --fade-start: 0px;

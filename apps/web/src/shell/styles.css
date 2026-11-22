@@ -363,7 +363,8 @@ body {
 
 .home__tiles {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  /* 2 across at 390px, so a label like ブラックジャック or "Horse racing" stays on one line. */
+  grid-template-columns: repeat(auto-fill, minmax(8.5rem, 1fr));
   gap: var(--space-2);
 }
 
@@ -375,5 +376,7 @@ body {
 
 .home__tiles .bb-game span {
   min-width: 0;
+  word-break: keep-all;
+  overflow-wrap: break-word;
   text-wrap: balance;
 }

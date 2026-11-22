@@ -64,7 +64,8 @@
 }
 
 .life__actions > .bb-btn {
-  flex: 1 1 8rem;
+  flex: 1 1 auto;
+  white-space: nowrap;
 }
 
 .life__note {

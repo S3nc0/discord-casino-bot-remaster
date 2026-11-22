@@ -3,9 +3,10 @@
 //
 //   node scripts/screens-all.mjs <outDir> [screenId ...]
 //
-// Fails on a console error, a failed request or horizontal scrolling. Set CHROME_PATH when
+// Fails on a console error, a failed request, horizontal scrolling or a word of a button, chip,
+// tag or tab label split over two lines. Set CHROME_PATH when
 // Chrome is not at the macOS default.
-/* global console, document, window */
+/* global console, document, window, NodeFilter */
 import { mkdirSync } from 'node:fs';
 import process from 'node:process';
 import { join, resolve } from 'node:path';
@@ -30,7 +31,7 @@ const server = await createServer({
 await server.listen();
 const base = server.resolvedUrls?.local[0] ?? 'http://localhost:5198/';
 
-const screens = only.length > 0 ? only : SCREEN_IDS.filter((id) => id !== 'inbox');
+const screens = only.length > 0 ? only : SCREEN_IDS;
 const LOCALES = [
   { id: 'en', param: 'en-US' },
   { id: 'ja', param: 'ja' },
@@ -59,6 +60,7 @@ try {
         );
         page.on('pageerror', (e) => problems.push(`${label}: page error: ${e.message}`));
         page.on('requestfailed', (r) => problems.push(`${label}: request failed: ${r.url()}`));
+        await page.route('**/favicon.ico', (route) => route.fulfill({ status: 204 }));
         try {
           await page.goto(`${base}?screen=${screen}&locale=${locale.param}`);
           await page.locator('.app__screen').waitFor({ timeout: 10_000 });
@@ -77,6 +79,25 @@ try {
           const overflow = await page.evaluate(
             () => document.documentElement.scrollWidth - window.innerWidth,
           );
+          const split = await page.evaluate(() => {
+            const found = [];
+            const labels = document.querySelectorAll('.bb-btn, .bb-chip, .bb-tag, .bb-tab');
+            for (const el of labels) {
+              const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
+              for (let n = walker.nextNode(); n; n = walker.nextNode()) {
+                const text = n.nodeValue ?? '';
+                for (const m of text.matchAll(/\S+/g)) {
+                  const range = document.createRange();
+                  range.setStart(n, m.index);
+                  range.setEnd(n, m.index + m[0].length);
+                  const lines = new Set([...range.getClientRects()].map((r) => Math.round(r.top)));
+                  if (lines.size > 1) found.push(m[0]);
+                }
+              }
+            }
+            return found;
+          });
+          for (const word of split) problems.push(`${label}: word split over lines: ${word}`);
           if (overflow > 0) problems.push(`${label}: scrolls sideways by ${overflow}px`);
           await page.screenshot({ path: join(out, `${label}.png`) });
           saved += 1;

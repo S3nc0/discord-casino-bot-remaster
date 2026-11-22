@@ -400,7 +400,8 @@
 
 .cc-kinds {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  /* Two across on a phone: 偶数（2倍） and ストレート 17（36倍） need the width to stay on one line. */
+  grid-template-columns: repeat(auto-fill, minmax(9rem, 1fr));
   gap: var(--space-2);
 }
 
