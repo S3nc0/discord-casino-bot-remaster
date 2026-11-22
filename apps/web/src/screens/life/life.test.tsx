@@ -13,12 +13,14 @@ import { act, render, type Rendered } from '../../shell/testing/render.tsx';
 import { LifeApiContext } from './api.tsx';
 import { LifeApiError, type LifeApi } from './client.ts';
 import { createMockLifeApi } from './mock.ts';
+import InventoryScreen from './InventoryScreen.tsx';
 import LaborScreen from './LaborScreen.tsx';
 import LotteryScreen from './LotteryScreen.tsx';
 import MissionsScreen from './MissionsScreen.tsx';
 import PollScreen from './PollScreen.tsx';
 import QuizScreen from './QuizScreen.tsx';
 import RankingScreen from './RankingScreen.tsx';
+import RelicsScreen from './RelicsScreen.tsx';
 import ShopScreen from './ShopScreen.tsx';
 import TransferScreen, { parseAmount } from './TransferScreen.tsx';
 import { errorMessage } from './hooks.ts';
@@ -83,7 +85,9 @@ describe('frame', () => {
     const chips = [...root.querySelectorAll('.life__nav .bb-chip')].map(text);
     expect(chips).toEqual([
       'Work',
+      'Relics',
       'Shop',
+      'Inventory',
       'Missions',
       'Ranking',
       'Transfer',
@@ -222,6 +226,33 @@ describe('labor', () => {
   });
 });
 
+describe('labor: layout and routes', () => {
+  it('keeps the daily progress and the rock layer inside the dig card', async () => {
+    const root = await show(<LaborScreen />);
+    const card = root.querySelector('.life-dig')!;
+    expect(text(card)).toContain('Today:');
+    expect(text(card)).toContain("Today's rock layer");
+    expect(root.querySelector('.life-dig + .bb-progress-wrap')).toBeNull();
+  });
+
+  it('opens the relics screen id on the relics tab', async () => {
+    const root = await show(<RelicsScreen />);
+    expect(text(root.querySelector('h1'))).toBe('Relics');
+    expect(root.querySelector('[role="tab"][aria-selected="true"]')?.textContent).toBe('Relics');
+  });
+});
+
+describe('inventory', () => {
+  it('lists what the shop says is owned, with a pixel icon and a count', async () => {
+    const root = await show(<InventoryScreen />);
+    expect(text(root.querySelector('h1'))).toBe('Inventory');
+    const rows = [...root.querySelectorAll('.bb-list li')];
+    expect(rows.length).toBeGreaterThan(0);
+    for (const row of rows) expect(row.querySelector('svg.bb-px')).not.toBeNull();
+    expect(text(rows.find((r) => text(r).includes('Rookie Gambler')))).toContain('×1');
+  });
+});
+
 describe('quiz', () => {
   it('answers once, shows the result and the reward, then moves on', async () => {
     const root = await show(<QuizScreen />);
@@ -356,6 +387,14 @@ describe('shop', () => {
     expect(toasts()).toContain('screen.life.shop.bought');
   });
 
+  it('shows pixel icons and no emoji on the shelf', async () => {
+    const root = await show(<ShopScreen />);
+    for (const row of root.querySelectorAll('.bb-list li')) {
+      expect(row.querySelector('svg.bb-px')).not.toBeNull();
+      expect(text(row)).not.toMatch(/\p{Extended_Pictographic}/u);
+    }
+  });
+
   it('asks before an expensive purchase', async () => {
     useBalanceStore.getState().set(50_000);
     api = createMockLifeApi();
@@ -364,7 +403,7 @@ describe('shop', () => {
       text(li).includes('Lucky Soul'),
     )!;
     await click(row.querySelector('button')!);
-    expect(text(document.body)).toContain('Buy 🍀 Lucky Soul for 20,000 Pelica?');
+    expect(text(document.body)).toContain('Buy Lucky Soul for 20,000 Pelica?');
   });
 
   it('sells black-market lots blind, with a warning, then reveals the item', async () => {

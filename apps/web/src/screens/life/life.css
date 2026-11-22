@@ -30,20 +30,9 @@
   margin: 0;
 }
 
-/* One scrolling row, so eight links do not push the screen down. */
+/* One scrolling row (ScrollFade adds the edge fades), so eight links do not push the screen down. */
 .life__nav {
-  flex-wrap: nowrap;
-  overflow-x: auto;
-  padding-bottom: var(--space-1);
-  scrollbar-width: none;
-}
-
-.life__nav::-webkit-scrollbar {
-  display: none;
-}
-
-.life__nav .bb-chip {
-  flex: none;
+  padding-block: var(--space-1);
 }
 
 .life__list {
@@ -75,7 +64,8 @@
 }
 
 .life__actions > .bb-btn {
-  flex: 1 1 8rem;
+  flex: 1 1 auto;
+  white-space: nowrap;
 }
 
 .life__note {
@@ -292,4 +282,10 @@
 .life .bb-avatar {
   display: inline-grid;
   place-items: center;
+}
+
+/* Shop rows: a 32px pixel icon in the leading slot. */
+.life-item__icon {
+  width: 32px;
+  height: 32px;
 }

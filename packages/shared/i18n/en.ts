@@ -1361,7 +1361,7 @@ export const en = {
   'screen.casino.roulette.numberField': 'Number 0–36',
   'screen.casino.roulette.numberAdd': 'Add number',
   'screen.casino.roulette.slip': 'Bet slip',
-  'screen.casino.roulette.slip.empty': 'Tap a bet below to add it.',
+  'screen.casino.roulette.slip.empty': 'Tap a bet above to add it.',
   'screen.casino.roulette.slip.remove': 'Remove {name}',
   'screen.casino.roulette.slip.total': 'Total {amount}',
   'screen.casino.roulette.place': 'Place bets',
@@ -1824,6 +1824,20 @@ export const en = {
   'screen.horse.err.generic': 'That did not work. Try again.',
   'screen.horse.loadFailed': 'Could not load this screen.',
   'screen.horse.retry': 'Try again',
+  // Home sections, inventory (polish pass).
+  'home.life': 'Life',
+  'home.money': 'Money',
+  'home.you': 'You',
+  'screen.life.inventory.empty': 'You do not own anything yet.',
+  'screen.life.inventory.toShop': 'Go to the shop',
+  // Blackjack Teiai credit double (polish pass).
+  'screen.casino.blackjack.credit.btn': 'Borrow and double',
+  'screen.casino.blackjack.credit.title': 'Double on Teiai credit?',
+  'screen.casino.blackjack.credit.body':
+    'You are {need} Pelica short. Teiai lends the difference so you can double. It becomes debt and you drop to underground worker: skims on your daily bonus and withholding on your income begin.',
+  'screen.casino.blackjack.credit.tooShort':
+    'You are {need} Pelica short, and Teiai lends at most {cap} for a double.',
+  'screen.casino.blackjack.credit.failed': 'Teiai would not lend it.',
 } as const;
 
 export type MessageKey = keyof typeof en;

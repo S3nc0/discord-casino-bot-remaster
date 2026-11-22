@@ -25,6 +25,7 @@ export interface RecordedAction {
   game: GameId;
   roundId: string;
   action: string;
+  args?: Record<string, unknown> | undefined;
 }
 
 /** A scripted client: answers are queued per call; table snapshots are pushed by the test. */
@@ -65,8 +66,13 @@ export class FakeClient implements CasinoClient {
     return this.next<T>();
   }
 
-  action<T>(game: GameId, roundId: string, action: string): Promise<BetOutcome<T>> {
-    this.actions.push({ game, roundId, action });
+  action<T>(
+    game: GameId,
+    roundId: string,
+    action: string,
+    args?: Record<string, unknown>,
+  ): Promise<BetOutcome<T>> {
+    this.actions.push({ game, roundId, action, ...(args ? { args } : {}) });
     return this.next<T>();
   }
 

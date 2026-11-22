@@ -1349,7 +1349,7 @@ export const ja: Messages = {
   'screen.casino.roulette.numberField': '数字 0〜36',
   'screen.casino.roulette.numberAdd': '数字を追加',
   'screen.casino.roulette.slip': '賭け票',
-  'screen.casino.roulette.slip.empty': '下から賭け先を選んでください。',
+  'screen.casino.roulette.slip.empty': '上から賭け先を選んでください。',
   'screen.casino.roulette.slip.remove': '{name}を外す',
   'screen.casino.roulette.slip.total': '合計 {amount}',
   'screen.casino.roulette.place': 'ベットする',
@@ -1810,4 +1810,18 @@ export const ja: Messages = {
   'screen.horse.err.generic': 'うまくいきませんでした。もう一度試してください。',
   'screen.horse.loadFailed': '画面を読み込めませんでした。',
   'screen.horse.retry': 'もう一度',
+  // Home sections, inventory (polish pass).
+  'home.life': 'くらし',
+  'home.money': 'お金',
+  'home.you': 'マイページ',
+  'screen.life.inventory.empty': 'まだ持ち物がありません。',
+  'screen.life.inventory.toShop': 'ショップへ',
+  // Blackjack Teiai credit double (polish pass).
+  'screen.casino.blackjack.credit.btn': '借りてダブル',
+  'screen.casino.blackjack.credit.title': '帝愛の信用でダブルしますか？',
+  'screen.casino.blackjack.credit.body':
+    '手元が {need} ペリカ足りません。足りない分を帝愛から借りて、倍賭けします。借金になり、地下労働者に落ちます（デイリーのピンハネ・収入の天引きが始まります）。',
+  'screen.casino.blackjack.credit.tooShort':
+    '{need} ペリカ足りません。帝愛がダブルのために貸せるのは最大 {cap} ペリカまでです。',
+  'screen.casino.blackjack.credit.failed': '帝愛から借りられませんでした。',
 };

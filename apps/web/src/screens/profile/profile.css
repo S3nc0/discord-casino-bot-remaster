@@ -1,0 +1,36 @@
+/* Profile: one card and a grid of shortcut buttons. Colours come from the @casino/ui tokens. */
+.profile {
+  display: grid;
+  gap: var(--space-4);
+  width: 100%;
+  max-width: 40rem;
+  margin-inline: auto;
+  padding-block: var(--space-2);
+  box-sizing: border-box;
+}
+
+.profile__title {
+  margin: 0;
+}
+
+.profile__who {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+}
+
+.profile__name,
+.profile__balance {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.profile__name {
+  font-weight: 700;
+}
+
+.profile__links {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-3);
+}

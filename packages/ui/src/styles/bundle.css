@@ -353,6 +353,55 @@ button.bb-card:hover,
   align-items: center;
 }
 
+/* Short labels never split inside a word or a number-and-unit (偶数（2倍）, not 偶数（2 / 倍）):
+   keep-all stops Japanese breaking between any two characters, break-word still avoids overflow. */
+.bb-btn,
+.bb-chip,
+.bb-tag,
+.bb-tab {
+  word-break: keep-all;
+  overflow-wrap: break-word;
+}
+
+/* ScrollFade: a sideways-scrolling row with a fade on each edge that hides more content */
+.bb-scrollfade {
+  --fade-start: 0px;
+  --fade-end: 0px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  -webkit-mask-image: linear-gradient(
+    to right,
+    transparent 0,
+    #000 var(--fade-start),
+    #000 calc(100% - var(--fade-end)),
+    transparent 100%
+  );
+  mask-image: linear-gradient(
+    to right,
+    transparent 0,
+    #000 var(--fade-start),
+    #000 calc(100% - var(--fade-end)),
+    transparent 100%
+  );
+}
+.bb-scrollfade::-webkit-scrollbar {
+  display: none;
+}
+.bb-scrollfade[data-fade-start='true'] {
+  --fade-start: 32px;
+}
+.bb-scrollfade[data-fade-end='true'] {
+  --fade-end: 32px;
+}
+.bb-scrollfade > .bb-chips {
+  flex-wrap: nowrap;
+  width: max-content;
+}
+.bb-scrollfade .bb-chip {
+  flex: none;
+  white-space: nowrap;
+}
+
 /* Tag — the large palette, one class per hue */
 .bb-tag {
   display: inline-flex;
@@ -742,7 +791,8 @@ button.bb-card:hover,
 }
 .bb-tab {
   position: relative;
-  flex: 1;
+  flex: 1 0 auto;
+  white-space: nowrap;
   display: inline-flex;
   flex-direction: column;
   align-items: center;

@@ -1,7 +1,8 @@
-import { useEffect, useMemo, useRef } from 'react';
-import { Banner, Button, Tag } from '@casino/ui';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { Banner, Button, Dialog, Tag } from '@casino/ui';
 import type { BlackjackIdleData, BlackjackSeatView, BlackjackView, CardView } from '@casino/shared';
-import { useT } from '../../shell/i18n.ts';
+import { useLocale, useT } from '../../shell/i18n.ts';
+import { useBalanceStore } from '../../shell/stores/balance.ts';
 import { useSessionStore } from '../../shell/stores/session.ts';
 import { BetBar } from './BetBar.tsx';
 import { ErrorLine } from './ErrorLine.tsx';
@@ -18,9 +19,12 @@ import {
 import { PlayingCard } from './PlayingCard.tsx';
 import { RecentRounds } from './RecentRounds.tsx';
 import { ResultBanner } from './Result.tsx';
+import { formatNumber } from './format.ts';
 import { useCasino } from './services.tsx';
 
 const SEATS = 5;
+/** Teiai's seed cap: the most it lends to cover a double (docs/spec/blackjack.md, Double). */
+export const TEIAI_CREDIT_CAP = 3_000;
 
 function Hand({
   label,
@@ -62,6 +66,8 @@ function Hand({
 
 export default function BlackjackScreen() {
   const t = useT();
+  const locale = useLocale();
+  const balance = useBalanceStore((s) => s.balance);
   const { client } = useCasino();
   const sfx = useCasinoSfx();
   const me = useUserId();
@@ -133,10 +139,13 @@ export default function BlackjackScreen() {
       return out;
     });
   };
-  const act = (action: 'hit' | 'stand' | 'double' | 'deal') => {
+  const [confirmCredit, setConfirmCredit] = useState(false);
+  const [creditTried, setCreditTried] = useState(false);
+  const act = (action: 'hit' | 'stand' | 'double' | 'deal', args?: { credit: true }) => {
     if (!view) return;
     sfx.arm();
-    void run(() => client.action('blackjack', view.roundId, action));
+    setCreditTried(args?.credit === true);
+    void run(() => client.action('blackjack', view.roundId, action, args));
   };
 
   const disabled = overview?.disabled.includes('blackjack') ?? false;
@@ -145,6 +154,10 @@ export default function BlackjackScreen() {
   const full = phase === 'betting' && mine === null && seats.length >= SEATS;
   const watching = (phase === 'player' || phase === 'settled') && mine === null;
   const canDouble = myTurn && mine !== null && mine.cards.length === 2 && !mine.doubled;
+  // A double costs one more stake. Short of cash, Teiai can lend the difference up to its cap.
+  const need = mine !== null && balance !== null ? Math.max(0, mine.stake - balance) : 0;
+  const onCredit = canDouble && need > 0 && need <= TEIAI_CREDIT_CAP;
+  const tooShort = canDouble && need > TEIAI_CREDIT_CAP;
 
   return (
     <GameFrame screen="blackjack" jackpot={overview?.jackpotPool ?? null}>
@@ -209,15 +222,58 @@ export default function BlackjackScreen() {
               <Button variant="tonal" disabled={busy} onClick={() => act('stand')}>
                 {t('screen.casino.blackjack.stand')}
               </Button>
-              <Button
-                variant="outlined"
-                disabled={busy || !canDouble}
-                onClick={() => act('double')}
-              >
-                {t('screen.casino.blackjack.double')}
-              </Button>
+              {onCredit ? (
+                <Button variant="outlined" disabled={busy} onClick={() => setConfirmCredit(true)}>
+                  {t('screen.casino.blackjack.credit.btn')}
+                </Button>
+              ) : (
+                <Button
+                  variant="outlined"
+                  disabled={busy || !canDouble || tooShort}
+                  onClick={() => act('double')}
+                >
+                  {t('screen.casino.blackjack.double')}
+                </Button>
+              )}
             </div>
           ) : null}
+          {tooShort ? (
+            <p className="cc-note">
+              {t('screen.casino.blackjack.credit.tooShort', {
+                need: formatNumber(locale, need),
+                cap: formatNumber(locale, TEIAI_CREDIT_CAP),
+              })}
+            </p>
+          ) : null}
+          {creditTried && errorKey === 'error.insufficient_funds' ? (
+            <p className="cc-note" role="alert">
+              {t('screen.casino.blackjack.credit.failed')}
+            </p>
+          ) : null}
+          <Dialog
+            open={confirmCredit && onCredit}
+            onClose={() => setConfirmCredit(false)}
+            title={t('screen.casino.blackjack.credit.title')}
+            description={t('screen.casino.blackjack.credit.body', {
+              need: formatNumber(locale, need),
+            })}
+            actions={
+              <>
+                <Button variant="text" onClick={() => setConfirmCredit(false)}>
+                  {t('common.cancel')}
+                </Button>
+                <Button
+                  disabled={busy}
+                  onClick={() => {
+                    setConfirmCredit(false);
+                    act('double', { credit: true });
+                  }}
+                >
+                  {t('screen.casino.blackjack.credit.btn')}
+                </Button>
+              </>
+            }
+          />
           {phase === 'betting' && mine ? (
             <>
               <p className="cc-note">{t('screen.casino.blackjack.seated')}</p>

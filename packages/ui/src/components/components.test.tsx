@@ -20,6 +20,7 @@ import {
   Progress,
   Radio,
   RadioGroup,
+  ScrollFade,
   Slider,
   Snackbar,
   Switch,
@@ -361,5 +362,39 @@ describe('Bitbloom components render suite', () => {
     expect(codeInput.getAttribute('aria-invalid')).toBe('true');
     expect(codeInput.closest('.bb-field')?.className).toContain('bb-field--error');
     expect(screen.getByText('Friend codes have 9 characters.')).toBeTruthy();
+  });
+});
+
+describe('ScrollFade', () => {
+  it('wraps its children in a sideways scroller that starts with no fades in a roomy row', () => {
+    const { container } = render(
+      <ScrollFade>
+        <ChipGroup label="More">
+          <Chip>One</Chip>
+          <Chip selected>Two</Chip>
+        </ChipGroup>
+      </ScrollFade>,
+    );
+    const row = container.querySelector('.bb-scrollfade')!;
+    expect(row.getAttribute('data-fade-start')).toBe('false');
+    expect(row.getAttribute('data-fade-end')).toBe('false');
+    expect(row.querySelectorAll('.bb-chip')).toHaveLength(2);
+  });
+
+  it('fades the edge that still has content behind it', () => {
+    const { container } = render(
+      <ScrollFade>
+        <span>wide</span>
+      </ScrollFade>,
+    );
+    const row = container.querySelector<HTMLElement>('.bb-scrollfade')!;
+    Object.defineProperty(row, 'clientWidth', { configurable: true, value: 100 });
+    Object.defineProperty(row, 'scrollWidth', { configurable: true, value: 300 });
+    fireEvent.scroll(row);
+    expect(row.getAttribute('data-fade-end')).toBe('true');
+    row.scrollLeft = 200;
+    fireEvent.scroll(row);
+    expect(row.getAttribute('data-fade-start')).toBe('true');
+    expect(row.getAttribute('data-fade-end')).toBe('false');
   });
 });

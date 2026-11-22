@@ -29,5 +29,6 @@ export const casinoRoutes: Partial<Record<ScreenId, ComponentType>> = {
   roulette: route(() => import('./RouletteScreen.tsx')),
   pachinko: route(() => import('./PachinkoScreen.tsx')),
   blackjack: route(() => import('./BlackjackScreen.tsx')),
+  daily: route(() => import('./DailyScreen.tsx')),
   history: route(() => import('./HistoryScreen.tsx')),
 };

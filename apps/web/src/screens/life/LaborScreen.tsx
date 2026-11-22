@@ -197,18 +197,19 @@ function Dig({
             </ul>
           </div>
         ) : null}
+        <Progress
+          label={t('screen.life.work.dayCap', { done: view.dayClicks, cap: view.dayCap })}
+          value={Math.min(view.dayClicks, view.dayCap)}
+          max={view.dayCap}
+          valueLabel=""
+          variant={view.dayClicks >= view.dayCap ? 'success' : 'primary'}
+        />
+        <p className="life__note">
+          {t('screen.life.work.terrain', {
+            terrain: t(`screen.life.work.terrain.${view.terrain}`),
+          })}
+        </p>
       </Card>
-      <Progress
-        label={t('screen.life.work.dayCap', { done: view.dayClicks, cap: view.dayCap })}
-        value={Math.min(view.dayClicks, view.dayCap)}
-        max={view.dayCap}
-        valueLabel=""
-
-        variant={view.dayClicks >= view.dayCap ? 'success' : 'primary'}
-      />
-      <p className="life__note">
-        {t('screen.life.work.terrain', { terrain: t(`screen.life.work.terrain.${view.terrain}`) })}
-      </p>
       <ul className="life__list">
         {(['pick', 'glove'] as const).map((tool) => {
           const cost = view.upgrade[tool];
@@ -515,17 +516,24 @@ function Ranking() {
   );
 }
 
-export default function LaborScreen() {
+/** The labor screen; the relics route opens the same view on its relics tab. */
+export function LaborView({
+  screen = 'work',
+  initialTab = 'dig',
+}: {
+  screen?: 'work' | 'relics';
+  initialTab?: 'dig' | 'crew' | 'relics' | 'ranking';
+}) {
   const t = useT();
   const api = useLifeApi();
   const state = useLoad(() => api.work(), 30_000);
   return (
-    <LifeFrame screen="work" icon="pickaxe">
+    <LifeFrame screen={screen} icon="pickaxe">
       <Await state={state}>
         {(v) => (
           <Tabs
             label={t('screen.life.work.title')}
-            defaultActiveId="dig"
+            defaultActiveId={initialTab}
             tabs={[
               {
                 id: 'dig',
@@ -549,4 +557,8 @@ export default function LaborScreen() {
       </Await>
     </LifeFrame>
   );
+}
+
+export default function LaborScreen() {
+  return <LaborView />;
 }

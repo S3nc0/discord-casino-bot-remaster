@@ -1,6 +1,8 @@
 // @vitest-environment happy-dom
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { HOME_TILES, HomeScreen } from './HomeScreen.tsx';
+import { SCREEN_IDS } from '@casino/shared';
+import { HOME_SECTIONS, HomeScreen } from './HomeScreen.tsx';
+import { NAV_SCREENS } from './NavigationBar.tsx';
 import { useBalanceStore } from './stores/balance.ts';
 import { useNavStore } from './stores/nav.ts';
 import { useSettingsStore } from './stores/settings.ts';
@@ -33,16 +35,24 @@ describe('Home', () => {
     expect(show().container.querySelector('.home__amount')!.textContent).toBe('—');
   });
 
-  it('shows four game tiles, each a labelled button with a pixel icon', () => {
+  it('shows the game tiles first, each a labelled button with a pixel icon', () => {
     const view = show();
-    const tiles = [...view.container.querySelectorAll<HTMLButtonElement>('.home__tiles button')];
-    expect(tiles.map((t) => t.textContent)).toEqual([
+    const tiles = [
+      ...view.container.querySelectorAll<HTMLButtonElement>('.home__games:first-of-type button'),
+    ];
+    const games = [
       'Chinchiro',
       'Slots',
       'Blackjack',
+      'Roulette',
+      'Pachinko',
       'Horse racing',
-    ]);
-    for (const tile of tiles) {
+      'Arena',
+    ];
+    const first = view.container.querySelector('.home__games')!;
+    expect([...first.querySelectorAll('button')].map((t) => t.textContent)).toEqual(games);
+    expect(tiles.length).toBeGreaterThan(0);
+    for (const tile of view.container.querySelectorAll<HTMLButtonElement>('.home__tiles button')) {
       expect(tile.className).toContain('bb-game');
       expect(tile.querySelector('svg.bb-px[viewBox="0 0 16 16"]')).not.toBeNull();
     }
@@ -51,9 +61,14 @@ describe('Home', () => {
   it('opens the game a tile names', () => {
     const view = show();
     const tiles = view.container.querySelectorAll<HTMLButtonElement>('.home__tiles button');
-    expect(tiles).toHaveLength(HOME_TILES.length);
     act(() => tiles[1]!.click());
     expect(useNavStore.getState().screen).toBe('slots');
+  });
+
+  it('reaches every screen from Home or the navigation bar, nothing only by a deep link', () => {
+    const onHome = new Set(HOME_SECTIONS.flatMap((section) => section.tiles.map((t) => t.screen)));
+    const reachable = new Set<string>([...onHome, ...NAV_SCREENS, 'home']);
+    expect(SCREEN_IDS.filter((id) => !reachable.has(id))).toEqual([]);
   });
 
   it('follows the language setting', () => {

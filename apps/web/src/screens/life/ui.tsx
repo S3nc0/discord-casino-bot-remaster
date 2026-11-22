@@ -1,15 +1,25 @@
 import type { ReactNode } from 'react';
-import { Banner, Button, Chip, ChipGroup, GameIcon, type GameIconName } from '@casino/ui';
+import {
+  Banner,
+  Button,
+  Chip,
+  ChipGroup,
+  GameIcon,
+  ScrollFade,
+  type GameIconName,
+} from '@casino/ui';
 import type { ScreenId } from '@casino/shared';
 import { screenName, useLocale, useT } from '../../shell/i18n.ts';
 import { useNavStore } from '../../shell/stores/nav.ts';
 import { errorMessage, type Loaded } from './hooks.ts';
 import './life.css';
 
-/** The eight life screens, reachable from one another. */
+/** The life screens, reachable from one another. */
 export const LIFE_SCREENS: ReadonlyArray<{ id: ScreenId; icon: GameIconName }> = [
   { id: 'work', icon: 'pickaxe' },
+  { id: 'relics', icon: 'gem' },
   { id: 'shop', icon: 'coin' },
+  { id: 'inventory', icon: 'gem' },
   { id: 'missions', icon: 'sword' },
   { id: 'ranking', icon: 'stocks' },
   { id: 'transfer', icon: 'coin' },
@@ -23,13 +33,15 @@ export function LifeNav({ current }: { current: ScreenId }) {
   const locale = useLocale();
   const go = useNavStore((s) => s.go);
   return (
-    <ChipGroup label={t('screen.life.nav')} className="life__nav">
-      {LIFE_SCREENS.map(({ id }) => (
-        <Chip key={id} selected={id === current} onClick={() => go(id)}>
-          {screenName(locale, id)}
-        </Chip>
-      ))}
-    </ChipGroup>
+    <ScrollFade className="life__nav" revealSelector='[aria-pressed="true"]'>
+      <ChipGroup label={t('screen.life.nav')}>
+        {LIFE_SCREENS.map(({ id }) => (
+          <Chip key={id} selected={id === current} onClick={() => go(id)}>
+            {screenName(locale, id)}
+          </Chip>
+        ))}
+      </ChipGroup>
+    </ScrollFade>
   );
 }
 
