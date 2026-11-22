@@ -1,0 +1,183 @@
+// @vitest-environment happy-dom
+import { readdirSync, readFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { dictionaries } from '@casino/shared/i18n';
+import type { HorseApi } from './api.ts';
+import { ArenaScreen } from './ArenaScreen.tsx';
+import { HorseApiProvider } from './context.tsx';
+import { createMockHorseApi } from './mock.ts';
+import { useBalanceStore } from '../../shell/stores/balance.ts';
+import { useSettingsStore } from '../../shell/stores/settings.ts';
+import { resetStores } from '../../shell/testing/fakes.ts';
+import { act, render, type Rendered } from '../../shell/testing/render.tsx';
+import { screenRoutes } from '../routes.tsx';
+
+let mounted: Rendered | null = null;
+beforeEach(() => {
+  resetStores();
+  useBalanceStore.getState().set(12_400);
+});
+afterEach(() => {
+  mounted?.unmount();
+  mounted = null;
+});
+
+async function settle(times = 6): Promise<void> {
+  for (let i = 0; i < times; i++) {
+    await act(async () => {
+      await Promise.resolve();
+    });
+  }
+}
+
+async function show(
+  api: HorseApi = createMockHorseApi({ now: () => 1_800_000_000_000, balance: 12_400 }),
+) {
+  mounted = render(
+    <HorseApiProvider api={api}>
+      <ArenaScreen />
+    </HorseApiProvider>,
+  );
+  await settle();
+  return mounted;
+}
+
+const $$ = (root: ParentNode, selector: string) => [
+  ...root.querySelectorAll<HTMLElement>(selector),
+];
+const button = (root: ParentNode, label: RegExp | string) =>
+  $$(root, 'button').find((b) =>
+    typeof label === 'string' ? b.textContent?.trim() === label : label.test(b.textContent ?? ''),
+  )!;
+const click = async (el: HTMLElement | undefined) => {
+  expect(el, 'element to click').toBeDefined();
+  act(() => el!.click());
+  await settle();
+};
+const type = async (input: HTMLInputElement, value: string) => {
+  const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!;
+  act(() => {
+    setter.call(input, value);
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+  });
+  await settle();
+};
+
+describe('arena screen', () => {
+  it('shows both formats as tabs and the open stage of the duel', async () => {
+    const view = await show();
+    expect($$(view.container, '[role="tab"]').map((t) => t.textContent)).toEqual([
+      '🥊 1-on-1',
+      '⚔️ Battle royale',
+    ]);
+    expect(view.container.textContent).toContain('Final · betting open');
+    expect(view.container.textContent).toContain('Odds are not locked');
+    const fighters = $$(view.container, '.hr-fighter');
+    expect(fighters).toHaveLength(2 + 4);
+    expect(view.container.textContent).toContain('Finalist');
+    expect(view.container.textContent).toContain('Out');
+    expect(view.container.textContent).toContain('Power');
+    expect(view.container.textContent).toContain('Weapon +');
+    expect($$(view.container, '.hr-fighter').some((f) => f.textContent?.includes('Win ×'))).toBe(
+      true,
+    );
+  });
+
+  it('lists the 16 royale fighters in four groups', async () => {
+    const view = await show();
+    await click($$(view.container, '[role="tab"]')[1]);
+    expect($$(view.container, '.hr-group')).toHaveLength(4);
+    expect($$(view.container, '.hr-fighter')).toHaveLength(16);
+    expect(view.container.textContent).toContain('Semifinals · betting open');
+    expect(view.container.textContent).toContain('The finalists are decided');
+  });
+
+  it('bets on a fighter inside the limits, once, and shows the stake and the new balance', async () => {
+    const calls: { key: string; amount: number; fighterId: number }[] = [];
+    const real = createMockHorseApi({ now: () => 1_800_000_000_000, balance: 12_400 });
+    const api: HorseApi = {
+      ...real,
+      arenaBet: (intent, key) => {
+        calls.push({ key, amount: intent.amount, fighterId: intent.fighterId });
+        return real.arenaBet(intent, key);
+      },
+    };
+    const view = await show(api);
+    await click(button(view.container, /^Bet on /));
+    const dialog = document.body.querySelector<HTMLElement>('[role="dialog"]')!;
+    const confirm = button(dialog, 'Place bet') as HTMLButtonElement;
+    const input = dialog.querySelector<HTMLInputElement>('input')!;
+    await type(input, '50');
+    expect(confirm.disabled).toBe(true);
+    await type(input, '30000');
+    expect(confirm.disabled).toBe(true);
+    await type(input, '1000');
+    expect(confirm.disabled).toBe(false);
+    await click(confirm);
+    expect(calls).toHaveLength(1);
+    expect(calls[0]!.amount).toBe(1000);
+    expect(useBalanceStore.getState().balance).toBe(11_400);
+    expect(view.container.textContent).toContain('Your stake 1,000');
+    expect(view.container.textContent).toContain('Your bets');
+  });
+
+  it('follows the language setting', async () => {
+    useSettingsStore.getState().update({ language: 'ja' });
+    const view = await show();
+    expect(view.container.querySelector('h1')!.textContent).toBe('地下闘技場');
+    expect(view.container.textContent).toContain('決勝・受付中');
+    expect(view.container.textContent).toContain('決勝進出');
+    expect(view.container.textContent).toContain('単勝');
+  });
+
+  it('is registered as the arena and horse screens, loaded on demand', () => {
+    expect(typeof screenRoutes.arena).toBe('function');
+    expect(typeof screenRoutes.horse).toBe('function');
+  });
+});
+
+describe('screen.horse strings', () => {
+  const dir = dirname(fileURLToPath(import.meta.url));
+  const used = new Set<string>();
+  for (const file of readdirSync(dir)) {
+    if (!/\.(ts|tsx)$/.test(file) || file.includes('.test.')) continue;
+    const source = readFileSync(join(dir, file), 'utf8');
+    for (const m of source.matchAll(/'(screen\.horse\.[A-Za-z0-9_.-]+)'/g)) used.add(m[1]!);
+  }
+
+  it('every literal key the screens use exists in English and Japanese', () => {
+    expect(used.size).toBeGreaterThan(80);
+    for (const key of used) {
+      expect(dictionaries.en, key).toHaveProperty([key]);
+      expect(dictionaries.ja, key).toHaveProperty([key]);
+    }
+  });
+
+  it('has a text for every dynamic key family', () => {
+    const families: [string, readonly (string | number)[]][] = [
+      ['phase', ['upcoming', 'entry_open', 'entry_closed', 'betting', 'bet_closed', 'done']],
+      ['going', ['良', '稍重', '重', '不良']],
+      ['form', [1, 0, -1]],
+      ['stat', ['speed', 'stamina', 'power', 'guts']],
+      ['style', ['nige', 'senko', 'sashi', 'oikomi', 'auto']],
+      ['bet.kind', ['win', 'place', 'quinella', 'wide', 'exacta', 'trio', 'trifecta']],
+      ['bet.hint', ['win', 'place', 'quinella', 'wide', 'exacta', 'trio', 'trifecta']],
+      ['coat', [0, 1, 2, 3, 4, 5, 6, 7]],
+      ['silks', [0, 1, 2, 3, 4, 5, 6, 7, 8]],
+      ['arena.format', ['duel', 'royale']],
+      ['arena.status', ['semi_betting', 'final_betting', 'done']],
+      ['arena.state', ['champion', 'finalist', 'out']],
+    ];
+    for (const [family, names] of families)
+      for (const name of names) {
+        expect(dictionaries.en, `${family}.${name}`).toHaveProperty([
+          `screen.horse.${family}.${name}`,
+        ]);
+        expect(dictionaries.ja, `${family}.${name}`).toHaveProperty([
+          `screen.horse.${family}.${name}`,
+        ]);
+      }
+  });
+});

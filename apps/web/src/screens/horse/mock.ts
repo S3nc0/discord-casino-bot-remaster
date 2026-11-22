@@ -194,7 +194,8 @@ export function createMockHorseApi(
 ): HorseApi {
   const now = options.now ?? (() => Date.now());
   const t0 = now();
-  let balance = options.balance ?? 12_400;
+  // Enough for a breeding (15,000); the shell's mock balance only shows until the first write.
+  let balance = options.balance ?? 42_400;
   const items = { voucher: 1, carrot: 2, goldCarrot: 1 };
   let nextId = 4;
   let nextTicket = 1;
