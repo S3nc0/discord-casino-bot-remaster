@@ -14,7 +14,7 @@ import { formatPelica } from '@casino/shared/i18n';
 import type { ArenaFighter, ArenaToday, ArenaTournament } from '@casino/shared';
 import { useLocale, useT } from '../../shell/i18n.ts';
 import { newKey } from './api.ts';
-import { useHorseApi } from './context.ts';
+import { useHorseApi } from './context.tsx';
 import { formatClock, formatNumber, formatOddsHundredths } from './format.ts';
 import { applyBalance, useResource, useRunner } from './hooks.ts';
 import { ErrorNote, LoadFailed, Loading } from './parts.tsx';

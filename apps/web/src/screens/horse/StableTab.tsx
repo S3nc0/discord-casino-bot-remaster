@@ -13,7 +13,7 @@ import {
 import { formatPelica } from '@casino/shared/i18n';
 import { useLocale, useT } from '../../shell/i18n.ts';
 import { newKey } from './api.ts';
-import { useHorseApi } from './context.ts';
+import { useHorseApi } from './context.tsx';
 import { coatIndex, formatNumber, silksIndex } from './format.ts';
 import { applyBalance, useRunner } from './hooks.ts';
 import { ErrorNote, SilksDot, StatBars } from './parts.tsx';
@@ -138,11 +138,6 @@ function HorseCard({
     <Card
       variant="filled"
       className="hr-horsecard"
-      media={
-        <div className="hr-horsecard__art">
-          <PixelHorse coat={h.coat} silks={h.silks} />
-        </div>
-      }
       title={
         <>
           {h.name}
@@ -170,6 +165,9 @@ function HorseCard({
         </>
       }
     >
+      <div className="hr-horsecard__art">
+        <PixelHorse coat={h.coat} silks={h.silks} />
+      </div>
       <p>
         {t('screen.horse.runner.record', { races: h.races, wins: h.wins, places: h.places })} ·{' '}
         {t('screen.horse.horse.style')}: {t(`screen.horse.style.${h.style ?? 'auto'}`)}

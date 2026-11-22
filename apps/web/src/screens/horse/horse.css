@@ -95,6 +95,11 @@
   gap: var(--space-3);
 }
 
+/* the tab panel sits under the tab strip: give it air */
+.hr-screen [role='tabpanel'] {
+  padding-top: var(--space-4);
+}
+
 .hr-section__head {
   display: flex;
   align-items: baseline;
@@ -178,7 +183,6 @@
   height: 1.75rem;
   background: var(--secondary-container);
   color: var(--on-secondary-container);
-  font-family: var(--font-display);
   font-weight: 700;
 }
 
@@ -311,7 +315,7 @@
 
 .hr-placing__no {
   min-width: 2.5rem;
-  font-family: var(--font-display);
+  font-size: 1.125rem;
   font-weight: 700;
   color: var(--tertiary);
 }
@@ -360,7 +364,6 @@
 .hr-lane__no {
   grid-row: 1 / span 2;
   text-align: center;
-  font-family: var(--font-display);
   font-weight: 700;
 }
 
@@ -513,6 +516,7 @@
   display: grid;
   place-items: center;
   padding: var(--space-3);
+  margin-bottom: var(--space-3);
   background: var(--surface-container-high);
 }
 
@@ -616,6 +620,7 @@
 
 .hr-fighter__main {
   display: grid;
+  justify-items: start;
   gap: var(--space-1);
   min-width: 0;
   flex: 1 1 12rem;

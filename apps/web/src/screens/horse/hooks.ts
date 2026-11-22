@@ -46,7 +46,6 @@ export function useResource<T>(load: () => Promise<T>, deps: readonly unknown[])
     return () => {
       alive.current = false;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, deps);
 
   return { ...state, reload: run };
@@ -61,7 +60,7 @@ export function useServerNow(serverNow: number | null | undefined, intervalMs = 
   const lastSeen = useRef<number | null | undefined>(undefined);
   if (serverNow !== lastSeen.current) {
     lastSeen.current = serverNow;
-    skew.current = serverNow == null ? 0 : serverNow - Date.now();
+    skew.current = serverNow === null || serverNow === undefined ? 0 : serverNow - Date.now();
   }
   const [, setTick] = useState(0);
   useEffect(() => {
@@ -163,13 +162,11 @@ export function useRunner(): Runner {
       try {
         const result = await fn();
         if (done)
-          useToastStore
-            .getState()
-            .push({
-              tone: 'success',
-              messageKey: done,
-              ...(doneParams ? { params: doneParams } : {}),
-            });
+          useToastStore.getState().push({
+            tone: 'success',
+            messageKey: done,
+            ...(doneParams ? { params: doneParams } : {}),
+          });
         return result;
       } catch (caught) {
         if (alive.current) setError(caught);

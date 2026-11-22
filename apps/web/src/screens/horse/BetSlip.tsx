@@ -11,7 +11,7 @@ import {
 import { formatPelica } from '@casino/shared/i18n';
 import { useLocale, useT } from '../../shell/i18n.ts';
 import { newKey } from './api.ts';
-import { useHorseApi } from './context.ts';
+import { useHorseApi } from './context.tsx';
 import { formatNumber, formatOdds, isOrderedKind } from './format.ts';
 import { applyBalance, useRunner } from './hooks.ts';
 import { ErrorNote, SilksDot } from './parts.tsx';
@@ -126,6 +126,9 @@ export function BetSlip({ detail, rules, onBought }: BetSlipProps) {
             >
               {isOrderedKind(kind) && index >= 0 ? `${index + 1}. ` : ''}
               {r.lane} {r.name}
+              {multi && detail.odds[kind]?.[String(r.lane)] !== undefined
+                ? ` ×${formatOdds(detail.odds[kind]?.[String(r.lane)] as number)}`
+                : ''}
             </Chip>
           );
         })}

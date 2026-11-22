@@ -3,7 +3,7 @@ import type { HorseRaceSummary, RacePhase } from '@casino/shared';
 import { useLocale, useT } from '../../shell/i18n.ts';
 import { useDomainEvents, useResource, useServerNow } from './hooks.ts';
 import { useEffect } from 'react';
-import { useHorseApi } from './context.ts';
+import { useHorseApi } from './context.tsx';
 import { formatClock, formatCountdown, formatNumber } from './format.ts';
 import { Loading, LoadFailed } from './parts.tsx';
 
@@ -104,7 +104,8 @@ export function RaceCardTab({ onOpen }: { onOpen: (id: number, num: number) => v
               title={<RaceTitle num={i + 1} race={race} />}
               meta={
                 <>
-                  {t('screen.horse.race.start', { time: formatClock(locale, race.startAt) })}{' '}
+                  {t('screen.horse.race.start', { time: formatClock(locale, race.startAt) })}
+                  {race.track ? ' · ' : ''}
                   <RaceTrackLine race={race} />
                 </>
               }

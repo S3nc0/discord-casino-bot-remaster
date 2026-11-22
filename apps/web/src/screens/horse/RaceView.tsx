@@ -5,7 +5,7 @@ import type { HorseStable, HorseTimeline } from '@casino/shared';
 import { useLocale, useT } from '../../shell/i18n.ts';
 import { newKey } from './api.ts';
 import { BetSlip } from './BetSlip.tsx';
-import { useHorseApi } from './context.ts';
+import { useHorseApi } from './context.tsx';
 import { formatCountdown, formatNumber, formatOdds, formatPicks } from './format.ts';
 import { applyBalance, useDomainEvents, useResource, useRunner, useServerNow } from './hooks.ts';
 import { ErrorNote, LoadFailed, Loading, Section, SilksDot, StatCells } from './parts.tsx';
@@ -41,6 +41,7 @@ export function RaceView({ raceId, num, stable, onStableChange, onBack }: RaceVi
   const [reduced, setReduced] = useState(false);
   const { reload } = detail;
   const celebrated = useRef(false);
+  const liveRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     const timer = setInterval(() => void reload(), POLL_MS);
@@ -67,6 +68,17 @@ export function RaceView({ raceId, num, stable, onStableChange, onBack }: RaceVi
       void reload().then(() => watch());
     }
   });
+
+  useEffect(() => {
+    // Bring the track into view when a race starts (a replay is started from the result list).
+    const el = liveRef.current;
+    const scroller = el?.closest('.app__screen');
+    if (el && scroller) {
+      // Scroll the screen's own container, never the page behind the shell.
+      scroller.scrollTop +=
+        el.getBoundingClientRect().top - scroller.getBoundingClientRect().top - 8;
+    }
+  }, [timeline]);
 
   useEffect(() => {
     if (!playing || !timeline) return;
@@ -142,12 +154,13 @@ export function RaceView({ raceId, num, stable, onStableChange, onBack }: RaceVi
         title={<RaceTitle num={num} race={race} />}
         meta={
           <>
-            <RaceTrackLine race={race} />{' '}
             {t('screen.horse.race.start', {
               time: new Intl.DateTimeFormat(locale, { hour: '2-digit', minute: '2-digit' }).format(
                 race.startAt,
               ),
             })}
+            {race.track ? ' · ' : ''}
+            <RaceTrackLine race={race} />
           </>
         }
       >
@@ -162,18 +175,60 @@ export function RaceView({ raceId, num, stable, onStableChange, onBack }: RaceVi
       </Card>
 
       {timeline ? (
-        <Section title={t('screen.horse.live.title')} id="hr-live">
-          <RaceTrack timeline={timeline} tick={tick} playing={playing} coats={coats} />
-          {reduced ? <p className="hr-muted">{t('screen.horse.live.reduced')}</p> : null}
-          {playing ? (
-            <Button
-              variant="outlined"
-              onClick={() => {
-                setPlaying(false);
-                setTick(timeline.frames.length);
-              }}
-            >
-              {t('screen.horse.live.skip')}
+        <div ref={liveRef}>
+          <Section title={t('screen.horse.live.title')} id="hr-live">
+            <RaceTrack timeline={timeline} tick={tick} playing={playing} coats={coats} />
+            {reduced ? <p className="hr-muted">{t('screen.horse.live.reduced')}</p> : null}
+            {playing ? (
+              <Button
+                variant="outlined"
+                onClick={() => {
+                  setPlaying(false);
+                  setTick(timeline.frames.length);
+                }}
+              >
+                {t('screen.horse.live.skip')}
+              </Button>
+            ) : null}
+          </Section>
+        </div>
+      ) : null}
+
+      {done && race.placings ? (
+        <Section title={t('screen.horse.result.title')} id="hr-result">
+          <ol className="hr-placings">
+            {race.placings.map((lane, i) => {
+              const r = runners.find((x) => x.lane === lane);
+              if (!r) return null;
+              return (
+                <li key={lane} className={`hr-placing${r.mine ? ' is-mine' : ''}`}>
+                  <span className="hr-placing__no">
+                    {t('screen.horse.result.place', { n: i + 1 })}
+                  </span>
+                  <SilksDot silks={r.silks} />
+                  <span className="hr-placing__name">{r.name}</span>
+                  <span className="hr-muted">{r.lane}</span>
+                </li>
+              );
+            })}
+          </ol>
+          {runners.some((r) => r.mine) ? (
+            <p className={prize > 0 ? 'hr-ok' : 'hr-muted'}>
+              {prize > 0
+                ? t('screen.horse.result.prize', { amount: formatPelica(locale, prize) })
+                : t('screen.horse.result.noPrize')}
+            </p>
+          ) : null}
+          {tickets.length > 0 ? (
+            <p className={payout > 0 ? 'hr-ok' : 'hr-muted'}>
+              {payout > 0
+                ? t('screen.horse.result.payout', { amount: formatPelica(locale, payout) })
+                : t('screen.horse.result.missed')}
+            </p>
+          ) : null}
+          {detail.data.hasTimeline ? (
+            <Button variant="tonal" onClick={() => void watch()}>
+              {timeline ? t('screen.horse.live.replay') : t('screen.horse.live.watch')}
             </Button>
           ) : null}
         </Section>
@@ -218,6 +273,50 @@ export function RaceView({ raceId, num, stable, onStableChange, onBack }: RaceVi
             </>
           )}
           <ErrorNote error={entry.error} rules={rules} />
+        </Section>
+      ) : null}
+
+      {phase === 'betting' ? (
+        <Section title={t('screen.horse.bet.title')} id="hr-bet">
+          <BetSlip detail={detail.data} rules={rules} onBought={() => void reload()} />
+        </Section>
+      ) : phase === 'entry_open' || phase === 'upcoming' || phase === 'entry_closed' ? (
+        <p className="hr-muted">{t('screen.horse.bet.later')}</p>
+      ) : phase === 'bet_closed' ? (
+        <p className="hr-muted">{t('screen.horse.bet.closed')}</p>
+      ) : null}
+
+      {tickets.length > 0 || stake > 0 ? (
+        <Section title={t('screen.horse.tickets.title')} id="hr-tickets">
+          <ul className="hr-tickets">
+            {tickets.map((ticket) => (
+              <li key={ticket.id} className="hr-ticket">
+                <span>
+                  <strong>{t(`screen.horse.bet.kind.${ticket.kind}`)}</strong>{' '}
+                  {formatPicks(ticket.key)}
+                </span>
+                <span className="hr-muted">
+                  {t('screen.horse.ticket.detail', {
+                    stake: formatNumber(locale, ticket.stake),
+                    odds: formatOdds(ticket.oddsTenths),
+                  })}
+                </span>
+                <span className="hr-ticket__state">
+                  {ticket.payout === null ? (
+                    <Tag hue="neutral">{t('screen.horse.ticket.pending')}</Tag>
+                  ) : ticket.payout > 0 ? (
+                    <Tag hue="green" solid>
+                      {t('screen.horse.ticket.payout', {
+                        amount: formatNumber(locale, ticket.payout),
+                      })}
+                    </Tag>
+                  ) : (
+                    <Tag hue="red">{t('screen.horse.ticket.lost')}</Tag>
+                  )}
+                </span>
+              </li>
+            ))}
+          </ul>
         </Section>
       ) : null}
 
@@ -269,90 +368,6 @@ export function RaceView({ raceId, num, stable, onStableChange, onBack }: RaceVi
         </ul>
         <p className="hr-muted">{t('screen.horse.formLegend')}</p>
       </Section>
-
-      {phase === 'betting' ? (
-        <Section title={t('screen.horse.bet.title')} id="hr-bet">
-          <BetSlip detail={detail.data} rules={rules} onBought={() => void reload()} />
-        </Section>
-      ) : phase === 'entry_open' || phase === 'upcoming' || phase === 'entry_closed' ? (
-        <p className="hr-muted">{t('screen.horse.bet.later')}</p>
-      ) : phase === 'bet_closed' ? (
-        <p className="hr-muted">{t('screen.horse.bet.closed')}</p>
-      ) : null}
-
-      {tickets.length > 0 || stake > 0 ? (
-        <Section title={t('screen.horse.tickets.title')} id="hr-tickets">
-          <ul className="hr-tickets">
-            {tickets.map((ticket) => (
-              <li key={ticket.id} className="hr-ticket">
-                <span>
-                  <strong>{t(`screen.horse.bet.kind.${ticket.kind}`)}</strong>{' '}
-                  {formatPicks(ticket.key)}
-                </span>
-                <span className="hr-muted">
-                  {t('screen.horse.ticket.detail', {
-                    stake: formatNumber(locale, ticket.stake),
-                    odds: formatOdds(ticket.oddsTenths),
-                  })}
-                </span>
-                <span className="hr-ticket__state">
-                  {ticket.payout === null ? (
-                    <Tag hue="neutral">{t('screen.horse.ticket.pending')}</Tag>
-                  ) : ticket.payout > 0 ? (
-                    <Tag hue="green" solid>
-                      {t('screen.horse.ticket.payout', {
-                        amount: formatNumber(locale, ticket.payout),
-                      })}
-                    </Tag>
-                  ) : (
-                    <Tag hue="red">{t('screen.horse.ticket.lost')}</Tag>
-                  )}
-                </span>
-              </li>
-            ))}
-          </ul>
-        </Section>
-      ) : null}
-
-      {done && race.placings ? (
-        <Section title={t('screen.horse.result.title')} id="hr-result">
-          <ol className="hr-placings">
-            {race.placings.map((lane, i) => {
-              const r = runners.find((x) => x.lane === lane);
-              if (!r) return null;
-              return (
-                <li key={lane} className={`hr-placing${r.mine ? ' is-mine' : ''}`}>
-                  <span className="hr-placing__no">
-                    {t('screen.horse.result.place', { n: i + 1 })}
-                  </span>
-                  <SilksDot silks={r.silks} />
-                  <span className="hr-placing__name">{r.name}</span>
-                  <span className="hr-muted">{r.lane}</span>
-                </li>
-              );
-            })}
-          </ol>
-          {runners.some((r) => r.mine) ? (
-            <p className={prize > 0 ? 'hr-ok' : 'hr-muted'}>
-              {prize > 0
-                ? t('screen.horse.result.prize', { amount: formatPelica(locale, prize) })
-                : t('screen.horse.result.noPrize')}
-            </p>
-          ) : null}
-          {tickets.length > 0 ? (
-            <p className={payout > 0 ? 'hr-ok' : 'hr-muted'}>
-              {payout > 0
-                ? t('screen.horse.result.payout', { amount: formatPelica(locale, payout) })
-                : t('screen.horse.result.missed')}
-            </p>
-          ) : null}
-          {detail.data.hasTimeline ? (
-            <Button variant="tonal" onClick={() => void watch()}>
-              {timeline ? t('screen.horse.live.replay') : t('screen.horse.live.watch')}
-            </Button>
-          ) : null}
-        </Section>
-      ) : null}
     </div>
   );
 }

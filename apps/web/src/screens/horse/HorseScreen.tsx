@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { GameIcon, Tabs } from '@casino/ui';
 import { useT } from '../../shell/i18n.ts';
 import { BreedTab } from './BreedTab.tsx';
-import { useHorseApi } from './context.ts';
+import { useHorseApi } from './context.tsx';
 import { useDomainEvents, useResource } from './hooks.ts';
 import { LoadFailed, Loading } from './parts.tsx';
 import { RaceCardTab } from './RaceCardTab.tsx';

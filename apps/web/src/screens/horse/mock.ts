@@ -48,7 +48,15 @@ function lcg(seed: number): () => number {
   };
 }
 
-const NPC_NAMES = ['帝愛一号', '帝愛二号', '帝愛三号', '帝愛四号', '帝愛五号', '帝愛六号'];
+const NPC_NAMES = [
+  '帝愛一号',
+  '帝愛二号',
+  '帝愛三号',
+  '帝愛四号',
+  '帝愛五号',
+  '帝愛六号',
+  '帝愛七号',
+];
 const NPC_EN = ['Teiai One', 'Teiai Two', 'Teiai Three', 'Teiai Four', 'Teiai Five', 'Teiai Six'];
 void NPC_EN;
 const SILKS_CYCLE = ['🟥', '🟧', '🟨', '🟩', '🟦', '🟪', '⬛', '⬜'];
@@ -473,8 +481,6 @@ export function createMockHorseApi(
       group: i < 2 ? 1 : 2,
     }));
     duelFighters.forEach((f) => (f.betTotal += arenaPool.get(f.id) ?? 0));
-    // the final: the group is the two finalists together
-    duelFighters.filter((f) => f.stage === 'final').forEach((f) => (f.group = 1));
     oddsFill(duelFighters, 1.3);
     const royale = fightersFor(2, 16, 4, 'semi');
     royale.forEach((f) => (f.betTotal += arenaPool.get(f.id) ?? 0));

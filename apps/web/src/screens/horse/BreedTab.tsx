@@ -4,7 +4,7 @@ import { HORSE_SILKS, type HorseInfo, type HorseStable } from '@casino/shared';
 import { formatPelica } from '@casino/shared/i18n';
 import { useLocale, useT, type Translate } from '../../shell/i18n.ts';
 import { newKey } from './api.ts';
-import { useHorseApi } from './context.ts';
+import { useHorseApi } from './context.tsx';
 import { formatClock, formatSpan } from './format.ts';
 import { applyBalance, useResource, useRunner, useServerNow } from './hooks.ts';
 import { ErrorNote, Loading, Section, SilksDot } from './parts.tsx';
@@ -57,7 +57,7 @@ export function BreedTab({ stable, onChange }: { stable: HorseStable; onChange: 
 
   useEffect(() => {
     if (a) setSilks(a.silks);
-  }, [a?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [a?.id]);
 
   const toggle = (id: number) => {
     sfx.play('click');
