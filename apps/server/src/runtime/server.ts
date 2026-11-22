@@ -133,7 +133,6 @@ export function createServer(options: CreateServerOptions): CasinoServices {
   const rng = options.rng ?? cryptoRng;
   const utcOffsetHours = config.utcOffsetHours;
   // The finance services are built first; bankruptcy liquidation reaches the shop through here.
-  const lazy: { games?: NonCasinoGames } = {};
   const finance = createFinanceServices(
     { store, economy, identity, clock, rng, bus, utcOffsetHours },
     {
@@ -157,6 +156,15 @@ export function createServer(options: CreateServerOptions): CasinoServices {
     trustProxy: options.trustProxy ?? false,
     exposeReasons: config.nodeEnv !== 'production',
     requireProxySignature: config.requireProxySignature,
+    activity: {
+      casino: {
+        store,
+        economy,
+        clock,
+        progression: () => (lazy.games as NonCasinoGames).progression,
+        core: () => (lazy.casino as CasinoGames).core,
+      },
+    },
     ...(options.rateLimits === undefined ? {} : { rateLimits: options.rateLimits }),
   });
 
@@ -191,6 +199,7 @@ export function createServer(options: CreateServerOptions): CasinoServices {
     ports: createCasinoPorts({ store, economy, teiai: finance.teiai, teiaiPort, shop: games.shop }),
     ...(options.casinoTimers === undefined ? {} : { scheduler: options.casinoTimers }),
   });
+  lazy.casino = casino;
   const stopGames = games.start();
 
   const sockets = attachSocketServer({
