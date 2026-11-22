@@ -49,6 +49,9 @@ export {
 } from './router.ts';
 export {
   EMBED_ROLE_COLORS,
+  EMBED_ROLE_HEX,
+  EMBED_ROLE_TOKENS,
+  EMBED_ROLES,
   botColor,
   embedColor,
   type EmbedRole,

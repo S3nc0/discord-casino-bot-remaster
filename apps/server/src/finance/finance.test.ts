@@ -926,3 +926,41 @@ describe('cross-system services, scheduled jobs, and guild isolation', () => {
     expect(services.loans.getLoan(loanId)!.status).toBe('discharged');
   });
 });
+
+describe('TeiaiService.repayWithheldDebt', () => {
+  it('shrinks debt without touching wallet balance, ends grace, and clears bankruptcy on zero', () => {
+    const { economy, services, seedBalance } = makeTestEnv(BASE_MS);
+    seedBalance(GUILD, U1, 5_000);
+
+    expect(services.teiai.repayWithheldDebt(GUILD, U1, 100)).toBe(0);
+    expect(services.teiai.repayWithheldDebt(GUILD, U1, 0)).toBe(0);
+
+    // Debt in grace: reducing below grace threshold (15,000) exits grace without debiting wallet.
+    services.teiai.addDebtFromExcess(GUILD, U1, 15_200, BASE_MS);
+    expect(services.teiai.isInGrace(GUILD, U1)).toBe(true);
+    const applied = services.teiai.repayWithheldDebt(GUILD, U1, 300, BASE_MS + MS_PER_MINUTE);
+    expect(applied).toBe(300);
+    expect(services.teiai.getDebt(GUILD, U1)).toBe(14_900);
+    expect(services.teiai.isInGrace(GUILD, U1)).toBe(false);
+    expect(economy.getBalance(GUILD, U1)).toBe(5_000);
+
+    // Bankrupt player: paying remaining debt via withholding clears bankruptcy and starts 7d blacklist.
+    seedBalance(GUILD, U2, 0);
+    services.teiai.addDebtFromExcess(GUILD, U2, 10_000, BASE_MS);
+    const bk = services.teiai.declareBankruptcy(GUILD, U2, { nowMs: BASE_MS });
+    expect(bk.ok).toBe(true);
+    expect(services.teiai.getStatus(GUILD, U2)).toBe('bankrupt');
+    const debtLeft = services.teiai.getDebt(GUILD, U2);
+    expect(debtLeft).toBeGreaterThan(0);
+
+    const exitAt = BASE_MS + MS_PER_HOUR;
+    const paidAll = services.teiai.repayWithheldDebt(GUILD, U2, debtLeft + 500, exitAt);
+    expect(paidAll).toBe(debtLeft);
+    expect(services.teiai.getDebt(GUILD, U2)).toBe(0);
+    expect(services.teiai.getStatus(GUILD, U2)).toBe('katagi');
+    expect(services.teiai.isBlacklistedFromP2pLoans(GUILD, U2, exitAt + MS_PER_DAY)).toBe(true);
+    expect(services.teiai.isBlacklistedFromP2pLoans(GUILD, U2, exitAt + 8 * MS_PER_DAY)).toBe(
+      false,
+    );
+  });
+});

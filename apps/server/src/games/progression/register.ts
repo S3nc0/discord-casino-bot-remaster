@@ -113,8 +113,8 @@ export function createNonCasinoGames(deps: NonCasinoDeps): NonCasinoGames {
         owe: (g, u, amount, why) => deps.teiai.addDebt(g, u, amount, why),
       },
       bank: {
-        lossShare: (g, amount) =>
-          deps.teiai.bankIncome(g, Math.floor((amount * 300) / 10_000), 'casino loss share'),
+        // The casino core already passes `SettleResult.bankShare` (3 % of the loss).
+        lossShare: (g, amount) => deps.teiai.bankIncome(g, amount, 'casino loss share'),
       },
     }),
   };

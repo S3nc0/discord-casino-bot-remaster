@@ -1,9 +1,12 @@
+import { slots } from '@casino/domain/casino';
 import { createSeededRng, manualClock, type DomainEvent } from '@casino/shared';
 import { describe, expect, it } from 'vitest';
 import { IdentityRepo } from '../../db/identity.ts';
 import { EconomyService } from '../../economy/economy-service.ts';
 import { EventBus } from '../../runtime/bus.ts';
+import { createLogger } from '../../runtime/logger.ts';
 import { GUILD, memoryStore, OTHER_USER, USER } from '../../runtime/test-kit.ts';
+import { createCasinoGames } from '../index.ts';
 import { createNonCasinoGames } from './register.ts';
 import { createMemoryTeiai } from './ports.ts';
 
@@ -684,7 +687,28 @@ describe('jobs', () => {
     h.teiai.setDebt(GUILD, USER, 1000);
     expect(ports.debt.withhold(GUILD, USER, 1000)).toBe(300);
     expect(h.teiai.debtOf(GUILD, USER)).toBe(700);
-    ports.bank.lossShare(GUILD, 10_000, 'slots');
+    ports.bank.lossShare(GUILD, 300, 'slots');
     expect(h.teiai.bankCash(GUILD)).toBe(300);
+  });
+
+  it('credits the bank 3 % once on a casino loss when wired via casinoPorts', () => {
+    const h = harness();
+    h.economy.ensureMember(GUILD, USER);
+    const casino = createCasinoGames({
+      store: h.store,
+      economy: h.economy,
+      bus: h.bus,
+      clock: h.clock,
+      rng: createSeededRng(7),
+      logger: createLogger({ level: 'silent' }),
+      ports: h.games.casinoPorts(),
+    });
+    const round = casino.core.begin(
+      { guildId: GUILD, userId: USER, source: 'chat' },
+      'slots',
+      1_000,
+    );
+    casino.core.settle(round, { payout: 0, profile: slots.SLOTS_PROFILE });
+    expect(h.teiai.bankCash(GUILD)).toBe(30);
   });
 });
