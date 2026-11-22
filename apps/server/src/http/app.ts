@@ -38,7 +38,9 @@ import {
   type ProxySignatureState,
 } from '../auth/proxy-policy.ts';
 import { REASONS } from '../auth/reasons.ts';
+import type { FinanceServices } from '../finance/index.ts';
 import { AppError } from '../runtime/errors.ts';
+import { registerFinanceRoutes } from './activity/finance.ts';
 import { RateLimiter } from '../runtime/rate-limit.ts';
 
 declare module 'fastify' {
@@ -76,6 +78,8 @@ export interface AppDeps {
   sessions: SessionService;
   tokenFlow: TokenFlow;
   launchIntents: LaunchIntentService;
+  /** Finance services; the Activity finance routes exist only when given. */
+  finance?: FinanceServices;
   /** null disables the check (development only). */
   proxyVerifier: ProxySignatureVerifier | null;
   rateLimits?: RateLimits;
@@ -331,6 +335,10 @@ export function buildApp(deps: AppDeps): FastifyInstance {
       if (!Value.Check(LaunchIntentConsumeRequest, body)) throw new AppError('invalid_payload');
       return { launchIntent: deps.launchIntents.consume(session.sub, session.gid) };
     });
+
+    // Activity slices register here, one line each.
+    if (deps.finance)
+      registerFinanceRoutes(authed, { ...deps, finance: deps.finance, session: sessionOf });
 
     done();
   });

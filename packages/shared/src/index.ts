@@ -17,3 +17,4 @@ export * from './clock.ts';
 export * from './config.ts';
 export * from './proxy.ts';
 export * from './activity/life.ts';
+export * from './activity/finance.ts';
