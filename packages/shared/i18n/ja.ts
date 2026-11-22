@@ -1810,4 +1810,10 @@ export const ja: Messages = {
   'screen.horse.err.generic': 'うまくいきませんでした。もう一度試してください。',
   'screen.horse.loadFailed': '画面を読み込めませんでした。',
   'screen.horse.retry': 'もう一度',
+  // Home sections, inventory (polish pass).
+  'home.life': 'くらし',
+  'home.money': 'お金',
+  'home.you': 'マイページ',
+  'screen.life.inventory.empty': 'まだ持ち物がありません。',
+  'screen.life.inventory.toShop': 'ショップへ',
 };

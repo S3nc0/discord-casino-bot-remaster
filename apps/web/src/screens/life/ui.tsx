@@ -14,10 +14,12 @@ import { useNavStore } from '../../shell/stores/nav.ts';
 import { errorMessage, type Loaded } from './hooks.ts';
 import './life.css';
 
-/** The eight life screens, reachable from one another. */
+/** The life screens, reachable from one another. */
 export const LIFE_SCREENS: ReadonlyArray<{ id: ScreenId; icon: GameIconName }> = [
   { id: 'work', icon: 'pickaxe' },
+  { id: 'relics', icon: 'gem' },
   { id: 'shop', icon: 'coin' },
+  { id: 'inventory', icon: 'gem' },
   { id: 'missions', icon: 'sword' },
   { id: 'ranking', icon: 'stocks' },
   { id: 'transfer', icon: 'coin' },

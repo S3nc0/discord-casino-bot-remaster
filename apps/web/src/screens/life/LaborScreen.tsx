@@ -516,17 +516,24 @@ function Ranking() {
   );
 }
 
-export default function LaborScreen() {
+/** The labor screen; the relics route opens the same view on its relics tab. */
+export function LaborView({
+  screen = 'work',
+  initialTab = 'dig',
+}: {
+  screen?: 'work' | 'relics';
+  initialTab?: 'dig' | 'crew' | 'relics' | 'ranking';
+}) {
   const t = useT();
   const api = useLifeApi();
   const state = useLoad(() => api.work(), 30_000);
   return (
-    <LifeFrame screen="work" icon="pickaxe">
+    <LifeFrame screen={screen} icon="pickaxe">
       <Await state={state}>
         {(v) => (
           <Tabs
             label={t('screen.life.work.title')}
-            defaultActiveId="dig"
+            defaultActiveId={initialTab}
             tabs={[
               {
                 id: 'dig',
@@ -550,4 +557,8 @@ export default function LaborScreen() {
       </Await>
     </LifeFrame>
   );
+}
+
+export default function LaborScreen() {
+  return <LaborView />;
 }

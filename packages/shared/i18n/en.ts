@@ -1824,6 +1824,12 @@ export const en = {
   'screen.horse.err.generic': 'That did not work. Try again.',
   'screen.horse.loadFailed': 'Could not load this screen.',
   'screen.horse.retry': 'Try again',
+  // Home sections, inventory (polish pass).
+  'home.life': 'Life',
+  'home.money': 'Money',
+  'home.you': 'You',
+  'screen.life.inventory.empty': 'You do not own anything yet.',
+  'screen.life.inventory.toShop': 'Go to the shop',
 } as const;
 
 export type MessageKey = keyof typeof en;

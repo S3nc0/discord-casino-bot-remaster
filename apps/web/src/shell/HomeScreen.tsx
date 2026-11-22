@@ -5,15 +5,68 @@ import { useBalanceStore } from './stores/balance.ts';
 import { useNavStore } from './stores/nav.ts';
 import { DailyBonus, FeaturedGame } from '../screens/casino/home.tsx';
 
-/** The four tiles on Home, each opening its game screen. */
-export const HOME_TILES: ReadonlyArray<{ screen: ScreenId; icon: GameIconName }> = [
-  { screen: 'chinchiro', icon: 'dice' },
-  { screen: 'slots', icon: 'slots' },
-  { screen: 'blackjack', icon: 'cards' },
-  { screen: 'horse', icon: 'horse' },
+type Tile = { screen: ScreenId; icon: GameIconName };
+
+/** Home is the way in to every screen: one section per area, each tile opening its screen. */
+export const HOME_SECTIONS: ReadonlyArray<{
+  id: 'games' | 'life' | 'money' | 'you';
+  titleKey: string;
+  tiles: readonly Tile[];
+}> = [
+  {
+    id: 'games',
+    titleKey: 'home.games',
+    tiles: [
+      { screen: 'chinchiro', icon: 'dice' },
+      { screen: 'slots', icon: 'slots' },
+      { screen: 'blackjack', icon: 'cards' },
+      { screen: 'roulette', icon: 'roulette' },
+      { screen: 'pachinko', icon: 'coin' },
+      { screen: 'horse', icon: 'horse' },
+      { screen: 'arena', icon: 'sword' },
+    ],
+  },
+  {
+    id: 'life',
+    titleKey: 'home.life',
+    tiles: [
+      { screen: 'work', icon: 'pickaxe' },
+      { screen: 'shop', icon: 'ticket' },
+      { screen: 'missions', icon: 'flame' },
+      { screen: 'ranking', icon: 'crown' },
+      { screen: 'transfer', icon: 'coin' },
+      { screen: 'quiz', icon: 'clover' },
+      { screen: 'lottery', icon: 'roulette' },
+      { screen: 'poll', icon: 'shield' },
+    ],
+  },
+  {
+    id: 'money',
+    titleKey: 'home.money',
+    tiles: [
+      { screen: 'market', icon: 'stocks' },
+      { screen: 'stocks', icon: 'stocks' },
+      { screen: 'crypto', icon: 'gem' },
+      { screen: 'bank', icon: 'coin' },
+      { screen: 'loans', icon: 'ticket' },
+      { screen: 'kyosai', icon: 'shield' },
+      { screen: 'companies', icon: 'crown' },
+    ],
+  },
+  {
+    id: 'you',
+    titleKey: 'home.you',
+    tiles: [
+      { screen: 'daily', icon: 'flame' },
+      { screen: 'inventory', icon: 'gem' },
+      { screen: 'relics', icon: 'pickaxe' },
+      { screen: 'history', icon: 'cards' },
+      { screen: 'profile', icon: 'clover' },
+    ],
+  },
 ];
 
-/** Balance hero under a pixel skyline, then the 4-up game tiles. */
+/** Balance hero under a pixel skyline, the daily bonus, then a grid of tiles per area. */
 export function HomeScreen() {
   const t = useT();
   const locale = useLocale();
@@ -39,24 +92,26 @@ export function HomeScreen() {
         </div>
       </Card>
       <DailyBonus />
-      <section className="home__games" aria-labelledby="home-games">
-        <h2 className="bb-eyebrow" id="home-games">
-          {t('home.games')}
-        </h2>
-        <div className="home__tiles">
-          {HOME_TILES.map(({ screen, icon }) => (
-            <button
-              key={screen}
-              type="button"
-              className="bb-card bb-game bb-state"
-              onClick={() => go(screen)}
-            >
-              <GameIcon name={icon} />
-              <span>{screenName(locale, screen)}</span>
-            </button>
-          ))}
-        </div>
-      </section>
+      {HOME_SECTIONS.map(({ id, titleKey, tiles }) => (
+        <section key={id} className="home__games" aria-labelledby={`home-${id}`}>
+          <h2 className="bb-eyebrow" id={`home-${id}`}>
+            {t(titleKey)}
+          </h2>
+          <div className="home__tiles">
+            {tiles.map(({ screen, icon }) => (
+              <button
+                key={screen}
+                type="button"
+                className="bb-card bb-game bb-state"
+                onClick={() => go(screen)}
+              >
+                <GameIcon name={icon} />
+                <span>{screenName(locale, screen)}</span>
+              </button>
+            ))}
+          </div>
+        </section>
+      ))}
       <FeaturedGame />
     </div>
   );
