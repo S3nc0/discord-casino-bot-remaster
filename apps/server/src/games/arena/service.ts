@@ -18,7 +18,7 @@ import {
 import { isoDate, localDayNumber, localHour } from '@casino/domain/progression';
 import { creditIncome, emit, GameRuleError, type GamesCtx } from '../progression/context.ts';
 
-interface FighterRow {
+export interface FighterRow {
   id: number;
   tournament_id: number;
   name: string;
@@ -29,7 +29,7 @@ interface FighterRow {
   bet_total: number;
 }
 
-interface TournamentRow {
+export interface TournamentRow {
   id: number;
   guild_id: string;
   day: string;
@@ -134,6 +134,36 @@ export class ArenaService {
       });
     }
     return { tournament: t, fighters: out };
+  }
+
+  /** Today's tournaments with their boards (fighters, open-stage odds). */
+  today(
+    guildId: string,
+  ): { tournament: TournamentRow; fighters: (FighterRow & { oddsHundredths: number })[] }[] {
+    const day = isoDate(localDayNumber(this.ctx.clock.now(), this.ctx.offsetHours));
+    const rows = this.ctx.store
+      .stmt('SELECT id FROM arena_tournaments WHERE guild_id = ? AND day = ? ORDER BY id')
+      .all(guildId, day) as { id: number }[];
+    return rows.map((r) => this.board(r.id));
+  }
+
+  /** A player's bets in one tournament. */
+  betsOf(
+    tournamentId: number,
+    userId: string,
+  ): { fighterId: number; stage: 'semi' | 'final'; amount: number; payout: number | null }[] {
+    return (
+      this.ctx.store
+        .stmt(
+          'SELECT fighter_id, stage, amount, payout FROM arena_bets WHERE tournament_id = ? AND user_id = ? ORDER BY id',
+        )
+        .all(tournamentId, userId) as {
+        fighter_id: number;
+        stage: 'semi' | 'final';
+        amount: number;
+        payout: number | null;
+      }[]
+    ).map((b) => ({ fighterId: b.fighter_id, stage: b.stage, amount: b.amount, payout: b.payout }));
   }
 
   bet(input: {

@@ -39,6 +39,7 @@ import {
 } from '../auth/proxy-policy.ts';
 import { REASONS } from '../auth/reasons.ts';
 import type { FinanceServices } from '../finance/index.ts';
+import { GameRuleError } from '../games/progression/context.ts';
 import { AppError } from '../runtime/errors.ts';
 import { registerFinanceRoutes } from './activity/finance.ts';
 import { registerActivityRoutes, type ActivityDeps } from './activity/index.ts';
@@ -106,8 +107,10 @@ function header(request: FastifyRequest, name: string): string | undefined {
 const routeOf = (request: FastifyRequest): string => request.url.split('?')[0] ?? '';
 
 function sendError(reply: FastifyReply, error: AppError, exposeReasons = false): FastifyReply {
-  const body: ApiError = {
+  const body: ApiError & { rule?: string; params?: Record<string, string | number> } = {
     error: error.code,
+    // A game rule that said no: the screen shows its own text for `rule`.
+    ...(error instanceof GameRuleError ? { rule: error.rule, params: error.params } : {}),
     ...(exposeReasons && error.authReason !== undefined ? { reason: error.authReason } : {}),
     ...(error.retryAfterMs === undefined ? {} : { retryAfterMs: error.retryAfterMs }),
   };
