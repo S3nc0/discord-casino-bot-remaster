@@ -133,6 +133,8 @@ export function createServer(options: CreateServerOptions): CasinoServices {
   const rng = options.rng ?? cryptoRng;
   const utcOffsetHours = config.utcOffsetHours;
   // The finance services are built first; bankruptcy liquidation reaches the shop through here.
+  // The casino Activity routes look the games up per request, so they use this too.
+  const lazy: { games?: NonCasinoGames; casino?: CasinoGames } = {};
   const finance = createFinanceServices(
     { store, economy, identity, clock, rng, bus, utcOffsetHours },
     {
