@@ -267,7 +267,10 @@ describe('shop', () => {
     server.store.db
       .prepare('INSERT INTO seized_items (guild_id, item_id, qty, listed_at) VALUES (?, ?, 1, ?)')
       .run(GUILD, 'carrot', now);
-    // The shop view plans the day's market once; the lots above are the black one and a seized one.
+    // Mark today's market as planned, so the shop view adds no random lots of its own.
+    server.store.db
+      .prepare('INSERT INTO teiai_market_days (guild_id, day) VALUES (?, ?)')
+      .run(GUILD, Math.floor(now / 86_400_000));
     const view = (await me.get(LIFE_ROUTES.shop)).json();
     const black = view.market.find((l: { black: boolean }) => l.black);
     expect(black).toMatchObject({ itemId: '?', price: 500 });
