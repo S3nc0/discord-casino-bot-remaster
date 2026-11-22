@@ -138,6 +138,68 @@ describe('Blackjack', () => {
     expect(client.actions.map((a) => a.action)).toEqual(['hit', 'double', 'stand']);
   });
 
+  describe('Teiai credit double', () => {
+    const play = async (stake: number, balance: number) => {
+      prepare({ balance });
+      const out = await show();
+      const seats = [
+        seat({ userId: USER_ID, index: 0, stake, cards: [c('5', '♥'), c('6', '♦')], value: 11 }),
+      ];
+      act(() => out.client.push(snap(view({ seats, turn: 0 }))));
+      return out;
+    };
+    const dialog = () => document.body.querySelector('[role="dialog"], [role="alertdialog"]');
+
+    it('keeps the plain Double while the cash covers it', async () => {
+      const { view: v } = await play(100, 5_000);
+      expect(buttons(v.container).some((b) => b.textContent === 'Borrow and double')).toBe(false);
+      expect(button(v.container, 'Double').disabled).toBe(false);
+    });
+
+    it('offers Borrow and double when short, and only sends credit after the confirm', async () => {
+      const { view: v, client } = await play(1_000, 400);
+      expect(buttons(v.container).some((b) => b.textContent === 'Double')).toBe(false);
+      await click(button(v.container, 'Borrow and double'));
+      expect(client.actions).toEqual([]);
+      expect(text(dialog() as HTMLElement)).toContain('600 Pelica short');
+      expect(text(dialog() as HTMLElement)).toContain('debt');
+      client.answer(view({}));
+      const confirm = [...dialog()!.querySelectorAll('button')].find(
+        (b) => b.textContent === 'Borrow and double',
+      )!;
+      await click(confirm);
+      expect(client.actions.map((a) => [a.action, a.args])).toEqual([['double', { credit: true }]]);
+    });
+
+    it('cancelling the warning sends nothing', async () => {
+      const { view: v, client } = await play(1_000, 400);
+      await click(button(v.container, 'Borrow and double'));
+      const cancel = [...dialog()!.querySelectorAll('button')].find(
+        (b) => b.textContent === 'Cancel',
+      )!;
+      await click(cancel);
+      expect(client.actions).toEqual([]);
+      expect(dialog()).toBeNull();
+    });
+
+    it('does not offer credit above the Teiai cap and says why', async () => {
+      const { view: v } = await play(5_000, 500);
+      expect(button(v.container, 'Double').disabled).toBe(true);
+      expect(text(v.container)).toContain('Teiai lends at most 3,000');
+    });
+
+    it('says so when the server refuses the loan', async () => {
+      const { view: v, client } = await play(1_000, 400);
+      await click(button(v.container, 'Borrow and double'));
+      client.fail('insufficient_funds');
+      const confirm = [...dialog()!.querySelectorAll('button')].find(
+        (b) => b.textContent === 'Borrow and double',
+      )!;
+      await click(confirm);
+      expect(text(v.container)).toContain('Teiai would not lend it.');
+    });
+  });
+
   it('turns Double off after the first move and the actions off when it is not my turn', async () => {
     const { view: v, client } = await show();
     const seats = [

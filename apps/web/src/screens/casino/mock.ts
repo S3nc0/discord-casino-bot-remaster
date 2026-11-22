@@ -5,6 +5,7 @@
  * production path: `services.tsx` loads it only in mock mode, through a dynamic import.
  */
 import type {
+  ActionIntent,
   BlackjackSeatView,
   BlackjackView,
   CardView,
@@ -908,7 +909,9 @@ function createMock(): CasinoServices {
     emit('blackjack');
     return bjView();
   };
-  const bjAct = (roundId: string, action: string): BlackjackView => {
+  /** Teiai's seed cap: the most it lends for a double (docs/spec/blackjack.md, Double). */
+  const TEIAI_SEED = 3_000;
+  const bjAct = (roundId: string, action: string, args?: ActionIntent['args']): BlackjackView => {
     const seat = bj.seats.find((s) => s.userId === me());
     if (!seat || bj.id !== roundId || bj.phase !== 'player') throw new GameError('conflict');
     if (action === 'deal') throw new GameError('conflict');
@@ -919,6 +922,13 @@ function createMock(): CasinoServices {
     } else if (action === 'stand') seat.status = 'done';
     else if (action === 'double') {
       if (seat.cards.length !== 2 || seat.doubled) throw new GameError('conflict');
+      const need = seat.stake - balance();
+      if (need > 0) {
+        // Short of cash: only with `credit`, and only up to the seed cap, Teiai lends the rest.
+        if (args?.['credit'] !== true || need > TEIAI_SEED)
+          throw new GameError('insufficient_funds');
+        post(need, 'loan_borrow', 'casino_double_credit');
+      }
       debit(seat.stake);
       seat.stake *= 2;
       seat.doubled = true;
@@ -974,7 +984,12 @@ function createMock(): CasinoServices {
         return Promise.reject(error);
       }
     },
-    action<T>(game: GameId, roundId: string, action: string): Promise<BetOutcome<T>> {
+    action<T>(
+      game: GameId,
+      roundId: string,
+      action: string,
+      args?: ActionIntent['args'],
+    ): Promise<BetOutcome<T>> {
       try {
         if (game === 'chinchiro' && action === 'roll') {
           return Promise.resolve(outcome(rollSolo(roundId) as T, roundId));
@@ -1000,7 +1015,7 @@ function createMock(): CasinoServices {
           return Promise.resolve(outcome(bjView() as T, roundId));
         }
         if (game === 'blackjack')
-          return Promise.resolve(outcome(bjAct(roundId, action) as T, roundId));
+          return Promise.resolve(outcome(bjAct(roundId, action, args) as T, roundId));
         throw new GameError('invalid_payload');
       } catch (error) {
         return Promise.reject(error);
