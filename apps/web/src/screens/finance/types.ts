@@ -1,5 +1,4 @@
-import type {
-  FINANCE_ROUTES} from '@casino/shared';
+import type { FINANCE_ROUTES } from '@casino/shared';
 import {
   type ErrorCode,
   type FinanceBankView,
