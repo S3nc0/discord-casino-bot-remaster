@@ -364,7 +364,7 @@ describe('shop', () => {
       text(li).includes('Lucky Soul'),
     )!;
     await click(row.querySelector('button')!);
-    expect(text(document.body)).toContain('Buy 🍀 Lucky Soul for 20,000 Pelica?');
+    expect(text(document.body)).toContain('Buy Lucky Soul for 20,000 Pelica?');
   });
 
   it('sells black-market lots blind, with a warning, then reveals the item', async () => {

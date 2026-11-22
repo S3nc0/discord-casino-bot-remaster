@@ -63,7 +63,7 @@ const ITEM_LABELS: Readonly<Record<string, readonly [ja: string, en: string]>> =
 };
 
 /** The catalog text has a leading emoji; the screens show a pixel icon instead. */
-const LEADING_EMOJI = /^[\p{Extended_Pictographic}\u200d\ufe0f]+\s*/u;
+const LEADING_EMOJI = /^(?:\p{Extended_Pictographic}|\u200d|\ufe0f)+\s*/u;
 
 /** The shown name of a catalog item, without its emoji; unknown ids show as is. */
 export function itemLabel(locale: Locale, id: string): string {

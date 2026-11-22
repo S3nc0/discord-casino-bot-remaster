@@ -205,7 +205,9 @@ function Dig({
           variant={view.dayClicks >= view.dayCap ? 'success' : 'primary'}
         />
         <p className="life__note">
-          {t('screen.life.work.terrain', { terrain: t(`screen.life.work.terrain.${view.terrain}`) })}
+          {t('screen.life.work.terrain', {
+            terrain: t(`screen.life.work.terrain.${view.terrain}`),
+          })}
         </p>
       </Card>
       <ul className="life__list">
