@@ -2,6 +2,7 @@ import type { ComponentType } from 'react';
 import { SCREEN_IDS, type ScreenId } from '@casino/shared';
 import { screenName, useLocale, useT } from '../shell/i18n.ts';
 import { HomeScreen } from '../shell/HomeScreen.tsx';
+import { financeRoutes } from './finance/routes.tsx';
 import { lazyScreen } from './life/lazy.tsx';
 
 /** Home: the balance hero and the game tiles live in the shell. F2 builds the rest on top. */
@@ -31,6 +32,7 @@ const implemented: Partial<Record<ScreenId, ComponentType>> = {
   shop: lazyScreen('shop', () => import('./life/ShopScreen.tsx')),
   transfer: lazyScreen('transfer', () => import('./life/TransferScreen.tsx')),
   work: lazyScreen('work', () => import('./life/LaborScreen.tsx')),
+  ...financeRoutes,
 };
 
 function routeFor(screen: ScreenId): ComponentType {

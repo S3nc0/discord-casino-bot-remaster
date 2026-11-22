@@ -1,0 +1,239 @@
+/* Finance screens (bank, loans, kyosai, market, companies). Colours come from the kit tokens
+   (round 2 theme): soft container fills, one small bright accent per tone. Mobile first; the
+   shell already pads the safe areas. Nothing here animates, so reduced motion needs no override. */
+
+.fin {
+  display: grid;
+  gap: var(--space-4);
+  width: 100%;
+  max-width: 40rem;
+  margin-inline: auto;
+  box-sizing: border-box;
+}
+
+.fin__head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.fin__badge {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 3.5rem;
+  height: 3.5rem;
+  background: var(--primary-container);
+  color: var(--on-primary-container);
+  border: 2px solid var(--outline-variant);
+}
+
+.fin__badge svg {
+  width: 2.25rem;
+  height: 2.25rem;
+}
+
+.fin__title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 1.5rem;
+  line-height: 1.2;
+}
+
+.fin__lead,
+.fin-panel__hint,
+.fin__note,
+.fin__empty,
+.fin-row__meta,
+.fin__loading {
+  margin: 0;
+  color: var(--on-surface);
+  font-size: 1rem;
+  line-height: 1.5;
+}
+
+.fin__lead {
+  margin-top: var(--space-1);
+}
+
+.fin-panel {
+  display: grid;
+  gap: var(--space-3);
+  width: 100%;
+  max-width: none;
+  box-sizing: border-box;
+}
+
+.fin-panel__title {
+  margin: 0;
+}
+
+.fin__sub {
+  margin: var(--space-2) 0 0;
+  font-size: 1.125rem;
+}
+
+/* ---- stats ---- */
+.fin-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr));
+  gap: var(--space-2);
+}
+
+.fin-stat {
+  display: grid;
+  gap: 2px;
+  padding: var(--space-2) var(--space-3);
+  background: var(--surface-container-low);
+  border-left: 4px solid var(--outline-variant);
+  color: var(--on-surface);
+}
+
+.fin-stat[data-tone='good'] {
+  border-left-color: var(--success);
+}
+
+.fin-stat[data-tone='bad'] {
+  border-left-color: var(--error);
+}
+
+.fin-stat[data-tone='warn'] {
+  border-left-color: var(--warning);
+}
+
+.fin-stat__label {
+  font-size: 0.875rem;
+  line-height: 1.25;
+}
+
+.fin-stat__value {
+  font-weight: 700;
+  font-size: 1.125rem;
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+
+/* ---- rows and forms ---- */
+.fin-row {
+  display: grid;
+  gap: var(--space-2);
+  width: 100%;
+  max-width: none;
+  box-sizing: border-box;
+  padding: var(--space-3);
+}
+
+.fin-row__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+.fin-row__price {
+  margin: 0;
+  font-weight: 700;
+  font-size: 1.25rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.fin__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.fin-inline {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+  gap: var(--space-2);
+}
+
+.fin__notice {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0;
+  padding: var(--space-2) var(--space-3);
+  border-left: 4px solid var(--outline);
+  background: var(--surface-container-high);
+  color: var(--on-surface);
+}
+
+.fin__notice--warn {
+  border-left-color: var(--warning);
+  background: var(--warning-container);
+  color: var(--on-warning-container);
+}
+
+.fin__error {
+  width: 100%;
+}
+
+/* ---- market ---- */
+.fin-board {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-2);
+}
+
+.fin-symbol {
+  display: grid;
+  gap: var(--space-2);
+  max-width: none;
+  padding: var(--space-3);
+  cursor: pointer;
+}
+
+.fin-symbol__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-1);
+}
+
+.fin-symbol__price {
+  margin: 0;
+  font-weight: 700;
+  font-size: 1.375rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.fin-chart {
+  display: block;
+  width: 100%;
+  height: 3.5rem;
+  background: var(--surface-container-lowest);
+  border-bottom: 2px solid var(--outline-variant);
+}
+
+.fin-chart--up {
+  --chart: var(--success);
+}
+
+.fin-chart--down {
+  --chart: var(--error);
+}
+
+.fin-chart--flat {
+  --chart: var(--outline);
+}
+
+.fin-chart__line {
+  fill: var(--chart);
+}
+
+.fin-chart__fill {
+  fill: var(--chart);
+  fill-opacity: 0.2;
+}
+
+@media (min-width: 560px) {
+  .fin-board {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}

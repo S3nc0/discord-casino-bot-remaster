@@ -116,10 +116,7 @@ export const FinanceBankView = Type.Object({
 });
 export type FinanceBankView = Static<typeof FinanceBankView>;
 
-export const FinanceRepayRequest = Type.Object(
-  { ...idem, amount: Type.Optional(Amount) },
-  closed,
-);
+export const FinanceRepayRequest = Type.Object({ ...idem, amount: Type.Optional(Amount) }, closed);
 export type FinanceRepayRequest = Static<typeof FinanceRepayRequest>;
 
 // ---- player loans ----
@@ -372,7 +369,9 @@ export const FinanceBondRequest = Type.Object(
 export const FinanceSettleRequest = Type.Object(
   {
     ...idem,
-    position: Type.String({ pattern: '^(spot|long|short):[a-z]{2,8}$|^(option|bond):[0-9]{1,12}$' }),
+    position: Type.String({
+      pattern: '^(spot|long|short):[a-z]{2,8}$|^(option|bond):[0-9]{1,12}$',
+    }),
     percent: Type.Optional(Type.Integer({ minimum: 1, maximum: 100 })),
   },
   closed,
