@@ -19,3 +19,4 @@ export * from './proxy.ts';
 export * from './activity/life.ts';
 export * from './activity/finance.ts';
 export * from './activity/casino.ts';
+export * from './activity/horse.ts';

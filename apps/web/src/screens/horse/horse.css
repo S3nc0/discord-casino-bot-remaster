@@ -1,0 +1,635 @@
+/* Horse racing and arena screens. Colours, type and edges come from @casino/ui tokens; text is
+   on-surface (never dimmed below the supporting role), targets keep the kit's 48px, nothing is
+   positioned from a pixel list: lanes and tiles are grids that follow the 390px phone first. */
+
+.hr-screen {
+  display: grid;
+  gap: var(--space-4);
+  width: 100%;
+  max-width: 40rem;
+  margin-inline: auto;
+  box-sizing: border-box;
+}
+
+.hr-head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.hr-head h1 {
+  margin: 0;
+}
+
+.hr-head__icon {
+  width: 48px;
+  height: 48px;
+  flex: none;
+}
+
+.hr-stack {
+  display: grid;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+.hr-stack > *,
+.hr-section > * {
+  min-width: 0;
+}
+
+.hr-list,
+.hr-runners,
+.hr-tickets,
+.hr-placings,
+.hr-fighters,
+.hr-items,
+.hr-reasons,
+.hr-lanes {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.hr-list {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.hr-muted {
+  margin: 0;
+  color: var(--on-surface-variant);
+}
+
+.hr-ok {
+  margin: 0;
+  color: var(--success);
+  font-weight: 700;
+}
+
+.hr-bad {
+  margin: 0;
+  color: var(--error);
+}
+
+.hr-label {
+  margin: 0;
+  font-weight: 700;
+}
+
+.hr-sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.hr-note {
+  margin: 0;
+}
+
+.hr-section {
+  display: grid;
+  gap: var(--space-3);
+}
+
+/* the tab panel sits under the tab strip: give it air */
+.hr-screen [role='tabpanel'] {
+  padding-top: var(--space-4);
+}
+
+.hr-section__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.hr-section__head h2,
+.hr-stack > h2 {
+  margin: 0;
+}
+
+.hr-back {
+  justify-self: start;
+}
+
+/* ---- silks swatch ---- */
+.hr-silks {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  flex: none;
+  background: var(--hr-silks);
+  border: 2px solid var(--outline-variant);
+  vertical-align: -2px;
+}
+
+/* ---- race cards ---- */
+.hr-race {
+  width: 100%;
+  text-align: start;
+}
+
+.hr-race .bb-card__title {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.hr-race__row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-3);
+}
+
+.hr-race__mine {
+  margin: var(--space-2) 0 0;
+}
+
+/* ---- runners ---- */
+.hr-runners {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.hr-runner {
+  display: grid;
+  gap: var(--space-1);
+  padding: var(--space-3);
+  background: var(--surface-container);
+  border: 2px solid var(--outline-variant);
+}
+
+.hr-runner.is-mine {
+  border-color: var(--success);
+}
+
+.hr-runner__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.hr-runner__lane {
+  display: inline-grid;
+  place-items: center;
+  min-width: 1.75rem;
+  height: 1.75rem;
+  background: var(--secondary-container);
+  color: var(--on-secondary-container);
+  font-weight: 700;
+}
+
+.hr-runner__form {
+  margin-inline-start: auto;
+  font-size: 1.25rem;
+}
+
+.hr-runner__record,
+.hr-runner__odds {
+  margin: 0;
+}
+
+.hr-runner__odds {
+  font-weight: 700;
+  color: var(--secondary);
+}
+
+.hr-cells {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: var(--space-2);
+  margin: 0;
+}
+
+.hr-cells div {
+  display: grid;
+  gap: 0;
+  text-align: center;
+  background: var(--surface-container-high);
+  padding: var(--space-1) var(--space-1);
+}
+
+.hr-cells dt {
+  font-size: 14px;
+  line-height: 18px;
+  color: var(--on-surface-variant);
+}
+
+.hr-cells dd {
+  margin: 0;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---- stat bars ---- */
+.hr-stats {
+  display: grid;
+  gap: var(--space-1);
+  margin: var(--space-2) 0;
+}
+
+.hr-stats__row {
+  display: grid;
+  grid-template-columns: 6rem 1fr;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.hr-stats dt {
+  margin: 0;
+}
+
+.hr-stats dd {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0;
+}
+
+.hr-stats__bar {
+  flex: 1;
+  height: 12px;
+  background: var(--surface-container-highest);
+  border: 2px solid var(--outline-variant);
+  box-sizing: border-box;
+}
+
+.hr-stats__fill {
+  display: block;
+  height: 100%;
+  background: var(--secondary);
+}
+
+.hr-stats__num {
+  min-width: 2ch;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---- tickets and placings ---- */
+.hr-kinds,
+.hr-picks,
+.hr-presets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.hr-quote {
+  margin: 0;
+  min-height: 1.5rem;
+  font-weight: 700;
+}
+
+.hr-tickets,
+.hr-placings {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.hr-ticket,
+.hr-placing {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  background: var(--surface-container);
+  border: 2px solid var(--outline-variant);
+}
+
+.hr-ticket__state {
+  margin-inline-start: auto;
+}
+
+.hr-placing.is-mine {
+  border-color: var(--success);
+}
+
+.hr-placing__no {
+  min-width: 2.5rem;
+  font-size: 1.125rem;
+  font-weight: 700;
+  color: var(--tertiary);
+}
+
+.hr-placing__name {
+  flex: 1;
+  font-weight: 700;
+}
+
+/* ---- live track ---- */
+.hr-track {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.hr-track__line {
+  margin: 0;
+  min-height: 3rem;
+  font-weight: 700;
+}
+
+.hr-track__bar {
+  height: 8px;
+  background: var(--surface-container-highest);
+}
+
+.hr-track__fill {
+  display: block;
+  height: 100%;
+  background: var(--tertiary);
+  transition: width 260ms steps(4, end);
+}
+
+.hr-lanes {
+  display: grid;
+  gap: var(--space-1);
+}
+
+.hr-lane {
+  display: grid;
+  grid-template-columns: 1.75rem 1fr;
+  column-gap: var(--space-2);
+  align-items: center;
+}
+
+.hr-lane__no {
+  grid-row: 1 / span 2;
+  text-align: center;
+  font-weight: 700;
+}
+
+.hr-lane__name {
+  grid-column: 2;
+  font-size: 14px;
+  line-height: 16px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--on-surface-variant);
+}
+
+.hr-lane.is-mine .hr-lane__name {
+  color: var(--success);
+  font-weight: 700;
+}
+
+.hr-lane.is-leader .hr-lane__name {
+  color: var(--tertiary);
+  font-weight: 700;
+}
+
+.hr-lane__course {
+  position: relative;
+  display: block;
+  height: 28px;
+  overflow: hidden;
+  background: var(--surface-container-high);
+  border-block: 2px solid var(--outline-variant);
+}
+
+.hr-lane__runner {
+  position: absolute;
+  top: 1px;
+  left: calc((100% - 36px) * var(--p, 0) / 1000);
+  width: 36px;
+  height: 24px;
+  transition: left 260ms steps(4, end);
+}
+
+.hr-lane__finish {
+  position: absolute;
+  inset-block: 0;
+  right: 0;
+  width: 6px;
+  background: repeating-linear-gradient(
+    to bottom,
+    var(--on-surface) 0 4px,
+    var(--surface-container-high) 4px 8px
+  );
+}
+
+/* ---- pixel horse ---- */
+.hr-horse {
+  display: block;
+  width: 100%;
+  height: 100%;
+  shape-rendering: crispEdges;
+}
+
+.hr-horse__frame--b {
+  opacity: 0;
+}
+
+.hr-horse.is-running .hr-horse__frame--a {
+  animation: hr-gallop-a 320ms steps(1, end) infinite;
+}
+
+.hr-horse.is-running .hr-horse__frame--b {
+  animation: hr-gallop-b 320ms steps(1, end) infinite;
+}
+
+@keyframes hr-gallop-a {
+  0% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0;
+  }
+}
+
+@keyframes hr-gallop-b {
+  0% {
+    opacity: 0;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+.hr-px-o {
+  fill: var(--outline);
+}
+
+.hr-px-k {
+  fill: var(--hr-coat);
+}
+
+.hr-px-m {
+  fill: var(--neutral-30);
+}
+
+.hr-px-s,
+.hr-px-h {
+  fill: var(--hr-silks);
+}
+
+.hr-px-w {
+  fill: var(--neutral-95);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hr-horse.is-running .hr-horse__frame--a,
+  .hr-horse.is-running .hr-horse__frame--b {
+    animation: none;
+  }
+
+  .hr-lane__runner,
+  .hr-track__fill {
+    transition: none;
+  }
+}
+
+[data-reduced-motion='true'] .hr-horse.is-running .hr-horse__frame--a,
+[data-reduced-motion='true'] .hr-horse.is-running .hr-horse__frame--b {
+  animation: none;
+}
+
+[data-reduced-motion='true'] .hr-lane__runner,
+[data-reduced-motion='true'] .hr-track__fill {
+  transition: none;
+}
+
+/* ---- stable ---- */
+.hr-items {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-4);
+}
+
+.hr-horsecard .bb-card__title {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.hr-horsecard__art {
+  display: grid;
+  place-items: center;
+  padding: var(--space-3);
+  margin-bottom: var(--space-3);
+  background: var(--surface-container-high);
+}
+
+.hr-horsecard__art .hr-horse {
+  width: 108px;
+  height: 72px;
+}
+
+/* ---- breeding ---- */
+.hr-preview__pair {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-4);
+}
+
+.hr-preview__pair .hr-horse {
+  width: 72px;
+  height: 48px;
+}
+
+.hr-ranges {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: var(--space-2);
+  margin: 0;
+}
+
+.hr-ranges div {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-2);
+  padding: var(--space-1) var(--space-2);
+  background: var(--surface-container-high);
+}
+
+.hr-ranges dt,
+.hr-ranges dd {
+  margin: 0;
+}
+
+.hr-ranges dd {
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.hr-reasons {
+  display: grid;
+  gap: var(--space-1);
+}
+
+.hr-foal {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  background: var(--surface-container);
+  border: 2px solid var(--outline-variant);
+}
+
+.hr-foal .hr-horse {
+  width: 54px;
+  height: 36px;
+  flex: none;
+}
+
+.hr-foal p {
+  margin: 0;
+}
+
+/* ---- arena ---- */
+.hr-group {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.hr-group__title {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.hr-fighters {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.hr-fighter {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2) var(--space-3);
+  padding: var(--space-3);
+  background: var(--surface-container);
+  border: 2px solid var(--outline-variant);
+}
+
+.hr-fighter.is-out {
+  opacity: 0.8;
+}
+
+.hr-fighter__main {
+  display: grid;
+  justify-items: start;
+  gap: var(--space-1);
+  min-width: 0;
+  flex: 1 1 12rem;
+}
+
+.hr-fighter__main p {
+  margin: 0;
+}
+
+.hr-fighter__name {
+  overflow-wrap: anywhere;
+}

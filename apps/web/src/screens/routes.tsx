@@ -34,6 +34,8 @@ const implemented: Partial<Record<ScreenId, ComponentType>> = {
   transfer: lazyScreen('transfer', () => import('./life/TransferScreen.tsx')),
   work: lazyScreen('work', () => import('./life/LaborScreen.tsx')),
   ...financeRoutes,
+  horse: lazyScreen('horse', () => import('./horse/HorseScreen.tsx')),
+  arena: lazyScreen('arena', () => import('./horse/ArenaScreen.tsx')),
 };
 
 function routeFor(screen: ScreenId): ComponentType {

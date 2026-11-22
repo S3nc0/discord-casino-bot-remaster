@@ -31,7 +31,7 @@ import {
   type Stats,
   type Track,
 } from '@casino/domain/race';
-import { localDayNumber } from '@casino/domain/progression';
+import { dayStartMs, localDayNumber } from '@casino/domain/progression';
 import { relicBuffs } from '@casino/domain/work';
 import {
   chargeOrOwe,
@@ -42,7 +42,7 @@ import {
 } from '../progression/context.ts';
 import { Inventory } from '../shop/inventory.ts';
 
-interface HorseRow {
+export interface HorseRow {
   id: number;
   guild_id: string;
   owner_id: string | null;
@@ -67,7 +67,7 @@ interface HorseRow {
   base_value: number;
 }
 
-interface RaceRow {
+export interface RaceRow {
   id: number;
   guild_id: string;
   kind: 'regular' | 'special';
@@ -81,7 +81,7 @@ interface RaceRow {
   placings: string | null;
 }
 
-interface EntryRow {
+export interface EntryRow {
   id: number;
   race_id: number;
   horse_id: number | null;
@@ -906,6 +906,101 @@ export class RaceService {
         retired,
       };
     });
+  }
+
+  // ------------------------------------------------------------------ reads for the Activity
+
+  /** Races that start today (local day) plus every special race still open or run today. */
+  listToday(guildId: string): RaceRow[] {
+    const { ctx } = this;
+    const day = localDayNumber(ctx.clock.now(), ctx.offsetHours);
+    const from = dayStartMs(day, ctx.offsetHours);
+    return ctx.store
+      .stmt(
+        `SELECT * FROM horse_races WHERE guild_id = ? AND (start_at >= ? AND start_at < ? OR (kind = 'special' AND status != 'done'))
+         ORDER BY start_at, id`,
+      )
+      .all(guildId, from, from + 24 * 3_600_000) as RaceRow[];
+  }
+
+  /** The next regular start after now, or null. */
+  nextStart(guildId: string): number | null {
+    const row = this.ctx.store
+      .stmt(
+        `SELECT MIN(start_at) AS t FROM horse_races WHERE guild_id = ? AND status != 'done' AND start_at > ?`,
+      )
+      .get(guildId, this.ctx.clock.now()) as { t: number | null };
+    return row.t;
+  }
+
+  raceRow(raceId: number): RaceRow {
+    return this.race(raceId);
+  }
+
+  horseRow(horseId: number): HorseRow | undefined {
+    return this.horse(horseId);
+  }
+
+  /** Runner rows of a race (registrations before the close, the snapshot after). */
+  entriesOf(raceId: number): EntryRow[] {
+    return this.ctx.store
+      .stmt('SELECT * FROM horse_entries WHERE race_id = ? ORDER BY lane, id')
+      .all(raceId) as EntryRow[];
+  }
+
+  /** The open race a horse is entered in, if any. */
+  openRaceOf(horseId: number): number | null {
+    const row = this.ctx.store
+      .stmt(
+        `SELECT r.id FROM horse_entries e JOIN horse_races r ON r.id = e.race_id WHERE e.horse_id = ? AND r.status != 'done' ORDER BY r.start_at LIMIT 1`,
+      )
+      .get(horseId) as { id: number } | undefined;
+    return row?.id ?? null;
+  }
+
+  /** A player's tickets in one race. */
+  ticketsOf(
+    raceId: number,
+    userId: string,
+  ): {
+    id: number;
+    kind: BetKind;
+    key: string;
+    stake: number;
+    oddsTenths: number;
+    payout: number | null;
+  }[] {
+    return (
+      this.ctx.store
+        .stmt(
+          'SELECT id, kind, key, stake, odds_tenths, payout FROM horse_bets WHERE race_id = ? AND user_id = ? ORDER BY id',
+        )
+        .all(raceId, userId) as {
+        id: number;
+        kind: BetKind;
+        key: string;
+        stake: number;
+        odds_tenths: number;
+        payout: number | null;
+      }[]
+    ).map((b) => ({
+      id: b.id,
+      kind: b.kind,
+      key: b.key,
+      stake: b.stake,
+      oddsTenths: b.odds_tenths,
+      payout: b.payout,
+    }));
+  }
+
+  /** Prize money a player's horse earned in a race (the sum of its `race_prize` ledger rows). */
+  prizeOf(guildId: string, userId: string, raceId: number): number {
+    const row = this.ctx.store
+      .stmt(
+        `SELECT COALESCE(SUM(delta), 0) AS s FROM ledger WHERE guild_id = ? AND user_id = ? AND reason = 'race_prize' AND ref_type = 'race' AND ref_id = ?`,
+      )
+      .get(guildId, userId, String(raceId)) as { s: number };
+    return row.s;
   }
 
   /** The stored race animation for the Activity. */

@@ -166,6 +166,15 @@ export function createServer(options: CreateServerOptions): CasinoServices {
         progression: () => (lazy.games as NonCasinoGames).progression,
         core: () => (lazy.casino as CasinoGames).core,
       },
+      horse: {
+        store,
+        economy,
+        clock,
+        services: () => ({
+          games: lazy.games as NonCasinoGames,
+          offsetHours: config.utcOffsetHours,
+        }),
+      },
     },
     ...(options.rateLimits === undefined ? {} : { rateLimits: options.rateLimits }),
   });

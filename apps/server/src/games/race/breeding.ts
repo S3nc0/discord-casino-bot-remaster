@@ -1,11 +1,17 @@
+import type { Rng } from '@casino/shared';
 import {
   BREED_FEE,
   breedFoal,
+  foalStats,
   foaledEvent,
   MAX_HORSES,
+  parentError,
+  STAT_KEYS,
+  statSum,
   type BreedError,
   type BreedParent,
   type RunningStyle,
+  type StatKey,
   type Stats,
 } from '@casino/domain/race';
 import { emit, GameRuleError, type GamesCtx } from '../progression/context.ts';
@@ -129,6 +135,73 @@ function viewOf(h: HorseRow): FoalView {
   };
 }
 
+export interface StatRange {
+  min: number;
+  max: number;
+}
+
+export interface BreedPreview {
+  total: StatRange;
+  stats: Record<StatKey, StatRange>;
+  coats: [string, string];
+  generation: number;
+  /** The first rule that stops this pair (spec key without the `horse.` prefix), if any. */
+  eligible: { ok: boolean; rule?: string; at?: number; horse?: string };
+}
+
+/** An Rng that replays a script: `foalStats` asks for the total noise, then four stat offsets. */
+function scriptedRng(values: readonly number[]): Rng {
+  let i = 0;
+  return { int: () => values[i++] as number, float: () => 0 };
+}
+
+const TOTAL_NOISE_DRAWS = [0, 1, 3, 7, 9] as const; // -10, -5, 0, +5, +10
+const SHAPE_OFFSETS = Array.from({ length: 15 }, (_, i) => i - 7);
+
+/**
+ * Every foal the two parents can have: the minimum and maximum of each stat and of the total over
+ * all 5 x 15^4 rolls of `foalStats`. The roll itself still happens once, server side, when paid.
+ */
+export function foalRanges(
+  a: Stats,
+  b: Stats,
+): { total: StatRange; stats: Record<StatKey, StatRange> } {
+  const cacheKey = JSON.stringify([a, b]);
+  const cached = RANGE_CACHE.get(cacheKey);
+  if (cached) return cached;
+  const computed = computeFoalRanges(a, b);
+  if (RANGE_CACHE.size >= 128) RANGE_CACHE.clear();
+  RANGE_CACHE.set(cacheKey, computed);
+  return computed;
+}
+
+const RANGE_CACHE = new Map<string, { total: StatRange; stats: Record<StatKey, StatRange> }>();
+
+function computeFoalRanges(
+  a: Stats,
+  b: Stats,
+): { total: StatRange; stats: Record<StatKey, StatRange> } {
+  const stats = {} as Record<StatKey, StatRange>;
+  for (const k of STAT_KEYS) stats[k] = { min: Infinity, max: -Infinity };
+  const total: StatRange = { min: Infinity, max: -Infinity };
+  for (const draw of TOTAL_NOISE_DRAWS)
+    for (const o1 of SHAPE_OFFSETS)
+      for (const o2 of SHAPE_OFFSETS)
+        for (const o3 of SHAPE_OFFSETS)
+          for (const o4 of SHAPE_OFFSETS) {
+            const foal = foalStats(a, b, scriptedRng([draw, o1, o2, o3, o4]));
+            const sum = statSum(foal);
+            total.min = Math.min(total.min, sum);
+            total.max = Math.max(total.max, sum);
+            for (const k of STAT_KEYS) {
+              const r = stats[k];
+              r.min = Math.min(r.min, foal[k]);
+              r.max = Math.max(r.max, foal[k]);
+            }
+          }
+  return { total, stats };
+}
+
 /**
  * Horse breeding (docs/spec/horse-breeding.md). Breeding is instant: one transaction charges the
  * fee, marks both parents and inserts the foal. A foal's maturity is a timestamp checked at race
@@ -152,6 +225,11 @@ export class BreedingService {
       .get(guildId);
   }
 
+  /** Teiai debt blocks breeding. */
+  isInDebt(guildId: string, userId: string): boolean {
+    return this.ctx.teiai.debtOf(guildId, userId) > 0;
+  }
+
   /** Horses a player owns now; the stable cap counts every one of them. */
   private horseCount(guildId: string, userId: string): number {
     return (
@@ -159,6 +237,49 @@ export class BreedingService {
         .stmt('SELECT COUNT(*) AS n FROM horses WHERE guild_id = ? AND owner_id = ?')
         .get(guildId, userId) as { n: number }
     ).n;
+  }
+
+  /** What a foal of two of the player's horses can look like, and whether they may breed now. */
+  preview(guildId: string, userId: string, parentA: number, parentB: number): BreedPreview {
+    const { ctx } = this;
+    const a = this.horse(parentA);
+    const b = this.horse(parentB);
+    if (!a || !b || a.guild_id !== guildId || b.guild_id !== guildId)
+      throw new GameRuleError('select_own', {}, 'not_found');
+    const pa = parentOf(a);
+    const pb = parentOf(b);
+    const now = ctx.clock.now();
+    const rejected =
+      parentA === parentB
+        ? ({ error: 'same_horse' } as const)
+        : (parentError(pa, userId, now) ?? parentError(pb, userId, now));
+    let eligible: BreedPreview['eligible'];
+    if (rejected) {
+      eligible = {
+        ok: false,
+        rule: ERROR_KEY[rejected.error],
+        ...('at' in rejected && rejected.at !== undefined ? { at: rejected.at } : {}),
+        ...('horse' in rejected && rejected.horse !== undefined ? { horse: rejected.horse } : {}),
+      };
+    } else if (!this.isEnabled(guildId)) {
+      eligible = { ok: false, rule: 'feature_disabled' };
+    } else if (ctx.teiai.debtOf(guildId, userId) > 0) {
+      eligible = { ok: false, rule: 'in_debt' };
+    } else if (this.horseCount(guildId, userId) >= MAX_HORSES) {
+      eligible = { ok: false, rule: 'stable_full' };
+    } else if (ctx.economy.getBalance(guildId, userId) < BREED_FEE) {
+      eligible = { ok: false, rule: 'breed_fee_short' };
+    } else {
+      eligible = { ok: true };
+    }
+    const { total, stats } = foalRanges(pa.stats, pb.stats);
+    return {
+      total,
+      stats,
+      coats: [a.coat, b.coat],
+      generation: Math.max(a.generation, b.generation) + 1,
+      eligible,
+    };
   }
 
   breed(req: BreedRequest): BreedResult {
