@@ -277,3 +277,19 @@
     animation: none;
   }
 }
+
+/* Card bodies stack their parts with air between them. */
+.life .bb-card__body {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.life .bb-card__body > .bb-btn,
+.life-dig__button {
+  width: 100%;
+}
+
+.life .bb-avatar {
+  display: inline-grid;
+  place-items: center;
+}

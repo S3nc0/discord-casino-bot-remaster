@@ -10,7 +10,8 @@
     "typecheck": "tsc -p tsconfig.json",
     "test": "vitest run",
     "preview": "vite preview",
-    "dev:mock": "VITE_MOCK_DISCORD=1 vite"
+    "dev:mock": "VITE_MOCK_DISCORD=1 vite",
+    "screens:life": "node scripts/screens-life.mjs"
   },
   "dependencies": {
     "@casino/shared": "workspace:*",
@@ -26,6 +27,7 @@
     "@types/react-dom": "19.3.0",
     "@vitejs/plugin-react": "6.2.1",
     "happy-dom": "21.0.4",
+    "playwright-core": "1.65.1",
     "vite": "8.3.6"
   }
 }
