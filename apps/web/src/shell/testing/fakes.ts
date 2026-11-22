@@ -98,6 +98,13 @@ export class FakeSocket {
     this.handlers.set(event, [...(this.handlers.get(event) ?? []), handler]);
     return this;
   }
+  off(event: string, handler: Handler): this {
+    this.handlers.set(
+      event,
+      (this.handlers.get(event) ?? []).filter((h) => h !== handler),
+    );
+    return this;
+  }
   emit(event: string, ...args: unknown[]): this {
     this.emitted.push({ event, args });
     return this;
