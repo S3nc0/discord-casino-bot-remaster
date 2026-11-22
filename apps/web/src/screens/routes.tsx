@@ -1,28 +1,11 @@
 import type { ComponentType } from 'react';
 import { SCREEN_IDS, type ScreenId } from '@casino/shared';
-import { Card } from '@casino/ui';
 import { screenName, useLocale, useT } from '../shell/i18n.ts';
-import { useBalanceStore } from '../shell/stores/balance.ts';
+import { HomeScreen } from '../shell/HomeScreen.tsx';
 
-/** Placeholder Home until the real one lands (F2). The balance is the hero. */
+/** Home: the balance hero and the game tiles live in the shell. F2 builds the rest on top. */
 export function Home() {
-  const t = useT();
-  const locale = useLocale();
-  const balance = useBalanceStore((s) => s.balance);
-  return (
-    <Card variant="elevated" title={screenName(locale, 'home')}>
-      <div className="home">
-        <p className="home__balance">
-          <span className="home__amount">
-            {balance !== null ? new Intl.NumberFormat(locale).format(balance) : '—'}
-          </span>
-          <span className="home__unit">{t('currency.name')}</span>
-        </p>
-        <p className="home__label">{t('shell.balance')}</p>
-      </div>
-      <p>{t('shell.placeholder')}</p>
-    </Card>
-  );
+  return <HomeScreen />;
 }
 
 /** Placeholder for every other screen id. */

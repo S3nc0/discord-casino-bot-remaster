@@ -301,7 +301,7 @@ function runParticleBurst(kind: FxParticleKind, options: BurstOptions): () => vo
   for (let i = 0; i < count; i++) {
     const angle = kind === 'coin' ? -Math.PI / 2 + (rng() - 0.5) * 1.4 : rng() * Math.PI * 2;
     const speed = kind === 'coin' ? 180 + rng() * 260 : 120 + rng() * 300;
-    const color = palette[i % palette.length] ?? '#006a64';
+    const color = palette[i % palette.length] ?? '#216c26';
     particles.push({
       x: originX + (rng() - 0.5) * 16,
       y: originY + (rng() - 0.5) * 16,

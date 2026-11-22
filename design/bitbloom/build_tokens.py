@@ -1,15 +1,15 @@
 #!/usr/bin/env python3
-"""Builds the proposed token sets (same schema as ../tokens.json) and their generated CSS.
+"""Builds the shipped Bitbloom tokens (tokens.json and tokens.css) from the original palette.
 
-    python3 design/bitbloom/proposal/build_tokens.py          # builds both rounds
-    python3 design/bitbloom/proposal/build_tokens.py 2        # round 2 only
+    python3 design/bitbloom/build_tokens.py
 
-Round 1 (calm: sea teal + coin gold on grey ink)         -> tokens.proposal-r1.json / .css
-Round 2 (navy base: fresh green, sunny yellow, sky blue)  -> tokens.proposal.json / .css
+Source: proposal/archive/tokens.original.json (the palette before the re-tune). Output: tokens.json
+(same schema) and tokens.css (via gen_tokens.py). packages/ui/src/styles/tokens.css is this CSS run
+through prettier with the Japanese font fallbacks added; a test checks the two agree.
 
 Method: tones keep their CIE lightness (L*), so the contrast between any two tones is unchanged by
-recolouring (luminance depends on L* only). A round therefore changes chroma and hue, plus which
-tone each role points at, and never the lightness maths that the contrast rules rely on.
+recolouring (luminance depends on L* only). The theme changes chroma and hue, plus which tone each
+role points at, and never the lightness maths that the contrast rules rely on.
 """
 import json
 import math
@@ -18,8 +18,7 @@ import sys
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
-BASE = HERE.parent
-src = json.loads((BASE / "tokens.json").read_text())
+src = json.loads((HERE / "proposal" / "archive" / "tokens.original.json").read_text())
 
 # ---------- colour maths (sRGB <-> CIE L*a*b*, D65) ----------
 WHITE = (0.95047, 1.0, 1.08883)
@@ -80,72 +79,10 @@ def lch_to_hex(L, C, h):
 HUES = ["red", "orange", "amber", "yellow", "lime", "green", "emerald", "teal", "cyan", "sky", "blue", "indigo", "violet", "magenta", "pink", "brown"]
 HUE_TONES = [10, 20, 30, 40, 50, 60, 70, 80, 90, 95, 99]
 
-# ---------- round configuration ----------
-ROUND1 = {
-    "name": "Bitbloom (proposal)",
-    "out": "tokens.proposal-r1",
-    # Chroma kept per hue. Rarity hues sit lowest; primary/accent/semantic stay a little livelier.
-    "keep": {"teal": 0.72, "amber": 0.80, "red": 0.78, "green": 0.68, "orange": 0.85, "indigo": 0.90, "yellow": 0.64, "blue": 0.62, "violet": 0.62},
-    "keep_default": 0.60,
-    # Ceiling on chroma by tone. The pale tones (90, 95) were the loudest in the old palette.
-    "cap": {10: 10, 20: 16, 30: 24, 40: 34, 50: 40, 60: 44, 70: 46, 80: 40, 90: 14, 95: 8, 99: 3},
-    # The focus ring is functional, so its two source tones keep more chroma than the rest of their hue.
-    "ring_cap": {"indigo-40": 62, "amber-80": 46},
-    # name: (hue angle, chroma, taper). Taper = how much chroma the lightest tones lose (0 = none).
-    "neutrals": {"neutral": (255, 3.4, 0), "neutral-variant": (255, 7.5, 0), "paper": (80, 3.2, 0), "paper-variant": (78, 8.0, 0)},
-    "neutral_tones": [0, 4, 6, 8, 10, 11, 12, 14, 15, 17, 20, 21, 22, 24, 25, 30, 35, 40, 50, 60, 70, 78, 80, 87, 90, 92, 94, 95, 96, 97, 98, 99, 100],
-    "scrim": "#10131a80",
-    "lip": "#00000026",
-    "shadow": ("paper-variant-80", "neutral-4"),
-    "roles": [
-        # name, light, dark, usage
-        ("primary", "teal-40", "teal-70", "Main actions, selection, active indicators. The one primary colour."),
-        ("on-primary", "paper-99", "teal-10", "Text and icons on primary."),
-        ("primary-container", "teal-90", "teal-30", "Tinted fill for primary chips, banners, selected items and the active nav indicator."),
-        ("on-primary-container", "teal-10", "teal-90", "Text and icons on primary-container."),
-        ("secondary", "paper-variant-35", "neutral-variant-80", "Quiet support colour: tonal buttons, unfilled slider track, selected rows. Low chroma on purpose."),
-        ("on-secondary", "paper-99", "neutral-variant-20", "Text and icons on secondary."),
-        ("secondary-container", "paper-variant-90", "neutral-variant-25", "Quiet fill for tonal buttons, slider track and selected rows."),
-        ("on-secondary-container", "paper-variant-10", "neutral-variant-90", "Text and icons on secondary-container."),
-        ("tertiary", "amber-40", "amber-70", "The one accent: coin gold. Balance, rewards, highlights. Use sparingly."),
-        ("on-tertiary", "paper-99", "amber-10", "Text and icons on tertiary."),
-        ("tertiary-container", "amber-90", "amber-30", "Gold-tinted fill for reward chips and highlights."),
-        ("on-tertiary-container", "amber-10", "amber-90", "Text and icons on tertiary-container."),
-        ("error", "red-40", "red-80", "Errors and destructive actions."),
-        ("on-error", "paper-99", "red-20", "Text and icons on error."),
-        ("error-container", "red-90", "red-30", "Tinted fill for error chips and banners."),
-        ("on-error-container", "red-10", "red-90", "Text and icons on error-container."),
-        ("success", "green-40", "green-80", "Completed, saved, correct."),
-        ("on-success", "paper-99", "green-20", "Text and icons on success."),
-        ("success-container", "green-90", "green-30", "Tinted fill for success chips and banners."),
-        ("on-success-container", "green-10", "green-90", "Text and icons on success-container."),
-        ("warning", "orange-40", "orange-80", "Needs attention soon. Orange now, so it is not mistaken for the gold accent."),
-        ("on-warning", "paper-99", "orange-20", "Text and icons on warning."),
-        ("warning-container", "orange-90", "orange-30", "Tinted fill for warning chips and banners."),
-        ("on-warning-container", "orange-10", "orange-90", "Text and icons on warning-container."),
-        ("surface", "paper-96", "neutral-11", "Page background. Warm cream in light, deep ink in dark."),
-        ("surface-container-lowest", "paper-99", "neutral-8", "Lowest layer."),
-        ("surface-container-low", "paper-94", "neutral-14", "Default card and list fill."),
-        ("surface-container", "paper-92", "neutral-17", "Top bar, bottom nav, grouped areas."),
-        ("surface-container-high", "paper-90", "neutral-21", "Dialogs, menus."),
-        ("surface-container-highest", "paper-87", "neutral-25", "Fields, switch track, chips at rest."),
-        ("on-surface", "paper-15", "neutral-90", "Body text. Never dimmed."),
-        ("on-surface-variant", "paper-variant-35", "neutral-variant-80", "Supporting text. At least 4.5:1 on every surface."),
-        ("outline", "paper-variant-50", "neutral-variant-60", "Borders that carry meaning: fields, buttons, switches, sliders. At least 3:1 on every surface."),
-        ("outline-variant", "paper-variant-80", "neutral-variant-30", "Decorative tonal edge: cards, lists, nav, dividers. A soft step, not a line. Never the only cue for a control."),
-        ("inverse-surface", "paper-20", "neutral-30", "Snackbar fill. In dark it is a lifted slate, not a bright slab."),
-        ("inverse-on-surface", "paper-95", "neutral-92", "Text on inverse-surface."),
-        ("inverse-primary", "teal-80", "teal-80", "Action text on inverse-surface."),
-        ("disabled-container", "paper-90", "neutral-20", "Fill of disabled controls."),
-        ("on-disabled", "paper-variant-40", "neutral-variant-70", "Text on disabled controls."),
-        ("focus-ring", "indigo-40", "amber-80", "Keyboard focus outline, always 3px. Unchanged in purpose and still 3:1 or better."),
-        ("pixel-shadow", "paper-variant-80", "neutral-4", "Hard shadow colour for elevation."),
-    ],
-}
-
-ROUND2 = {
-    "name": "Bitbloom (proposal, round 2)",
-    "out": "tokens.proposal",
+# ---------- theme configuration ----------
+THEME = {
+    "name": "Bitbloom",
+    "out": "tokens",
     # Brighter and friendlier: green, yellow and sky keep almost all their chroma at the mid tones.
     "keep": {"green": 0.98, "yellow": 0.95, "sky": 0.95, "indigo": 0.95, "blue": 0.80, "red": 0.85, "orange": 0.85, "amber": 0.85, "violet": 0.75, "teal": 0.80, "emerald": 0.80, "lime": 0.80},
     "keep_default": 0.70,
@@ -248,12 +185,9 @@ def build(cfg):
             px = tok["value"]["dark"].split(" ")[0]
             tok["value"] = {"light": f"{px} {px} 0 0 {palette[light_shadow]}", "dark": f"{px} {px} 0 0 {palette[dark_shadow]}"}
     (HERE / f"{cfg['out']}.json").write_text(json.dumps(out, indent=1, ensure_ascii=False) + "\n")
-    subprocess.run([sys.executable, str(BASE / "gen_tokens.py"), str(HERE / f"{cfg['out']}.json"), str(HERE / f"{cfg['out']}.css")], check=True)
+    subprocess.run([sys.executable, str(HERE / "gen_tokens.py"), str(HERE / f"{cfg['out']}.json"), str(HERE / f"{cfg['out']}.css")], check=True)
     print(f"{cfg['out']}: {len(tokens)} colour tokens")
 
 
 if __name__ == "__main__":
-    want = sys.argv[1:] or ["1", "2"]
-    for r, cfg in (("1", ROUND1), ("2", ROUND2)):
-        if r in want:
-            build(cfg)
+    build(THEME)

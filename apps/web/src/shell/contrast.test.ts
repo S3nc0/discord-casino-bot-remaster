@@ -38,18 +38,6 @@ const SHELL_TEXT = [
   '.app-root .bb-radio',
   '.app-root .participants__more',
   '.home__balance',
-  '.home__label',
-];
-
-const SHELL_BORDERS = [
-  '.app-root .bb-card:not(.bb-card--filled)',
-  '.app-root .bb-list',
-  '.app-root .bb-navbar',
-  '.app-root .bb-dialog',
-  '.app-root .bb-banner',
-  '.app-root .bb-avatar',
-  '.app-root .bb-progress',
-  '.app-root .bb-tag',
 ];
 
 /**
@@ -71,6 +59,9 @@ const KIT_TEXT: [string, string][] = [
   ['primary', 'surface'],
   ['primary', 'surface-container-low'],
   ['on-yellow-container', 'yellow-container'],
+  // Home balance: yellow text on the card (dark) and on the butter plate (light).
+  ['tertiary', 'surface-container-low'],
+  ['on-tertiary-container', 'tertiary-container'],
 ];
 
 const fmt = (n: number) => n.toFixed(2);
@@ -86,17 +77,6 @@ describe.each(THEMES)('contrast (%s theme)', (theme) => {
       const ratio = contrast(color(role!), color(surface));
       expect(ratio, `${selector} ${role} on ${surface} = ${fmt(ratio)}`).toBeGreaterThanOrEqual(
         TEXT_MIN,
-      );
-    }
-  });
-
-  it.each(SHELL_BORDERS)('%s border reaches 3:1 on every surface', (selector) => {
-    const role = roleOf(rules, selector, '--bc');
-    expect(role, `${selector} sets no border role`).not.toBeNull();
-    for (const surface of SURFACES) {
-      const ratio = contrast(color(role!), color(surface));
-      expect(ratio, `${selector} ${role} on ${surface} = ${fmt(ratio)}`).toBeGreaterThanOrEqual(
-        BORDER_MIN,
       );
     }
   });

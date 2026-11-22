@@ -58,6 +58,72 @@ function contrastRatio(fgHex: string, bgHex: string): number {
   return (lighter + 0.05) / (darker + 0.05);
 }
 
+const SURFACES = [
+  'surface-container-lowest',
+  'surface',
+  'surface-container-low',
+  'surface-container',
+  'surface-container-high',
+  'surface-container-highest',
+] as const;
+const HUES = [
+  'red',
+  'orange',
+  'amber',
+  'yellow',
+  'lime',
+  'green',
+  'emerald',
+  'teal',
+  'cyan',
+  'sky',
+  'blue',
+  'indigo',
+  'violet',
+  'magenta',
+  'pink',
+  'brown',
+] as const;
+const FILLS = ['primary', 'secondary', 'tertiary', 'error', 'success', 'warning'] as const;
+
+type Rule = 'text' | 'meaningful' | 'decorative' | 'not dim';
+type Pair = [rule: Rule, fg: string, bg: string, min: number];
+
+/**
+ * Port of design/bitbloom/contrast_check.py: every pair the theme promises, with its minimum.
+ *  text        >= 4.5  text on fills, coloured text/icons on every surface
+ *  meaningful  >= 3    outline (control borders) and the focus ring on every surface
+ *  decorative  >= 1.3  outline-variant stays a visible step (and is softer than outline)
+ *  not dim     on-surface >= 10 and on-surface-variant >= 5.5 on surface
+ */
+function pairs(): Pair[] {
+  const out: Pair[] = [];
+  for (const f of FILLS) {
+    out.push(['text', `on-${f}`, f, 4.5]);
+    out.push(['text', `on-${f}-container`, `${f}-container`, 4.5]);
+    for (const s of SURFACES) out.push(['text', f, s, 4.5]);
+  }
+  for (const s of SURFACES) {
+    out.push(['text', 'on-surface', s, 4.5]);
+    out.push(['text', 'on-surface-variant', s, 4.5]);
+    out.push(['meaningful', 'outline', s, 3]);
+    out.push(['meaningful', 'focus-ring', s, 3]);
+  }
+  out.push(['meaningful', 'outline', 'secondary-container', 3]);
+  out.push(['text', 'inverse-on-surface', 'inverse-surface', 4.5]);
+  out.push(['text', 'inverse-primary', 'inverse-surface', 4.5]);
+  out.push(['text', 'on-disabled', 'disabled-container', 4.5]);
+  out.push(['not dim', 'on-surface', 'surface', 10]);
+  out.push(['not dim', 'on-surface-variant', 'surface', 5.5]);
+  out.push(['decorative', 'outline-variant', 'surface', 1.3]);
+  out.push(['decorative', 'outline-variant', 'surface-container-low', 1.3]);
+  for (const h of HUES) {
+    out.push(['text', `on-${h}-container`, `${h}-container`, 4.5]);
+    for (const s of SURFACES) out.push(['text', `${h}-accent`, s, 4.5]);
+  }
+  return out;
+}
+
 describe('Bitbloom token contrast', () => {
   const stylesDir = dirname(fileURLToPath(import.meta.url));
   const tokensCss = readFileSync(join(stylesDir, 'tokens.css'), 'utf8');
@@ -80,76 +146,62 @@ describe('Bitbloom token contrast', () => {
     ['prefers-color-scheme: dark', mediaDarkTokens],
   ];
 
-  const surfaceRoles = [
-    'surface',
-    'surface-container-lowest',
-    'surface-container-low',
-    'surface-container',
-    'surface-container-high',
-    'surface-container-highest',
-  ] as const;
-
-  const onPrefixPairs = Object.keys(lightTokens)
-    .filter((key) => key.startsWith('on-'))
-    .map((fg) => {
-      const base = fg.slice(3);
-      const bg =
-        base === 'surface-variant' ? 'surface' : lightTokens[base] ? base : `${base}-container`;
-      return [fg, bg] as const;
+  it.each(themes)('has 0 failing pairs in %s', (themeName, tokens) => {
+    const ratioOf = (fg: string, bg: string) =>
+      contrastRatio(resolveColor(tokens, fg), resolveColor(tokens, bg));
+    const failures: string[] = [];
+    let checks = 0;
+    for (const [rule, fg, bg, min] of pairs()) {
+      checks += 1;
+      const ratio = ratioOf(fg, bg);
+      if (ratio < min) {
+        failures.push(`[${rule}] --${fg} on --${bg} = ${ratio.toFixed(2)}:1 (need ${min})`);
+      }
+    }
+    // The decorative edge must be softer than the meaningful one, on the surface it is drawn on.
+    checks += 1;
+    if (!(ratioOf('outline-variant', 'surface') < ratioOf('outline', 'surface'))) {
+      failures.push('[decorative] outline-variant is not softer than outline');
+    }
+    // Layers stay distinguishable but gentle.
+    SURFACES.slice(1).forEach((layer, i) => {
+      checks += 1;
+      const prev = SURFACES[i] as string;
+      const step = ratioOf(prev, layer);
+      if (step < 1.04) failures.push(`[layers] ${prev} -> ${layer} is only ${step.toFixed(3)}:1`);
     });
+    expect(checks, 'the rule set did not shrink').toBeGreaterThanOrEqual(198);
+    expect(failures, `${themeName}: ${failures.length} failing`).toEqual([]);
+  });
 
-  it.each(themes)(
-    'passes >= 4.5:1 for every on-X/X and inverse text pair in %s',
-    (themeName, tokens) => {
-      for (const [fg, bg] of onPrefixPairs) {
-        const ratio = contrastRatio(resolveColor(tokens, fg), resolveColor(tokens, bg));
-        expect(
-          ratio,
-          `${themeName}: --${fg} on --${bg} (${ratio.toFixed(2)}:1)`,
-        ).toBeGreaterThanOrEqual(4.5);
+  it('matches design/bitbloom/tokens.json for every colour role', () => {
+    const json = JSON.parse(
+      readFileSync(join(stylesDir, '../../../../design/bitbloom/tokens.json'), 'utf8'),
+    ) as {
+      color: { tokens: Array<{ name: string; value: string | { light: string; dark: string } }> };
+    };
+    const unwrap = (v: string) => v.replace(/^\{(.+)\}$/, '$1');
+    for (const token of json.color.tokens) {
+      for (const [theme, tokens] of [
+        ['light', lightTokens],
+        ['dark', darkTokens],
+      ] as const) {
+        const raw = typeof token.value === 'string' ? token.value : token.value[theme];
+        const expected = /^#/.test(raw)
+          ? raw
+          : resolveColor(
+              // resolve through the JSON's own references with the same theme
+              Object.fromEntries(
+                json.color.tokens.map((t) => {
+                  const r = typeof t.value === 'string' ? t.value : t.value[theme];
+                  return [t.name, /^\{/.test(r) ? `var(--${unwrap(r)})` : r];
+                }),
+              ),
+              token.name,
+            );
+        if (!/^#[0-9a-f]{6}$/i.test(expected)) continue; // scrim and lip carry alpha
+        expect(resolveColor(tokens, token.name), `${theme} --${token.name}`).toBe(expected);
       }
-
-      for (const surface of surfaceRoles) {
-        for (const textRole of ['on-surface', 'on-surface-variant']) {
-          const ratio = contrastRatio(
-            resolveColor(tokens, textRole),
-            resolveColor(tokens, surface),
-          );
-          expect(
-            ratio,
-            `${themeName}: --${textRole} on --${surface} (${ratio.toFixed(2)}:1)`,
-          ).toBeGreaterThanOrEqual(4.5);
-        }
-      }
-
-      for (const inverseFg of ['inverse-on-surface', 'inverse-primary']) {
-        const ratio = contrastRatio(
-          resolveColor(tokens, inverseFg),
-          resolveColor(tokens, 'inverse-surface'),
-        );
-        expect(
-          ratio,
-          `${themeName}: --${inverseFg} on --inverse-surface (${ratio.toFixed(2)}:1)`,
-        ).toBeGreaterThanOrEqual(4.5);
-      }
-    },
-  );
-
-  it.each(themes)(
-    'passes >= 3:1 for outline and outline-variant against all surfaces in %s',
-    (themeName, tokens) => {
-      for (const outlineRole of ['outline', 'outline-variant']) {
-        for (const surface of surfaceRoles) {
-          const ratio = contrastRatio(
-            resolveColor(tokens, outlineRole),
-            resolveColor(tokens, surface),
-          );
-          expect(
-            ratio,
-            `${themeName}: --${outlineRole} on --${surface} (${ratio.toFixed(2)}:1)`,
-          ).toBeGreaterThanOrEqual(3);
-        }
-      }
-    },
-  );
+    }
+  });
 });

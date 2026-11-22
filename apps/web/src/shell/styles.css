@@ -26,8 +26,9 @@ body {
   padding: var(--safe-top) var(--safe-right) 0 var(--safe-left);
 }
 
-/* Legibility: body text uses on-surface (never the muted variant role), borders use the
-   stronger outline role, and nothing is smaller than 16px except the landscape rail. */
+/* Legibility: body text uses on-surface (never the muted variant role) and nothing is smaller
+   than 16px except the landscape rail. Containers keep the kit's tonal edge; anything that
+   carries meaning (fields, buttons, switches) uses the kit's outline role. */
 .app-root .bb-card__meta,
 .app-root .bb-list__support,
 .app-root .bb-nav-item,
@@ -43,17 +44,6 @@ body {
 .app-root .bb-nav-item {
   font-size: 16px;
   line-height: 24px;
-}
-
-.app-root .bb-card:not(.bb-card--filled),
-.app-root .bb-list,
-.app-root .bb-navbar,
-.app-root .bb-dialog,
-.app-root .bb-banner,
-.app-root .bb-avatar,
-.app-root .bb-progress,
-.app-root .bb-tag {
-  --bc: var(--outline);
 }
 
 .status {
@@ -241,11 +231,34 @@ body {
   bottom: calc(var(--safe-bottom) + var(--space-4));
 }
 
-/* ---- Home: the balance is the hero ---- */
+/* ---- Home: skyline over the balance hero, then the 4-up game tiles ---- */
 .home {
   display: grid;
-  gap: var(--space-1);
+  gap: var(--space-6);
+  width: 100%;
+  max-width: 40rem;
+  margin-inline: auto;
   padding-block: var(--space-3);
+  box-sizing: border-box;
+}
+
+.home__hero {
+  position: relative;
+}
+
+/* The kit's media slot is 2:1; the skyline strip is 14 art pixels (56px) tall. */
+.home__hero .bb-card__media {
+  aspect-ratio: auto;
+  height: 56px;
+}
+
+.home__body {
+  display: grid;
+  gap: var(--space-1);
+}
+
+.home__eyebrow {
+  margin: 0;
 }
 
 .home__balance {
@@ -254,10 +267,12 @@ body {
   align-items: baseline;
   gap: var(--space-2) var(--space-3);
   margin: 0;
+  padding-right: 6.5rem;
   color: var(--on-surface);
 }
 
 .home__amount {
+  color: var(--tertiary);
   font: 600 clamp(40px, 13vw, 56px) / 1.1 var(--font-display);
   font-variant-numeric: tabular-nums;
   overflow-wrap: anywhere;
@@ -267,8 +282,86 @@ body {
   font: 700 24px / 32px var(--font-body);
 }
 
-.home__label {
+/* Light theme: yellow text is only 5.8:1, so the amount sits on a butter plate with a pixel edge. */
+[data-theme='light'] .home__amount {
+  padding: 0 var(--space-2);
+  color: var(--on-tertiary-container);
+  background: var(--tertiary-container);
+  box-shadow:
+    0 -2px 0 0 var(--yellow-70),
+    0 2px 0 0 var(--yellow-70),
+    -2px 0 0 0 var(--yellow-70),
+    2px 0 0 0 var(--yellow-70);
+}
+
+@media (not (prefers-color-scheme: dark)) {
+  :root:not([data-theme]) .home__amount {
+    padding: 0 var(--space-2);
+    color: var(--on-tertiary-container);
+    background: var(--tertiary-container);
+    box-shadow:
+      0 -2px 0 0 var(--yellow-70),
+      0 2px 0 0 var(--yellow-70),
+      -2px 0 0 0 var(--yellow-70),
+      2px 0 0 0 var(--yellow-70);
+  }
+}
+
+.home__art {
+  position: absolute;
+  top: calc(56px + var(--space-4));
+  right: var(--space-4);
+  width: 96px;
+  height: 72px;
+  pointer-events: none;
+}
+
+.home__art > * {
+  position: absolute;
+}
+
+.home__die {
+  top: 24px;
+  left: 0;
+}
+
+.home__coin {
+  top: 0;
+  right: 0;
+}
+
+.home__spark--a {
+  top: 0;
+  right: 56px;
+}
+
+.home__spark--b {
+  top: 54px;
+  right: 4px;
+  animation-delay: 0.8s;
+}
+
+.home__games {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.home__games h2 {
+  margin: 0;
+}
+
+.home__tiles {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--space-2);
+}
+
+.home__tiles .bb-game {
   margin: 0;
   color: var(--on-surface);
-  font: 400 16px / 24px var(--font-body);
+}
+
+.home__tiles .bb-game span {
+  min-width: 0;
+  overflow-wrap: anywhere;
 }

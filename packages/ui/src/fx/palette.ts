@@ -8,24 +8,24 @@ export const CONFETTI_ROLE_VARS = [
 ] as const;
 
 export const COIN_ROLE_VARS = [
-  '--warning',
+  '--tertiary',
   '--yellow-accent',
   '--amber-accent',
-  '--secondary',
+  '--warning',
 ] as const;
 
 const ROLE_FALLBACKS: Readonly<Record<string, string>> = {
-  '--primary': '#006a64',
-  '--secondary': '#9e4200',
-  '--tertiary': '#753ec4',
-  '--success': '#006e19',
-  '--warning': '#835500',
-  '--error': '#bc151b',
-  '--yellow-accent': '#6b5f00',
-  '--amber-accent': '#835500',
+  '--primary': '#216c26',
+  '--secondary': '#126682',
+  '--tertiary': '#6b5f09',
+  '--success': '#216c26',
+  '--warning': '#95491a',
+  '--error': '#a23d32',
+  '--yellow-accent': '#6b5f09',
+  '--amber-accent': '#7f5617',
 };
 
-const DEFAULT_FALLBACK_COLOR = '#006a64';
+const DEFAULT_FALLBACK_COLOR = '#216c26';
 
 function resolveVarValue(style: CSSStyleDeclaration, rawName: string, depth = 0): string {
   if (depth > 4) return '';
