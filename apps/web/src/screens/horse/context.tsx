@@ -14,7 +14,8 @@ export function HorseApiProvider({ api, children }: { api: HorseApi; children: R
 const mocks = new WeakMap<ShellRuntime, HorseApi>();
 
 function apiFor(runtime: ShellRuntime): HorseApi {
-  if (runtime.config.mode === 'mock') {
+  // The flag is replaced at build time, so a production bundle carries no mock API.
+  if (import.meta.env.VITE_MOCK_DISCORD === '1' && runtime.config.mode === 'mock') {
     let mock = mocks.get(runtime);
     if (!mock) {
       mock = createMockHorseApi();
