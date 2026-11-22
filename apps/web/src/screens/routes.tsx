@@ -2,6 +2,7 @@ import type { ComponentType } from 'react';
 import { SCREEN_IDS, type ScreenId } from '@casino/shared';
 import { screenName, useLocale, useT } from '../shell/i18n.ts';
 import { HomeScreen } from '../shell/HomeScreen.tsx';
+import { lazyScreen } from './life/lazy.tsx';
 
 /** Home: the balance hero and the game tiles live in the shell. F2 builds the rest on top. */
 export function Home() {
@@ -20,8 +21,22 @@ export function GameRoute({ screen }: { screen: ScreenId }) {
   );
 }
 
+/** Built screens, one line each, loaded on first use. Every other id shows the placeholder. */
+const implemented: Partial<Record<ScreenId, ComponentType>> = {
+  lottery: lazyScreen('lottery', () => import('./life/LotteryScreen.tsx')),
+  missions: lazyScreen('missions', () => import('./life/MissionsScreen.tsx')),
+  poll: lazyScreen('poll', () => import('./life/PollScreen.tsx')),
+  quiz: lazyScreen('quiz', () => import('./life/QuizScreen.tsx')),
+  ranking: lazyScreen('ranking', () => import('./life/RankingScreen.tsx')),
+  shop: lazyScreen('shop', () => import('./life/ShopScreen.tsx')),
+  transfer: lazyScreen('transfer', () => import('./life/TransferScreen.tsx')),
+  work: lazyScreen('work', () => import('./life/LaborScreen.tsx')),
+};
+
 function routeFor(screen: ScreenId): ComponentType {
   if (screen === 'home') return Home;
+  const built = implemented[screen];
+  if (built) return built;
   const Route = () => <GameRoute screen={screen} />;
   Route.displayName = `GameRoute(${screen})`;
   return Route;
