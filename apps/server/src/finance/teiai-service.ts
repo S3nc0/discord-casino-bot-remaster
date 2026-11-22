@@ -1005,6 +1005,30 @@ export class TeiaiService {
   }
 
   /**
+   * Apply a debt repayment already withheld from player income (`debt_withholding` ledger row
+   * posted by the caller). Shrinks `debt` (clamped at 0), runs grace/bankruptcy/blacklist
+   * transitions, and returns the amount applied.
+   */
+  repayWithheldDebt(
+    guildId: string,
+    userId: string,
+    amount: number,
+    nowMs = this.deps.clock.now(),
+  ): number {
+    if (!Number.isInteger(amount) || amount <= 0) return 0;
+    return this.deps.store.transaction(() => {
+      const acc = this.ensureAccount(guildId, userId);
+      const applied = Math.min(amount, acc.debt);
+      if (applied <= 0) return 0;
+      this.deps.store
+        .stmt('UPDATE bank_accounts SET debt = debt - ? WHERE guild_id = ? AND user_id = ?')
+        .run(applied, guildId, userId);
+      this.afterDebtChangeInTx(guildId, userId, nowMs);
+      return applied;
+    });
+  }
+
+  /**
    * Credit eligible income to a player and automatically apply 30% withholding:
    * senior Teiai debt first (`debt_withholding`), remaining budget to overdue P2P loans oldest-first.
    */

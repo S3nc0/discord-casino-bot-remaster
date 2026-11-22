@@ -234,7 +234,7 @@ describe('notify messages & shared i18n', () => {
       expect(reg.body).not.toMatch(/\{[A-Za-z0-9_]+\}/);
       expect(prom.body).not.toMatch(/\{[A-Za-z0-9_]+\}/);
     }
-    expect(embedColor('dark')).toBe(0x192121);
+    expect(embedColor('dark')).toBe(0x172030);
     expect(botColor('primary')).toBe(EMBED_ROLE_COLORS.primary);
   });
 

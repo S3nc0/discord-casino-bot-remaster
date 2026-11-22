@@ -20,38 +20,55 @@ export const EMBED_ROLES = [
 
 export type EmbedRole = (typeof EMBED_ROLES)[number];
 
-/** Role → 24-bit RGB hex integer, aligned with Bitbloom (`design/bitbloom/tokens.css`). */
+/** Bitbloom token name (`design/bitbloom/tokens.json`, dark theme for themed roles) backing each role. */
+export const EMBED_ROLE_TOKENS: Readonly<Record<EmbedRole, string>> = Object.freeze({
+  primary: 'primary', // green-70
+  secondary: 'secondary', // sky-70
+  tertiary: 'tertiary', // yellow-80
+  success: 'success', // green-80
+  warning: 'warning', // orange-80
+  error: 'error', // red-70
+  info: 'secondary', // sky-70
+  gold: 'tertiary', // yellow-80
+  race: 'emerald-50',
+  market: 'blue-50',
+  bank: 'red-30',
+  neutral: 'neutral-50',
+  dark: 'neutral-12',
+});
+
+/** Role → 24-bit RGB hex integer, aligned with Bitbloom round 2 (`design/bitbloom/tokens.json`). */
 export const EMBED_ROLE_COLORS: Readonly<Record<EmbedRole, number>> = Object.freeze({
-  primary: 0x00867e, // --teal-50
-  secondary: 0xe76d1e, // --orange-60
-  tertiary: 0xaf71fe, // --violet-60
-  success: 0x31a63a, // --green-60
-  warning: 0xe89b0f, // --amber-70
-  error: 0xdc3a31, // --red-50
-  info: 0x009cc8, // --sky-60
-  gold: 0xe0c70c, // --yellow-80
-  race: 0x00885b, // --emerald-50
-  market: 0x0077dc, // --blue-50
-  bank: 0x93000f, // --red-30
-  neutral: 0x6f7979, // --neutral-50
-  dark: 0x192121, // --neutral-12
+  primary: 0x59c059, // --primary (dark: --green-70)
+  secondary: 0x29b8e9, // --secondary (dark: --sky-70)
+  tertiary: 0xdfc738, // --tertiary (dark: --yellow-80)
+  success: 0x80db7c, // --success (dark: --green-80)
+  warning: 0xf8b996, // --warning (dark: --orange-80)
+  error: 0xf4907f, // --error (dark: --red-70)
+  info: 0x29b8e9, // --secondary (dark: --sky-70)
+  gold: 0xdfc738, // --tertiary (dark: --yellow-80)
+  race: 0x328561, // --emerald-50
+  market: 0x4177c7, // --blue-50
+  bank: 0x72342c, // --red-30
+  neutral: 0x6f778b, // --neutral-50
+  dark: 0x172030, // --neutral-12
 });
 
 /** Role → `#RRGGBB` string map. */
 export const EMBED_ROLE_HEX: Readonly<Record<EmbedRole, `#${string}`>> = Object.freeze({
-  primary: '#00867e',
-  secondary: '#e76d1e',
-  tertiary: '#af71fe',
-  success: '#31a63a',
-  warning: '#e89b0f',
-  error: '#dc3a31',
-  info: '#009cc8',
-  gold: '#e0c70c',
-  race: '#00885b',
-  market: '#0077dc',
-  bank: '#93000f',
-  neutral: '#6f7979',
-  dark: '#192121',
+  primary: '#59c059',
+  secondary: '#29b8e9',
+  tertiary: '#dfc738',
+  success: '#80db7c',
+  warning: '#f8b996',
+  error: '#f4907f',
+  info: '#29b8e9',
+  gold: '#dfc738',
+  race: '#328561',
+  market: '#4177c7',
+  bank: '#72342c',
+  neutral: '#6f778b',
+  dark: '#172030',
 });
 
 export interface EmbedTheme {

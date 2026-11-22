@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { PRICE_SCALE } from '@casino/shared';
+import { slots } from '@casino/domain/casino';
 import { TEIAI_CONSTANTS, isTradableItem } from '@casino/domain/finance';
 import { CATALOG, isAuctionListable } from '@casino/domain/shop';
 import { GUILD, OTHER_USER, USER, createTestServer, type TestServer } from '../test-kit.ts';
@@ -73,7 +74,7 @@ describe('Teiai port on the finance services', () => {
     s.close();
   });
 
-  it('prize top-ups draw from bank cash only, and the loss share adds to it', () => {
+  it('prize top-ups draw from bank cash only, and a casino loss credits the bank share once', () => {
     const s = boot();
     const cash = (): number =>
       (
@@ -85,6 +86,42 @@ describe('Teiai port on the finance services', () => {
     const before = cash();
     s.casino.core.ports.bank.lossShare(GUILD, 300, 'slots');
     expect(cash()).toBe(before + 300);
+
+    const round = s.casino.core.begin(
+      { guildId: GUILD, userId: USER, source: 'chat' },
+      'slots',
+      1_000,
+    );
+    s.casino.core.settle(round, { payout: 0, profile: slots.SLOTS_PROFILE });
+    // 3 % of the 1,000 loss = 30 Pelica, credited once (not 3 % of 30).
+    expect(cash()).toBe(before + 300 + 30);
+    s.close();
+  });
+
+  it('repaying a bankrupt player debt down to zero via TeiaiPort exits bankruptcy and starts blacklist', () => {
+    const s = boot();
+    s.economy.debit({
+      guildId: GUILD,
+      userId: OTHER_USER,
+      amount: s.economy.getBalance(GUILD, OTHER_USER),
+      reason: 'admin_revoke',
+      idempotencyKey: 'zero-bal',
+    });
+    s.finance.teiai.addDebtFromExcess(GUILD, OTHER_USER, 10_000);
+    const bk = s.finance.teiai.declareBankruptcy(GUILD, OTHER_USER, { nowMs: s.clock.now() });
+    expect(bk.ok).toBe(true);
+    expect(s.finance.teiai.getStatus(GUILD, OTHER_USER)).toBe('bankrupt');
+
+    const debt = s.finance.teiai.getDebt(GUILD, OTHER_USER);
+    const withheld = s.casino.core.ports.debt.withhold(
+      GUILD,
+      OTHER_USER,
+      Math.ceil((debt * 10) / 3) + 10,
+    );
+    expect(withheld).toBe(debt);
+    expect(s.finance.teiai.getDebt(GUILD, OTHER_USER)).toBe(0);
+    expect(s.finance.teiai.getStatus(GUILD, OTHER_USER)).toBe('katagi');
+    expect(s.finance.teiai.isBlacklistedFromP2pLoans(GUILD, OTHER_USER)).toBe(true);
     s.close();
   });
 });

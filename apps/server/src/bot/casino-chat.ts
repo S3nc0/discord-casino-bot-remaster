@@ -12,6 +12,7 @@ import type { BlackjackView } from '../games/casino/blackjack.ts';
 import type { ChinchiroView } from '../games/casino/chinchiro.ts';
 import type { Caller, CasinoGames } from '../games/index.ts';
 import { AppError } from '../runtime/errors.ts';
+import { botColor } from '../notify/theme.ts';
 import {
   EPHEMERAL,
   activityRow,
@@ -128,7 +129,9 @@ function chinchiroMessage(ctx: ChatCtx, view: ChinchiroView) {
   if (result) {
     lines.push(`\n${chinchiroFlavor(locale, view)}`);
     e.setColor(
-      result.outcome === 'win' ? 0x31a63a : result.outcome === 'draw' ? 0x6f7979 : 0xdc3a31,
+      botColor(
+        result.outcome === 'win' ? 'success' : result.outcome === 'draw' ? 'neutral' : 'error',
+      ),
     );
     e.addFields(
       {
@@ -215,11 +218,13 @@ function blackjackMessage(ctx: ChatCtx, view: BlackjackView, stake: number) {
       lines.push(t(locale, 'bot.casino.blackjack.flair.doubled'));
     } else if (seat.value === 21) lines.push(t(locale, 'bot.casino.blackjack.flair.twentyOne'));
     e.setColor(
-      result === 'win' || result === 'blackjack'
-        ? 0x31a63a
-        : result === 'push'
-          ? 0x6f7979
-          : 0xdc3a31,
+      botColor(
+        result === 'win' || result === 'blackjack'
+          ? 'success'
+          : result === 'push'
+            ? 'neutral'
+            : 'error',
+      ),
     );
     e.setDescription(lines.join('\n'));
     e.addFields(
