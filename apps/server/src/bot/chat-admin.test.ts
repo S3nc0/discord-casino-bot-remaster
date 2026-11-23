@@ -17,7 +17,7 @@ import {
   makeUser,
   modalSubmit,
 } from './chat-test-kit.ts';
-import { setAdminFetch } from './admin-tools.ts';
+import { pendingFormCount, setAdminFetch } from './admin-tools.ts';
 import type { TestServer } from '../runtime/test-kit.ts';
 
 let server: TestServer | null = null;
@@ -430,6 +430,42 @@ describe('R-14 / R-15: channels of the right guild, bounded purge', () => {
       button(customIds(purge.out[0]!.options)[0]!, { guildId: null, client }).interaction as never,
     );
     expect(pages).toBeLessThanOrEqual(50);
+  });
+});
+
+describe('R-15: abandoned modal parameters expire', () => {
+  it('R-15: an announce modal submitted after its TTL is refused, and abandoned ones are swept', async () => {
+    const { s, handler } = setup();
+    const channel = fakeChannel('9201');
+    const client = fakeClient([channel]);
+    const before = pendingFormCount();
+    for (const id of ['abandon-1', 'abandon-2', 'abandon-3']) {
+      const cmd = admin(undefined, 'announce', {
+        id,
+        strings: { guild_id: GUILD, channel_id: '9201', title: 'x' },
+        client,
+      });
+      await handler(cmd.interaction as never);
+    }
+    expect(pendingFormCount()).toBe(before + 3);
+
+    s.clock.advance(20 * 60_000);
+    const late = modalSubmit(
+      'b:admn:announce:abandon-1',
+      { body: 'Hello' },
+      { guildId: null, client },
+    );
+    await handler(late.interaction as never);
+    expect(allText(late.out[0]!.options)).not.toContain('Hello');
+    expect(channel.sent).toHaveLength(0);
+
+    const fresh = admin(undefined, 'announce', {
+      id: 'fresh-1',
+      strings: { guild_id: GUILD, channel_id: '9201', title: 'y' },
+      client,
+    });
+    await handler(fresh.interaction as never);
+    expect(pendingFormCount()).toBe(before + 1);
   });
 });
 

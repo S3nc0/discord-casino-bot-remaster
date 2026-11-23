@@ -204,6 +204,42 @@ async function post(
   return true;
 }
 
+// ------------------------------------------------------------------ modal parameters
+
+const FORM_TTL_MS = 900_000;
+const FORM_MAX = 200;
+
+/** Parameters of a slash command carried to its modal; a modal nobody submits must not leak them. */
+class FormParams<V> {
+  private readonly entries = new Map<string, { value: V; expiresAt: number }>();
+
+  get size(): number {
+    return this.entries.size;
+  }
+
+  set(key: string, value: V, now: number): void {
+    for (const [k, e] of this.entries) if (e.expiresAt <= now) this.entries.delete(k);
+    while (this.entries.size >= FORM_MAX) {
+      const oldest = this.entries.keys().next().value;
+      if (oldest === undefined) break;
+      this.entries.delete(oldest);
+    }
+    this.entries.set(key, { value, expiresAt: now + FORM_TTL_MS });
+  }
+
+  /** The stored value, once: absent when unknown or past its TTL. */
+  take(key: string, now: number): V | undefined {
+    const entry = this.entries.get(key);
+    this.entries.delete(key);
+    return entry !== undefined && entry.expiresAt > now ? entry.value : undefined;
+  }
+}
+
+/** Modal parameter sets currently held (for tests). */
+export function pendingFormCount(): number {
+  return modalParams.size + announceParams.size;
+}
+
 // ------------------------------------------------------------------ pending confirmations
 
 interface Pending {
@@ -1049,10 +1085,11 @@ export function setAdminFetch(fn: typeof hooks.fetchText): void {
 
 const BULK_MAX_BYTES = 200 * 1024;
 
-const modalParams = new Map<
-  string,
-  { announce: boolean; guild: string | null; channel: string | null }
->();
+const modalParams = new FormParams<{
+  announce: boolean;
+  guild: string | null;
+  channel: string | null;
+}>();
 
 async function announceQuiz(
   ctx: ChatCtx,
@@ -1081,11 +1118,11 @@ async function quizAddModal(ctx: ChatCtx, interaction: ChatInputCommandInteracti
   const channel = interaction.options.getString('channel_id');
   needGuildForChannel(guild, channel);
   knownGuild(ctx, guild, false);
-  modalParams.set(interaction.id, {
-    announce: (interaction.options.getInteger('announce') ?? 1) === 1,
-    guild,
-    channel,
-  });
+  modalParams.set(
+    interaction.id,
+    { announce: (interaction.options.getInteger('announce') ?? 1) === 1, guild, channel },
+    nowOf(ctx.deps),
+  );
   const field = (
     id: string,
     label: string,
@@ -1145,12 +1182,11 @@ export async function adminModalSubmit(
   };
   if (id.namespace === 'admq' && id.action === 'add') {
     if (!ctx.deps.games) throw new AppError('internal');
-    const params = modalParams.get(id.args[0] ?? '') ?? {
+    const params = modalParams.take(id.args[0] ?? '', nowOf(ctx.deps)) ?? {
       announce: false,
       guild: null,
       channel: null,
     };
-    modalParams.delete(id.args[0] ?? '');
     const rawReward = field('reward').normalize('NFKC').replace(/,/g, '').trim();
     const rawDuration = field('duration').trim();
     const minutes = rawDuration === '' ? null : parseDuration(rawDuration);
@@ -1181,8 +1217,7 @@ export async function adminModalSubmit(
     return true;
   }
   if (id.namespace === 'admn' && id.action === 'announce') {
-    const params = announceParams.get(id.args[0] ?? '');
-    announceParams.delete(id.args[0] ?? '');
+    const params = announceParams.take(id.args[0] ?? '', nowOf(ctx.deps));
     if (!params) throw new AppError('expired');
     const body = field('body').trim();
     if (body === '') throw new AppError('invalid_payload');
@@ -1353,10 +1388,12 @@ async function quizDelete(ctx: ChatCtx, interaction: ChatInputCommandInteraction
 
 // ------------------------------------------------------------------ announce / purge
 
-const announceParams = new Map<
-  string,
-  { guilds: string[]; channel: string | null; title: string; image: string | null }
->();
+const announceParams = new FormParams<{
+  guilds: string[];
+  channel: string | null;
+  title: string;
+  image: string | null;
+}>();
 
 async function announce(ctx: ChatCtx, interaction: ChatInputCommandInteraction): Promise<void> {
   const { locale } = ctx;
@@ -1374,12 +1411,11 @@ async function announce(ctx: ChatCtx, interaction: ChatInputCommandInteraction):
   const title = (
     interaction.options.getString('title')?.trim() || t(locale, 'bot.admin.announce.defaultTitle')
   ).slice(0, 200);
-  announceParams.set(interaction.id, {
-    guilds,
-    channel: channelRaw,
-    title,
-    image: image?.url ?? null,
-  });
+  announceParams.set(
+    interaction.id,
+    { guilds, channel: channelRaw, title, image: image?.url ?? null },
+    nowOf(ctx.deps),
+  );
   await interaction.showModal(
     new ModalBuilder()
       .setCustomId(cid('admn', 'announce', interaction.id))
