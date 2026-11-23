@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   GUILD,
   OTHER_USER,
@@ -17,7 +17,7 @@ import {
   makeUser,
   modalSubmit,
 } from './chat-test-kit.ts';
-import { setAdminFetch } from './admin-tools.ts';
+import { pendingFormCount, setAdminFetch } from './admin-tools.ts';
 import type { TestServer } from '../runtime/test-kit.ts';
 
 let server: TestServer | null = null;
@@ -125,6 +125,27 @@ describe('money tools', () => {
     expect(s.economy.getBalance(GUILD, OTHER_USER)).toBe(0);
     expect(s.finance.teiai.getDebt(GUILD, OTHER_USER)).toBe(5000);
     expect(ledgerReasons(s, OTHER_USER)).toContain('admin_revoke');
+  });
+});
+
+describe('R-16: set-balance is one transaction', () => {
+  it('R-16: a failing debt write rolls the balance change back', async () => {
+    const { s, handler } = setup();
+    s.economy.credit({ guildId: GUILD, userId: OTHER_USER, amount: 7000, reason: 'admin_grant' });
+    const before = s.economy.getBalance(GUILD, OTHER_USER);
+    expect(before).toBeGreaterThan(0);
+    const spy = vi.spyOn(s.finance.teiai, 'adminSetDebt').mockImplementation(() => {
+      throw new Error('boom');
+    });
+    const debt = admin(undefined, 'set-balance', {
+      strings: { guild_id: GUILD, user_id: OTHER_USER },
+      integers: { amount: -5000 },
+    });
+    await handler(debt.interaction as never);
+    await handler(button(customIds(debt.out[0]!.options)[0]!).interaction as never);
+    expect(spy).toHaveBeenCalled();
+    expect(s.economy.getBalance(GUILD, OTHER_USER)).toBe(before);
+    expect(ledgerReasons(s, OTHER_USER)).not.toContain('admin_revoke');
   });
 });
 
@@ -348,6 +369,127 @@ describe('announcements and cleanup', () => {
   });
 });
 
+describe('R-14 / R-15: channels of the right guild, bounded purge', () => {
+  it('R-14: never posts or purges in a channel of another guild', async () => {
+    const { handler } = setup();
+    const foreign = fakeChannel('9101', ['m1'], 'other-guild');
+    const client = fakeClient([foreign]);
+
+    const host = admin(undefined, 'host-race', {
+      strings: { guild_id: GUILD, channel_id: '9101' },
+      integers: { entry_min: 3, bet_min: 4 },
+      client,
+    });
+    await handler(host.interaction as never);
+    expect(foreign.sent).toHaveLength(0);
+
+    const purge = admin(undefined, 'purge-messages', {
+      strings: { guild_id: GUILD, channel_id: '9101' },
+      client,
+    });
+    await handler(purge.interaction as never);
+    expect(customIds(purge.out[0]!.options)).toHaveLength(0);
+    expect(foreign.deleted).toHaveLength(0);
+  });
+
+  it('R-15: purge uses bulkDelete for recent bot messages and deletes older ones one by one', async () => {
+    const { handler } = setup();
+    const day = 86_400_000;
+    const channel = fakeChannel('9102', [
+      'new1',
+      'new2',
+      { id: 'old1', ageMs: 15 * day },
+      { id: 'old2', ageMs: 20 * day },
+    ]);
+    const client = fakeClient([channel]);
+    const purge = admin(undefined, 'purge-messages', {
+      strings: { guild_id: GUILD, channel_id: '9102' },
+      client,
+    });
+    await handler(purge.interaction as never);
+    await handler(
+      button(customIds(purge.out[0]!.options)[0]!, { guildId: null, client }).interaction as never,
+    );
+    expect(channel.bulkDeleted).toEqual([['new1', 'new2']]);
+    expect([...channel.deleted].sort()).toEqual(['new1', 'new2', 'old1', 'old2']);
+  });
+
+  it('R-15: purge stops after a bounded number of pages', async () => {
+    const { handler } = setup();
+    let pages = 0;
+    let serial = 0;
+    const channel = {
+      ...fakeChannel('9103'),
+      messages: {
+        fetch: async () => {
+          pages += 1;
+          return new Map(
+            Array.from({ length: 100 }, () => {
+              serial += 1;
+              const id = String(1_000_000 - serial);
+              return [
+                id,
+                {
+                  id,
+                  author: { id: 'someone-else' },
+                  createdTimestamp: 0,
+                  delete: async () => undefined,
+                },
+              ];
+            }),
+          );
+        },
+      },
+    };
+    const client = fakeClient([channel as never]);
+    const purge = admin(undefined, 'purge-messages', {
+      strings: { guild_id: GUILD, channel_id: '9103' },
+      client,
+    });
+    await handler(purge.interaction as never);
+    await handler(
+      button(customIds(purge.out[0]!.options)[0]!, { guildId: null, client }).interaction as never,
+    );
+    expect(pages).toBeLessThanOrEqual(50);
+  });
+});
+
+describe('R-15: abandoned modal parameters expire', () => {
+  it('R-15: an announce modal submitted after its TTL is refused, and abandoned ones are swept', async () => {
+    const { s, handler } = setup();
+    const channel = fakeChannel('9201');
+    const client = fakeClient([channel]);
+    const before = pendingFormCount();
+    for (const id of ['abandon-1', 'abandon-2', 'abandon-3']) {
+      const cmd = admin(undefined, 'announce', {
+        id,
+        strings: { guild_id: GUILD, channel_id: '9201', title: 'x' },
+        client,
+      });
+      await handler(cmd.interaction as never);
+    }
+    expect(pendingFormCount()).toBe(before + 3);
+
+    s.clock.advance(20 * 60_000);
+    const late = modalSubmit(
+      'b:admn:announce:abandon-1',
+      { body: 'Hello' },
+      { guildId: null, client },
+    );
+    await handler(late.interaction as never);
+    expect(allText(late.out[0]!.options)).not.toContain('Hello');
+    expect(channel.sent).toHaveLength(0);
+
+    const fresh = admin(undefined, 'announce', {
+      id: 'fresh-1',
+      strings: { guild_id: GUILD, channel_id: '9201', title: 'y' },
+      client,
+    });
+    await handler(fresh.interaction as never);
+    expect(pendingFormCount()).toBe(before + 1);
+  });
+});
+
 describe('server approval', () => {
   it('lists, allows and revokes servers (the config-allowed one cannot be revoked)', async () => {
     const { s, handler } = setup();
@@ -379,6 +521,27 @@ describe('server approval', () => {
     const pre = admin(undefined, 'server-revoke', { strings: { guild_id: GUILD } });
     await handler(pre.interaction as never);
     expect(embedOf(pre.out[0]!.options).title).toBe("Can't revoke");
+  });
+});
+
+describe('R-7 (bot part): revoking a server drops its live sessions', () => {
+  it('R-7: /admin server-revoke calls onGuildRevoked with the revoked guild', async () => {
+    const { s } = setup();
+    const revoked: string[] = [];
+    const handler = makeHandler(s, { onGuildRevoked: (guildId) => revoked.push(guildId) });
+    const leave = { name: 'Other', leave: async () => undefined };
+    const client = fakeClient([], { '555000111': leave });
+    const revoke = admin(undefined, 'server-revoke', {
+      strings: { guild_id: '555000111' },
+      client,
+    });
+    await handler(revoke.interaction as never);
+    expect(revoked).toEqual([]);
+    await handler(
+      button(customIds(revoke.out[0]!.options)[0]!, { guildId: null, client }).interaction as never,
+    );
+    expect(s.identity.getGuildStatus('555000111')).toBe('denied');
+    expect(revoked).toEqual(['555000111']);
   });
 });
 

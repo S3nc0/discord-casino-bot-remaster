@@ -12,6 +12,7 @@ export const DEFAULT_DM_BASE_BACKOFF_MS = 30_000; // 30 s
 export const DEFAULT_DM_MAX_BACKOFF_MS = 600_000; // 10 min
 export const DEFAULT_DM_MAX_ATTEMPTS = 5;
 export const DEFAULT_DM_MAX_DIGEST_ITEMS = 25;
+export const DEFAULT_DM_MAX_CLAIM_ROWS = 200;
 
 export interface BackoffOptions {
   baseDelayMs?: number;
@@ -132,6 +133,8 @@ export interface DmQueueOptions {
   maxAttempts?: number;
   /** Max queued events combined into one digest DM. Default 25. */
   maxDigestItems?: number;
+  /** Max due rows loaded and claimed per `processDue` pass; the rest wait for the next. Default 200. */
+  maxClaimRows?: number;
 }
 
 /**
@@ -155,6 +158,7 @@ export class DmQueue {
   private readonly maxBackoffMs: number;
   private readonly maxAttempts: number;
   private readonly maxDigestItems: number;
+  private readonly maxClaimRows: number;
   private processing = false;
 
   constructor(options: DmQueueOptions) {
@@ -170,6 +174,7 @@ export class DmQueue {
     this.maxBackoffMs = options.maxBackoffMs ?? DEFAULT_DM_MAX_BACKOFF_MS;
     this.maxAttempts = options.maxAttempts ?? DEFAULT_DM_MAX_ATTEMPTS;
     this.maxDigestItems = options.maxDigestItems ?? DEFAULT_DM_MAX_DIGEST_ITEMS;
+    this.maxClaimRows = options.maxClaimRows ?? DEFAULT_DM_MAX_CLAIM_ROWS;
   }
 
   /** Reset any rows left in `sending` from a previous process crash back to `pending`. */
@@ -304,9 +309,10 @@ export class DmQueue {
           `SELECT id, user_id, guild_id, kind, payload, attempts, next_attempt_at, created_at
            FROM notification_queue
            WHERE status = 'pending' AND next_attempt_at <= ?
-           ORDER BY created_at ASC, id ASC`,
+           ORDER BY created_at ASC, id ASC
+           LIMIT ?`,
         )
-        .all(now) as QueuedDmRow[];
+        .all(now, this.maxClaimRows) as QueuedDmRow[];
 
       const groups = groupDigestRows(dueRows, this.maxDigestItems);
       const claim = this.store.stmt(

@@ -88,6 +88,8 @@ export interface DiscordNotifyPort {
   createWebhook(channelId: string, identity: WebhookIdentity): Promise<WebhookCreateResult>;
   sendDm(userId: string, message: ChannelMessage): Promise<DmSendResult>;
   fetchGuildLocale(guildId: string): Promise<string | null>;
+  /** True when `channelId` is a channel of guild `guildId` (never true for a DM or an unknown channel). */
+  channelBelongsToGuild(channelId: string, guildId: string): Promise<boolean>;
 }
 
 /** Socket.io emission port for per-user live inbox updates and toasts. */
@@ -134,6 +136,9 @@ export function createNoopDiscordPort(): DiscordNotifyPort {
     async fetchGuildLocale() {
       return null;
     },
+    async channelBelongsToGuild() {
+      return true;
+    },
   };
 }
 
@@ -160,6 +165,8 @@ export interface RecordedDm {
 
 export interface FakeDiscordPortOptions {
   guildLocales?: Record<string, string | null>;
+  /** Channel id → owning guild id. A channel not listed here belongs to every guild. */
+  channelGuilds?: Record<string, string>;
   onPostToChannel?: (
     channelId: string,
     message: ChannelMessage,
@@ -235,6 +242,10 @@ export function createFakeDiscordPort(options: FakeDiscordPortOptions = {}): Fak
     },
     async fetchGuildLocale(guildId) {
       return guildLocales.get(guildId) ?? null;
+    },
+    async channelBelongsToGuild(channelId, guildId) {
+      const owner = options.channelGuilds?.[channelId];
+      return owner === undefined || owner === guildId;
     },
   };
 }

@@ -179,7 +179,7 @@ async function postableChannel(
     throw new AdminRefusal('bot.admin.err.targetNoChannel', 'bot.admin.err.targetNoChannelBody');
   }
   if (wanted === null) return null;
-  const channel = await fetchSendable(client, wanted);
+  const channel = await fetchSendable(client, wanted, guildId);
   return channel ? wanted : null;
 }
 
@@ -198,10 +198,46 @@ async function post(
 ): Promise<boolean> {
   const channelId = await postableChannel(ctx, client, guildId, channelRaw);
   if (channelId === null) return false;
-  const channel = await fetchSendable(client, channelId);
+  const channel = await fetchSendable(client, channelId, guildId);
   if (!channel) return false;
   await channel.send({ ...payload, allowedMentions: { parse: [] } } as never);
   return true;
+}
+
+// ------------------------------------------------------------------ modal parameters
+
+const FORM_TTL_MS = 900_000;
+const FORM_MAX = 200;
+
+/** Parameters of a slash command carried to its modal; a modal nobody submits must not leak them. */
+class FormParams<V> {
+  private readonly entries = new Map<string, { value: V; expiresAt: number }>();
+
+  get size(): number {
+    return this.entries.size;
+  }
+
+  set(key: string, value: V, now: number): void {
+    for (const [k, e] of this.entries) if (e.expiresAt <= now) this.entries.delete(k);
+    while (this.entries.size >= FORM_MAX) {
+      const oldest = this.entries.keys().next().value;
+      if (oldest === undefined) break;
+      this.entries.delete(oldest);
+    }
+    this.entries.set(key, { value, expiresAt: now + FORM_TTL_MS });
+  }
+
+  /** The stored value, once: absent when unknown or past its TTL. */
+  take(key: string, now: number): V | undefined {
+    const entry = this.entries.get(key);
+    this.entries.delete(key);
+    return entry !== undefined && entry.expiresAt > now ? entry.value : undefined;
+  }
+}
+
+/** Modal parameter sets currently held (for tests). */
+export function pendingFormCount(): number {
+  return modalParams.size + announceParams.size;
 }
 
 // ------------------------------------------------------------------ pending confirmations
@@ -332,6 +368,21 @@ async function grant(ctx: ChatCtx, interaction: ChatInputCommandInteraction): Pr
 }
 
 function setBalance(
+  ctx: ChatCtx,
+  args: {
+    guildId: string;
+    userId: string;
+    amount: number;
+    reason: string;
+    key: string;
+    by: string;
+  },
+): { before: number; after: number; debt: number | null } {
+  const run = <T>(fn: () => T): T => (ctx.deps.store ? ctx.deps.store.transaction(fn) : fn());
+  return run(() => setBalanceInTransaction(ctx, args));
+}
+
+function setBalanceInTransaction(
   ctx: ChatCtx,
   args: {
     guildId: string;
@@ -974,16 +1025,74 @@ export async function raffleJoin(
 
 // ------------------------------------------------------------------ quizzes
 
+const ATTACHMENT_HOSTS: ReadonlySet<string> = new Set([
+  'cdn.discordapp.com',
+  'media.discordapp.net',
+]);
+const FETCH_TIMEOUT_MS = 10_000;
+
+/**
+ * Download an attached text file: https on Discord's attachment CDN only, no redirects, a
+ * timeout, and the body read as a stream that stops once it passes `maxBytes`.
+ */
+export async function fetchAttachmentText(
+  rawUrl: string,
+  maxBytes: number,
+  fetchImpl: typeof fetch = fetch,
+): Promise<string> {
+  const tooBig = () =>
+    new AdminRefusal('bot.admin.err.bulkBadFile', 'bot.admin.err.bulkBadFileBody');
+  let url: URL;
+  try {
+    url = new URL(rawUrl);
+  } catch {
+    throw tooBig();
+  }
+  if (
+    url.protocol !== 'https:' ||
+    url.username !== '' ||
+    url.password !== '' ||
+    url.port !== '' ||
+    !ATTACHMENT_HOSTS.has(url.hostname)
+  ) {
+    throw tooBig();
+  }
+  const res = await fetchImpl(url, {
+    redirect: 'error',
+    signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+  });
+  if (!res.ok) throw new AppError('not_found');
+  const declared = Number(res.headers.get('content-length'));
+  if (Number.isFinite(declared) && declared > maxBytes) {
+    await res.body?.cancel().catch(() => undefined);
+    throw tooBig();
+  }
+  const reader = res.body?.getReader();
+  if (!reader) throw tooBig();
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    total += value.byteLength;
+    if (total > maxBytes) {
+      await reader.cancel().catch(() => undefined);
+      throw tooBig();
+    }
+    chunks.push(value);
+  }
+  const buf = new Uint8Array(total);
+  let at = 0;
+  for (const c of chunks) {
+    buf.set(c, at);
+    at += c.byteLength;
+  }
+  return new TextDecoder('utf-8', { fatal: true }).decode(buf);
+}
+
 const hooks = {
   /** Download an attached text file; replaced in tests. */
-  async fetchText(url: string, maxBytes: number): Promise<string> {
-    const res = await fetch(url);
-    if (!res.ok) throw new AppError('not_found');
-    const buf = new Uint8Array(await res.arrayBuffer());
-    if (buf.byteLength > maxBytes)
-      throw new AdminRefusal('bot.admin.err.bulkBadFile', 'bot.admin.err.bulkBadFileBody');
-    return new TextDecoder('utf-8', { fatal: true }).decode(buf);
-  },
+  fetchText: (url: string, maxBytes: number): Promise<string> => fetchAttachmentText(url, maxBytes),
 };
 export function setAdminFetch(fn: typeof hooks.fetchText): void {
   hooks.fetchText = fn;
@@ -991,10 +1100,11 @@ export function setAdminFetch(fn: typeof hooks.fetchText): void {
 
 const BULK_MAX_BYTES = 200 * 1024;
 
-const modalParams = new Map<
-  string,
-  { announce: boolean; guild: string | null; channel: string | null }
->();
+const modalParams = new FormParams<{
+  announce: boolean;
+  guild: string | null;
+  channel: string | null;
+}>();
 
 async function announceQuiz(
   ctx: ChatCtx,
@@ -1023,11 +1133,11 @@ async function quizAddModal(ctx: ChatCtx, interaction: ChatInputCommandInteracti
   const channel = interaction.options.getString('channel_id');
   needGuildForChannel(guild, channel);
   knownGuild(ctx, guild, false);
-  modalParams.set(interaction.id, {
-    announce: (interaction.options.getInteger('announce') ?? 1) === 1,
-    guild,
-    channel,
-  });
+  modalParams.set(
+    interaction.id,
+    { announce: (interaction.options.getInteger('announce') ?? 1) === 1, guild, channel },
+    nowOf(ctx.deps),
+  );
   const field = (
     id: string,
     label: string,
@@ -1087,12 +1197,11 @@ export async function adminModalSubmit(
   };
   if (id.namespace === 'admq' && id.action === 'add') {
     if (!ctx.deps.games) throw new AppError('internal');
-    const params = modalParams.get(id.args[0] ?? '') ?? {
+    const params = modalParams.take(id.args[0] ?? '', nowOf(ctx.deps)) ?? {
       announce: false,
       guild: null,
       channel: null,
     };
-    modalParams.delete(id.args[0] ?? '');
     const rawReward = field('reward').normalize('NFKC').replace(/,/g, '').trim();
     const rawDuration = field('duration').trim();
     const minutes = rawDuration === '' ? null : parseDuration(rawDuration);
@@ -1123,8 +1232,7 @@ export async function adminModalSubmit(
     return true;
   }
   if (id.namespace === 'admn' && id.action === 'announce') {
-    const params = announceParams.get(id.args[0] ?? '');
-    announceParams.delete(id.args[0] ?? '');
+    const params = announceParams.take(id.args[0] ?? '', nowOf(ctx.deps));
     if (!params) throw new AppError('expired');
     const body = field('body').trim();
     if (body === '') throw new AppError('invalid_payload');
@@ -1295,10 +1403,12 @@ async function quizDelete(ctx: ChatCtx, interaction: ChatInputCommandInteraction
 
 // ------------------------------------------------------------------ announce / purge
 
-const announceParams = new Map<
-  string,
-  { guilds: string[]; channel: string | null; title: string; image: string | null }
->();
+const announceParams = new FormParams<{
+  guilds: string[];
+  channel: string | null;
+  title: string;
+  image: string | null;
+}>();
 
 async function announce(ctx: ChatCtx, interaction: ChatInputCommandInteraction): Promise<void> {
   const { locale } = ctx;
@@ -1316,12 +1426,11 @@ async function announce(ctx: ChatCtx, interaction: ChatInputCommandInteraction):
   const title = (
     interaction.options.getString('title')?.trim() || t(locale, 'bot.admin.announce.defaultTitle')
   ).slice(0, 200);
-  announceParams.set(interaction.id, {
-    guilds,
-    channel: channelRaw,
-    title,
-    image: image?.url ?? null,
-  });
+  announceParams.set(
+    interaction.id,
+    { guilds, channel: channelRaw, title, image: image?.url ?? null },
+    nowOf(ctx.deps),
+  );
   await interaction.showModal(
     new ModalBuilder()
       .setCustomId(cid('admn', 'announce', interaction.id))
@@ -1340,6 +1449,17 @@ async function announce(ctx: ChatCtx, interaction: ChatInputCommandInteraction):
 }
 
 const purging = new Set<string>();
+/** At most 50 pages (5,000 messages) are scanned per purge. */
+const PURGE_MAX_PAGES = 50;
+/** Discord refuses to bulk-delete messages older than 14 days. */
+const BULK_DELETE_MAX_AGE_MS = 14 * 86_400_000 - 60_000;
+
+interface PurgeMessage {
+  id: string;
+  author: { id: string };
+  createdTimestamp?: number;
+  delete(): Promise<unknown>;
+}
 
 async function purgeMessages(
   ctx: ChatCtx,
@@ -1348,7 +1468,8 @@ async function purgeMessages(
   const { locale } = ctx;
   const guildId = knownGuild(ctx, interaction.options.getString('guild_id', true), true);
   const channelId = parseSnowflake(interaction.options.getString('channel_id', true));
-  const channel = channelId === null ? null : await fetchSendable(interaction.client, channelId);
+  const channel =
+    channelId === null ? null : await fetchSendable(interaction.client, channelId, guildId);
   if (channelId === null || !channel) {
     throw new AdminRefusal('bot.admin.err.purgeNoPerm', 'bot.admin.err.purgeNoPermBody', {
       ch: channelId ?? '?',
@@ -1375,36 +1496,53 @@ async function purgeMessages(
           components: [],
         });
         const me = button.client.user?.id;
+        const freshAfter = nowOf(ctx.deps) - BULK_DELETE_MAX_AGE_MS;
+        const messages = channel.messages as unknown as {
+          fetch(o: { limit: number; before?: string }): Promise<Map<string, PurgeMessage>>;
+        };
         let before: string | undefined;
-        for (let page = 0; page < 1000; page++) {
-          const batch = await (
-            channel.messages as unknown as {
-              fetch(o: {
-                limit: number;
-                before?: string;
-              }): Promise<
-                Map<string, { id: string; author: { id: string }; delete(): Promise<unknown> }>
-              >;
-            }
-          ).fetch({ limit: 100, ...(before === undefined ? {} : { before }) });
+        for (let page = 0; page < PURGE_MAX_PAGES; page++) {
+          const batch = await messages.fetch({
+            limit: 100,
+            ...(before === undefined ? {} : { before }),
+          });
           if (batch.size === 0) break;
+          const fresh: string[] = [];
+          const old: PurgeMessage[] = [];
           for (const message of batch.values()) {
             scanned += 1;
             before = message.id;
             if (message.author.id !== me) continue;
+            if ((message.createdTimestamp ?? 0) > freshAfter) fresh.push(message.id);
+            else old.push(message);
+          }
+          // Messages younger than 14 days go in bulk (explicit ids: only the bot's own).
+          if (fresh.length === 1) {
+            const one = batch.get(fresh[0]!)!;
+            await one
+              .delete()
+              .then(() => (deleted += 1))
+              .catch(() => undefined);
+          } else if (fresh.length > 1) {
+            await channel
+              .bulkDelete(fresh)
+              .then(() => (deleted += fresh.length))
+              .catch(() => undefined);
+          }
+          for (const message of old) {
             await message
               .delete()
               .then(() => (deleted += 1))
               .catch(() => undefined);
-            if (deleted > 0 && deleted % 25 === 0) {
-              await button
-                .editReply({
-                  embeds: [
-                    embed('neutral', t(locale, 'bot.admin.purge.progress', { deleted, scanned })),
-                  ],
-                })
-                .catch(() => undefined);
-            }
+          }
+          if (deleted > 0) {
+            await button
+              .editReply({
+                embeds: [
+                  embed('neutral', t(locale, 'bot.admin.purge.progress', { deleted, scanned })),
+                ],
+              })
+              .catch(() => undefined);
           }
           if (batch.size < 100) break;
         }
@@ -1524,6 +1662,11 @@ async function serverRevoke(ctx: ChatCtx, interaction: ChatInputCommandInteracti
       const { identity } = ctx.deps;
       if (identity.getGuildStatus(id) === null) identity.ensureGuild(id, 'denied');
       identity.setGuildStatus(id, 'denied', interaction.user.id);
+      try {
+        ctx.deps.onGuildRevoked?.(id);
+      } catch (error) {
+        ctx.deps.logger.warn({ err: error, guildId: id }, 'guild revoke hook failed');
+      }
       const joined = button.client.guilds?.cache?.get(id);
       let left = false;
       if (joined)

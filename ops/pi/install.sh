@@ -18,6 +18,10 @@ APP_DIR="${APP_DIR:-/opt/discord-casino}"
 BACKUP_DIR="${BACKUP_DIR:-/var/backups/discord-casino}"
 SERVICE_USER="${SERVICE_USER:-casino}"
 PNPM_VERSION="12.21.0"
+# Pinned cloudflared release; the SHA-256 is that of cloudflared-linux-arm64.deb for this tag.
+# To upgrade: set both, taking the digest from the release page, and re-run this script.
+CLOUDFLARED_VERSION="2026.11.1"
+CLOUDFLARED_SHA256="225d7ef16e5c98dc9595329f4450ad9f2efe736dca79fc70fade22d20de5a72c"
 
 missing_pkgs=()
 for cmd in sqlite3 curl gpg rsync; do
@@ -73,17 +77,21 @@ install_cloudflared() {
     return 0
   fi
 
-  echo "Installing cloudflared (arm64)..."
+  echo "Installing cloudflared ${CLOUDFLARED_VERSION} (arm64)..."
   local tmp_deb
   tmp_deb="$(mktemp /tmp/cloudflared-XXXXXX.deb)"
-  if curl -fsSL -o "$tmp_deb" \
-    "https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-arm64.deb"; then
-    dpkg -i "$tmp_deb"
-    rm -f -- "$tmp_deb"
-  else
+  if ! curl -fsSL -o "$tmp_deb" \
+    "https://github.com/cloudflare/cloudflared/releases/download/${CLOUDFLARED_VERSION}/cloudflared-linux-arm64.deb"; then
     rm -f -- "$tmp_deb"
     return 1
   fi
+  if ! echo "${CLOUDFLARED_SHA256}  ${tmp_deb}" | sha256sum -c - >/dev/null 2>&1; then
+    echo "Error: cloudflared ${CLOUDFLARED_VERSION} failed the SHA-256 check; not installing it." >&2
+    rm -f -- "$tmp_deb"
+    return 1
+  fi
+  dpkg -i "$tmp_deb"
+  rm -f -- "$tmp_deb"
 }
 
 install_node24

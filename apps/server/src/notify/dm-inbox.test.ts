@@ -36,6 +36,7 @@ function makeDmHarness(
     baseBackoffMs?: number;
     maxBackoffMs?: number;
     maxAttempts?: number;
+    maxClaimRows?: number;
   } = {},
 ) {
   const store = memoryStore();
@@ -80,6 +81,7 @@ function makeDmHarness(
     ...(options.baseBackoffMs === undefined ? {} : { baseBackoffMs: options.baseBackoffMs }),
     ...(options.maxBackoffMs === undefined ? {} : { maxBackoffMs: options.maxBackoffMs }),
     ...(options.maxAttempts === undefined ? {} : { maxAttempts: options.maxAttempts }),
+    ...(options.maxClaimRows === undefined ? {} : { maxClaimRows: options.maxClaimRows }),
   });
 
   return {
@@ -158,6 +160,31 @@ describe('DM backoff and digest grouping math', () => {
     const u2 = groups.find((g) => g.userId === OTHER_USER);
     expect(u1?.rows.map((r) => r.id)).toEqual([2, 3]); // chronological + capped at 2
     expect(u2?.rows.map((r) => r.id)).toEqual([1]);
+  });
+});
+
+describe('R-15: DmQueue claims a bounded number of rows per pass', () => {
+  it('R-15: processDue claims at most maxClaimRows and leaves the rest pending', async () => {
+    const h = makeDmHarness({ maxClaimRows: 3 });
+    const users = ['111111111111111111', '222222222222222222', '333333333333333333'].concat([
+      '444444444444444444',
+      '555555555555555555',
+    ]);
+    for (const userId of users) {
+      h.config.setUserKindPref(userId, 'daily_ready', { dm: true });
+      h.dmQueue.enqueue(userId, 'daily_ready', {
+        type: 'DailyReady',
+        guildId: GUILD,
+        at: h.clock.now(),
+        userId,
+      });
+    }
+    expect((await h.dmQueue.processDue()).sentUsers).toBe(3);
+    expect(
+      h.store.stmt("SELECT COUNT(*) AS n FROM notification_queue WHERE status = 'pending'").get(),
+    ).toEqual({ n: 2 });
+    expect((await h.dmQueue.processDue()).sentUsers).toBe(2);
+    expect(h.port.dms).toHaveLength(5);
   });
 });
 

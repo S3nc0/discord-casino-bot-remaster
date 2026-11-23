@@ -88,6 +88,18 @@ describe('logger redaction', () => {
     expect(out).toContain('Bearer [REDACTED]');
   });
 
+  it('R-10: masks webhook URLs, including the url field of a REST error', () => {
+    const secret = 'abcDEF123_secret-token.part';
+    const url = `https://discord.com/api/v10/webhooks/123456789012345678/${secret}?wait=true`;
+    const { log, lines } = capture();
+    log.warn({ err: Object.assign(new Error(`POST ${url} failed`), { url }) }, `retry ${url}`);
+    log.warn({ url, nested: { target: url } }, 'webhook failed');
+    const out = JSON.stringify(lines());
+    expect(out).not.toContain(secret);
+    expect(out).toContain('/webhooks/123456789012345678/[REDACTED]');
+    expect(maskSecrets(`/webhooks/123456789012345678/${secret}`)).not.toContain(secret);
+  });
+
   it('leaves ordinary text alone', () => {
     expect(maskSecrets('listening on api.example.com port 3001, guild 234567890123456789')).toBe(
       'listening on api.example.com port 3001, guild 234567890123456789',

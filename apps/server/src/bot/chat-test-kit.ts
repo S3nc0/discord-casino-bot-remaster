@@ -1,7 +1,14 @@
 // Fake Discord interactions for the chat-command tests. Not imported by production code.
 import type { InteractionReplyOptions, User } from 'discord.js';
 import { vi } from 'vitest';
-import { GUILD, OTHER_USER, USER, createTestServer, type TestServer } from '../runtime/test-kit.ts';
+import {
+  GUILD,
+  OTHER_USER,
+  START_MS,
+  USER,
+  createTestServer,
+  type TestServer,
+} from '../runtime/test-kit.ts';
 import { createInteractionHandler, type BotRouterDeps } from './router.ts';
 
 export { GUILD, OTHER_USER, USER, createTestServer };
@@ -18,27 +25,37 @@ export function makeUser(id: string, username = 'user', globalName: string | nul
 
 export interface FakeChannel {
   id: string;
+  guildId: string | null;
   sent: unknown[];
   deleted: string[];
+  /** One entry per `bulkDelete` call: the ids it was given. */
+  bulkDeleted: string[][];
   messages: Map<
     string,
     {
       id: string;
       author: { id: string };
+      createdTimestamp: number;
       delete(): Promise<void>;
       edit(o: unknown): Promise<unknown>;
     }
   >;
 }
 
+/** A bot message of the fake channel: an id, or an id with its age in ms (default: just posted). */
+export type FakeBotMessage = string | { id: string; ageMs: number };
+
 export function fakeChannel(
   id: string,
-  botMessages: string[] = [],
+  botMessages: FakeBotMessage[] = [],
+  guildId: string | null = GUILD,
 ): FakeChannel & Record<string, unknown> {
   const channel = {
     id,
+    guildId,
     sent: [] as unknown[],
     deleted: [] as string[],
+    bulkDeleted: [] as string[][],
     messages: new Map(),
     isTextBased: () => true,
     send: vi.fn(async (options: unknown) => {
@@ -50,10 +67,21 @@ export function fakeChannel(
     }),
   } as unknown as FakeChannel & Record<string, unknown>;
   const store = channel.messages;
-  for (const mid of botMessages) {
+  (channel as Record<string, unknown>).bulkDelete = vi.fn(async (ids: string[]) => {
+    channel.bulkDeleted.push([...ids]);
+    for (const mid of ids) {
+      channel.deleted.push(mid);
+      store.delete(mid);
+    }
+    return new Map(ids.map((mid) => [mid, null]));
+  });
+  for (const entry of botMessages) {
+    const mid = typeof entry === 'string' ? entry : entry.id;
+    const ageMs = typeof entry === 'string' ? 0 : entry.ageMs;
     store.set(mid, {
       id: mid,
       author: { id: 'bot' },
+      createdTimestamp: START_MS - ageMs,
       delete: async () => {
         channel.deleted.push(mid);
         store.delete(mid);

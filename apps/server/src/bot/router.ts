@@ -60,6 +60,8 @@ export interface BotRouterDeps {
   games?: NonCasinoGames;
   /** Game clock (the real one when absent). Owner tools and boards stamp times with it. */
   clock?: Clock;
+  /** Called once a guild is denied (`/admin server-revoke`): drop its live sessions and sockets. */
+  onGuildRevoked?: (guildId: string) => void;
 }
 
 /** Build an "Open in Activity" button row targeting a specific Activity screen. */
@@ -155,6 +157,15 @@ function checkCommandAccess(
       interaction.user.id,
     );
   }
+}
+
+/** Buttons, selects, modals and autocomplete get the same guild gate as slash commands. */
+function checkInteractionGuild(
+  deps: BotRouterDeps,
+  interaction: Pick<Interaction, 'guildId' | 'guild' | 'user'>,
+): void {
+  if (interaction.guildId === null) return;
+  checkGuildAccess(deps, interaction.guildId, interaction.guild?.name ?? null, interaction.user.id);
 }
 
 type ComponentOrModal = ButtonInteraction | StringSelectMenuInteraction | ModalSubmitInteraction;
@@ -446,6 +457,7 @@ export function createInteractionHandler(
 
     if (interaction.isAutocomplete()) {
       try {
+        checkInteractionGuild(deps, interaction);
         await dispatchChatAutocomplete({ deps, locale }, interaction);
       } catch (error) {
         deps.logger.warn({ err: error }, 'autocomplete failed');
@@ -455,6 +467,7 @@ export function createInteractionHandler(
     }
 
     try {
+      checkInteractionGuild(deps, interaction);
       if (interaction.isModalSubmit()) {
         await dispatchChatModal({ deps, locale }, interaction);
       } else if (interaction.isStringSelectMenu()) {

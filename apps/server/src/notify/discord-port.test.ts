@@ -18,6 +18,7 @@ const CHANNEL_ID = '456789012345678901';
 const silentLogger = createLogger({ level: 'silent' });
 
 interface FakeChannel {
+  guildId?: string;
   send: ReturnType<typeof vi.fn>;
   createWebhook?: ReturnType<typeof vi.fn>;
   permissionsFor?: ReturnType<typeof vi.fn>;
@@ -91,6 +92,22 @@ describe('launch button custom IDs', () => {
 });
 
 describe('createDiscordNotifyPort', () => {
+  it('R-9: channelBelongsToGuild is true only for a channel of that guild', async () => {
+    const { client } = makeFakeClient({
+      channels: {
+        [CHANNEL_ID]: { guildId: GUILD, send: vi.fn() },
+        dm: { send: vi.fn() },
+        gone: apiError({ code: RESTJSONErrorCodes.UnknownChannel }),
+      },
+    });
+    const port = createDiscordNotifyPort(client);
+    expect(await port.channelBelongsToGuild(CHANNEL_ID, GUILD)).toBe(true);
+    expect(await port.channelBelongsToGuild(CHANNEL_ID, 'other')).toBe(false);
+    expect(await port.channelBelongsToGuild('dm', GUILD)).toBe(false);
+    expect(await port.channelBelongsToGuild('gone', GUILD)).toBe(false);
+    expect(await port.channelBelongsToGuild('missing', GUILD)).toBe(false);
+  });
+
   it('postToChannel sends embeds, attaches localized launch button when openInActivity is set, and maps errors', async () => {
     const send = vi.fn<(payload: Record<string, unknown>) => Promise<{ id: string }>>(async () => ({
       id: 'msg-42',
@@ -176,6 +193,27 @@ describe('createDiscordNotifyPort', () => {
     expect(
       await port.postViaWebhook({ webhookId: '111', token: 'secret-tok' }, { content: 'x' }),
     ).toMatchObject({ ok: false, reason: 'rate_limited', retryAfterMs: 1200 });
+  });
+
+  it('R-10: channel posts and webhook posts never allow mentions', async () => {
+    const send = vi.fn<(payload: Record<string, unknown>) => Promise<{ id: string }>>(async () => ({
+      id: 'm1',
+    }));
+    const restPost = vi.fn(async () => ({ id: 'w1' }));
+    const { client } = makeFakeClient({ channels: { [CHANNEL_ID]: { send } }, restPost });
+    const port = createDiscordNotifyPort(client);
+    const content = '@everyone <@&123456789012345678> <@123456789012345678>';
+
+    await port.postToChannel(CHANNEL_ID, { content });
+    expect(send.mock.calls[0]?.[0]).toMatchObject({ allowedMentions: { parse: [] } });
+
+    await port.postViaWebhook({ webhookId: '111', token: 'tok' }, { content });
+    expect(restPost).toHaveBeenCalledWith(
+      Routes.webhook('111', 'tok'),
+      expect.objectContaining({
+        body: expect.objectContaining({ allowed_mentions: { parse: [] } }),
+      }),
+    );
   });
 
   it('createWebhook checks Manage Webhooks permission, creates webhook when allowed, and maps permission/cap errors', async () => {
@@ -295,6 +333,7 @@ describe('createDiscordNotifyPort', () => {
     const { client } = makeFakeClient({
       channels: {
         [CHANNEL_ID]: {
+          guildId: GUILD,
           send: channelSend,
           createWebhook: vi.fn(),
           permissionsFor: vi.fn(() => ({ has: () => false })),

@@ -313,6 +313,7 @@ export const COMMAND_SPECS: readonly TopLevelCommandSpec[] = [
         jaDescription: '自動更新されるランキング掲示を設定・停止する',
         module: 'economy',
         ephemeral: true,
+        manageGuildOrOwner: true,
         options: [
           {
             kind: 'channel',
