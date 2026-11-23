@@ -18,6 +18,7 @@ export function makeUser(id: string, username = 'user', globalName: string | nul
 
 export interface FakeChannel {
   id: string;
+  guildId: string | null;
   sent: unknown[];
   deleted: string[];
   messages: Map<
@@ -34,9 +35,11 @@ export interface FakeChannel {
 export function fakeChannel(
   id: string,
   botMessages: string[] = [],
+  guildId: string | null = GUILD,
 ): FakeChannel & Record<string, unknown> {
   const channel = {
     id,
+    guildId,
     sent: [] as unknown[],
     deleted: [] as string[],
     messages: new Map(),

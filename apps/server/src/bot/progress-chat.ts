@@ -118,7 +118,7 @@ async function leaderboard(ctx: ChatCtx, interaction: ChatInputCommandInteractio
     }
     deleteBoard(store, guildId);
     if (board.messageId !== null) {
-      const channel = await fetchSendable(interaction.client, board.channelId);
+      const channel = await fetchSendable(interaction.client, board.channelId, guildId);
       const message = await channel?.messages.fetch(board.messageId).catch(() => null);
       await message?.delete().catch(() => undefined);
     }
@@ -130,7 +130,8 @@ async function leaderboard(ctx: ChatCtx, interaction: ChatInputCommandInteractio
   }
 
   const channelId = interaction.options.getChannel('channel')?.id ?? interaction.channelId;
-  const channel = channelId === null ? null : await fetchSendable(interaction.client, channelId);
+  const channel =
+    channelId === null ? null : await fetchSendable(interaction.client, channelId, guildId);
   if (channelId === null || !channel) {
     await reply(interaction, {
       embeds: [
@@ -147,10 +148,11 @@ async function leaderboard(ctx: ChatCtx, interaction: ChatInputCommandInteractio
   const previous = getBoard(store, guildId);
   const posted = await channel.send({
     embeds: [boardEmbed(locale, netWorthStandings(store, guildId), now)],
+    allowedMentions: { parse: [] },
   });
   saveBoard(store, { guildId, channelId: channel.id, messageId: posted.id }, now);
   if (previous?.messageId && previous.channelId !== undefined) {
-    const old = await fetchSendable(interaction.client, previous.channelId);
+    const old = await fetchSendable(interaction.client, previous.channelId, guildId);
     const message = await old?.messages.fetch(previous.messageId).catch(() => null);
     await message?.delete().catch(() => undefined);
   }

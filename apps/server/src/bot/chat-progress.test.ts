@@ -111,6 +111,85 @@ describe('/pelica leaderboard', () => {
     expect(denied.out[0]!.options.flags).toBeDefined();
     expect(denied.out[0]!.options.embeds).toHaveLength(1);
   });
+
+  it('R-5: an ordinary member can neither post nor stop the board', async () => {
+    const { s, handler } = setup();
+    const channel = fakeChannel('chan-9');
+    const client = fakeClient([channel]);
+    const member = makeUser(OTHER_USER, 'bob');
+    const post = command({
+      name: 'pelica',
+      sub: 'leaderboard',
+      user: member,
+      manageGuild: false,
+      channels: { channel: { id: 'chan-9' } },
+      client,
+    });
+    await handler(post.interaction as never);
+    expect(channel.sent).toHaveLength(0);
+    expect(
+      s.store.stmt('SELECT 1 FROM leaderboards WHERE guild_id = ?').get(GUILD),
+    ).toBeUndefined();
+
+    const owner = command({
+      name: 'pelica',
+      sub: 'leaderboard',
+      channels: { channel: { id: 'chan-9' } },
+      client,
+    });
+    await handler(owner.interaction as never);
+    const stop = command({
+      name: 'pelica',
+      sub: 'leaderboard',
+      user: member,
+      manageGuild: false,
+      booleans: { stop: true },
+      client,
+    });
+    await handler(stop.interaction as never);
+    expect(s.store.stmt('SELECT 1 FROM leaderboards WHERE guild_id = ?').get(GUILD)).toBeDefined();
+
+    const manager = command({
+      name: 'pelica',
+      sub: 'leaderboard',
+      user: member,
+      manageGuild: true,
+      booleans: { stop: true },
+      client,
+    });
+    await handler(manager.interaction as never);
+    expect(
+      s.store.stmt('SELECT 1 FROM leaderboards WHERE guild_id = ?').get(GUILD),
+    ).toBeUndefined();
+  });
+
+  it('R-5: refuses a channel of another guild and never allows mentions', async () => {
+    const { s, handler } = setup();
+    const foreign = fakeChannel('chan-foreign', [], 'other-guild');
+    const own = fakeChannel('chan-own');
+    const client = fakeClient([foreign, own]);
+    const bad = command({
+      name: 'pelica',
+      sub: 'leaderboard',
+      channels: { channel: { id: 'chan-foreign' } },
+      client,
+    });
+    await handler(bad.interaction as never);
+    expect(foreign.sent).toHaveLength(0);
+    expect(
+      s.store.stmt('SELECT 1 FROM leaderboards WHERE guild_id = ?').get(GUILD),
+    ).toBeUndefined();
+
+    const good = command({
+      name: 'pelica',
+      sub: 'leaderboard',
+      channels: { channel: { id: 'chan-own' } },
+      client,
+    });
+    await handler(good.interaction as never);
+    expect(own.sent).toHaveLength(1);
+    expect(own.sent[0]).toMatchObject({ allowedMentions: { parse: [] } });
+  });
 });
 
 describe('quiz', () => {

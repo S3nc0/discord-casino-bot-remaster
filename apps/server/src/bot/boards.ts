@@ -99,16 +99,22 @@ export function deleteBoard(store: Store, guildId: string): boolean {
 
 interface SendableChannel {
   id: string;
-  send(options: { embeds: EmbedBuilder[] }): Promise<Message>;
+  guildId?: string | null;
+  send(options: { embeds: EmbedBuilder[]; allowedMentions?: { parse: never[] } }): Promise<Message>;
   messages: { fetch(id: string): Promise<Message> };
 }
 
+/** `guildId` pins the channel to that guild: a channel of any other guild (or a DM) is `null`. */
 export async function fetchSendable(
   client: Client,
   channelId: string,
+  guildId?: string,
 ): Promise<SendableChannel | null> {
   const channel = await client.channels.fetch(channelId).catch(() => null);
   if (!channel || !channel.isTextBased() || !('send' in channel) || !('messages' in channel)) {
+    return null;
+  }
+  if (guildId !== undefined && (!('guildId' in channel) || channel.guildId !== guildId)) {
     return null;
   }
   return channel as unknown as SendableChannel;
@@ -122,7 +128,7 @@ export async function refreshBoard(
   board: BoardRow,
   nowMs: number,
 ): Promise<void> {
-  const channel = await fetchSendable(client, board.channelId);
+  const channel = await fetchSendable(client, board.channelId, board.guildId);
   if (!channel) {
     deleteBoard(store, board.guildId);
     return;
@@ -140,7 +146,7 @@ export async function refreshBoard(
       return;
     }
   }
-  const posted = await channel.send({ embeds: [embedBuilder] });
+  const posted = await channel.send({ embeds: [embedBuilder], allowedMentions: { parse: [] } });
   saveBoard(store, { ...board, messageId: posted.id }, nowMs);
 }
 
