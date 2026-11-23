@@ -373,5 +373,18 @@ export function createDiscordNotifyPort(client: Client | DiscordPortClient): Dis
         return null;
       }
     },
+
+    async channelBelongsToGuild(channelId: string, guildId: string): Promise<boolean> {
+      try {
+        const channel = await discord.channels.fetch(channelId);
+        return (
+          typeof channel === 'object' &&
+          channel !== null &&
+          (channel as { guildId?: unknown }).guildId === guildId
+        );
+      } catch {
+        return false;
+      }
+    },
   };
 }

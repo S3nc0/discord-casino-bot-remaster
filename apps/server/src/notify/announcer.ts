@@ -11,6 +11,8 @@ import type { WebhookPersonaManager } from './personas.ts';
 import type { DiscordNotifyPort } from './ports.ts';
 import { defaultEmbedTheme, type EmbedTheme } from './theme.ts';
 
+const OWNERSHIP_TTL_MS = 600_000;
+
 export interface QuotaCheck {
   allowed: boolean;
   retryAfterMs: number;
@@ -96,6 +98,8 @@ interface PendingBatch {
   readonly guildId: string;
   readonly channelId: string;
   readonly persona: PersonaId | null;
+  /** True when the channel is the shared `ANNOUNCE_CHANNEL_ID`, not one this guild chose. */
+  readonly fallback: boolean;
   readonly events: SubscribedDomainEvent[];
   firstQueuedAt: number;
   flushAt: number;
@@ -141,6 +145,7 @@ export class Announcer {
   private readonly maxBufferedPerKey: number;
   private readonly rateLimiter: GuildRateLimiter;
   private readonly batches = new Map<string, PendingBatch>();
+  private readonly ownership = new Map<string, { ok: boolean; expiresAt: number }>();
   private flushing = false;
 
   constructor(options: AnnouncerOptions) {
@@ -161,7 +166,8 @@ export class Announcer {
     const cfg = this.configService.getGuildConfig(event.guildId);
     if (!shouldAnnounceEvent(event, cfg)) return false;
 
-    const channelId = cfg.eventTypes[event.type].channelId ?? cfg.effectiveChannelId;
+    const chosen = cfg.eventTypes[event.type].channelId ?? cfg.announceChannelId;
+    const channelId = chosen ?? cfg.effectiveChannelId;
     const persona = cfg.personasEnabled ? EVENT_META[event.type].persona : null;
     const key = `${event.guildId}:${channelId}:${persona ?? 'bot'}`;
     const now = this.clock.now();
@@ -173,6 +179,7 @@ export class Announcer {
         guildId: event.guildId,
         channelId,
         persona,
+        fallback: chosen === null,
         events: [],
         firstQueuedAt: now,
         flushAt: now + this.batchWindowMs,
@@ -225,13 +232,22 @@ export class Announcer {
 
       for (const batch of due) {
         const cfg = this.configService.getGuildConfig(batch.guildId);
+        if (batch.fallback && !(await this.ownsFallback(batch.guildId, batch.channelId))) {
+          this.batches.delete(batch.key);
+          report.failed += 1;
+          continue;
+        }
         const currentNow = this.clock.now();
-        const quota = this.rateLimiter.tryConsume(batch.guildId, cfg.announcePerMinute, currentNow);
-        if (!quota.allowed) {
-          batch.flushAt = currentNow + quota.retryAfterMs;
+        const channelKey = `channel:${batch.channelId}`;
+        const guildQuota = this.rateLimiter.peek(batch.guildId, cfg.announcePerMinute, currentNow);
+        const channelQuota = this.rateLimiter.peek(channelKey, cfg.announcePerMinute, currentNow);
+        if (!guildQuota.allowed || !channelQuota.allowed) {
+          batch.flushAt = currentNow + Math.max(guildQuota.retryAfterMs, channelQuota.retryAfterMs);
           report.deferred += 1;
           continue;
         }
+        this.rateLimiter.tryConsume(batch.guildId, cfg.announcePerMinute, currentNow);
+        this.rateLimiter.tryConsume(channelKey, cfg.announcePerMinute, currentNow);
 
         const slice = batch.events.splice(0, this.maxBatchSize);
         if (batch.events.length === 0) {
@@ -258,6 +274,7 @@ export class Announcer {
         } else if (delivery.rateLimited) {
           const retryAfterMs = delivery.retryAfterMs ?? 5_000;
           this.rateLimiter.applyBackoff(batch.guildId, this.clock.now() + retryAfterMs);
+          this.rateLimiter.applyBackoff(channelKey, this.clock.now() + retryAfterMs);
           this.requeueFront(batch, slice, this.clock.now() + retryAfterMs);
           report.deferred += 1;
         } else {
@@ -277,6 +294,23 @@ export class Announcer {
       batch.flushAt = Math.min(batch.flushAt, now);
     }
     return this.flushDue();
+  }
+
+  /** The shared fallback channel is only for the guild that really owns it (checked, then cached). */
+  private async ownsFallback(guildId: string, channelId: string): Promise<boolean> {
+    const key = `${guildId}:${channelId}`;
+    const now = this.clock.now();
+    const cached = this.ownership.get(key);
+    if (cached && cached.expiresAt > now) return cached.ok;
+    const ok = channelId !== '' && (await this.port.channelBelongsToGuild(channelId, guildId));
+    this.ownership.set(key, { ok, expiresAt: now + OWNERSHIP_TTL_MS });
+    if (!ok) {
+      this.logger.warn(
+        { guildId, channelId },
+        'announcement dropped: fallback channel does not belong to this guild',
+      );
+    }
+    return ok;
   }
 
   private requeueFront(

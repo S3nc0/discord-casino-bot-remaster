@@ -563,3 +563,45 @@ describe('Announcer batching, threshold, rate-limiting, language, and personas',
     expect(h.port.channelPosts[0]?.message.embeds?.[0]?.description).toContain('Comet');
   });
 });
+
+describe('R-9: shared ANNOUNCE_CHANNEL_ID fallback', () => {
+  const bigWin = (guildId: string, roundId: string, at: number): SubscribedDomainEvent => ({
+    type: 'BigWin',
+    guildId,
+    at,
+    userId: USER,
+    game: 'slots',
+    roundId,
+    payout: 200_000,
+    multiplierBps: 20_000,
+  });
+
+  it("R-9: a guild without its own channel never posts into another guild's fallback channel", async () => {
+    const port = createFakeDiscordPort({ channelGuilds: { [DEFAULT_CHANNEL]: GUILD } });
+    const { clock, config, announcer } = makeHarness({ port });
+    expect(config.getGuildConfig(OTHER_GUILD).announceChannelId).toBeNull();
+
+    announcer.enqueue(bigWin(OTHER_GUILD, 'b1', clock.now()));
+    announcer.enqueue(bigWin(GUILD, 'a1', clock.now()));
+    clock.advance(3_000);
+    await announcer.flushDue();
+
+    expect(port.channelPosts).toHaveLength(1);
+    expect(port.channelPosts[0]?.channelId).toBe(DEFAULT_CHANNEL);
+    expect(announcer.pendingCount).toBe(0);
+  });
+
+  it('R-9: two guilds that share one explicit channel share its per-minute limit', async () => {
+    const { clock, port, config, announcer } = makeHarness();
+    config.setAnnounceChannel(GUILD, CUSTOM_CHANNEL);
+    config.setAnnounceChannel(OTHER_GUILD, CUSTOM_CHANNEL);
+    config.setAnnounceRateLimit(GUILD, 1);
+    config.setAnnounceRateLimit(OTHER_GUILD, 1);
+
+    announcer.enqueue(bigWin(GUILD, 'a1', clock.now()));
+    announcer.enqueue(bigWin(OTHER_GUILD, 'b1', clock.now()));
+    clock.advance(3_000);
+    expect(await announcer.flushDue()).toEqual({ sent: 1, deferred: 1, failed: 0 });
+    expect(port.channelPosts).toHaveLength(1);
+  });
+});
