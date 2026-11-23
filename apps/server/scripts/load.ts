@@ -381,12 +381,12 @@ class Player {
       const rtt = performance.now() - at;
       if (!ack) break;
       if (ack.ok) {
-        this.rec.record('blackjack_action', 'ok', rtt);
+        this.rec.record(`blackjack_${action}`, 'ok', rtt);
         continue;
       }
       // `conflict` and the like: the table dealt or settled without us. Normal when shared.
       const expected = !UNEXPECTED_ERRORS.has(ack.error);
-      this.rec.record('blackjack_action', expected ? 'rejected' : 'failed', rtt, ack.error);
+      this.rec.record(`blackjack_${action}`, expected ? 'rejected' : 'failed', rtt, ack.error);
       if (expected) break;
     }
     return between(8000, 16_000);
