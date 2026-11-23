@@ -1,43 +1,40 @@
-/** Pip positions on a 3 by 3 grid (cells 0..8, row by row) for each face. */
-const PIPS: Readonly<Record<number, readonly number[]>> = {
-  1: [4],
-  2: [0, 8],
-  3: [0, 4, 8],
-  4: [0, 2, 6, 8],
-  5: [0, 2, 4, 6, 8],
-  6: [0, 2, 3, 5, 6, 8],
-};
+import { Pixels } from './art/PixelArt.tsx';
+import { DIE_ART, DIE_ONE_ART, DIE_PIPS, TUMBLE_ART } from './art/chinchiro-art.ts';
 
 export interface DieProps {
-  /** 1..6; anything else shows a blank die. */
+  /** 1..6; anything else is a die not thrown yet (lying askew, no face up). */
   face: number;
-  /** Tumbling: the face is a stand-in and the die hops in steps. */
+  /** Tumbling: the die turns in the air (`face` picks the tumble frame). */
   rolling?: boolean;
-  label?: string;
+  /** Top left corner in the seat scene. */
+  x: number;
+  y: number;
 }
 
-/** A 16 by 16 pixel die. Colours come from tokens through the `cc-die` classes. */
-export function Die({ face, rolling = false, label }: DieProps) {
-  const pips = PIPS[face] ?? [];
+/**
+ * A 17 by 17 pixel die inside the bowl scene. At rest it is the die with hand-placed pips (each
+ * pip is one `cc-die__pip`; the 1 is red, as dice are in Japan); rolling, a tumble frame.
+ */
+export function Die({ face, rolling = false, x, y }: DieProps) {
+  if (rolling || !(face >= 1 && face <= 6)) {
+    const frame = TUMBLE_ART[(Math.abs(face) + x) % TUMBLE_ART.length] ?? DIE_ART;
+    return (
+      <g
+        className={`cc-die${rolling ? ' cc-die--rolling' : ''}`}
+        transform={`translate(${x} ${y})`}
+      >
+        <Pixels sprite={frame} />
+      </g>
+    );
+  }
+  const pips = DIE_PIPS[face] ?? [];
   return (
-    <svg
-      className={`cc-die${rolling ? ' cc-die--rolling' : ''}`}
-      viewBox="0 0 16 16"
-      {...(label ? { role: 'img', 'aria-label': label } : { 'aria-hidden': true })}
-    >
-      <path className="cc-die__edge" d="M2 0h12v1h1v1h1v12h-1v1h-1v1H2v-1H1v-1H0V2h1V1h1z" />
-      <path className="cc-die__face" d="M2 1h12v1h1v12h-1v1H2v-1H1V2h1z" />
-      <path className="cc-die__shade" d="M2 14h12v1H2zM14 2h1v12h-1z" />
-      {pips.map((cell) => (
-        <rect
-          key={cell}
-          className="cc-die__pip"
-          x={3 + (cell % 3) * 4}
-          y={3 + Math.floor(cell / 3) * 4}
-          width={2}
-          height={2}
-        />
+    <g className="cc-die" transform={`translate(${x} ${y})`}>
+      <Pixels sprite={DIE_ART} />
+      {face === 1 ? <Pixels sprite={DIE_ONE_ART} className="cc-die__pip" /> : null}
+      {pips.map(([px, py]) => (
+        <rect key={`${px}-${py}`} className="cc-die__pip" x={px} y={py} width={2} height={2} />
       ))}
-    </svg>
+    </g>
   );
 }

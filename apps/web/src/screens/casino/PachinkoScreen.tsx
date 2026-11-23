@@ -11,22 +11,12 @@ import { useBetAmount, useCall, useCasinoSfx, useOverview } from './hooks.ts';
 import { RecentRounds } from './RecentRounds.tsx';
 import { ResultBanner } from './Result.tsx';
 import { useCasino } from './services.tsx';
+import { PachinkoBoard } from './PachinkoBoard.tsx';
 
 /** One reveal step: the launch, then one set at a time. */
 const STEP_MS = 800;
 
 const roundName = (mult: number) => (mult >= 30 ? 'kakuhen' : mult >= 10 ? 'big' : 'small');
-
-/** Balls falling through the pegs: pixel dots that hop down in steps. */
-function Board({ falling }: { falling: boolean }) {
-  return (
-    <div className="cc-board" data-falling={falling} aria-hidden="true">
-      {[0, 1, 2, 3, 4, 5, 6].map((i) => (
-        <span key={i} className="cc-ball" style={{ ['--i' as string]: i }} />
-      ))}
-    </div>
-  );
-}
 
 function flavorKey(top: number): string {
   if (top >= 30) return 'kakuhen';
@@ -84,7 +74,11 @@ export default function PachinkoScreen() {
     <GameFrame screen="pachinko" jackpot={overview?.jackpotPool ?? null}>
       {disabled ? <Banner variant="warning" title={t('screen.casino.disabled')} /> : null}
       <p className="cc-intro">{t('screen.casino.pachinko.intro')}</p>
-      <Board falling={launching || busy} />
+      <PachinkoBoard
+        falling={launching || busy || (result !== null && !done)}
+        top={done && result ? result.topRound : null}
+        roundKey={result?.roundId ?? 'idle'}
+      />
       {launching ? (
         <p className="cc-status" aria-live="polite">
           {t('screen.casino.pachinko.launching')}

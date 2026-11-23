@@ -80,6 +80,7 @@ function SoloTable({ minBet, onSettled }: { minBet: number; onSettled: () => voi
             roll={dealer}
             rollKey={`${view.roundId}-d`}
             caption={t('screen.casino.chinchiro.dealer')}
+            dealer
           />
           <DiceRow
             roll={mine}
@@ -301,6 +302,7 @@ function SharedTable({ minBet, onSettled }: { minBet: number; onSettled: () => v
             roll={dealerShown > 0 ? (dealerRolls[dealerShown - 1] ?? null) : null}
             rollKey={`${snapshot.roundId}-d${dealerShown}`}
             caption={t('screen.casino.chinchiro.dealer')}
+            dealer
           />
           {seatViews.map(({ hand, start }, i) => {
             const count = Math.max(0, Math.min(hand.rolls.length, shownAll - start));
