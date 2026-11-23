@@ -348,6 +348,91 @@ describe('announcements and cleanup', () => {
   });
 });
 
+describe('R-14 / R-15: channels of the right guild, bounded purge', () => {
+  it('R-14: never posts or purges in a channel of another guild', async () => {
+    const { handler } = setup();
+    const foreign = fakeChannel('9101', ['m1'], 'other-guild');
+    const client = fakeClient([foreign]);
+
+    const host = admin(undefined, 'host-race', {
+      strings: { guild_id: GUILD, channel_id: '9101' },
+      integers: { entry_min: 3, bet_min: 4 },
+      client,
+    });
+    await handler(host.interaction as never);
+    expect(foreign.sent).toHaveLength(0);
+
+    const purge = admin(undefined, 'purge-messages', {
+      strings: { guild_id: GUILD, channel_id: '9101' },
+      client,
+    });
+    await handler(purge.interaction as never);
+    expect(customIds(purge.out[0]!.options)).toHaveLength(0);
+    expect(foreign.deleted).toHaveLength(0);
+  });
+
+  it('R-15: purge uses bulkDelete for recent bot messages and deletes older ones one by one', async () => {
+    const { handler } = setup();
+    const day = 86_400_000;
+    const channel = fakeChannel('9102', [
+      'new1',
+      'new2',
+      { id: 'old1', ageMs: 15 * day },
+      { id: 'old2', ageMs: 20 * day },
+    ]);
+    const client = fakeClient([channel]);
+    const purge = admin(undefined, 'purge-messages', {
+      strings: { guild_id: GUILD, channel_id: '9102' },
+      client,
+    });
+    await handler(purge.interaction as never);
+    await handler(
+      button(customIds(purge.out[0]!.options)[0]!, { guildId: null, client }).interaction as never,
+    );
+    expect(channel.bulkDeleted).toEqual([['new1', 'new2']]);
+    expect([...channel.deleted].sort()).toEqual(['new1', 'new2', 'old1', 'old2']);
+  });
+
+  it('R-15: purge stops after a bounded number of pages', async () => {
+    const { handler } = setup();
+    let pages = 0;
+    let serial = 0;
+    const channel = {
+      ...fakeChannel('9103'),
+      messages: {
+        fetch: async () => {
+          pages += 1;
+          return new Map(
+            Array.from({ length: 100 }, () => {
+              serial += 1;
+              const id = String(1_000_000 - serial);
+              return [
+                id,
+                {
+                  id,
+                  author: { id: 'someone-else' },
+                  createdTimestamp: 0,
+                  delete: async () => undefined,
+                },
+              ];
+            }),
+          );
+        },
+      },
+    };
+    const client = fakeClient([channel as never]);
+    const purge = admin(undefined, 'purge-messages', {
+      strings: { guild_id: GUILD, channel_id: '9103' },
+      client,
+    });
+    await handler(purge.interaction as never);
+    await handler(
+      button(customIds(purge.out[0]!.options)[0]!, { guildId: null, client }).interaction as never,
+    );
+    expect(pages).toBeLessThanOrEqual(50);
+  });
+});
+
 describe('server approval', () => {
   it('lists, allows and revokes servers (the config-allowed one cannot be revoked)', async () => {
     const { s, handler } = setup();

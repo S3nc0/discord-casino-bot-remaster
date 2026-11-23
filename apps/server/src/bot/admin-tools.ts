@@ -179,7 +179,7 @@ async function postableChannel(
     throw new AdminRefusal('bot.admin.err.targetNoChannel', 'bot.admin.err.targetNoChannelBody');
   }
   if (wanted === null) return null;
-  const channel = await fetchSendable(client, wanted);
+  const channel = await fetchSendable(client, wanted, guildId);
   return channel ? wanted : null;
 }
 
@@ -198,7 +198,7 @@ async function post(
 ): Promise<boolean> {
   const channelId = await postableChannel(ctx, client, guildId, channelRaw);
   if (channelId === null) return false;
-  const channel = await fetchSendable(client, channelId);
+  const channel = await fetchSendable(client, channelId, guildId);
   if (!channel) return false;
   await channel.send({ ...payload, allowedMentions: { parse: [] } } as never);
   return true;
@@ -1398,6 +1398,17 @@ async function announce(ctx: ChatCtx, interaction: ChatInputCommandInteraction):
 }
 
 const purging = new Set<string>();
+/** At most 50 pages (5,000 messages) are scanned per purge. */
+const PURGE_MAX_PAGES = 50;
+/** Discord refuses to bulk-delete messages older than 14 days. */
+const BULK_DELETE_MAX_AGE_MS = 14 * 86_400_000 - 60_000;
+
+interface PurgeMessage {
+  id: string;
+  author: { id: string };
+  createdTimestamp?: number;
+  delete(): Promise<unknown>;
+}
 
 async function purgeMessages(
   ctx: ChatCtx,
@@ -1406,7 +1417,8 @@ async function purgeMessages(
   const { locale } = ctx;
   const guildId = knownGuild(ctx, interaction.options.getString('guild_id', true), true);
   const channelId = parseSnowflake(interaction.options.getString('channel_id', true));
-  const channel = channelId === null ? null : await fetchSendable(interaction.client, channelId);
+  const channel =
+    channelId === null ? null : await fetchSendable(interaction.client, channelId, guildId);
   if (channelId === null || !channel) {
     throw new AdminRefusal('bot.admin.err.purgeNoPerm', 'bot.admin.err.purgeNoPermBody', {
       ch: channelId ?? '?',
@@ -1433,36 +1445,53 @@ async function purgeMessages(
           components: [],
         });
         const me = button.client.user?.id;
+        const freshAfter = nowOf(ctx.deps) - BULK_DELETE_MAX_AGE_MS;
+        const messages = channel.messages as unknown as {
+          fetch(o: { limit: number; before?: string }): Promise<Map<string, PurgeMessage>>;
+        };
         let before: string | undefined;
-        for (let page = 0; page < 1000; page++) {
-          const batch = await (
-            channel.messages as unknown as {
-              fetch(o: {
-                limit: number;
-                before?: string;
-              }): Promise<
-                Map<string, { id: string; author: { id: string }; delete(): Promise<unknown> }>
-              >;
-            }
-          ).fetch({ limit: 100, ...(before === undefined ? {} : { before }) });
+        for (let page = 0; page < PURGE_MAX_PAGES; page++) {
+          const batch = await messages.fetch({
+            limit: 100,
+            ...(before === undefined ? {} : { before }),
+          });
           if (batch.size === 0) break;
+          const fresh: string[] = [];
+          const old: PurgeMessage[] = [];
           for (const message of batch.values()) {
             scanned += 1;
             before = message.id;
             if (message.author.id !== me) continue;
+            if ((message.createdTimestamp ?? 0) > freshAfter) fresh.push(message.id);
+            else old.push(message);
+          }
+          // Messages younger than 14 days go in bulk (explicit ids: only the bot's own).
+          if (fresh.length === 1) {
+            const one = batch.get(fresh[0]!)!;
+            await one
+              .delete()
+              .then(() => (deleted += 1))
+              .catch(() => undefined);
+          } else if (fresh.length > 1) {
+            await channel
+              .bulkDelete(fresh)
+              .then(() => (deleted += fresh.length))
+              .catch(() => undefined);
+          }
+          for (const message of old) {
             await message
               .delete()
               .then(() => (deleted += 1))
               .catch(() => undefined);
-            if (deleted > 0 && deleted % 25 === 0) {
-              await button
-                .editReply({
-                  embeds: [
-                    embed('neutral', t(locale, 'bot.admin.purge.progress', { deleted, scanned })),
-                  ],
-                })
-                .catch(() => undefined);
-            }
+          }
+          if (deleted > 0) {
+            await button
+              .editReply({
+                embeds: [
+                  embed('neutral', t(locale, 'bot.admin.purge.progress', { deleted, scanned })),
+                ],
+              })
+              .catch(() => undefined);
           }
           if (batch.size < 100) break;
         }

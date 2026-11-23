@@ -102,6 +102,7 @@ interface SendableChannel {
   guildId?: string | null;
   send(options: { embeds: EmbedBuilder[]; allowedMentions?: { parse: never[] } }): Promise<Message>;
   messages: { fetch(id: string): Promise<Message> };
+  bulkDelete(ids: readonly string[]): Promise<unknown>;
 }
 
 /** `guildId` pins the channel to that guild: a channel of any other guild (or a DM) is `null`. */
