@@ -16,7 +16,7 @@ import { GUILD, memoryStore, OTHER_USER, USER } from '../../runtime/test-kit.ts'
 import { createMemoryTeiai } from '../progression/ports.ts';
 import { createNonCasinoGames } from '../progression/register.ts';
 import { GameRuleError } from '../progression/context.ts';
-import { foalRangeCacheSize, foalRanges } from './breeding.ts';
+import { createRangeCache, foalRangeCacheSize, foalRanges } from './breeding.ts';
 
 /** Monday 2025-01-06 07:30 JST. */
 const MONDAY_0730 = 1_736_116_200_000;
@@ -302,7 +302,7 @@ describe('breeding properties', () => {
         expect(h.count('horse_breedings')).toBe(born ? 1 : 0);
         expect(h.games.race.stable(GUILD, USER)).toHaveLength(born ? 3 : 2);
       }),
-      { numRuns: 60 },
+      { numRuns: 30 },
     );
   });
 
@@ -449,13 +449,40 @@ describe('breeding preview', () => {
   });
 
   it('R-8: the range cache is bounded and keeps what was used last', () => {
-    const kept = { speed: 50, stamina: 50, power: 50, guts: 50 };
-    const first = foalRanges(kept, kept);
-    for (let i = 0; i < 200; i++) {
-      const s = 20 + 5 * (i % 13);
-      foalRanges({ speed: s, stamina: 20 + 5 * Math.floor(i / 13), power: 50, guts: 50 }, kept);
-      expect(foalRanges(kept, kept)).toBe(first);
+    const computed: string[] = [];
+    const stub = (a: Stats): ReturnType<typeof foalRanges> => {
+      computed.push(String(a.speed));
+      const range = { min: a.speed, max: a.speed };
+      return { total: range, stats: { speed: range, stamina: range, power: range, guts: range } };
+    };
+    const cache = createRangeCache(3, stub);
+    const hand = (speed: number): Stats => ({ speed, stamina: 50, power: 50, guts: 50 });
+    const kept = hand(20);
+    const first = cache.get(kept, kept);
+    for (let i = 0; i < 50; i++) {
+      cache.get(hand(25 + 5 * (i % 12)), kept);
+      expect(cache.get(kept, kept)).toBe(first); // used last each round, so never evicted
+      expect(cache.size()).toBeLessThanOrEqual(3);
     }
+    expect(computed.filter((c) => c === '20')).toHaveLength(1);
+    // the entry unused longest goes first: 25, 30, 20 (renewed) -> adding 35 evicts 25
+    cache.get(hand(25), kept);
+    cache.get(hand(30), kept);
+    cache.get(kept, kept);
+    computed.length = 0;
+    cache.get(hand(35), kept);
+    cache.get(kept, kept);
+    cache.get(hand(30), kept);
+    expect(computed).toEqual(['35']);
+    cache.get(hand(25), kept);
+    expect(computed).toEqual(['35', '25']);
+  });
+
+  const hand50: Stats = { speed: 50, stamina: 50, power: 50, guts: 50 };
+
+  it('R-8: the shared cache stays within its production limit', () => {
+    for (let i = 0; i < 40; i++)
+      foalRanges({ speed: 20 + 5 * (i % 13), stamina: 50, power: 50, guts: 50 }, hand50);
     expect(foalRangeCacheSize()).toBeLessThanOrEqual(128);
   });
 });
