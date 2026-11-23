@@ -1,7 +1,7 @@
 import { useT } from '../../shell/i18n.ts';
 import type { ChinchiroRollView } from '@casino/shared';
 import { useTumble } from './anim.ts';
-import { PixelScene, Pixels } from './art/PixelArt.tsx';
+import { CasinoScene, Pixels } from './art/PixelArt.tsx';
 import {
   DEALER_SEAT_ART,
   DICE_SHADOWS,
@@ -41,7 +41,7 @@ export function DiceRow({ roll, rollKey, caption, dealer = false }: DiceRowProps
   return (
     <div className="cc-dice" data-rolling={rolling ? 'true' : 'false'} data-dealer={dealer}>
       <div className="cc-dice__row">
-        <PixelScene w={SEAT_SIZE.w} h={SEAT_SIZE.h} className="cc-bowl">
+        <CasinoScene w={SEAT_SIZE.w} h={SEAT_SIZE.h} className="cc-bowl">
           <Pixels sprite={dealer ? DEALER_SEAT_ART : SEAT_ART} />
           {(faces.length === 3 ? faces : [0, 0, 0]).map((face, i) => {
             const [x, y] = spots[i] ?? [0, 0];
@@ -53,7 +53,7 @@ export function DiceRow({ roll, rollKey, caption, dealer = false }: DiceRowProps
               </g>
             );
           })}
-        </PixelScene>
+        </CasinoScene>
       </div>
       <p className="cc-dice__hand" aria-live="polite">
         {caption ? <span className="cc-dice__caption">{caption} </span> : null}

@@ -3,7 +3,7 @@ import { Banner, Button } from '@casino/ui';
 import type { SlotsResultView } from '@casino/shared';
 import { useT } from '../../shell/i18n.ts';
 import { useReveal } from './anim.ts';
-import { PixelScene, Pixels } from './art/PixelArt.tsx';
+import { CasinoScene, Pixels } from './art/PixelArt.tsx';
 import { SYMBOL_ART } from './art/slots-art.ts';
 import { BetBar } from './BetBar.tsx';
 import { ErrorLine } from './ErrorLine.tsx';
@@ -39,12 +39,12 @@ const PAYS: readonly (readonly [readonly string[], string])[] = [
 function PaySymbols({ symbols }: { symbols: readonly string[] }) {
   const size = 32;
   return (
-    <PixelScene w={size * symbols.length} h={size} className="cc-paytable__art">
+    <CasinoScene w={size * symbols.length} h={size} className="cc-paytable__art">
       {symbols.map((s, i) => {
         const art = SYMBOL_ART[s];
         return art ? <Pixels key={i} sprite={art} x={i * size} y={0} /> : null;
       })}
-    </PixelScene>
+    </CasinoScene>
   );
 }
 

@@ -31,7 +31,7 @@ export const Pixels = memo(function Pixels({ sprite, x, y, className }: PixelsPr
   );
 });
 
-export interface PixelSceneProps {
+export interface CasinoSceneProps {
   w: number;
   h: number;
   className?: string;
@@ -39,7 +39,7 @@ export interface PixelSceneProps {
 }
 
 /** An SVG of `w` by `h` art pixels, sized by `--cc-px`. Hidden from assistive technology. */
-export function PixelScene({ w, h, className, children }: PixelSceneProps) {
+export function CasinoScene({ w, h, className, children }: CasinoSceneProps) {
   return (
     <svg
       className={`cc-art${className ? ` ${className}` : ''}`}

@@ -17,7 +17,7 @@ export interface WinBurstProps {
 }
 
 /**
- * The win burst, inside a PixelScene: eight frames once, then gone. Under reduced motion one
+ * The win burst, inside a CasinoScene: eight frames once, then gone. Under reduced motion one
  * still frame stays while the win is shown.
  */
 export function WinBurst({ playKey, x, y }: WinBurstProps) {

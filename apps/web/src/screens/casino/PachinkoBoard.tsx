@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { isReducedMotionActive } from '@casino/ui';
 import { useCycle, useReveal } from './anim.ts';
-import { PixelScene, Pixels } from './art/PixelArt.tsx';
+import { CasinoScene, Pixels } from './art/PixelArt.tsx';
 import {
   BALL_ART,
   BALL_PATHS,
@@ -81,7 +81,7 @@ export function PachinkoBoard({ falling, top, roundKey }: PachinkoBoardProps) {
   const mill = falling || (jackpot && !still) ? (falling ? tick : show) % 2 : 0;
   return (
     <div className="cc-board" data-falling={falling} data-jackpot={jackpot} aria-hidden="true">
-      <PixelScene w={PACHINKO_SIZE.w} h={PACHINKO_SIZE.h} className="cc-board__art">
+      <CasinoScene w={PACHINKO_SIZE.w} h={PACHINKO_SIZE.h} className="cc-board__art">
         <Pixels sprite={MACHINE_ART} />
         <Pixels sprite={LAMP_ART[lamp] ?? MACHINE_ART} />
         {TULIP_ART.map((states, i) => {
@@ -105,7 +105,7 @@ export function PachinkoBoard({ falling, top, roundKey }: PachinkoBoardProps) {
           );
         })}
         <WinBurst playKey={jackpot ? roundKey : null} x={2} y={0} />
-      </PixelScene>
+      </CasinoScene>
     </div>
   );
 }

@@ -1,6 +1,6 @@
 import type { RouletteKindView } from '@casino/shared';
 import { useCycle } from './anim.ts';
-import { PixelScene, Pixels } from './art/PixelArt.tsx';
+import { CasinoScene, Pixels } from './art/PixelArt.tsx';
 import {
   BALL_ART,
   BOARD_ART,
@@ -49,7 +49,7 @@ export function RouletteWheel({ pocket, moving, highlight }: RouletteWheelProps)
   const lit = highlight !== null && !moving ? POCKET_ART[String(highlight)] : undefined;
   const ball = pocket === null ? null : ballPosition(pocket, moving);
   return (
-    <PixelScene w={G.size} h={G.size} className="cc-wheel__art">
+    <CasinoScene w={G.size} h={G.size} className="cc-wheel__art">
       <Pixels sprite={WHEEL_ART} />
       {moving ? <Pixels sprite={WHEEL_BLUR_ART[blur % 2] ?? WHEEL_ART} /> : null}
       {lit ? <Pixels sprite={lit} /> : null}
@@ -59,7 +59,7 @@ export function RouletteWheel({ pocket, moving, highlight }: RouletteWheelProps)
           <Pixels sprite={BALL_ART} x={ball[0]} y={ball[1]} />
         </g>
       ) : null}
-    </PixelScene>
+    </CasinoScene>
   );
 }
 
@@ -90,7 +90,7 @@ export interface BoardChip {
 /** The betting board with a chip on every line of the slip and every bet placed. */
 export function RouletteBoard({ chips }: { chips: readonly BoardChip[] }) {
   return (
-    <PixelScene w={BOARD_ART.w} h={BOARD_ART.h} className="cc-rboard">
+    <CasinoScene w={BOARD_ART.w} h={BOARD_ART.h} className="cc-rboard">
       <Pixels sprite={BOARD_ART} />
       {chips.map((c, i) => {
         const cell = cellOf(c.kind, c.number);
@@ -107,6 +107,6 @@ export function RouletteBoard({ chips }: { chips: readonly BoardChip[] }) {
           />
         );
       })}
-    </PixelScene>
+    </CasinoScene>
   );
 }

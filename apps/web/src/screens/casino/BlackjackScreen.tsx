@@ -16,7 +16,7 @@ import {
   useTable,
   useUserId,
 } from './hooks.ts';
-import { PixelScene, Pixels } from './art/PixelArt.tsx';
+import { CasinoScene, Pixels } from './art/PixelArt.tsx';
 import { ARC_ART, BET_RING_ART, DEALER_STRIP_ART, RAIL_ART } from './art/blackjack-art.ts';
 import { ChipStack, chipsFor } from './art/ChipStack.tsx';
 import { PlayingCard } from './PlayingCard.tsx';
@@ -33,21 +33,21 @@ export const TEIAI_CREDIT_CAP = 3_000;
 function BetSpot({ stake }: { stake: number }) {
   const { colour, count } = chipsFor(stake);
   return (
-    <PixelScene w={BET_RING_ART.w} h={BET_RING_ART.h} className="cc-betspot">
+    <CasinoScene w={BET_RING_ART.w} h={BET_RING_ART.h} className="cc-betspot">
       <Pixels sprite={BET_RING_ART} />
       {stake > 0 ? (
         <ChipStack colour={colour} count={count} x={5} bottom={BET_RING_ART.h - 3} />
       ) : null}
-    </PixelScene>
+    </CasinoScene>
   );
 }
 
 /** A full-width strip of the table (176 art pixels wide). */
 function TableStrip({ art, className }: { art: typeof RAIL_ART; className: string }) {
   return (
-    <PixelScene w={art.w} h={art.h} className={className}>
+    <CasinoScene w={art.w} h={art.h} className={className}>
       <Pixels sprite={art} />
-    </PixelScene>
+    </CasinoScene>
   );
 }
 

@@ -30,7 +30,7 @@ export interface ChipStackProps {
   bottom: number;
 }
 
-/** A stack of chips inside a PixelScene; the stripes turn from chip to chip. */
+/** A stack of chips inside a CasinoScene; the stripes turn from chip to chip. */
 export function ChipStack({ colour, count, x, bottom }: ChipStackProps) {
   const frames = CHIP_ART[colour] ?? [];
   const turn = [0, 1, 2, 1, 0, 2, 1];

@@ -1,6 +1,6 @@
 import { SLOT_SYMBOLS } from '@casino/shared';
 import { useCycle, useReveal } from './anim.ts';
-import { PixelScene, Pixels } from './art/PixelArt.tsx';
+import { CasinoScene, Pixels } from './art/PixelArt.tsx';
 import {
   BLUR_ART,
   CABINET_ART,
@@ -76,7 +76,7 @@ export function SlotMachine({ reels, stopped, spinKey, winning }: SlotMachinePro
   const flash = won && (blink >= FLASH_STEPS || blink % 2 === 0);
   const pulled = spinning && lever < LEVER_STEPS;
   return (
-    <PixelScene w={SLOTS_SIZE.w} h={SLOTS_SIZE.h} className="cc-machine__art">
+    <CasinoScene w={SLOTS_SIZE.w} h={SLOTS_SIZE.h} className="cc-machine__art">
       <Pixels sprite={CABINET_ART} />
       <Pixels sprite={LIGHTS_ART[flash ? blink % 2 : lights % 2] ?? CABINET_ART} />
       <Pixels sprite={LEVER_ART[pulled ? 1 : 0] ?? CABINET_ART} />
@@ -92,6 +92,6 @@ export function SlotMachine({ reels, stopped, spinKey, winning }: SlotMachinePro
       ))}
       <Pixels sprite={flash ? PAYLINE_WIN_ART : PAYLINE_ART} />
       <WinBurst playKey={won ? spinKey : null} x={SLOTS_SIZE.w - 48} y={0} />
-    </PixelScene>
+    </CasinoScene>
   );
 }

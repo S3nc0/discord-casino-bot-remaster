@@ -1,7 +1,7 @@
 import type { CardView } from '@casino/shared';
 import { useT } from '../../shell/i18n.ts';
 import { useReveal } from './anim.ts';
-import { PixelScene, Pixels } from './art/PixelArt.tsx';
+import { CasinoScene, Pixels } from './art/PixelArt.tsx';
 import { CARD_ART, CARD_BACK_ART, CARD_SIZE } from './art/blackjack-art.ts';
 import { squeeze, type Sprite } from './art/sprite.ts';
 
@@ -50,9 +50,9 @@ export function PlayingCard({ card, fresh = false }: PlayingCardProps) {
   if (face && flipping && step < 4)
     sprite = [CARD_BACK_ART, BACK_HALF, EDGE, half(face)][step] ?? face;
   const art = (
-    <PixelScene w={CARD_SIZE.w} h={CARD_SIZE.h} className="cc-card__art">
+    <CasinoScene w={CARD_SIZE.w} h={CARD_SIZE.h} className="cc-card__art">
       <Pixels sprite={sprite} />
-    </PixelScene>
+    </CasinoScene>
   );
   if (card === null) {
     return (
