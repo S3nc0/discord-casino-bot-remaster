@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   GUILD,
   OTHER_USER,
@@ -125,6 +125,27 @@ describe('money tools', () => {
     expect(s.economy.getBalance(GUILD, OTHER_USER)).toBe(0);
     expect(s.finance.teiai.getDebt(GUILD, OTHER_USER)).toBe(5000);
     expect(ledgerReasons(s, OTHER_USER)).toContain('admin_revoke');
+  });
+});
+
+describe('R-16: set-balance is one transaction', () => {
+  it('R-16: a failing debt write rolls the balance change back', async () => {
+    const { s, handler } = setup();
+    s.economy.credit({ guildId: GUILD, userId: OTHER_USER, amount: 7000, reason: 'admin_grant' });
+    const before = s.economy.getBalance(GUILD, OTHER_USER);
+    expect(before).toBeGreaterThan(0);
+    const spy = vi.spyOn(s.finance.teiai, 'adminSetDebt').mockImplementation(() => {
+      throw new Error('boom');
+    });
+    const debt = admin(undefined, 'set-balance', {
+      strings: { guild_id: GUILD, user_id: OTHER_USER },
+      integers: { amount: -5000 },
+    });
+    await handler(debt.interaction as never);
+    await handler(button(customIds(debt.out[0]!.options)[0]!).interaction as never);
+    expect(spy).toHaveBeenCalled();
+    expect(s.economy.getBalance(GUILD, OTHER_USER)).toBe(before);
+    expect(ledgerReasons(s, OTHER_USER)).not.toContain('admin_revoke');
   });
 });
 

@@ -378,6 +378,21 @@ function setBalance(
     by: string;
   },
 ): { before: number; after: number; debt: number | null } {
+  const run = <T>(fn: () => T): T => (ctx.deps.store ? ctx.deps.store.transaction(fn) : fn());
+  return run(() => setBalanceInTransaction(ctx, args));
+}
+
+function setBalanceInTransaction(
+  ctx: ChatCtx,
+  args: {
+    guildId: string;
+    userId: string;
+    amount: number;
+    reason: string;
+    key: string;
+    by: string;
+  },
+): { before: number; after: number; debt: number | null } {
   const { economy } = ctx.deps;
   const before = economy.getBalance(args.guildId, args.userId);
   const note = `残高の設定（管理）${args.reason}`.trim();
