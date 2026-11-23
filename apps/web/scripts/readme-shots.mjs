@@ -3,9 +3,9 @@
 //
 //   node scripts/readme-shots.mjs [outDir]    (default: ../../docs/images/readme)
 //
-// Writes <outDir>/<shot>.<locale>.webp. Needs `cwebp` on PATH (macOS: brew install webp) and
+// Writes <outDir>/<shot>.<locale>.webp (only some shots: README_SHOTS=horse,slots). Needs `cwebp` on PATH (macOS: brew install webp) and
 // Chrome (set CHROME_PATH when it is not at the macOS default).
-/* global console, document */
+/* global console, document, getComputedStyle */
 import { execFileSync } from 'node:child_process';
 import { mkdirSync, rmSync } from 'node:fs';
 import process from 'node:process';
@@ -27,6 +27,7 @@ const SHOTS = [
   { id: 'stocks', screen: 'stocks', scheme: 'dark', firstTab: true },
   { id: 'bank-light', screen: 'bank', scheme: 'light' },
 ];
+const only = process.env.README_SHOTS?.split(',');
 const LOCALES = [
   { id: 'en', param: 'en-US' },
   { id: 'ja', param: 'ja' },
@@ -55,7 +56,7 @@ const browser = await chromium.launch({ executablePath: chrome, headless: true }
 const problems = [];
 try {
   for (const locale of LOCALES) {
-    for (const shot of SHOTS) {
+    for (const shot of SHOTS.filter((s) => !only || only.includes(s.id))) {
       const label = `${shot.id}.${locale.id}`;
       const context = await browser.newContext({
         viewport: PHONE,
@@ -83,6 +84,22 @@ try {
         await page.getByRole('button', { name: /Watch the race|レースを見る/ }).click();
         await page.locator('.hr-lane').first().waitFor({ timeout: 10_000 });
         await page.waitForTimeout(2200);
+        // Scroll the screen so the track, grandstand to rail, fills the phone.
+        await page.evaluate(() => {
+          const track = document.querySelector('.hr-track');
+          let box = track?.parentElement ?? null;
+          while (
+            box &&
+            !(
+              box.scrollHeight > box.clientHeight + 4 &&
+              /auto|scroll/.test(getComputedStyle(box).overflowY)
+            )
+          )
+            box = box.parentElement;
+          if (track && box)
+            box.scrollTop +=
+              track.getBoundingClientRect().top - box.getBoundingClientRect().top - 8;
+        });
       }
       await page.waitForTimeout(600);
       const png = await page.screenshot();
