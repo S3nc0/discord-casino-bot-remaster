@@ -79,6 +79,7 @@ Owners register commands with `pnpm commands:deploy:guild` (see the [Owner Setup
 | --- | --- | --- | --- |
 | 4.1 | READMEs (EN/JA) + CHANGELOG | SC | READMEs done (PR #58); CHANGELOG in progress (this PR) |
 | 4.ART | Pixel art v2: horse, icons, README art | SC | done (PR #62) |
+| 4.D1 | Listing inventory picker, arena runner-up | D1 | done (PR #63) |
 | 4.2 | MAINTAINERS/CONTRIBUTING/SECURITY (EN/JA) | SC | in progress (this PR) |
 | 4.3 | Delete legacy, tag v1.0.0, deploy | O1 | todo |
 | 4.4 | Final tree check + push | Leader | todo |

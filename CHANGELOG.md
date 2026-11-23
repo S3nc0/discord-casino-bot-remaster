@@ -11,8 +11,8 @@ The remaster: the original Python chat bot rewritten in TypeScript as a Discord 
 - **The Activity.** A full-screen mini app that runs inside Discord on desktop and mobile, with live tables, race cards and presence, in a pixel look with light and dark themes (the Bitbloom UI kit).
 - **Casino games.** Chinchiro, slots, pachinko, blackjack and roulette, in chat and in the Activity, with an event schedule and insurance tickets.
 - **Horse racing.** Races four times a day with bets, a stable, retirement, and breeding with foals that mature over time. A new eight-frame gallop sprite.
-- **Underground Arena.** A daily tournament of NPC fighters to bet on.
-- **Finance.** Teiai Bank with deposits, loans, debt and bankruptcy; kyosai (mutual aid) units and auctions; stocks and a crypto ticker with margin; companies; player-to-player loans; and a player market with fixed-price listings and auctions.
+- **Underground Arena.** A daily tournament of NPC fighters to bet on. The result names the champion and the runner-up of the final, in the Activity and in chat; tournaments that finished earlier show the champion only.
+- **Finance.** Teiai Bank with deposits, loans, debt and bankruptcy; kyosai (mutual aid) units and auctions; stocks and a crypto ticker with margin; companies; player-to-player loans; and a player market with fixed-price listings and auctions, where a form lets you pick an item from your inventory and list it.
 - **Everyday play.** Daily bonus with streaks, underground labor, quizzes, lottery, polls, shop and inventory, missions, titles, weekly ranking, transfers, relics and history.
 - **English and Japanese** everywhere: the Activity, slash commands (Discord shows each user the names in their language), announcements and direct messages.
 - **Owner tools.** `/admin` commands to approve or revoke servers, adjust balances, start events, tune payout levels and manage quizzes, plus guides for setup, testing, IDs and admin use in both languages.

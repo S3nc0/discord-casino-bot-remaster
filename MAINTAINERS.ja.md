@@ -162,6 +162,7 @@ API やソケットの取り決めを壊す変更は、画面とサーバーを�
 **マイグレーション。** データベースの構造は `apps/server/src/db/migrations/` にある番号付きの SQL ファイルで、`index.ts` に並べ、サーバーの起動時に順番どおり 1 ファイルずつトランザクションで適用されます。適用済みファイルのチェックサムは `schema_migrations` に記録されます。
 
 - マージ済みのマイグレーションは絶対に書き換えません。次の番号で新しく足します。適用済みのファイルが書き換わっていたり、このビルドが知らないマイグレーションがデータベースに入っていたり（新しいビルドが書いたもの）すると、サーバーは起動を拒否します。そのファイルで古いビルドを動かさないでください。
+- 最新は `0011_arena_runner_up` です（`arena_tournaments.runner_up_id` という NULL 可能な列を足し、決勝の 2 位を保存します。それ以前に終わった大会では空です）。
 - お金の列は整数、金利は bp（ベーシスポイント）、価格は固定小数点です。ルールとテーブルは [docs/DB_SCHEMA.md](docs/DB_SCHEMA.md)（英語のみ）にあります。
 
 **バックアップ。** Pi では systemd のタイマーが毎晩 3:30 ごろに `ops/pi/backup.sh` を実行し、`/var/backups/discord-casino/` に 7 日分を残します。SQLite のオンライン `.backup` を使うので、サーバーが動いていても安全です。今すぐ取るには：
@@ -216,7 +217,7 @@ sudo journalctl -u discord-casino.service -n 50 --no-pager
 1. **取り決め**（`packages/shared`）：`src/ids.ts` の `GAME_IDS` に ID を足します（`SCREEN_IDS` は自動で追従します）。ライブ対戦ならインテントとテーブルの形を `src/intents.ts` と `src/socket.ts` に、新しい `ErrorCode` があればそれも、ゲームに必要な `LEDGER_REASONS` を `src/ledger.ts` に（フローの分類と符号つきで）足します。台帳の理由は追加するだけで、名前の変更や削除はしません。ミッションやお知らせに見せたいなら `GameSettled` のタグ名も足します。
 2. **ルール**（`packages/domain/src/<game>/`）：状態、入力、`DomainContext`（`rng`、`clock`）を受け取って `Outcome` を返す純粋な関数。入出力、実時間、勝手な乱数は使えません（lint と `purity.test.ts` が検査します）。調整できる数値は `catalogs/` に置き、domain の定数に整数でそろえて写します。
 3. **サービス**（`apps/server/src/games/<game>/`）：状態を読み、domain の関数を呼び、**1 つの** `store.transaction` の中で、`EconomyService` で残高を動かし（リクエストの idempotency キー付き）、ゲームの状態と idempotency の記録を保存します。イベントは `afterCommit` で流します。`games/index.ts`（カジノ系）か `games/progression/register.ts`（それ以外）に登録し、`runtime/server.ts` でつなぎます。
-4. **ソケットイベントか HTTP ルート**：カジノ形式のラウンドは既存の `game:bet` / `game:action` インテントを使います（`games/casino/handlers.ts`）。それ以外の画面は `http/activity/` にルートのファイルを足し、`http/activity/index.ts` に登録します。ユーザー・サーバー・インスタンスをリクエスト本文から受け取ってはいけません。セッションのものを使います。
+4. **ソケットイベントか HTTP ルート**：カジノ形式のラウンドは既存の `game:bet` / `game:action` インテントを使います（`games/casino/handlers.ts`）。それ以外の画面は `http/activity/` にルートのファイルを足し、`http/activity/index.ts` に登録します。ユーザー・サーバー・インスタンスをリクエスト本文から受け取ってはいけません。セッションのものを使います。ルートの名前は `packages/shared/src/activity/` に 1 か所だけ定義し（たとえば `FINANCE_ROUTES`）、書き込みにはすべて idempotency キーを付けます。`POST /api/finance/listings/create`（持っている取引可能なアイテムを預けて、プレイヤー市場の出品にするルート。`GET /api/finance/listings` が返す `sellable` の一覧がフォームの元になります）が、まねしやすい小さな例です。
 5. **画面**（`apps/web/src/screens/<group>/`）：コンポーネント、API フック、`dev:mock` 用のモック、CSS、`screens/routes.tsx` への遅延読み込みの登録。部品は `@casino/ui` のコンポーネントとトークンだけを使います。ゲームアイコンは `tools/pixel-art/icons/` で描きます（[下](#ドット絵を作り直す)）。
 6. **スラッシュコマンド**（`apps/server/src/bot/`）：`commands.ts` の `COMMAND_SPECS` に、英語と日本語の名前・説明つきでコマンドを足し、対応するチャット用モジュールにハンドラーを書き、パスを `WIRED_COMMAND_PATHS` に加えて、`pnpm commands:deploy:guild` を実行します。
 7. **i18n**：新しい文言は `en.ts` と `ja.ts` の両方に（画面名は `screen.<id>`、ボットの返信は `bot.*`、エラーは `error.<code>`）。`pnpm i18n:check` が通ること。

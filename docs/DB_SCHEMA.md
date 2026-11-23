@@ -102,6 +102,16 @@ table (create `user_settings_new`, copy, drop, rename, in the migration's transa
 
 A user without a row gets `DEFAULT_USER_SETTINGS`; `PUT /api/settings` upserts the whole row.
 
+### `arena_tournaments` after 0011
+
+`0011_arena_runner_up.sql` adds one nullable column to `arena_tournaments`:
+
+| Column | Type | Meaning |
+| --- | --- | --- |
+| `runner_up_id` | `INTEGER REFERENCES arena_fighters (id)` | Second place of the final: a fighter of the same tournament, set together with `champion_id` when the final settles. `NULL` while the tournament is open and for tournaments that finished before the migration (their second place was never stored). |
+
+Nothing is backfilled and no money column is involved. See [arena.md](spec/arena.md) §4.5.
+
 ## Planned tables (Wave 2)
 
 Owners create these in their own migrations (`0002_...` onward), following the conventions.

@@ -101,6 +101,17 @@ Each guild automatically hosts **both formats simultaneously every day** (separa
 
 ---
 
+### 4.5 Runner-up (remaster addition, migration 0011)
+
+The legacy result text has a slot for the others of the final (`arena.result.final_body`), but only the champion was stored. The remaster stores a real second place:
+
+- When the final settles, second place is drawn by the same weighted match (4.3) among the fighters the winner beat, and stored as `arena_tournaments.runner_up_id` (an `arena_fighters.id` of that tournament) together with `champion_id`.
+- It is `NULL` while the tournament is open, and for tournaments that finished before migration 0011 (their second place was never stored); those show the champion only.
+- It changes no bet, odds or payout: bets settle on the winner of each match exactly as in 4.4. It is cosmetic and for history.
+- It is carried as `ArenaTournament.runnerUpId` in the Activity API and shown in the result line of the arena screen and in the chat tournament embed (`bot.arena.runnerUp`), in English and Japanese.
+
+---
+
 ## 5. Animation (`domain/arena.py:116-134`, `cogs/arena/cog.py:33-34,105-119`)
 - Cosmetic only (winner already settled): `ANIM_FRAMES = 6` (`7` total frames starting from all 100 HP), `ANIM_STEP = 1.2s`.
 - Per step: winner loses `uniform(0, 10)` clamped `>= 20.0`; losers lose `uniform(12, 25)` clamped `>= 0.0`; final frame forces losers to `0`.

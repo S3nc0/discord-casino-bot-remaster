@@ -44,8 +44,8 @@ outermost commit; they are dropped on rollback. That is how "events are publishe
 holds. Per-connection pragmas (`db/pragmas.ts`): WAL, `synchronous = NORMAL`,
 `busy_timeout = 5000`, foreign keys, recursive triggers.
 
-Migrations are numbered `.sql` files in `db/migrations/` (`0001_init` to `0010_bot_tools` at the
-time of writing), listed in `db/migrations/index.ts` and inlined into the bundle. `runMigrations`
+Migrations are numbered `.sql` files in `db/migrations/` (`0001_init` to `0011_arena_runner_up` at
+the time of writing), listed in `db/migrations/index.ts` and inlined into the bundle. `runMigrations`
 applies the newer ones in order, one transaction each, and records a SHA-256 checksum in
 `schema_migrations`. The server refuses to start if an applied migration was edited, or if the file
 has a migration this build does not know (a newer build wrote it). Never edit a merged migration;
@@ -125,7 +125,15 @@ limits (`DEFAULT_RATE_LIMITS`: 600 requests per IP per minute, 30 per IP per min
 `POST /api/token`, 240 per user per minute), the session check, then the core routes in
 [HTTP API](#http-api). `http/activity/` adds the authenticated routes of each Activity slice
 (casino, horse and arena, life, finance); each slice registers itself in
-`http/activity/index.ts` through an optional entry in `ActivityDeps`.
+`http/activity/index.ts` through an optional entry in `ActivityDeps`. Routes are named once, in
+`packages/shared/src/activity/` (for finance, `FINANCE_ROUTES`), and every write takes an
+idempotency key. For example, the player market has `GET /api/finance/listings` (open listings,
+the fee, and what the form needs: `sellable` = the tradable items the caller owns with quantity
+and reference value, `maxActive`, `auctionHours`, `fixedDays`) and `POST
+/api/finance/listings/create`, `…/buy`, `…/bid` and `…/cancel`. `create` escrows a quantity of
+one tradable item through the player-market service, which enforces the price range and the
+listing limit; the seller is always the session's user. The arena view carries
+`ArenaTournament.runnerUpId` (see [spec/arena.md](spec/arena.md#45-runner-up-remaster-addition-migration-0011)).
 
 Sockets: `socket/server.ts` attaches Socket.io at `/api/socket.io` (websocket only). The handshake
 verifies the session token, the proxy policy and the socket caps, joins the automatic rooms, and
