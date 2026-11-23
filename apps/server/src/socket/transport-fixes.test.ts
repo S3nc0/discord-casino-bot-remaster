@@ -133,3 +133,96 @@ describe('R-3: events without an ack callback never throw on the server', () => 
     }
   });
 });
+
+describe('R-4: private domain events go to their user, not the guild', () => {
+  it('R-4: two users in one guild: a private event reaches only its user, a public one both', async () => {
+    const url = await start();
+    const alice = open(url, await loginAs(USER, 'alice'));
+    const bob = open(url, await loginAs(OTHER_USER, 'bob'));
+    await Promise.all([connected(alice), connected(bob)]);
+    const seen = { alice: [] as string[], bob: [] as string[] };
+    alice.on('domain:event', (e) => seen.alice.push(e.type));
+    bob.on('domain:event', (e) => seen.bob.push(e.type));
+
+    const at = 1;
+    const events = [
+      {
+        type: 'OrderFilled',
+        guildId: GUILD,
+        at,
+        userId: USER,
+        orderId: 1,
+        ticker: 'ABC',
+        side: 'buy',
+        quantity: 1000,
+        price: 1_000_000,
+      },
+      { type: 'LoanDue', guildId: GUILD, at, userId: USER, loanId: 1, amount: 5, dueAt: at },
+      {
+        type: 'BankruptcyGraceStarted',
+        guildId: GUILD,
+        at,
+        userId: USER,
+        debt: 9,
+        graceEndsAt: at,
+      },
+      { type: 'MarketplaceOutbid', guildId: GUILD, at, userId: USER, listingId: 1, newBid: 5 },
+      { type: 'MissionCompleted', guildId: GUILD, at, userId: USER, missionId: 'm', reward: 5 },
+      { type: 'DailyReady', guildId: GUILD, at, userId: USER },
+      {
+        type: 'GameSettled',
+        guildId: GUILD,
+        at,
+        userId: USER,
+        game: 'slots',
+        roundId: 'r',
+        stake: 5,
+        payout: 0,
+        net: -5,
+        source: 'activity',
+      },
+      { type: 'MarketTick', guildId: GUILD, at, prices: { ABC: 1_000_000 } },
+      {
+        type: 'BigWin',
+        guildId: GUILD,
+        at,
+        userId: USER,
+        game: 'slots',
+        roundId: 'r',
+        payout: 99,
+        multiplierBps: 50_000,
+      },
+    ] as DomainEvent[];
+    for (const event of events) server.bus.publishDomain(event);
+    await settle(150);
+
+    expect(seen.alice).toEqual([
+      'OrderFilled',
+      'LoanDue',
+      'BankruptcyGraceStarted',
+      'MarketplaceOutbid',
+      'MissionCompleted',
+      'DailyReady',
+      'GameSettled',
+      'MarketTick',
+      'BigWin',
+    ]);
+    expect(seen.bob).toEqual(['MarketTick', 'BigWin']);
+  });
+
+  it('R-4: a user-private event of another guild never reaches a socket of the same user elsewhere', async () => {
+    const url = await start();
+    const alice = open(url, await loginAs(USER, 'alice'));
+    await connected(alice);
+    const seen: string[] = [];
+    alice.on('domain:event', (e) => seen.push(e.type));
+    server.bus.publishDomain({
+      type: 'DailyReady',
+      guildId: '234567890123456780',
+      at: 1,
+      userId: USER,
+    } as DomainEvent);
+    await settle();
+    expect(seen).toEqual([]);
+  });
+});

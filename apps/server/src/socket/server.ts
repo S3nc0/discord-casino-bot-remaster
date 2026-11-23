@@ -38,6 +38,7 @@ import type { IdentityRepo } from '../db/identity.ts';
 import type { InboxService } from '../db/inbox.ts';
 import type { EventBus } from '../runtime/bus.ts';
 import { RateLimiter } from '../runtime/rate-limit.ts';
+import { audienceOf } from './domain-audience.ts';
 
 export type CasinoServer = Server<
   ClientToServerEvents,
@@ -397,8 +398,20 @@ export function attachSocketServer(options: SocketServerOptions): SocketServer {
   });
 
   // Fan-out of committed events to rooms.
+  // Guild-public events go to the guild room; everything else only to the sockets of the users
+  // it names, and only the ones signed in to that guild (a user room spans guilds).
   const offDomain = bus.onAnyDomain((event) => {
-    io.to(rooms.guild(event.guildId)).emit('domain:event', event);
+    const audience = audienceOf(event);
+    if (audience.scope === 'guild') {
+      io.to(rooms.guild(event.guildId)).emit('domain:event', event);
+      return;
+    }
+    for (const userId of audience.userIds) {
+      for (const id of io.sockets.adapter.rooms.get(rooms.user(userId)) ?? []) {
+        const target = io.sockets.sockets.get(id);
+        if (target?.data.guildId === event.guildId) target.emit('domain:event', event);
+      }
+    }
   });
   const offBalance = bus.onBalance((update) => {
     io.to(rooms.user(update.userId)).emit('balance:update', update);
