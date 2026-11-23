@@ -974,16 +974,74 @@ export async function raffleJoin(
 
 // ------------------------------------------------------------------ quizzes
 
+const ATTACHMENT_HOSTS: ReadonlySet<string> = new Set([
+  'cdn.discordapp.com',
+  'media.discordapp.net',
+]);
+const FETCH_TIMEOUT_MS = 10_000;
+
+/**
+ * Download an attached text file: https on Discord's attachment CDN only, no redirects, a
+ * timeout, and the body read as a stream that stops once it passes `maxBytes`.
+ */
+export async function fetchAttachmentText(
+  rawUrl: string,
+  maxBytes: number,
+  fetchImpl: typeof fetch = fetch,
+): Promise<string> {
+  const tooBig = () =>
+    new AdminRefusal('bot.admin.err.bulkBadFile', 'bot.admin.err.bulkBadFileBody');
+  let url: URL;
+  try {
+    url = new URL(rawUrl);
+  } catch {
+    throw tooBig();
+  }
+  if (
+    url.protocol !== 'https:' ||
+    url.username !== '' ||
+    url.password !== '' ||
+    url.port !== '' ||
+    !ATTACHMENT_HOSTS.has(url.hostname)
+  ) {
+    throw tooBig();
+  }
+  const res = await fetchImpl(url, {
+    redirect: 'error',
+    signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+  });
+  if (!res.ok) throw new AppError('not_found');
+  const declared = Number(res.headers.get('content-length'));
+  if (Number.isFinite(declared) && declared > maxBytes) {
+    await res.body?.cancel().catch(() => undefined);
+    throw tooBig();
+  }
+  const reader = res.body?.getReader();
+  if (!reader) throw tooBig();
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    total += value.byteLength;
+    if (total > maxBytes) {
+      await reader.cancel().catch(() => undefined);
+      throw tooBig();
+    }
+    chunks.push(value);
+  }
+  const buf = new Uint8Array(total);
+  let at = 0;
+  for (const c of chunks) {
+    buf.set(c, at);
+    at += c.byteLength;
+  }
+  return new TextDecoder('utf-8', { fatal: true }).decode(buf);
+}
+
 const hooks = {
   /** Download an attached text file; replaced in tests. */
-  async fetchText(url: string, maxBytes: number): Promise<string> {
-    const res = await fetch(url);
-    if (!res.ok) throw new AppError('not_found');
-    const buf = new Uint8Array(await res.arrayBuffer());
-    if (buf.byteLength > maxBytes)
-      throw new AdminRefusal('bot.admin.err.bulkBadFile', 'bot.admin.err.bulkBadFileBody');
-    return new TextDecoder('utf-8', { fatal: true }).decode(buf);
-  },
+  fetchText: (url: string, maxBytes: number): Promise<string> => fetchAttachmentText(url, maxBytes),
 };
 export function setAdminFetch(fn: typeof hooks.fetchText): void {
   hooks.fetchText = fn;
