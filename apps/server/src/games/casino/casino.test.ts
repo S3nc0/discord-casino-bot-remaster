@@ -349,17 +349,32 @@ describe('blackjack', () => {
   });
 
   it('puts the round labels on GameSettled: natural, and double_win after a won double', () => {
-    const tagged = new Set<string>();
-    for (let seed = 1; seed <= 200; seed++) {
+    // Fixed seeds, found by scanning the seeded stream once: the old test swept 200 seeds, each
+    // with a fresh migrated database, and timed out on a slow x64 runner. Each case names the
+    // labels its seed must produce, so a change to the stream fails here with a clear message.
+    const cases: { seed: number; phase: 'player' | 'settled'; net: number; tags?: string[] }[] = [
+      { seed: 2, phase: 'player', net: 200, tags: ['double_win'] },
+      { seed: 3, phase: 'player', net: 200, tags: ['double_win'] },
+      { seed: 50, phase: 'settled', net: 150, tags: ['natural'] },
+      { seed: 52, phase: 'settled', net: 150, tags: ['natural'] },
+    ];
+    for (const { seed, phase, net, tags } of cases) {
       const s = setup({ rng: createSeededRng(seed) });
       const v = view(s.games.blackjack.startSolo(s.caller(), { stake: 100 }));
+      expect(v.phase, `seed ${seed}`).toBe(phase);
       if (v.phase === 'player') s.games.blackjack.double(s.caller(), { roundId: v.roundId });
       const settled = eventsOf(s.events, 'GameSettled')[0]!;
-      for (const tag of settled.tags ?? []) tagged.add(tag);
-      if (v.phase !== 'player' && settled.net > 0) expect(settled.tags).toContain('natural');
-      if (settled.tags?.includes('double_win')) expect(settled.net).toBeGreaterThan(0);
+      expect(settled.net, `seed ${seed}`).toBe(net);
+      expect(settled.tags, `seed ${seed}`).toEqual(tags);
     }
-    expect([...tagged].sort()).toEqual(['double_win', 'natural']);
+  });
+
+  it('leaves GameSettled untagged when the round has no label', () => {
+    const s = setup({ rng: createSeededRng(1) });
+    const v = view(s.games.blackjack.startSolo(s.caller(), { stake: 100 }));
+    if (v.phase === 'player') s.games.blackjack.double(s.caller(), { roundId: v.roundId });
+    const settled = eventsOf(s.events, 'GameSettled')[0]!;
+    expect(settled.tags ?? []).toEqual([]);
   });
 
   it('doubles: extra stake from cash, one card, then pays on the whole escrow', () => {

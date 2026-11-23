@@ -136,7 +136,9 @@ export type StartBotServices = Pick<
   CasinoServices,
   'identity' | 'economy' | 'settings' | 'logger'
 > &
-  Partial<Pick<CasinoServices, 'store' | 'launchIntents' | 'casino' | 'finance' | 'games'>>;
+  Partial<
+    Pick<CasinoServices, 'store' | 'launchIntents' | 'casino' | 'finance' | 'games' | 'sessions'>
+  >;
 
 export type StartBotConfig = Pick<
   Config,
@@ -188,6 +190,10 @@ export async function startBot(
     ...(services.casino ? { casino: services.casino } : {}),
     ...(services.finance ? { finance: services.finance } : {}),
     ...(services.games ? { games: services.games } : {}),
+    // A denied guild loses its live sockets at once; HTTP and new handshakes already read the status.
+    ...(services.sessions
+      ? { onGuildRevoked: (guildId: string) => services.sessions!.revokeGuild(guildId) }
+      : {}),
   });
 
   let closed = false;
