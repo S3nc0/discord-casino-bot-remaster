@@ -60,6 +60,8 @@ export interface BotRouterDeps {
   games?: NonCasinoGames;
   /** Game clock (the real one when absent). Owner tools and boards stamp times with it. */
   clock?: Clock;
+  /** Called once a guild is denied (`/admin server-revoke`): drop its live sessions and sockets. */
+  onGuildRevoked?: (guildId: string) => void;
 }
 
 /** Build an "Open in Activity" button row targeting a specific Activity screen. */

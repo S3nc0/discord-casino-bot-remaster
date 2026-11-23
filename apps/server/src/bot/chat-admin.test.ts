@@ -524,6 +524,27 @@ describe('server approval', () => {
   });
 });
 
+describe('R-7 (bot part): revoking a server drops its live sessions', () => {
+  it('R-7: /admin server-revoke calls onGuildRevoked with the revoked guild', async () => {
+    const { s } = setup();
+    const revoked: string[] = [];
+    const handler = makeHandler(s, { onGuildRevoked: (guildId) => revoked.push(guildId) });
+    const leave = { name: 'Other', leave: async () => undefined };
+    const client = fakeClient([], { '555000111': leave });
+    const revoke = admin(undefined, 'server-revoke', {
+      strings: { guild_id: '555000111' },
+      client,
+    });
+    await handler(revoke.interaction as never);
+    expect(revoked).toEqual([]);
+    await handler(
+      button(customIds(revoke.out[0]!.options)[0]!, { guildId: null, client }).interaction as never,
+    );
+    expect(s.identity.getGuildStatus('555000111')).toBe('denied');
+    expect(revoked).toEqual(['555000111']);
+  });
+});
+
 describe('quiz admin', () => {
   it('adds, lists, bulk-imports and deletes official quizzes', async () => {
     const { s, handler } = setup();

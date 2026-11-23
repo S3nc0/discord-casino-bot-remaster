@@ -1662,6 +1662,11 @@ async function serverRevoke(ctx: ChatCtx, interaction: ChatInputCommandInteracti
       const { identity } = ctx.deps;
       if (identity.getGuildStatus(id) === null) identity.ensureGuild(id, 'denied');
       identity.setGuildStatus(id, 'denied', interaction.user.id);
+      try {
+        ctx.deps.onGuildRevoked?.(id);
+      } catch (error) {
+        ctx.deps.logger.warn({ err: error, guildId: id }, 'guild revoke hook failed');
+      }
       const joined = button.client.guilds?.cache?.get(id);
       let left = false;
       if (joined)
