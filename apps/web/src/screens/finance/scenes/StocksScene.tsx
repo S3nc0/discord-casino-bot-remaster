@@ -1,7 +1,7 @@
 import { PRICE_SCALE, type FinanceSymbolView } from '@casino/shared';
 import { STOCKS_ART, TICKER_BOX } from '../art/stocks.ts';
 import { useNumber } from '../hooks.ts';
-import { artBox, PixelScene } from '../PixelScene.tsx';
+import { artBox, FinanceScene } from '../FinanceScene.tsx';
 
 /** The trading floor. The LED board scrolls the live prices (still under reduced motion). */
 export function StocksScene({
@@ -27,7 +27,7 @@ export function StocksScene({
     );
   });
   return (
-    <PixelScene
+    <FinanceScene
       art={STOCKS_ART}
       name="stocks"
       flash={flash}

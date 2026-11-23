@@ -88,7 +88,7 @@ const HEAD = (what) => `/**
  * Rows of art pixels, one character per pixel, \`.\` = empty. Each character names a pair of palette
  * tokens [light theme, dark theme] in the legend; nothing here carries a colour value.
  */
-import type { SceneArt } from '../PixelScene.tsx';
+import type { FinanceArt } from '../FinanceScene.tsx';
 `;
 const J = (v) => JSON.stringify(v);
 const files = [];
@@ -112,7 +112,7 @@ const sceneFile = (name, CONST, art, extra = '') =>
   write(
     `${name}.ts`,
     `${HEAD(`${name} scene, ${art.w} by ${art.h}.`)}
-export const ${CONST}: SceneArt = ${J(art)};
+export const ${CONST}: FinanceArt = ${J(art)};
 ${extra}`,
   );
 

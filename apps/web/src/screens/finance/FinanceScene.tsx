@@ -11,7 +11,7 @@ export interface FrameSet {
 }
 
 /** Scene art: rows of characters, each naming a [light theme, dark theme] pair of palette tokens. */
-export interface SceneArt {
+export interface FinanceArt {
   w: number;
   h: number;
   rows: readonly string[];
@@ -23,7 +23,7 @@ type Paths = Array<[token: string, d: string]>;
 const CACHE = new WeakMap<readonly string[], [Paths, Paths]>();
 
 /** Path data per palette token for the light set and the dark set of one block of rows. */
-function themed(rows: readonly string[], legend: SceneArt['legend']): [Paths, Paths] {
+function themed(rows: readonly string[], legend: FinanceArt['legend']): [Paths, Paths] {
   const hit = CACHE.get(rows);
   if (hit) return hit;
   const sets: [Map<string, string>, Map<string, string>] = [new Map(), new Map()];
@@ -48,7 +48,7 @@ export function ArtLayer({
   y = 0,
 }: {
   rows: readonly string[];
-  legend: SceneArt['legend'];
+  legend: FinanceArt['legend'];
   x?: number;
   y?: number;
 }) {
@@ -149,7 +149,7 @@ export function usePlayback(seq: readonly number[], ms: number, trigger: number 
  * frames over the still scene; `children` are more SVG layers in art pixels; `overlay` is HTML
  * placed with `artBox`. Decorative: the same facts are in the text below it.
  */
-export function PixelScene({
+export function FinanceScene({
   art,
   name,
   frame = -1,
@@ -157,7 +157,7 @@ export function PixelScene({
   overlay,
   flash,
 }: {
-  art: SceneArt;
+  art: FinanceArt;
   name: string;
   frame?: number;
   children?: ReactNode;

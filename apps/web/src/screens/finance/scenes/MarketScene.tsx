@@ -2,7 +2,7 @@ import type { FinanceListingsView } from '@casino/shared';
 import { GameIcon } from '@casino/ui';
 import { MARKET_ART, MARKET_SLOTS } from '../art/market.ts';
 import { itemIcon } from '../../life/items.ts';
-import { artBox, PixelScene } from '../PixelScene.tsx';
+import { artBox, FinanceScene } from '../FinanceScene.tsx';
 
 /** The market street: the newest listings stand on the stall shelves. */
 export function MarketScene({
@@ -14,7 +14,7 @@ export function MarketScene({
 }) {
   const shown = listings.slice(0, MARKET_SLOTS.length);
   return (
-    <PixelScene
+    <FinanceScene
       art={MARKET_ART}
       name="market"
       flash={flash}

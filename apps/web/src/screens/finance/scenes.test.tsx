@@ -28,7 +28,7 @@ import { FinanceClientContext } from './client.ts';
 import CompaniesScreen from './CompaniesScreen.tsx';
 import MarketScreen from './MarketScreen.tsx';
 import { createMockFinanceClient } from './mock.ts';
-import { PixelScene, type SceneArt } from './PixelScene.tsx';
+import { FinanceScene, type FinanceArt } from './FinanceScene.tsx';
 import { badgeLook, CompanyBadge } from './sprites.tsx';
 
 const TOKENS = new Set(
@@ -40,7 +40,7 @@ const TOKENS = new Set(
   ].map((m) => m[1]),
 );
 
-const SCENES: Record<string, SceneArt> = {
+const SCENES: Record<string, FinanceArt> = {
   bank: BANK_ART,
   loans: LOANS_ART,
   kyosai: KYOSAI_ART,
@@ -142,9 +142,9 @@ describe('scene art data', () => {
   });
 });
 
-describe('PixelScene', () => {
+describe('FinanceScene', () => {
   it('draws a light set and a dark set of the same art, hidden from screen readers', () => {
-    const view = render(<PixelScene art={BANK_ART} name="bank" />);
+    const view = render(<FinanceScene art={BANK_ART} name="bank" />);
     const scene = view.container.querySelector('.fx-scene')!;
     expect(scene.getAttribute('aria-hidden')).toBe('true');
     const day = scene.querySelector('.fx-day')!;

@@ -1,6 +1,6 @@
 import type { CSSProperties } from 'react';
 import { CRYPTO_ART, CRYPTO_LIGHTS } from '../art/crypto.ts';
-import { PixelScene } from '../PixelScene.tsx';
+import { FinanceScene } from '../FinanceScene.tsx';
 
 /** The mining room. Rack lights blink out now and then (CSS; still under reduced motion). */
 export function CryptoScene({
@@ -9,7 +9,7 @@ export function CryptoScene({
   flash?: { n: number; tone: 'buy' | 'sell' } | undefined;
 }) {
   return (
-    <PixelScene art={CRYPTO_ART} name="crypto" flash={flash}>
+    <FinanceScene art={CRYPTO_ART} name="crypto" flash={flash}>
       <g className="fx-leds">
         {CRYPTO_LIGHTS.map(([x, y, phase]) => (
           <rect
@@ -22,6 +22,6 @@ export function CryptoScene({
           />
         ))}
       </g>
-    </PixelScene>
+    </FinanceScene>
   );
 }

@@ -12,7 +12,7 @@ import {
   type BadgeHue,
   type BadgeShape,
 } from './art/sprites.ts';
-import { Sprite } from './PixelScene.tsx';
+import { Sprite } from './FinanceScene.tsx';
 
 /** The coin of one market symbol (CS chip, TEIO gear, NUMA leaf, GOLD bar), 16 art pixels. */
 export function SymbolCoin({ symbol, size = 2 }: { symbol: FinanceSymbol; size?: number }) {

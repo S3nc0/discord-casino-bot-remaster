@@ -1,6 +1,6 @@
 import type { CSSProperties } from 'react';
 import { COMPANIES_ART, COMPANY_PLATES } from '../art/companies.ts';
-import { artBox, PixelScene, useStill } from '../PixelScene.tsx';
+import { artBox, FinanceScene, useStill } from '../FinanceScene.tsx';
 import { BadgePaths, SpinCoin } from '../sprites.tsx';
 
 export interface SceneCompany {
@@ -25,7 +25,7 @@ export function CompaniesScene({
   const shown = companies.slice(0, COMPANY_PLATES.length);
   const first = COMPANY_PLATES[0];
   return (
-    <PixelScene
+    <FinanceScene
       art={COMPANIES_ART}
       name="companies"
       flash={flash}
@@ -58,6 +58,6 @@ export function CompaniesScene({
           </g>
         );
       })}
-    </PixelScene>
+    </FinanceScene>
   );
 }

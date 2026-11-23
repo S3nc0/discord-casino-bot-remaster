@@ -3,9 +3,9 @@
  * Rows of art pixels, one character per pixel, `.` = empty. Each character names a pair of palette
  * tokens [light theme, dark theme] in the legend; nothing here carries a colour value.
  */
-import type { SceneArt } from '../PixelScene.tsx';
+import type { FinanceArt } from '../FinanceScene.tsx';
 
-export const COMPANIES_ART: SceneArt = {
+export const COMPANIES_ART: FinanceArt = {
   w: 128,
   h: 48,
   rows: [

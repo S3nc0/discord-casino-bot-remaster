@@ -1,6 +1,6 @@
 import type { CSSProperties } from 'react';
 import { BANK_ART, BANK_COIN_PATH } from '../art/bank.ts';
-import { artBox, PixelScene, usePlayback, useStill } from '../PixelScene.tsx';
+import { artBox, FinanceScene, usePlayback, useStill } from '../FinanceScene.tsx';
 import { SpinCoin } from '../sprites.tsx';
 
 const WHEEL = [0, 1, 2, -1, 0, 1, 2, -1, 0, 1, 2, -1];
@@ -15,7 +15,7 @@ export function BankScene({ paid }: { paid: number }) {
   const [fx, fy] = BANK_COIN_PATH.from;
   const [tx, ty] = BANK_COIN_PATH.to;
   return (
-    <PixelScene
+    <FinanceScene
       art={BANK_ART}
       name="bank"
       frame={frame}
