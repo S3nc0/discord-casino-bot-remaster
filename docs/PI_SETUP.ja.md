@@ -136,3 +136,36 @@
 ## コンテナによる事前検証（`ops/pi-sim`）
 
 実機へ入れる前に、`ops/pi-sim/Dockerfile` と `ops/pi-sim/compose.yaml` が `arm64` / Debian Bookworm / Node 24 / ビルド済み `better-sqlite3` の環境を `512m` メモリ・`2` CPU 制限下で検証します（CI の `ubuntu-24.04-arm` で自動実行されます）。
+
+---
+
+## パフォーマンス計測結果（`ops/pi-sim/perf.sh`）
+
+サーバーを GitHub の `ubuntu-24.04-arm` ランナー上の `pi-sim` コンテナ（`arm64`、メモリ 512 MB、CPU 2、スワップなし、`node --max-old-space-size=192`、`NODE_ENV=production`）で動かします。`apps/server/scripts/load.ts` が自分で署名したセッショントークンで 30 人の疑似プレイヤーをループバック経由でログインさせ（`BOT_DISABLED=1`、使い捨ての `SESSION_SECRET`、コンテナ内のファイル DB）、ルーレット・スロット・ブラックジャックの席（1 人 1 ラウンドずつ）、競馬の賭け、デイリー受け取り、送金、マーケット注文、閲覧系の画面という現実的な操作を再現します。往復時間は各プレイヤーが毎秒送る `time:ping` で測ります。サーバーに先読みさせるプローブ（`ops/pi-sim/perf/probe.mjs`）が RSS・CPU・イベントループ遅延を毎秒記録します。
+
+| 指標（30 人・5 分） | 目標 | 調整前 | 調整後 |
+| --- | --- | --- | --- |
+| 起動直後のアイドル RSS | ≤ 150 MB | 137.4 MB | 137.4 MB（変更なし） |
+| 負荷時の RSS（ピーク） | ≤ 250 MB | 157.8 MB | 157.8 MB（変更なし） |
+| 負荷時の RSS（定常） | – | 156.2 MB | 156.2 MB（変更なし） |
+| コンテナのメモリピーク（cgroup） | – | 117 MB | 117 MB（変更なし） |
+| ソケット往復 p95（ループバック） | < 50 ms | 0.73 ms | 0.73 ms（変更なし） |
+| コールドスタート（`docker run` から `/api/health` まで） | < 5 秒 | 1.16 秒 | 1.16 秒（変更なし） |
+| CPU 平均 / p95（2 コアのうち 1 コア換算 %） | – | 4.0 / 5.7 | 4.0 / 5.7（変更なし） |
+| イベントループ遅延 アイドル p50 / p95 / p99 | – | 0.1 / 0.3 / 1.1 ms | 変更なし |
+| イベントループ遅延 負荷時 p50 / p95 / p99 | – | 0.1 / 1.1 / 1.6 ms | 変更なし |
+
+**最初の計測で全目標を満たしたため、サーバーのコードは変更していません**（「調整後」は「調整前」と同じです。目標値も引き上げていません）。5 分間で `5xx`、`internal` エラー、想定外の切断はありませんでした。`game_busy`、`insufficient_funds`、`transfer_min_games`、受け取り済みのデイリーなどの拒否は通常のプレイとして扱い、レポートでは別に数えます。
+
+余裕の確認（同じコンテナ）: 60 人・5 倍の操作頻度・2 分間で、RSS ピーク 184.5 MB、CPU 平均 23.8 % / p95 34.2 %（1 コア換算）、ソケット往復 p95 2.5 ms、イベントループ遅延 p99 2.2 ms、失敗なしでした。
+
+数値の読み方:
+
+- アイドル RSS は余裕が最も小さい項目です（150 MB に対して 137 MB）。この計測ではチャットボットを止めている（`BOT_DISABLED=1`）ため、実際のログイン時の Discord ゲートウェイのキャッシュは**含まれていません**。実機で最初の 1 日が過ぎたら `systemctl status discord-casino.service` で RSS を確認してください。
+- ランナーの CPU は Raspberry Pi より速いため、CPU と往復時間は下限の目安です（メモリとコードの動きは同じです）。往復時間はループバックで、トンネルは含みません。
+- 競馬は、現地時間が 20:00（21:00 のレースの 1 時間前）になるように `UTC_OFFSET_HOURS` を選んで、賭けを受け付けるレースを用意します。その日の先のレースはスケジューラーがすぐ実行するため、レースの実行も負荷に含まれます。賭けは 21:00 のレースに入り、そのレース自体はテスト終了後に走ります。
+
+実行方法:
+
+- **CI:** ジョブ `perf (pi-sim arm64)`（`.github/workflows/perf.yml`）は、`apps/server`、`packages/shared`、`packages/domain`、`ops/pi-sim` に触れるプルリクエストごとに 60 秒実行し、目標を外すと失敗します。5 分の完全版は **Actions → Perf → Run workflow**（入力: `duration`、`players`、`rate_scale`）から実行します。結果の表はジョブサマリーと `perf-results` アーティファクトにあります。
+- **Docker と Node 24 のある arm64 マシン:** `pnpm install` のあと `ops/pi-sim/perf.sh --duration 300`。結果は `perf-out/`（`result.md`、`result.json`、`probe.jsonl`、`server.log`）に出ます。

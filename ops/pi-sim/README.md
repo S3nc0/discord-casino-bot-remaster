@@ -26,3 +26,7 @@ PORT=3001 HOST=0.0.0.0 DATABASE_PATH=/app/data/casino.sqlite docker compose -f o
 ## CI Validation
 
 If Docker is not installed locally (such as on the owner's Mac), the `pi-sim` job in `.github/workflows/ci.yml` builds `ops/pi-sim/Dockerfile` natively on `ubuntu-24.04-arm`, verifies no compiler exists in the runtime image, verifies `better-sqlite3` loads from prebuilt, and smoke-tests `GET /api/health` once the HTTP server is wired.
+
+## Performance Run
+
+`ops/pi-sim/perf.sh` starts this container (`512m`, 2 CPUs, no swap), drives it with `apps/server/scripts/load.ts` (30 simulated players, 5 minutes by default) and checks idle RSS, RSS under load, socket round trip, cold start and failures against the targets. `ops/pi-sim/perf/probe.mjs` is preloaded into the server (`NODE_OPTIONS=--import`) and writes RSS, CPU and event-loop lag once a second. CI runs it as `perf (pi-sim arm64)` (`.github/workflows/perf.yml`). Results are in [docs/PI_SETUP.md](../../docs/PI_SETUP.md#performance-results-opspi-simperfsh).
