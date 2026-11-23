@@ -93,6 +93,19 @@ const scopeOf = (data: SocketData): RoomScope => ({
   instanceId: data.instanceId,
 });
 
+/**
+ * Answer an event's ack. A client may emit without an ack callback (the schema cannot require
+ * one), and an ack that throws inside an async handler is an unhandled rejection.
+ */
+function reply<T>(ack: unknown, payload: T): void {
+  if (typeof ack !== 'function') return;
+  try {
+    (ack as (p: T) => void)(payload);
+  } catch {
+    // The client went away between the work and the answer; nothing is left to tell it.
+  }
+}
+
 function rejection(code: ErrorCode): Error & { data: { error: ErrorCode } } {
   return Object.assign(new Error(code), { data: { error: code } });
 }
@@ -314,13 +327,13 @@ export function attachSocketServer(options: SocketServerOptions): SocketServer {
 
     socket.on('table:join', (payload, ack) => {
       const snapshot = handlers.tableSnapshot?.(scope, payload.game);
-      if (!handlers.tableSnapshot) return ack({ ok: false, error: 'feature_disabled' });
-      if (!snapshot) return ack({ ok: false, error: 'not_found' });
+      if (!handlers.tableSnapshot) return reply(ack, { ok: false, error: 'feature_disabled' });
+      if (!snapshot) return reply(ack, { ok: false, error: 'not_found' });
       // The room name is built from the token's instance, never from client input.
       if (!joinScoped(socket, rooms.table(scope.instanceId, payload.game))) {
-        return ack({ ok: false, error: 'forbidden' });
+        return reply(ack, { ok: false, error: 'forbidden' });
       }
-      return ack({ ok: true, data: snapshot });
+      return reply(ack, { ok: true, data: snapshot });
     });
 
     socket.on('table:leave', (payload) => {
@@ -328,24 +341,34 @@ export function attachSocketServer(options: SocketServerOptions): SocketServer {
     });
 
     socket.on('game:bet', async (intent, ack) => {
-      if (!handlers.bet)
-        return ack({ ok: false, idempotencyKey: intent.idempotencyKey, error: 'feature_disabled' });
+      if (!handlers.bet) {
+        return reply(ack, {
+          ok: false,
+          idempotencyKey: intent.idempotencyKey,
+          error: 'feature_disabled',
+        });
+      }
       try {
-        ack(await handlers.bet(scope, intent));
+        reply(ack, await handlers.bet(scope, intent));
       } catch (error) {
         logger.error({ err: error }, 'bet handler failed');
-        ack({ ok: false, idempotencyKey: intent.idempotencyKey, error: 'internal' });
+        reply(ack, { ok: false, idempotencyKey: intent.idempotencyKey, error: 'internal' });
       }
     });
 
     socket.on('game:action', async (intent, ack) => {
-      if (!handlers.action)
-        return ack({ ok: false, idempotencyKey: intent.idempotencyKey, error: 'feature_disabled' });
+      if (!handlers.action) {
+        return reply(ack, {
+          ok: false,
+          idempotencyKey: intent.idempotencyKey,
+          error: 'feature_disabled',
+        });
+      }
       try {
-        ack(await handlers.action(scope, intent));
+        reply(ack, await handlers.action(scope, intent));
       } catch (error) {
         logger.error({ err: error }, 'action handler failed');
-        ack({ ok: false, idempotencyKey: intent.idempotencyKey, error: 'internal' });
+        reply(ack, { ok: false, idempotencyKey: intent.idempotencyKey, error: 'internal' });
       }
     });
 
@@ -358,10 +381,10 @@ export function attachSocketServer(options: SocketServerOptions): SocketServer {
     socket.on('inbox:read', (payload, ack) => {
       try {
         const unread = inbox.markRead(scope.userId, scope.guildId, payload);
-        ack({ ok: true, data: { unread } });
+        reply(ack, { ok: true, data: { unread } });
       } catch (error) {
         logger.error({ err: error }, 'inbox read failed');
-        ack({ ok: false, error: 'internal' });
+        reply(ack, { ok: false, error: 'internal' });
       }
     });
   });

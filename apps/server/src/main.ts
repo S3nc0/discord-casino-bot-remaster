@@ -2,6 +2,7 @@ import { mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { ConfigError, loadConfig } from './runtime/config.ts';
 import { startRuntime } from './runtime/lifecycle.ts';
+import { installProcessGuards } from './runtime/process-guard.ts';
 import { createServer } from './runtime/server.ts';
 
 // Entry point of the single server process. `createServer` builds every service and registers
@@ -24,6 +25,7 @@ async function main(): Promise<void> {
   // Bound to loopback by default and reached through the tunnel, so forwarded headers are
   // trusted for the client address (rate limits).
   const server = createServer({ config, trustProxy: true });
+  installProcessGuards(server.logger);
   const runtime = await startRuntime(server, config);
   server.logger.info({ address: runtime.address, env: config.nodeEnv }, 'casino server listening');
 
