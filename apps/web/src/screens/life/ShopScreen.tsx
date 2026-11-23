@@ -1,22 +1,12 @@
 import { useState } from 'react';
-import {
-  Banner,
-  Button,
-  Chip,
-  ChipGroup,
-  Dialog,
-  GameIcon,
-  List,
-  ListItem,
-  Tabs,
-  Tag,
-} from '@casino/ui';
+import { Banner, Button, Chip, ChipGroup, Dialog, List, ListItem, Tabs, Tag } from '@casino/ui';
 import type { MarketLotView, SeizedLotView, ShopItem, ShopView } from '@casino/shared';
 import { formatPelica, useLocale, useT } from '../../shell/i18n.ts';
 import { useLifeApi } from './api.tsx';
 import { formatDuration } from './format.ts';
 import { pushToast, useIntent, useLoad, useNow, usePlay } from './hooks.ts';
 import { itemIcon, itemLabel } from './items.ts';
+import { ShelfIcon, ShopBanner } from './ShopScene.tsx';
 import { Await, LifeFrame } from './ui.tsx';
 
 type Pending =
@@ -59,6 +49,7 @@ function Shelf({
           </Chip>
         ))}
       </ChipGroup>
+      <ShopBanner />
       <List label={t(`screen.life.shop.kind.${kind}`)}>
         {shown.map((item) => {
           const soldOut = item.available !== null && item.available < 1;
@@ -68,7 +59,7 @@ function Shelf({
           return (
             <ListItem
               key={item.id}
-              leading={<GameIcon name={itemIcon(item.id)} className="life-item__icon" />}
+              leading={<ShelfIcon name={itemIcon(item.id)} />}
               headline={name(item.id)}
               supportingText={
                 <>
@@ -131,7 +122,7 @@ function Market({
         {view.market.map((lot) => (
           <ListItem
             key={lot.id}
-            leading={<GameIcon name={itemIcon(lot.itemId)} className="life-item__icon" />}
+            leading={<ShelfIcon name={itemIcon(lot.itemId)} />}
             headline={
               <>
                 {name(lot.itemId)}{' '}
@@ -183,7 +174,7 @@ function Seized({
           {view.seized.map((lot) => (
             <ListItem
               key={lot.id}
-              leading={<GameIcon name={itemIcon(lot.itemId)} className="life-item__icon" />}
+              leading={<ShelfIcon name={itemIcon(lot.itemId)} />}
               headline={name(lot.itemId)}
               supportingText={`${formatPelica(locale, lot.price)} · ${t('screen.life.shop.qty', { qty: lot.qty })}`}
               trailing={
