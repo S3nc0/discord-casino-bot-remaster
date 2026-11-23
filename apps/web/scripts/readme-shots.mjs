@@ -23,7 +23,7 @@ const chrome =
 const SHOTS = [
   { id: 'home', screen: 'home', scheme: 'dark' },
   { id: 'slots', screen: 'slots', scheme: 'dark' },
-  { id: 'horse', screen: 'horse', scheme: 'dark' },
+  { id: 'horse', screen: 'horse', scheme: 'dark', race: true },
   { id: 'stocks', screen: 'stocks', scheme: 'dark', firstTab: true },
   { id: 'bank-light', screen: 'bank', scheme: 'light' },
 ];
@@ -76,6 +76,14 @@ try {
       // The mock has no socket server; hide the "Connecting…" chip so the shot reads as live.
       await page.addStyleTag({ content: '[role="status"][data-status]{display:none !important}' });
       if (shot.firstTab) await page.getByRole('tab').first().click();
+      if (shot.race) {
+        // The first race is finished in the mock: open it and play its timeline, so the eight
+        // horses are mid-gallop in their lanes.
+        await page.locator('.hr-race').first().click();
+        await page.getByRole('button', { name: /Watch the race|レースを見る/ }).click();
+        await page.locator('.hr-lane').first().waitFor({ timeout: 10_000 });
+        await page.waitForTimeout(2200);
+      }
       await page.waitForTimeout(600);
       const png = await page.screenshot();
       await context.close();

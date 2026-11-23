@@ -1,5 +1,6 @@
 // README art: the pixel banner and the small pixel game icons, drawn from the same pixel data
-// and Bitbloom (round 2) tones the Activity uses. No server needed.
+// and Bitbloom (round 2) tones the Activity uses. No server needed. The horse gallop gif is made
+// by tools/pixel-art/horse/readme.js.
 //
 //   node scripts/readme-art.mjs [outDir]      (default: ../../docs/images/readme)
 //
@@ -11,7 +12,7 @@ import process from 'node:process';
 import { join, resolve } from 'node:path';
 import { fileURLToPath, URL } from 'node:url';
 import { chromium } from 'playwright-core';
-import { GAME_ICON_ROWS, SKYLINE_ROWS } from '../../../packages/ui/src/pixel/art.ts';
+import { GAME_ICON_ROWS, ICON_LEGEND, SKYLINE_ROWS } from '../../../packages/ui/src/pixel/art.ts';
 import { rowsToPaths } from '../../../packages/ui/src/pixel/paths.ts';
 
 const here = fileURLToPath(new URL('.', import.meta.url));
@@ -21,24 +22,16 @@ mkdirSync(join(out, 'badges'), { recursive: true });
 const chrome =
   process.env.CHROME_PATH ?? '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
 
-// Dark-theme tones (design/bitbloom tokens: neutral, yellow, green, sky, red, brown).
-const ICON_TONES = {
-  o: '#131c2b',
-  w: '#eff1f6',
-  g: '#a3abc0',
-  G: '#6f778b',
-  y: '#dfc738',
-  Y: '#a49113',
-  h: '#f8f0db',
-  r: '#ef6453',
-  R: '#a23d32',
-  b: '#29b8e9',
-  B: '#1981a4',
-  n: '#40a443',
-  N: '#216c26',
-  k: '#ac8a74',
-  K: '#5d412d',
-};
+// Icon tones: each icon character is a palette step (ICON_LEGEND), resolved against the Bitbloom
+// tokens, so the README icons are the same art and colours as the app.
+const tokensCss = readFileSync(join(here, '../../../design/bitbloom/tokens.css'), 'utf8');
+const TOKEN_HEX = {};
+for (const m of tokensCss.matchAll(/--([a-z]+-\d+):\s*(#[0-9a-fA-F]{6})/g)) {
+  if (!(m[1] in TOKEN_HEX)) TOKEN_HEX[m[1]] = m[2];
+}
+const ICON_TONES = Object.fromEntries(
+  Object.entries(ICON_LEGEND).map(([char, token]) => [char, TOKEN_HEX[token]]),
+);
 const SKY_TONES = { s: '#f0e2b9', m: '#f0e2b9', f: '#131c2b', n: '#0d1625', v: '#dfc738' };
 
 function paths(rows, tones) {
@@ -92,7 +85,7 @@ const H = 400;
 const skyW = 96 * SCALE;
 const skyH = SKYLINE_ROWS.length * SCALE;
 const BANNER_ICONS = ['dice', 'slots', 'cards', 'roulette', 'horse', 'coin', 'crown'];
-const iconRow = BANNER_ICONS.map((n) => `<div class="ic">${iconSvg(n, 72)}</div>`).join('');
+const iconRow = BANNER_ICONS.map((n) => `<div class="ic">${iconSvg(n, 80)}</div>`).join('');
 
 const html = `<!doctype html><meta charset="utf-8"><style>
 @font-face{font-family:Px;src:url(data:font/woff2;base64,${font}) format('woff2');font-weight:700}

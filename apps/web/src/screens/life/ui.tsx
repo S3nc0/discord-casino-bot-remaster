@@ -17,15 +17,15 @@ import './life.css';
 /** The life screens, reachable from one another. */
 export const LIFE_SCREENS: ReadonlyArray<{ id: ScreenId; icon: GameIconName }> = [
   { id: 'work', icon: 'pickaxe' },
-  { id: 'relics', icon: 'gem' },
-  { id: 'shop', icon: 'coin' },
-  { id: 'inventory', icon: 'gem' },
-  { id: 'missions', icon: 'sword' },
-  { id: 'ranking', icon: 'stocks' },
-  { id: 'transfer', icon: 'coin' },
-  { id: 'quiz', icon: 'cards' },
-  { id: 'lottery', icon: 'roulette' },
-  { id: 'poll', icon: 'dice' },
+  { id: 'relics', icon: 'relic' },
+  { id: 'shop', icon: 'shop' },
+  { id: 'inventory', icon: 'inventory' },
+  { id: 'missions', icon: 'missions' },
+  { id: 'ranking', icon: 'trophy' },
+  { id: 'transfer', icon: 'transfer' },
+  { id: 'quiz', icon: 'quiz' },
+  { id: 'lottery', icon: 'lottery' },
+  { id: 'poll', icon: 'poll' },
 ];
 
 export function LifeNav({ current }: { current: ScreenId }) {

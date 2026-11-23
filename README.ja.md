@@ -25,9 +25,9 @@
 
 <table>
   <tr>
-    <td align="center"><img src="docs/images/readme/home.ja.webp" alt="ダークモードのホーム画面：残高、デイリーボーナスの連続日数、ゲームのアイコン一覧" width="200"></td>
+    <td align="center"><img src="docs/images/readme/home.ja.webp" alt="ダークモードのホーム画面：残高、デイリーボーナスの連続日数、ピクセルアートのゲームアイコン一覧" width="200"></td>
     <td align="center"><img src="docs/images/readme/slots.ja.webp" alt="ダークモードのスロット画面：3つのリール、賭け金ボタン、配当表" width="200"></td>
-    <td align="center"><img src="docs/images/readme/horse.ja.webp" alt="ダークモードの競馬画面：今日の出馬表と、馬券の発売状況" width="200"></td>
+    <td align="center"><img src="docs/images/readme/horse.ja.webp" alt="ダークモードの競馬画面：騎手を乗せた8頭のピクセルアートの馬が、それぞれのレーンを駆けている" width="200"></td>
     <td align="center"><img src="docs/images/readme/stocks.ja.webp" alt="ダークモードの株画面：4銘柄の値動きのチャート" width="200"></td>
   </tr>
   <tr>
@@ -37,6 +37,8 @@
     <td align="center"><b>株</b></td>
   </tr>
 </table>
+
+<p align="center"><img src="docs/images/readme/horse-gallop.gif" alt="騎手を乗せたピクセルアートの馬が、その場で駆けるアニメーション：1歩分の8コマ" width="192"><br><sub>レース画面で再生される、1歩分8コマの駆け足です。</sub></p>
 
 <details>
 <summary>ライトモードもあります（帝愛銀行の画面）</summary>
@@ -59,13 +61,13 @@
     <td><img src="docs/images/readme/icons/stocks.svg" alt="" width="32"> <b>株と暗号資産</b><br>毎分動く4銘柄。信用取引とオプションは勇者向け。</td>
   </tr>
   <tr>
-    <td><img src="docs/images/readme/icons/coin.svg" alt="" width="32"> <b>帝愛銀行</b><br>借りて、返して、破産しないように気をつけて。</td>
+    <td><img src="docs/images/readme/icons/bank.svg" alt="" width="32"> <b>帝愛銀行</b><br>借りて、返して、破産しないように気をつけて。</td>
     <td><img src="docs/images/readme/icons/pickaxe.svg" alt="" width="32"> <b>地下労働</b><br>ペリカが尽きたら、鉱石と発掘品を掘りに行こう。</td>
-    <td><img src="docs/images/readme/icons/ticket.svg" alt="" width="32"> <b>抽選・クイズ・投票</b><br>誰でも始められる、サーバーみんなの遊び。</td>
+    <td><img src="docs/images/readme/icons/lottery.svg" alt="" width="32"> <b>抽選・クイズ・投票</b><br>誰でも始められる、サーバーみんなの遊び。</td>
   </tr>
   <tr>
-    <td><img src="docs/images/readme/icons/crown.svg" alt="" width="32"> <b>ランキング</b><br>週間王者や総資産の順位が見られます。</td>
-    <td><img src="docs/images/readme/icons/gem.svg" alt="" width="32"> <b>ショップと取引</b><br>称号や名前の色、アイテムを交換。ほかの人との取引もできます。</td>
+    <td><img src="docs/images/readme/icons/trophy.svg" alt="" width="32"> <b>ランキング</b><br>週間王者や総資産の順位が見られます。</td>
+    <td><img src="docs/images/readme/icons/shop.svg" alt="" width="32"> <b>ショップと取引</b><br>称号や名前の色、アイテムを交換。ほかの人との取引もできます。</td>
     <td><img src="docs/images/readme/icons/shield.svg" alt="" width="32"> <b>安心の作り</b><br>賭け金は先に預かって、1回の処理で精算します。ゲームの途中でペリカが消えることはありません。</td>
   </tr>
 </table>

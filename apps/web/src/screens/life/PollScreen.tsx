@@ -153,7 +153,7 @@ export default function PollScreen() {
         await state.reload();
       });
   return (
-    <LifeFrame screen="poll" icon="dice">
+    <LifeFrame screen="poll" icon="poll">
       <Await state={state}>
         {(v) => (
           <>

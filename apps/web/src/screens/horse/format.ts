@@ -61,15 +61,29 @@ const SILKS_COLOR: Record<string, string> = {
 };
 export const silksColor = (silks: string): string => SILKS_COLOR[silks] ?? 'var(--neutral-60)';
 
-/** Coat → body colour. */
-const COAT_COLOR: Record<string, string> = {
-  栗毛: 'var(--orange-40)',
-  鹿毛: 'var(--brown-40)',
-  黒鹿毛: 'var(--brown-30)',
-  青毛: 'var(--neutral-20)',
-  芦毛: 'var(--neutral-70)',
-  白毛: 'var(--neutral-95)',
-  栃栗毛: 'var(--red-30)',
-  月毛: 'var(--yellow-80)',
+/** Silks emoji → silks class suffix (the rider's three tones in horse.css). */
+const SILKS_KEY: Record<string, string> = {
+  '🟥': 'red',
+  '🟧': 'orange',
+  '🟨': 'yellow',
+  '🟩': 'green',
+  '🟦': 'blue',
+  '🟪': 'violet',
+  '⬛': 'black',
+  '⬜': 'white',
+  '🟫': 'brown',
 };
-export const coatColor = (coat: string): string => COAT_COLOR[coat] ?? 'var(--brown-40)';
+export const silksKey = (silks: string): string => SILKS_KEY[silks] ?? 'white';
+
+/** Coat → coat class suffix (the eight coat ramps in horse.css). */
+const COAT_KEY: Record<string, string> = {
+  栗毛: 'kurige',
+  鹿毛: 'kage',
+  黒鹿毛: 'kurokage',
+  青毛: 'aoge',
+  芦毛: 'ashige',
+  白毛: 'shirage',
+  栃栗毛: 'tochiguri',
+  月毛: 'tsukige',
+};
+export const coatKey = (coat: string): string => COAT_KEY[coat] ?? 'kage';

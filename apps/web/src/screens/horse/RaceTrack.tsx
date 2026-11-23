@@ -77,6 +77,7 @@ export function RaceTrack({ timeline, tick, playing, coats }: RaceTrackProps) {
                   coat={coats[runner.lane] ?? ''}
                   silks={runner.silks}
                   running={playing && (positions[i] ?? 0) < 1000}
+                  phase={runner.lane * 3}
                 />
               </span>
               <span className="hr-lane__finish" aria-hidden="true" />

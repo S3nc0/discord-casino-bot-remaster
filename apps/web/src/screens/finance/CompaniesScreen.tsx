@@ -256,14 +256,14 @@ export default function CompaniesScreen() {
   const action = useAction(reload);
   if (!data)
     return (
-      <ScreenFrame screen="companies" icon="pickaxe" title={t('screen.companies')}>
+      <ScreenFrame screen="companies" icon="company" title={t('screen.companies')}>
         <LoadError failed={error !== null} onRetry={() => void reload()} />
       </ScreenFrame>
     );
   return (
     <ScreenFrame
       screen="companies"
-      icon="pickaxe"
+      icon="company"
       title={t('screen.companies')}
       lead={t('screen.finance.companies.lead')}
     >

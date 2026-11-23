@@ -35,6 +35,11 @@ describe('Home', () => {
     expect(show().container.querySelector('.home__amount')!.textContent).toBe('—');
   });
 
+  it('gives every Home tile its own pixel icon (none is reused)', () => {
+    const icons = HOME_SECTIONS.flatMap((s) => s.tiles.map((t) => t.icon));
+    expect(new Set(icons).size).toBe(icons.length);
+  });
+
   it('shows the game tiles first, each a labelled button with a pixel icon', () => {
     const view = show();
     const tiles = [

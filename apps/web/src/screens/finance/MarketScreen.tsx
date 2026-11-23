@@ -452,12 +452,17 @@ export default function MarketScreen({
   const title = t(`screen.${screen}`);
   if (!data)
     return (
-      <ScreenFrame screen={screen} icon="stocks" title={title}>
+      <ScreenFrame screen={screen} icon={screen === 'stocks' ? 'stocks' : 'market'} title={title}>
         <LoadError failed={error !== null} onRetry={() => void reload()} />
       </ScreenFrame>
     );
   return (
-    <ScreenFrame screen={screen} icon="stocks" title={title} lead={t('screen.finance.market.lead')}>
+    <ScreenFrame
+      screen={screen}
+      icon={screen === 'stocks' ? 'stocks' : 'market'}
+      title={title}
+      lead={t('screen.finance.market.lead')}
+    >
       <Tabs
         label={title}
         activeId={tab}

@@ -11,6 +11,27 @@ All bundled assets in this project run locally with zero external runtime URLs.
 - **Source:** https://github.com/KilledByAPixel/ZzFX
 - **Usage:** Vendored TypeScript synthesis engine in `packages/ui/src/audio/zzfx.ts` powering all procedural retro SFX presets in `packages/ui/src/audio/sfx.ts`.
 
+## Pixel Art
+
+### Racehorse sprite: reference photographs
+
+The eight-frame gallop in `apps/web/src/screens/horse/horse-art.ts` was made by turning a public domain photo series into pixels (silhouette cut out, split into body parts, re-lit and re-coloured with the Bitbloom palette). The photograph itself is not shipped: only the generated pixel rows are in the repository.
+
+- **Title:** The Horse in Motion ("Sallie Gardner" running at a 1:40 gait over the Palo Alto track, 19 June 1878)
+- **Author:** Eadweard Muybridge (1830 to 1904)
+- **License:** Public domain (published 1878; the author died in 1904). Copyright-free reproduction from the Library of Congress Prints and Photographs Division.
+- **Source:** https://commons.wikimedia.org/wiki/File:The_Horse_in_Motion_high_res.jpg
+- **Usage:** Plate frames 3 to 10 give the eight poses of the race sprite; frame 12 informed the proportions of the horse head icon. Rider, coat, mane, tail and silks are drawn in code.
+
+All other pixel art (the 35 game icons in `packages/ui/src/pixel/icon-art.ts`) is drawn in code in `tools/pixel-art/` with no reference photographs.
+
+### Pixel art kit
+
+- **Name:** codixel `core/pixel.js`
+- **Author:** mankidev
+- **License:** MIT License (`Copyright (c) 2026 mankidev`), file `tools/pixel-art/vendor/LICENSE`
+- **Usage:** Vendored in `tools/pixel-art/vendor/pixel.js` (PNG, GIF, sheets, outlines) so the art can be regenerated. Not part of the app bundle.
+
 ## Fonts
 
 ### Pixelify Sans

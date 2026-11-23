@@ -25,9 +25,9 @@ Everything below runs inside Discord as an **Activity** (a mini app on your phon
 
 <table>
   <tr>
-    <td align="center"><img src="docs/images/readme/home.en.webp" alt="Home screen in dark mode: balance, daily bonus streak and a grid of game icons" width="200"></td>
+    <td align="center"><img src="docs/images/readme/home.en.webp" alt="Home screen in dark mode: balance, daily bonus streak and a grid of pixel game icons" width="200"></td>
     <td align="center"><img src="docs/images/readme/slots.en.webp" alt="Slots screen in dark mode: three reels, bet buttons and the pay table" width="200"></td>
-    <td align="center"><img src="docs/images/readme/horse.en.webp" alt="Horse racing screen in dark mode: today's race card with betting and entry status" width="200"></td>
+    <td align="center"><img src="docs/images/readme/horse.en.webp" alt="Horse racing screen in dark mode: eight pixel horses with riders galloping in their lanes" width="200"></td>
     <td align="center"><img src="docs/images/readme/stocks.en.webp" alt="Stocks screen in dark mode: four tickers with price charts" width="200"></td>
   </tr>
   <tr>
@@ -37,6 +37,8 @@ Everything below runs inside Discord as an **Activity** (a mini app on your phon
     <td align="center"><b>Stocks</b></td>
   </tr>
 </table>
+
+<p align="center"><img src="docs/images/readme/horse-gallop.gif" alt="A pixel racehorse with its rider, galloping in place: eight frames of one stride" width="192"><br><sub>One gallop stride, eight frames, as the race screen plays it.</sub></p>
 
 <details>
 <summary>Light mode, too: the Teiai Bank screen</summary>
@@ -59,13 +61,13 @@ Everything below runs inside Discord as an **Activity** (a mini app on your phon
     <td><img src="docs/images/readme/icons/stocks.svg" alt="" width="32"> <b>Stocks and crypto</b><br>Four tickers that move every minute. Margin and options for the brave.</td>
   </tr>
   <tr>
-    <td><img src="docs/images/readme/icons/coin.svg" alt="" width="32"> <b>Teiai Bank (帝愛銀行)</b><br>Borrow, repay, and try not to go bankrupt.</td>
+    <td><img src="docs/images/readme/icons/bank.svg" alt="" width="32"> <b>Teiai Bank (帝愛銀行)</b><br>Borrow, repay, and try not to go bankrupt.</td>
     <td><img src="docs/images/readme/icons/pickaxe.svg" alt="" width="32"> <b>Underground labor</b><br>Out of Pelica? Dig for ore and relics.</td>
-    <td><img src="docs/images/readme/icons/ticket.svg" alt="" width="32"> <b>Lottery, quiz and polls</b><br>Server-wide fun that anyone can start.</td>
+    <td><img src="docs/images/readme/icons/lottery.svg" alt="" width="32"> <b>Lottery, quiz and polls</b><br>Server-wide fun that anyone can start.</td>
   </tr>
   <tr>
-    <td><img src="docs/images/readme/icons/crown.svg" alt="" width="32"> <b>Rankings</b><br>Weekly champion, net worth and more.</td>
-    <td><img src="docs/images/readme/icons/gem.svg" alt="" width="32"> <b>Shop and market</b><br>Titles, colors, items. Trade with other players.</td>
+    <td><img src="docs/images/readme/icons/trophy.svg" alt="" width="32"> <b>Rankings</b><br>Weekly champion, net worth and more.</td>
+    <td><img src="docs/images/readme/icons/shop.svg" alt="" width="32"> <b>Shop and market</b><br>Titles, colors, items. Trade with other players.</td>
     <td><img src="docs/images/readme/icons/shield.svg" alt="" width="32"> <b>Safe by design</b><br>Your bet is held first and settled in one step, so no coins vanish mid-game.</td>
   </tr>
 </table>

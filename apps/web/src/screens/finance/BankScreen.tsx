@@ -33,7 +33,7 @@ export default function BankScreen() {
 
   if (!data)
     return (
-      <ScreenFrame screen="bank" icon="coin" title={t('screen.bank')}>
+      <ScreenFrame screen="bank" icon="bank" title={t('screen.bank')}>
         <LoadError failed={error !== null} onRetry={() => void reload()} />
       </ScreenFrame>
     );
@@ -59,7 +59,7 @@ export default function BankScreen() {
   return (
     <ScreenFrame
       screen="bank"
-      icon="coin"
+      icon="bank"
       title={t('screen.bank')}
       lead={t('screen.finance.bank.lead')}
     >

@@ -33,6 +33,7 @@ export default defineConfig([
     'legacy/**',
     'design/**',
     'catalogs/**',
+    'tools/pixel-art/vendor/pixel.js',
   ]),
   js.configs.recommended,
   tseslint.configs.recommended,

@@ -528,7 +528,7 @@ export function LaborView({
   const api = useLifeApi();
   const state = useLoad(() => api.work(), 30_000);
   return (
-    <LifeFrame screen={screen} icon="pickaxe">
+    <LifeFrame screen={screen} icon={screen === 'relics' ? 'relic' : 'pickaxe'}>
       <Await state={state}>
         {(v) => (
           <Tabs
