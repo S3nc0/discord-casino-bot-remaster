@@ -20,6 +20,7 @@ import {
   type Action,
 } from './hooks.ts';
 import { AmountField, Empty, ErrorBanner, LoadError, Panel } from './parts.tsx';
+import { SellPanel } from './SellPanel.tsx';
 
 /** Listing ids where somebody just bid above the signed-in player. */
 function useOutbid(
@@ -202,24 +203,27 @@ export function ListingsPanel() {
   const [outbid, dismiss] = useOutbid(data?.listings, reload);
   if (!data) return <LoadError failed={error !== null} onRetry={() => void reload()} />;
   return (
-    <Panel
-      title={t('screen.finance.listings.title')}
-      hint={t('screen.finance.listings.hint', { fee: String(data.feeBps / 100) })}
-    >
-      {outbid.size > 0 && data.listings.every((l) => !outbid.has(l.id)) ? (
-        <Banner variant="warning" title={t('screen.finance.listings.outbidGone')} />
-      ) : null}
-      <ErrorBanner message={action.error} />
-      {data.listings.length === 0 ? <Empty>{t('screen.finance.listings.none')}</Empty> : null}
-      {data.listings.map((l) => (
-        <ListingCard
-          key={l.id}
-          listing={l}
-          action={action}
-          outbid={outbid.has(l.id)}
-          onSeen={() => dismiss(l.id)}
-        />
-      ))}
-    </Panel>
+    <>
+      <SellPanel view={data} reload={reload} />
+      <Panel
+        title={t('screen.finance.listings.title')}
+        hint={t('screen.finance.listings.hint', { fee: String(data.feeBps / 100) })}
+      >
+        {outbid.size > 0 && data.listings.every((l) => !outbid.has(l.id)) ? (
+          <Banner variant="warning" title={t('screen.finance.listings.outbidGone')} />
+        ) : null}
+        <ErrorBanner message={action.error} />
+        {data.listings.length === 0 ? <Empty>{t('screen.finance.listings.none')}</Empty> : null}
+        {data.listings.map((l) => (
+          <ListingCard
+            key={l.id}
+            listing={l}
+            action={action}
+            outbid={outbid.has(l.id)}
+            onSeen={() => dismiss(l.id)}
+          />
+        ))}
+      </Panel>
+    </>
   );
 }
