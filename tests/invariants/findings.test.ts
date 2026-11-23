@@ -64,7 +64,7 @@ describe('findings', () => {
   // F-T2-02 (low): the receiver's ledger row is keyed `${key}:in` inside the RECEIVER's account,
   // so two different senders that use the same client key collide: the second transfer throws
   // `conflict` although the sender's own idempotency scope (guild, sender, key) is unused.
-  it.fails('F-T2-02: two senders may use the same idempotency key toward one receiver', () => {
+  it('F-T2-02: two senders may use the same idempotency key toward one receiver', () => {
     w = createWorld(1);
     experienced(w, ALICE as string);
     experienced(w, CAROL as string);

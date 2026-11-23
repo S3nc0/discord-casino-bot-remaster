@@ -452,7 +452,8 @@ export class ProgressionService {
         amount: plan.amount,
         reason: 'transfer_in',
         ...ref,
-        idempotencyKey: `${idempotencyKey}:in`,
+        // in the receiver's account: scoped by sender, so two senders' keys never collide
+        idempotencyKey: `transfer:${senderId}:${idempotencyKey}:in`,
       });
       return {
         ok: true,
