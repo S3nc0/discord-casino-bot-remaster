@@ -6,7 +6,7 @@ One SQLite file, opened by the single server process through `better-sqlite3`. M
 `apps/server/src/db/migrations/` as numbered `.sql` files, are inlined into the server bundle,
 and are applied in order inside one transaction each. A merged migration is never edited; add a
 new file. `0001_init.sql` holds the core tables below. Feature tables come in later migrations
-written by their owners (see [Planned tables](#planned-tables-wave-2)).
+(see [Feature tables](#feature-tables)).
 
 ## Conventions
 
@@ -114,91 +114,66 @@ A user without a row gets `DEFAULT_USER_SETTINGS`; `PUT /api/settings` upserts t
 
 Nothing is backfilled and no money column is involved. See [arena.md](spec/arena.md) §4.5.
 
-## Planned tables (Wave 2)
+## Feature tables
 
-Owners create these in their own migrations (`0002_...` onward), following the conventions.
-Names are a starting point; owners may refine them.
+Each feature added its tables in its own migration, following the conventions above.
 
 **Every table that holds Pelica, a stake, a position or a claim is per guild** (`guild_id`, and
 `guild_members` for player rows). That includes securities: holdings, margin, options and bonds
 are per guild. Only the read-only feeds below are shared by all guilds, as in the original.
 
-| Area | Per-guild tables | Owner |
+| Migration | Area | Per-guild tables |
 | --- | --- | --- |
-| Stats | `player_stats` | B1 (the `GameSettled` subscriber) |
-| Casino games | `game_rounds` (open rounds, held stakes), `jackpots`, `rtp_levels`, `pachinko_spins`, `pachinko_sets` | B2-A |
-| Daily, missions, ranking | `daily_claims`, `missions`, `weekly_stats`, `weekly_champions`, `weekly_state`, `titles`, `nick_prefs` | B2-B |
-| Events | `event_state`, `manual_events` | B2-B |
-| Races, arena | `horses` (+ breeding columns, [horse-breeding.md](spec/horse-breeding.md) §5), `horse_breedings` (ledger `ref_id` of `horse_breeding_fee`), `horse_races`, `horse_entries`, `horse_bets`, `horse_odds`, `arena_tournaments`, `arena_fighters`, `arena_bets` | B2-B |
-| Work, quiz, lottery, polls | `work_state`, `work_finds`, `work_click_hours`, `work_workers`, `quiz_answers`, `raffles`, `raffle_entries`, `polls`, `poll_votes` | B2-B |
-| Shop and items | `inventory`, `shop_stock`, `profiles`, `seized_items`, `teiai_market`, `teiai_market_days` | B2-B |
-| Player market | `marketplace_listings` | B3 |
-| Securities | `positions_spot`, `positions_short`, `positions_long`, `options`, `bonds`, `earnings_memos`, `earnings_shop` | B3 |
-| Teiai bank | `bank_accounts` (debt, bankrupt_at, blacklist_until), `bank_reserve`, `house_account`, `bank_deposits`, `loans`, `cds` | B3 |
-| Kyosai, companies | `kyosai_units`, `kyosai_auctions`, `kyosai_offers`, `kyosai_motions`, `kyosai_votes`, `companies`, `company_stakes` | B3 |
-| Bot | `bot_messages`, `guild_webhooks` (personas) | B4 |
-| Import | `legacy_ledger` (read-only old history), `legacy_import_runs` | B1 |
+| `0003_legacy_import` | Import | `legacy_ledger` (read-only old history), `legacy_import_runs` |
+| `0005_casino` | Casino games | `game_rounds` (open rounds, held stakes), `jackpots`, `rtp_levels`, `pachinko_sets`, `pachinko_spins` |
+| `0006_notify_webhooks` | Bot | `guild_webhooks` (personas) |
+| `0007_finance` | Teiai bank | `bank_accounts` (debt, bankrupt_at, blacklist_until), `bank_reserve`, `house_account`, `bank_deposits`, `loans`, `cds` |
+| `0007_finance` | Kyosai, companies | `kyosai_units`, `kyosai_auctions`, `kyosai_offers`, `kyosai_motions`, `kyosai_votes`, `companies`, `company_stakes` |
+| `0007_finance` | Securities, player market | `positions_spot`, `positions_short`, `positions_long`, `options`, `bonds`, `earnings_memos`, `earnings_shop`, `marketplace_listings` |
+| `0008_games_progression` | Stats, daily, missions, ranking | `play_state` (streaks and play counts), `daily_claims`, `missions`, `weekly_stats`, `weekly_champions`, `weekly_state` |
+| `0008_games_progression` | Shop and items | `inventory`, `profiles`, `shop_stock`, `seized_items`, `teiai_market`, `teiai_market_days` |
+| `0008_games_progression` | Races, arena | `horses`, `horse_races`, `horse_entries`, `horse_odds`, `horse_bets`, `arena_tournaments`, `arena_fighters`, `arena_bets` |
+| `0008_games_progression` | Work, quiz, lottery, polls | `work_state`, `work_workers`, `work_finds`, `work_click_hours`, `quiz_answers`, `raffles`, `raffle_entries`, `polls`, `poll_votes` |
+| `0009_horse_breeding` | Breeding | `horse_breedings` (ledger `ref_id` of `horse_breeding_fee`), plus parent, generation, foaled, maturity and cooldown columns on `horses` ([horse-breeding.md](spec/horse-breeding.md) §5) |
+| `0010_bot_tools` | Owner tools | `leaderboards` (a pinned board message per guild), `casino_events` (the owner's manual special event, at most one per guild) |
+| `0011_arena_runner_up` | Arena | `arena_tournaments.runner_up_id` (see above) |
 
-| Shared feed (no `guild_id`, no money) | Owner |
+| Shared feed (no `guild_id`, no money) | Migration |
 | --- | --- |
-| `market_prices` (`price_micros`), `market_fair`, `market_events`, `earnings` | B3 |
-| `quiz_questions` | B2-B |
+| `market_prices` (`price_micros`), `market_fair`, `market_events`, `earnings` | `0007_finance` |
+| `quiz_questions` (`guild_id` is `NULL` for the official quiz and set for a server's own questions) | `0008_games_progression` |
 
 ## Legacy table mapping
 
-Source: the Python bot's `data/casino.db`. The importer (`apps/server/scripts/import-legacy.ts`,
-B1) runs with the Python bot stopped.
+Source: the original bot's `data/casino.db`. The importer (`apps/server/scripts/import-legacy.ts`,
+logic in `apps/server/src/db/legacy-import.ts`) runs with the original bot stopped and does a dry
+run unless `--apply` is given.
+
+In v1.0.0 the importer carries the wallet tables only:
 
 | Legacy table | New table(s) | Notes |
 | --- | --- | --- |
-| `users` | `guild_members`, `balances` via ledger, `player_stats`, `daily_claims`, `bank_accounts` | `balance` becomes one `legacy_import` ledger row. `daily_streak`, `last_daily`, `last_slot` go to `daily_claims`. `games_played`, `total_wagered`, `total_won`, `biggest_win` go to `player_stats`. `debt`, `bankrupt_at`, `blacklist_until` go to `bank_accounts`. |
+| `users` | `users`, ledger `legacy_import` | `balance` becomes one `legacy_import` ledger row per member. |
 | `guild_users` | `guild_members` | Also creates `users` rows. |
 | `guild_status` | `guilds` | `status`, `name`, `decided_by`, `updated_at`, `notified_at`. |
-| `features_off` | `guild_features_off` | 1:1. |
-| `ledger` | `legacy_ledger` | Copied as read-only history. Not replayed into `ledger`: the opening `legacy_import` row is the new chain's start. |
 | `escrow` | ledger `game_refund` | Stakes of unfinished games are refunded right after the opening row. |
-| `play_state` | `player_stats` | Streaks, plays, wins, net. |
-| `missions` | `missions` | 1:1. |
-| `weekly_stats`, `weekly_champions`, `weekly_state` | same names | 1:1. |
-| `nick_prefs` | `nick_prefs` | 1:1. |
-| `profile` | `profiles`, `titles` | Title, card, skins, daily boost, insurance. |
-| `inventory`, `shop_stock` | same names | 1:1. |
-| `jackpot` | `jackpots` | Pool carried over. |
-| `rtp_level` | `rtp_levels` | 1:1. |
-| `pachinko_spins`, `pachinko_sets` | same names | Statistics only; optional. |
-| `event_state`, `manual_event` | `event_state`, `manual_events` | 1:1. |
-| `horses`, `horse_races`, `horse_entries`, `horse_bets`, `horse_odds` | same names | Open bets keep their held stakes. |
-| `arena_tournaments`, `arena_fighters`, `arena_bets` | same names | NPC bettors use negative user ids: store them as `NULL` user plus an NPC column. |
-| `labor`, `labor_finds`, `labor_click_hours`, `labor_workers` | `work_state`, `work_finds`, `work_click_hours`, `work_workers` | Unclaimed `pot` is held Pelica. |
-| `market_listings` | `marketplace_listings` | Highest bids are held Pelica. |
-| `seized_items`, `teiai_market`, `teiai_market_days` | same names | `day` (REAL) becomes a date or ms. |
-| `quiz_questions`, `quiz_answers` | same names | Questions are global. |
-| `raffle`, `raffle_entries` | `raffles`, `raffle_entries` | Entry fees of open raffles are held Pelica. |
-| `polls`, `poll_votes` | same names | 1:1. |
-| `market_prices`, `market_fair`, `market_events`, `earnings` | same names | Shared feed. Prices and factors to fixed-point integers. |
-| `earnings_memos`, `earnings_shop` | same names | Per guild (they are bought with Pelica). |
-| `crypto`, `crypto_short`, `crypto_long` | `positions_spot`, `positions_short`, `positions_long` | Per guild. Quantities to `_milli`, prices to `_micros`. Margin is held Pelica. |
-| `options`, `bonds`, `loans`, `cds` | same names | Per guild. Strike and spot to `_micros`; `loans.rate_tenths` (0.1 %/day) to `rate_bps` (×10). |
-| `teiai_bank`, `teiai_house`, `teiai_deposits` | `bank_reserve`, `house_account`, `bank_deposits` | Per guild. Legacy `REAL` cash, loaned and thermostat amounts become `INTEGER` Pelica (rounded with the rule above; the importer reports the total rounding residue). Rates to bps. |
-| `kyosai_units`, `kyosai_auctions`, `kyosai_offers`, `kyosai_motions`, `kyosai_votes` | same names | `user_id = 0` (house units) becomes `NULL` user plus a house flag. |
-| `companies`, `company_stakes` | same names | Company funds are separate from player balances. |
-| `leaderboards`, `chart_posts`, `chart_boards` | `bot_messages` | Message pointers; safe to drop if the channel is gone. |
+| `ledger` | `legacy_ledger` | Copied as read-only history. Not replayed into `ledger`: the opening `legacy_import` row is the new chain's start. |
+
+Every other legacy table (stats, streaks, profiles, inventory, horses, arena, labor, market,
+finance, quizzes, polls, raffles and message pointers) is not imported: those features start
+fresh on the remaster. Legacy money held in them (open bets, bids, work pots, deposits, margin)
+should be settled in the original bot before the import.
 
 ### Value conversions
 
 - Ids: legacy `INTEGER` ids are read with `safeIntegers(true)` (BigInt) and written as decimal
   strings. Never go through a JS number.
-- Time: legacy `REAL` epoch seconds become `Math.round(ts * 1000)` ms. Text dates stay text.
-- Money: legacy `INTEGER` Pelica is copied as is. Legacy `REAL` money (bank internals) is
-  rounded once at import with the rounding rule; player balances are always `INTEGER` already, so
-  the per-player proof below is exact.
-- Rates, prices, quantities: converted to bps, micro-Pelica and milli-units (no `REAL` left).
-- Negative legacy balances, if any, stop the import with a report (see the decision above).
+- Time: legacy `REAL` epoch seconds become `Math.round(ts * 1000)` ms.
+- Money: legacy `INTEGER` Pelica is copied as is.
+- Negative legacy balances, if any, stop the import with a report.
 
 ### Proof that no Pelica moved
 
-The importer prints, per guild and per user, legacy and new totals for each bucket (player
-balance, held stakes, held bids, unclaimed work pot, deposits, bond principal, margin, raffle
-fees) and exits non-zero on any difference. For each player, the new balance equals
-`users.balance` plus refunded `escrow`, and every other held amount is carried unchanged into its
-new table. A second run on the same file must be a no-op (`legacy_import_runs`).
+The importer prints, per guild and per user, the expected and the imported balance and exits
+non-zero on any difference. For each player, the new balance equals `users.balance` plus refunded
+`escrow`. A second run on the same file is a no-op (`legacy_import_runs` keeps the source digest).
