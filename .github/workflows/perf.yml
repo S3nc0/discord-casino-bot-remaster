@@ -19,6 +19,9 @@ on:
       players:
         description: Simulated players
         default: '30'
+      rate_scale:
+        description: Multiply every player's action rate (headroom check; 1 = realistic)
+        default: '1'
 
 permissions:
   contents: read
@@ -49,10 +52,11 @@ jobs:
         env:
           DURATION: ${{ github.event_name == 'workflow_dispatch' && inputs.duration || '60' }}
           PLAYERS: ${{ github.event_name == 'workflow_dispatch' && inputs.players || '30' }}
+          RATE_SCALE: ${{ github.event_name == 'workflow_dispatch' && inputs.rate_scale || '1' }}
         run: |
-          ops/pi-sim/perf.sh --duration "$DURATION" --players "$PLAYERS" \
+          ops/pi-sim/perf.sh --duration "$DURATION" --players "$PLAYERS" --rate-scale "$RATE_SCALE" \
             --out "$RUNNER_TEMP/perf-out" \
-            --label "pi-sim arm64, 512 MB, 2 CPUs: $PLAYERS players, ${DURATION} s"
+            --label "pi-sim arm64, 512 MB, 2 CPUs: $PLAYERS players, ${DURATION} s, rate x$RATE_SCALE"
 
       - name: Job summary
         if: always()

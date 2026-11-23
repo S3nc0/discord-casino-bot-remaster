@@ -4,7 +4,7 @@
 # `pnpm install` (socket.io-client). Run on an arm64 host (CI: ubuntu-24.04-arm).
 #
 #   ops/pi-sim/perf.sh [--duration 300] [--players 30] [--idle 10] [--out DIR] [--label TEXT]
-#                      [--image TAG] [--no-build] [--port 3001] [--no-gate]
+#                      [--rate-scale 1] [--image TAG] [--no-build] [--port 3001] [--no-gate]
 #
 # Results land in DIR (default perf-out): result.json, result.md, probe.jsonl, server.log.
 set -euo pipefail
@@ -29,6 +29,7 @@ while [ $# -gt 0 ]; do
     --label) label="$2"; shift 2 ;;
     --image) image="$2"; shift 2 ;;
     --port) port="$2"; shift 2 ;;
+    --rate-scale) extra+=(--rate-scale "$2"); shift 2 ;;
     --no-build) build=0; shift ;;
     --no-gate) extra+=(--no-gate); shift ;;
     *) echo "unknown option: $1" >&2; exit 64 ;;
