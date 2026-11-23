@@ -193,6 +193,8 @@ const NO_MONEY = new Set<string>([
   FINANCE_ROUTES.kyosaiVote,
   FINANCE_ROUTES.companyDividend,
   FINANCE_ROUTES.listingCancel,
+  // Escrows items, not Pelica: a purged key is just a new listing the player asked for.
+  FINANCE_ROUTES.listingCreate,
 ]);
 
 const fresh = () => {
