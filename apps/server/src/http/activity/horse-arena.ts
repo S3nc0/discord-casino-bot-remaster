@@ -25,7 +25,7 @@ export function registerArenaRoutes(kit: ActivityKit): void {
     const tournaments = arena()
       .today(session.gid)
       .map(({ tournament: t, fighters }): ArenaTournament => {
-        const bets = arena().betsOf(t.id, session.sub);
+        const bets = arena().betsOf(session.gid, t.id, session.sub);
         const openStage = t.status === 'final_betting' ? 'final' : 'semi';
         const start = dayStartMs(dayFromIso(t.day), offset);
         return {
