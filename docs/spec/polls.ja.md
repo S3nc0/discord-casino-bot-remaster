@@ -7,12 +7,13 @@
 ## 1. 元ファイル
 
 - `catalogs/economy.yaml`（L94–L101）：`poll` の定数
-- `legacy/python/domain/poll.py`（L1–L17）：定数と、`shown(real, adj)` の頭打ち
-- `legacy/python/infra/db/poll.py`（L1–L140）：`PollRepo` の作成、投票、票操作、期限切れの締め切り
-- `legacy/python/services/poll.py`（L1–L45）：`PollService` のファサード
-- `legacy/python/cogs/poll/cog.py`（L1–L177）：`/投票 作成`、永続のボタンのハンドラー、票操作の告知、1 分間隔の締め切りループ
-- `legacy/python/cogs/poll/views.py`（L1–L105）：`PollButton`、`RigModal`、`poll_embed`、`verdict`
-- `legacy/python/cogs/shared/messages/economy.py`（L78–L83）：失敗メッセージ
+- 元の Python ボット（v1.0.0 より前の git 履歴を参照）。パスはそのフォルダからの相対パスです：
+  - `domain/poll.py`（L1–L17）：定数と、`shown(real, adj)` の頭打ち
+  - `infra/db/poll.py`（L1–L140）：`PollRepo` の作成、投票、票操作、期限切れの締め切り
+  - `services/poll.py`（L1–L45）：`PollService` のファサード
+  - `cogs/poll/cog.py`（L1–L177）：`/投票 作成`、永続のボタンのハンドラー、票操作の告知、1 分間隔の締め切りループ
+  - `cogs/poll/views.py`（L1–L105）：`PollButton`、`RigModal`、`poll_embed`、`verdict`
+  - `cogs/shared/messages/economy.py`（L78–L83）：失敗メッセージ
 
 ---
 

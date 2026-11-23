@@ -7,12 +7,13 @@
 ## 元ファイル
 - `catalogs/teiai.yaml:76-95`
 - `docs/teiai.md:64-80`
-- `legacy/python/domain/kyosai.py:1-77`
-- `legacy/python/infra/db/kyosai.py:1-560`
-- `legacy/python/services/kyosai.py:1-95`
-- `legacy/python/cogs/kyosai/cog.py:1-410`
-- `legacy/python/cogs/shared/messages/economy.py:57-77`
-- `legacy/python/cogs/shared/messages/notices.py:31-38`
+- 元の Python ボット（v1.0.0 より前の git 履歴を参照）。パスはそのフォルダからの相対パスです：
+  - `domain/kyosai.py:1-77`
+  - `infra/db/kyosai.py:1-560`
+  - `services/kyosai.py:1-95`
+  - `cogs/kyosai/cog.py:1-410`
+  - `cogs/shared/messages/economy.py:57-77`
+  - `cogs/shared/messages/notices.py:31-38`
 
 ## ルールと正確な数値
 

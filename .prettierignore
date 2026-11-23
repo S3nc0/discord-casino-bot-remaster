@@ -1,4 +1,5 @@
-legacy/
+# generated parity fixtures (data, written by tests/fixtures/legacy/generate)
+tests/fixtures/legacy/
 design/
 catalogs/
 docs/

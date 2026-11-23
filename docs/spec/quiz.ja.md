@@ -7,16 +7,17 @@
 ## 1. 元ファイル
 
 - `catalogs/economy.yaml`（L32–L52）：`quizpay` の定数と、文字数の上限
-- `legacy/python/domain/quizpay.py`（L1–L58）：出題者への支払いの計算（`factor`、`scale`、`base_reward`、`bonus`、`participation`、`author_payout`）
-- `legacy/python/domain/quizimport.py`（L1–L167）：一括インポートのテキストの解析（`parse_bulk`）
-- `legacy/python/domain/duration.py`（L1–L34）：日本語の期間の解析と整形（`parse_duration`、`format_minutes`）
-- `legacy/python/infra/db/quiz.py`（L1–L329）：`QuizRepo` の CRUD、回答、リアルタイムの出題者への支払いの調整、債務への切り替え、取り下げ、精算
-- `legacy/python/services/quiz.py`（L1–L70）：`QuizService` のファサード
-- `legacy/python/cogs/quiz/cog.py`（L1–L280）：`/クイズ 挑戦|出題|取り下げ`、1 分間隔の精算ループ、管理者による一斉の告知
-- `legacy/python/cogs/quiz/embeds.py`（L1–L149）：選択肢・用語・判定の検証、問題・結果・公開・精算の埋め込み
-- `legacy/python/cogs/quiz/views.py`（L1–L290）：`PublicButton`（動的で永続）、`AnswerView`、`AddModal`、`UserModal`
-- `legacy/python/cogs/quiz/texts.py`（L1–L5）：既定の判定のラベル
-- `legacy/python/cogs/shared/messages/games.py`（L72–L83）：失敗メッセージ
+- 元の Python ボット（v1.0.0 より前の git 履歴を参照）。パスはそのフォルダからの相対パスです：
+  - `domain/quizpay.py`（L1–L58）：出題者への支払いの計算（`factor`、`scale`、`base_reward`、`bonus`、`participation`、`author_payout`）
+  - `domain/quizimport.py`（L1–L167）：一括インポートのテキストの解析（`parse_bulk`）
+  - `domain/duration.py`（L1–L34）：日本語の期間の解析と整形（`parse_duration`、`format_minutes`）
+  - `infra/db/quiz.py`（L1–L329）：`QuizRepo` の CRUD、回答、リアルタイムの出題者への支払いの調整、債務への切り替え、取り下げ、精算
+  - `services/quiz.py`（L1–L70）：`QuizService` のファサード
+  - `cogs/quiz/cog.py`（L1–L280）：`/クイズ 挑戦|出題|取り下げ`、1 分間隔の精算ループ、管理者による一斉の告知
+  - `cogs/quiz/embeds.py`（L1–L149）：選択肢・用語・判定の検証、問題・結果・公開・精算の埋め込み
+  - `cogs/quiz/views.py`（L1–L290）：`PublicButton`（動的で永続）、`AnswerView`、`AddModal`、`UserModal`
+  - `cogs/quiz/texts.py`（L1–L5）：既定の判定のラベル
+  - `cogs/shared/messages/games.py`（L72–L83）：失敗メッセージ
 
 ---
 

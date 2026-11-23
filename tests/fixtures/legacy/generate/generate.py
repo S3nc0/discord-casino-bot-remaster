@@ -1,11 +1,15 @@
 #!/usr/bin/env python3
 """Deterministic legacy parity fixture generator.
 
-Runs against legacy/python with fixed RNG seeds, fixed timestamps (FrozenClock),
-and an in-memory SQLite database. Never modifies legacy/python or catalogs.
+Runs against the original Python bot with fixed RNG seeds, fixed timestamps
+(FrozenClock), and an in-memory SQLite database. Never modifies the bot or catalogs.
 
-Usage (from repo root):
+The bot was removed from the tree for v1.0.0. Restore it from git history into
+legacy/python first, then run (from repo root), then delete it again:
+    git restore --source="$(git log --diff-filter=D --format=%H -1 -- legacy/python)^" -- legacy/python
     uv --directory legacy/python run python ../../tests/fixtures/legacy/generate/generate.py
+    rm -rf legacy/python
+See docs/spec/parity-fixtures.md.
 """
 
 from __future__ import annotations

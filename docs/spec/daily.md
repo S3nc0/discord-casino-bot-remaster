@@ -7,12 +7,13 @@ Planned owner: `B2-B` | Screen ID: `daily` (`packages/shared/src/ids.ts`) | Feat
 ## Source Files
 - `catalogs/economy.yaml:2-11`
 - `catalogs/skins.yaml` (seasonal daily title/line override; see `docs/spec/shop.md`)
-- `legacy/python/domain/types.py:8-13,38-49`
-- `legacy/python/infra/db/wallet.py:28-31,113-199`
-- `legacy/python/services/economy.py:48-51,123-130`
-- `legacy/python/cogs/economy/cog.py:43-70,124-142`
-- `legacy/python/cogs/economy/embeds.py:81-112`
-- `legacy/python/cogs/shared/messages/base.py:81-86`
+- The original Python bot (see git history before v1.0.0), paths relative to its folder:
+  - `domain/types.py:8-13,38-49`
+  - `infra/db/wallet.py:28-31,113-199`
+  - `services/economy.py:48-51,123-130`
+  - `cogs/economy/cog.py:43-70,124-142`
+  - `cogs/economy/embeds.py:81-112`
+  - `cogs/shared/messages/base.py:81-86`
 
 ## Rules & Exact Numbers
 

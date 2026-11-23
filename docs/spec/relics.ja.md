@@ -8,11 +8,12 @@
 
 - `catalogs/relics.yaml`（L1–L25）：バフの率、合成に必要な個数、星の最大段階、6 つの発掘品のバフの対応
 - `catalogs/labor.yaml`（L135–L167）：6 つの発掘品の定義、ドロップの確率、参考価値、大きな発見の一覧
-- `legacy/python/domain/relics.py`（L1–L65）：ID の解析と整形、バフの集計、`chance_round`
-- `legacy/python/infra/db/relics.py`（L1–L70）：`RelicRepo` の持ち物の検索、バフの問い合わせ、合成
-- `legacy/python/domain/shop.py`（発掘品のカタログの生成。`docs/spec/shop.ja.md` を参照）
-- `legacy/python/cogs/labor/views.py`（L124–L143、L235–L240）：`/地下 作業` の中の発掘品の合成の UI
-- `legacy/python/cogs/shared/messages/games.py`（L59–L61）：失敗メッセージ
+- 元の Python ボット（v1.0.0 より前の git 履歴を参照）。パスはそのフォルダからの相対パスです：
+  - `domain/relics.py`（L1–L65）：ID の解析と整形、バフの集計、`chance_round`
+  - `infra/db/relics.py`（L1–L70）：`RelicRepo` の持ち物の検索、バフの問い合わせ、合成
+  - `domain/shop.py`（発掘品のカタログの生成。`docs/spec/shop.ja.md` を参照）
+  - `cogs/labor/views.py`（L124–L143、L235–L240）：`/地下 作業` の中の発掘品の合成の UI
+  - `cogs/shared/messages/games.py`（L59–L61）：失敗メッセージ
 
 ---
 

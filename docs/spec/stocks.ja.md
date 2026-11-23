@@ -10,28 +10,29 @@
 - `catalogs/market.yaml:1-158`
 - `catalogs/bonds.yaml:1-22`
 - `docs/stocks.md:1-157`
-- `legacy/python/domain/market.py:1-339`
-- `legacy/python/domain/market_events.py:1-128`
-- `legacy/python/domain/earnings.py:1-104`
-- `legacy/python/domain/options.py:1-194`
-- `legacy/python/domain/bonds.py:1-80`
-- `legacy/python/domain/rates.py:1-68`
-- `legacy/python/infra/db/market.py:1-190`
-- `legacy/python/infra/db/market_events.py:1-75`
-- `legacy/python/infra/db/earnings.py:1-95`
-- `legacy/python/infra/db/crypto.py:1-192`
-- `legacy/python/infra/db/margin.py:1-518`
-- `legacy/python/infra/db/options.py:1-355`
-- `legacy/python/infra/db/bonds.py:1-252`
-- `legacy/python/services/market.py:1-285`
-- `legacy/python/cogs/market/cog.py:1-395`
-- `legacy/python/cogs/market/orders.py:1-345`
-- `legacy/python/cogs/market/bond_cog.py:1-66`
-- `legacy/python/cogs/market/embeds.py:1-454`
-- `legacy/python/cogs/market/bond_embeds.py:1-30`
-- `legacy/python/cogs/market/feed.py:1-93`
-- `legacy/python/cogs/market/views.py:1-242`
-- `legacy/python/cogs/shared/messages/market.py:1-107`
+- 元の Python ボット（v1.0.0 より前の git 履歴を参照）。パスはそのフォルダからの相対パスです：
+  - `domain/market.py:1-339`
+  - `domain/market_events.py:1-128`
+  - `domain/earnings.py:1-104`
+  - `domain/options.py:1-194`
+  - `domain/bonds.py:1-80`
+  - `domain/rates.py:1-68`
+  - `infra/db/market.py:1-190`
+  - `infra/db/market_events.py:1-75`
+  - `infra/db/earnings.py:1-95`
+  - `infra/db/crypto.py:1-192`
+  - `infra/db/margin.py:1-518`
+  - `infra/db/options.py:1-355`
+  - `infra/db/bonds.py:1-252`
+  - `services/market.py:1-285`
+  - `cogs/market/cog.py:1-395`
+  - `cogs/market/orders.py:1-345`
+  - `cogs/market/bond_cog.py:1-66`
+  - `cogs/market/embeds.py:1-454`
+  - `cogs/market/bond_embeds.py:1-30`
+  - `cogs/market/feed.py:1-93`
+  - `cogs/market/views.py:1-242`
+  - `cogs/shared/messages/market.py:1-107`
 
 ## ルールと正確な数値
 

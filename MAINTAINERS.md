@@ -43,11 +43,12 @@ Related: [CONTRIBUTING.md](CONTRIBUTING.md), [SECURITY.md](SECURITY.md), [CHANGE
 | `packages/ui/` | Bitbloom: components, design tokens, fonts, pixel icons and sprites, sound and effects. |
 | `catalogs/` | The tunable numbers (payouts, prices, rates) as YAML. |
 | `design/` | Bitbloom design tokens and the scripts that build them. |
-| `tools/pixel-art/` | Generators for the game icons and the race horse. |
-| `tests/` | `e2e/` (multi-client socket suites) and `invariants/` (property tests on the ledger). Unit tests sit next to the code. |
+| `tools/pixel-art/` | Generators for every icon, sprite and scene: `icons/`, `horse/`, `scenes/`, `casino/`, `social/`, `finance/` (see [Regenerating pixel art](#regenerating-pixel-art)). |
+| `tests/` | `e2e/` (multi-client socket suites), `invariants/` (property tests on the ledger) and `fixtures/legacy/` (parity data recorded from the original bot). Unit tests sit next to the code. |
 | `ops/` | `pi/` installer and systemd units, `cloudflared/` tunnel template, `pi-sim/` arm64 container and load test. |
 | `docs/` | Owner guides (EN/JA), `ARCHITECTURE.md`, `DB_SCHEMA.md`, `STATUS.md`, `spec/` behaviour specs, `ui-cheatsheet.md`, game notes. |
-| `legacy/` | The original Python bot, kept for reference until it is deleted for the release. |
+
+The original Python bot is not in the tree; it is in git history before v1.0.0 (see [docs/spec/INDEX.md](docs/spec/INDEX.md) for how to read a file from it).
 
 Workspace packages are consumed as TypeScript source: erasable syntax only (no enums or parameter properties) and relative imports that end in `.ts`. The server is bundled by `tsup` into `apps/server/dist/main.js`.
 
@@ -101,6 +102,7 @@ INVARIANT_RUNS=300 pnpm exec vitest run --config tests/vitest.config.ts tests/in
 ```
 
 - Add `INVARIANT_SEED=<number>` to replay a failing property run.
+- Slow tests are skipped by default. Run them before a release, or when you touch horse breeding: `SLOW_TESTS=1 pnpm --filter @casino/server test` (today the full breeding range sweep, R-8).
 - The browser flow (desktop and 390 px wide) needs Chrome: `pnpm --filter @casino/web exec vitest run --config e2e/vitest.config.ts`.
 - The Pi load test needs Docker: `ops/pi-sim/perf.sh --duration 60` (see [docs/PI_SETUP.md](docs/PI_SETUP.md)).
 - Never run two copies of the bot on one token. If the old Python bot or another machine is running, stop it first.
@@ -131,14 +133,14 @@ Names only; the real values live in `.env` on the host and nowhere else. The com
 | `BOT_DISABLED` | no | `0` logs the bot in, `1` keeps it offline. |
 | `NODE_ENV` | no | Optional, default `production`. `development` switches the proxy signature check off. |
 
-Other names you may meet: `VITE_DISCORD_CLIENT_ID` and `VITE_API_HOST` (Cloudflare Pages, public), `VITE_MOCK_DISCORD` (local mock mode), `INVARIANT_RUNS` and `INVARIANT_SEED` (tests), `CLOUDFLARED_CONFIG` (`dev:tunnel`), `ART_OUT` and `ART_REF` (pixel art tools). Never put a secret in a `VITE_` variable: it ends up in the public bundle.
+Other names you may meet: `VITE_DISCORD_CLIENT_ID` and `VITE_API_HOST` (Cloudflare Pages, public), `VITE_MOCK_DISCORD` (local mock mode), `INVARIANT_RUNS`, `INVARIANT_SEED` and `SLOW_TESTS` (tests), `CHROME_PATH` and `README_SHOTS` (screenshot scripts), `CLOUDFLARED_CONFIG` (`dev:tunnel`), `ART_OUT`, `ART_REF` and `ART_THEME` (pixel art tools). Never put a secret in a `VITE_` variable: it ends up in the public bundle.
 
 ## Releasing
 
 There is no release pipeline: Pages builds from `main` by itself, and the server is updated by hand. For `vX.Y.Z`:
 
-1. **Check `main`.** All CI jobs are green on the commit you want to release (check, invariants, e2e, pi-sim, and Perf if the server changed).
-2. **Write the changelog.** In `CHANGELOG.md`, replace `Unreleased` with the date, make sure the entry lists what changed in plain words, and merge that through a pull request.
+1. **Check `main`.** All CI jobs are green on the commit you want to release (check, invariants, e2e, pi-sim, and Perf if the server changed). Run the slow tests once too: `SLOW_TESTS=1 pnpm --filter @casino/server test`.
+2. **Write the changelog.** In `CHANGELOG.md` and `CHANGELOG.ja.md`, replace `Unreleased` (`未リリース`) with the date, make sure the entry lists what changed in plain words in both languages, and merge that through a pull request.
 3. **Tag.**
 
    ```sh
@@ -208,7 +210,7 @@ The importer carries the **wallets** of the old Python bot over: each player's b
 
 5. Run it again: a second `--apply` on the same data is a no-op (the source digest is recorded in `legacy_import_runs`). Then start the server.
 
-Keep a copy of `casino.db` somewhere safe and out of git (`data/` is ignored). The importer only reads that file, so it keeps working after the `legacy/` folder is deleted from the repository.
+Keep a copy of `casino.db` somewhere safe and out of git (`data/` is ignored). The importer only reads that file and never needs the original bot's code, which is no longer in the repository.
 
 ## Adding a new game
 
@@ -218,7 +220,7 @@ Work in this order; each step has a test beside it. Look at an existing game (bl
 2. **Rules** (`packages/domain/src/<game>/`): pure functions that take state, inputs and `DomainContext` (`rng`, `clock`) and return an `Outcome`. No I/O, wall clock or ambient random: lint and `purity.test.ts` enforce it. Put the tunable numbers in `catalogs/` and mirror them as integers in the domain constants.
 3. **Service** (`apps/server/src/games/<game>/`): load state, call the domain function, and in **one** `store.transaction` change the balance through `EconomyService` (with the request's idempotency key), save the game state and the idempotency record. Publish events with `afterCommit`. Register it in `games/index.ts` (casino games) or `games/progression/register.ts` (others) and wire it in `runtime/server.ts`.
 4. **Socket events or HTTP routes**: casino-style rounds use the existing `game:bet` / `game:action` intents (`games/casino/handlers.ts`); other screens add a route file in `http/activity/` and register it in `http/activity/index.ts`. Never take a user, server or instance from the request body; use the session's. Name each route once in `packages/shared/src/activity/` (for example `FINANCE_ROUTES`) and give every write an idempotency key; `POST /api/finance/listings/create` (escrow an owned, tradable item into a player-market listing, fed by the `sellable` list of `GET /api/finance/listings`) is a small example to copy.
-5. **Screen** (`apps/web/src/screens/<group>/`): the component, its API hook, a mock for `dev:mock`, CSS, and a lazy entry in `screens/routes.tsx`. Use `@casino/ui` components and tokens only. Draw a game icon in `tools/pixel-art/icons/` (see [below](#regenerating-pixel-art)).
+5. **Screen** (`apps/web/src/screens/<group>/`): the component, its API hook, a mock for `dev:mock`, CSS, and a lazy entry in `screens/routes.tsx`. Use `@casino/ui` components and tokens only. Draw a game icon in `tools/pixel-art/icons/` and, if the screen has a scene, a generator next to the others in `tools/pixel-art/` that writes its `*-art.ts` beside the screen (see [below](#regenerating-pixel-art)).
 6. **Slash command** (`apps/server/src/bot/`): add the command to `COMMAND_SPECS` in `commands.ts` with English and Japanese names and descriptions, write the handler in the matching chat module, add the path to `WIRED_COMMAND_PATHS`, then run `pnpm commands:deploy:guild`.
 7. **i18n**: every new string in both `en.ts` and `ja.ts` (screen name `screen.<id>`, bot replies `bot.*`, errors `error.<code>`). `pnpm i18n:check` must pass.
 8. **Tests**: domain unit tests, a service test (including a replayed idempotency key), a socket or route test, and, if money moves, a command in `tests/invariants/commands.ts` so the property test plays it. Add a behaviour note to `docs/` and a line to `CHANGELOG.md`.
@@ -252,13 +254,33 @@ Colours, spacing and type come from the Bitbloom tokens. Do not edit generated C
 
 ## Regenerating pixel art
 
-The game icons and the race horse are generated, never hand-edited. The commands, inputs and outputs are in [tools/pixel-art/README.md](tools/pixel-art/README.md). In short, from the repository root:
+Every icon, sprite and scene is generated, never hand-edited. The commands, inputs, previews and outputs are in [tools/pixel-art/README.md](tools/pixel-art/README.md). The layout of `tools/pixel-art/`:
+
+| Folder | Draws | Writes (`apps/web/src/screens/` unless noted) |
+| --- | --- | --- |
+| `icons/` | The 35 game icons | `packages/ui/src/pixel/icon-art.ts` and the icon fills in `packages/ui/src/styles/bundle.css` |
+| `horse/` | The eight-frame race horse (needs a reference) | `horse/horse-art.ts` and the coat and silks colours in `horse/horse.css` |
+| `scenes/` | Race, stable, breeding, arena (16 fighters), mine (miner, ores, relics), shop, inventory | `horse/race-art.ts`, `stable-art.ts`, `arena-art.ts`; `life/mine-art.ts`, `shop-art.ts`, `inventory-art.ts` |
+| `casino/` | Slots, chinchiro, blackjack, roulette, pachinko, chips | `casino/art/*-art.ts` |
+| `social/` | Quiz, lottery, poll, missions, ranking, relics, transfer, daily, history, profile | `life/*-art.ts`, `casino/daily-art.ts`, `casino/history-art.ts`, `profile/profile-art.ts` |
+| `finance/` | Bank, loans, kyosai, stocks, crypto, companies, market, coins, badges, gavel | `finance/art/*.ts` |
+| `lib/` | Shared helpers: palette step names (`palette.js`), the 8x drawing helper (`hi.js`), output folders (`env.js`) | |
+| `vendor/` | The codixel core (`pixel.js`, MIT) for PNG, GIF and sheet previews | |
+
+To regenerate, from the repository root (each `ship.js` formats what it writes; a re-run with no change to the generator gives no diff):
 
 ```sh
-node tools/pixel-art/icons/build.js    # writes packages/ui/src/pixel/icon-art.ts and icon fills in bundle.css
+node tools/pixel-art/icons/build.js
+ART_OUT=/some/folder ART_REF=/some/folder/ref node tools/pixel-art/horse/ship.js
+ART_REF=/some/folder/ref node tools/pixel-art/scenes/ship.js
+node tools/pixel-art/casino/ship.js
+node tools/pixel-art/social/ship.js
+node tools/pixel-art/finance/ship.js
 ```
 
-- The horse needs a reference photograph that is **not** stored in the repository; the README says how to fetch it. Any reference must be public domain or CC0, and must be credited in [CREDITS.md](CREDITS.md) (title, author, licence, source, how it was used).
+- **How art ships.** Art is data, not images: each sprite is a list of row strings plus a legend that maps each character to a pair of palette tokens, `[light, dark]`. `PixelScene` and `useSceneFrame` / `useSceneOnce` in `packages/ui/src/pixel/` (or the screen's own `CasinoScene` / `FinanceScene`) fill each character with the active theme's token, at a whole-number scale, so light is day and dark is night. Moving parts ship as small overlays; frame 0 is the still frame that reduced motion shows.
+- **Lazy per screen.** Each `*-art.ts` sits next to the screen that uses it and is imported only by that screen, which `screens/routes.tsx` loads lazily. Home (the `index` chunk) loads none of it, so adding a scene never slows the first screen. Keep it that way: never import a screen's art from the shell or from `@casino/ui`.
+- The horse, the stable portrait, the fighters and the miner come from references that are **not** stored in the repository; the README says how to fetch the files that are needed. Any reference must be public domain or CC0, and must be credited in [CREDITS.md](CREDITS.md) and [CREDITS.ja.md](CREDITS.ja.md) (title, author, licence, source, how it was used).
 - Use only palette steps from `design/bitbloom/tokens.css` (`tools/pixel-art/lib/palette.js` names them).
 - After a run: `pnpm format`, `pnpm --filter @casino/ui test`, and `pnpm --filter @casino/web test`.
 
@@ -304,4 +326,4 @@ Start with the server log (`journalctl -u discord-casino.service -f` on the Pi, 
 
 ## Upstream and credits
 
-This project is a hard fork of [fatcorn753/discord-casino-bot](https://github.com/fatcorn753/discord-casino-bot), the original Python bot and the source of the game rules. Both authors are named in [LICENSE](LICENSE) (MIT). Third-party code, fonts and the public-domain photograph behind the horse sprite are listed with their licences in [CREDITS.md](CREDITS.md); keep it current whenever you add an asset.
+This project is a hard fork of [fatcorn753/discord-casino-bot](https://github.com/fatcorn753/discord-casino-bot), the original Python bot and the source of the game rules. Both authors are named in [LICENSE](LICENSE) (MIT). Third-party code, fonts and the public-domain and CC0 references behind the horse, the stable portrait, the fighters and the miner are listed with their licences in [CREDITS.md](CREDITS.md); keep it and [CREDITS.ja.md](CREDITS.ja.md) current whenever you add an asset.

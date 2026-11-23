@@ -76,7 +76,7 @@ Role table, current → round 2 (ratios are the pair named in the first column, 
 | epic (violet) | text 7.3 → 7.3, accent 10.9 → 10.0 | text 13.3 → 13.4, accent 6.2 → 5.8 |
 | legendary (yellow) | text 7.2 → 7.2, accent 10.9 → 10.1 | text 13.3 → 13.3, accent 6.1 → 5.8 |
 
-Component deltas for round 2 (`components.proposal.css`, about 60 lines): edges become tonal (fill nudged 24% toward the text colour) instead of bright lines; cards, lists, nav, dialogs, banners and tags use the decorative edge; nav indicator, selected chip and selected list row keep the kit's `secondary-container`, which is now sky; optional `bb-eyebrow` label and `bb-game` tile. Structure is unchanged: no radius, 2px notched edges, hard shadows, stepped motion, Pixelify for display, headline and title only, Atkinson 16px and up for body, 48px targets (game tiles are about 100px tall).
+Component deltas for round 2 (`components.proposal.css`, about 60 lines, now `design/bitbloom/proposal/archive/components.round2.css`): edges become tonal (fill nudged 24% toward the text colour) instead of bright lines; cards, lists, nav, dialogs, banners and tags use the decorative edge; nav indicator, selected chip and selected list row keep the kit's `secondary-container`, which is now sky; optional `bb-eyebrow` label and `bb-game` tile. Structure is unchanged: no radius, 2px notched edges, hard shadows, stepped motion, Pixelify for display, headline and title only, Atkinson 16px and up for body, 48px targets (game tiles are about 100px tall).
 
 Round 2 risks, on top of the list below: (a) yellow in light is a deep mustard (`#6b5f09`) for text because 4.5:1 forces it; the bright yellow lives in fills and art. (b) Green primary and green success are the same family, so success is never distinguished by colour alone (icon and word always present). (c) Green, yellow and sky together can read as a children's palette if used at full size; the rule is soft fills, small saturated accents. (d) The skyline is 627 pixels of SVG path; negligible, and only the Home hero needs it. (e) Game icons use the active palette tones, so they follow the theme automatically; the horse is the weakest drawing and may be redone by an artist.
 
@@ -105,7 +105,7 @@ Tones keep their CIE lightness, so only chroma and hue change; luminance maths i
 
 Rarity tags (text on fill / accent on surface, old → new): every pair stays at or above 5.8:1 in both themes, for example dark epic text 7.3 → 7.3, accent 10.9 → 9.9; light legendary text 13.3 → 13.3, accent 6.1 → 5.8.
 
-Component deltas (`components.proposal.css`, about 50 lines): filled and tonal button edges, selected chip, list row and nav indicator use a tonal edge (fill mixed 20–28% toward the text colour) instead of a bright text-coloured line; cards, lists, nav bar, dialog, banners and tags use the decorative edge; dialog icon uses the gold accent. Structure is unchanged.
+Component deltas (`components.proposal.css`, about 50 lines, round 1, removed; git history has it): filled and tonal button edges, selected chip, list row and nav indicator use a tonal edge (fill mixed 20–28% toward the text colour) instead of a bright text-coloured line; cards, lists, nav bar, dialog, banners and tags use the decorative edge; dialog icon uses the gold accent. Structure is unchanged.
 
 ## Contrast proof
 

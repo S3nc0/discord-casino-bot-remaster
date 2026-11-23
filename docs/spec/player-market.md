@@ -8,14 +8,15 @@ Planned owner: `B3` | Screen IDs: `market`, `market-create`, `market-mine` (`pac
 
 ## Source Files
 - `catalogs/economy.yaml:66-92`
-- `legacy/python/domain/p2p.py:1-77`
-- `legacy/python/infra/db/p2p.py:1-454`
-- `legacy/python/services/p2p.py:1-100`
-- `legacy/python/cogs/p2p/cog.py:1-318`
-- `legacy/python/cogs/p2p/embeds.py:1-93`
-- `legacy/python/cogs/p2p/views.py:1-263`
-- `legacy/python/cogs/shared/messages/economy.py:85,169-190`
-- `legacy/python/cogs/shared/messages/notices.py:46-62,72-75`
+- The original Python bot (see git history before v1.0.0), paths relative to its folder:
+  - `domain/p2p.py:1-77`
+  - `infra/db/p2p.py:1-454`
+  - `services/p2p.py:1-100`
+  - `cogs/p2p/cog.py:1-318`
+  - `cogs/p2p/embeds.py:1-93`
+  - `cogs/p2p/views.py:1-263`
+  - `cogs/shared/messages/economy.py:85,169-190`
+  - `cogs/shared/messages/notices.py:46-62,72-75`
 
 ## Rules & Exact Numbers
 

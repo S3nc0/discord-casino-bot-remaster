@@ -1,4 +1,0 @@
-# 開発用（テスト・整形・検査）。実行には不要。pyproject.toml の dev と同じ内容にしておく。
-pyright>=1.1.414
-pytest>=8.0.0
-ruff>=0.8

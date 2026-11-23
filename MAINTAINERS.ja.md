@@ -2,9 +2,9 @@
 
 # メンテナー向けガイド
 
-カジノを動かし続け、手を入れていく人のための手引きです。リポジトリの構成、各部分のつながり、起動・リリース・バックアップの方法、機能の足し方、困ったときの対処をまとめています。はじめてのセットアップは、画面を追って進められる別のガイド [オーナー向けセットアップガイド](docs/OWNER_SETUP.ja.md) を見てください。コードの作りを詳しく知りたいときは [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)（英語のみ）です。
+カジノを動かし続け、手を入れていく人のための手引きです。リポジトリの構成、各部分のつながり、起動・リリース・バックアップの方法、機能の足し方、困ったときの対処をまとめています。はじめてのセットアップは、画面を追って進められる別のガイド [オーナー向けセットアップガイド](docs/OWNER_SETUP.ja.md) を見てください。コードの作りを詳しく知りたいときは [docs/ARCHITECTURE.ja.md](docs/ARCHITECTURE.ja.md) です。
 
-関連文書：[CONTRIBUTING.ja.md](CONTRIBUTING.ja.md)、[SECURITY.ja.md](SECURITY.ja.md)、[CHANGELOG.md](CHANGELOG.md)（英語のみ）、[docs/STATUS.md](docs/STATUS.md)（英語のみ）。
+関連文書：[CONTRIBUTING.ja.md](CONTRIBUTING.ja.md)、[SECURITY.ja.md](SECURITY.ja.md)、[CHANGELOG.ja.md](CHANGELOG.ja.md)、[docs/STATUS.ja.md](docs/STATUS.ja.md)。
 
 ## 目次
 
@@ -43,11 +43,12 @@
 | `packages/ui/` | Bitbloom。コンポーネント、デザイントークン、フォント、ドット絵のアイコンとスプライト、効果音とエフェクト。 |
 | `catalogs/` | 調整できる数値（配当、価格、金利）の YAML。 |
 | `design/` | Bitbloom のデザイントークンと、それを作るスクリプト。 |
-| `tools/pixel-art/` | ゲームアイコンと競走馬を作るジェネレーター。 |
-| `tests/` | `e2e/`（複数クライアントのソケットテスト）と `invariants/`（台帳のプロパティテスト）。ユニットテストはコードの隣にあります。 |
+| `tools/pixel-art/` | アイコン、スプライト、場面をすべて作るジェネレーター：`icons/`、`horse/`、`scenes/`、`casino/`、`social/`、`finance/`（[ドット絵を作り直す](#ドット絵を作り直す) を参照）。 |
+| `tests/` | `e2e/`（複数クライアントのソケットテスト）、`invariants/`（台帳のプロパティテスト）、`fixtures/legacy/`（元のボットで記録した一致確認用のデータ）。ユニットテストはコードの隣にあります。 |
 | `ops/` | `pi/` インストーラーと systemd ユニット、`cloudflared/` トンネルのひな形、`pi-sim/` arm64 コンテナと負荷テスト。 |
-| `docs/` | オーナー向けガイド（英日）、`ARCHITECTURE.md`、`DB_SCHEMA.md`、`STATUS.md`、`spec/`（動作仕様）、`ui-cheatsheet.md`、ゲームごとのメモ。 |
-| `legacy/` | 元の Python ボット。リリースで削除されるまで参考用に置いてあります。 |
+| `docs/` | オーナー向けガイド、`ARCHITECTURE.md`、`DB_SCHEMA.md`、`STATUS.md`、`spec/`（動作仕様）、`ui-cheatsheet.md`（どれも英日）、元のボットのゲームごとのメモ（日本語）。 |
+
+元の Python ボットはツリーにはなく、v1.0.0 より前の git 履歴にあります（そこからファイルを読む方法は [docs/spec/INDEX.ja.md](docs/spec/INDEX.ja.md) を参照）。
 
 ワークスペースのパッケージは TypeScript のソースのまま読み込まれます。型だけを消せる構文に限る（enum やパラメータプロパティは使わない）、相対インポートは `.ts` で終える、が決まりです。サーバーは `tsup` で `apps/server/dist/main.js` にまとめられます。
 
@@ -70,7 +71,7 @@ Discord クライアント ──(アクティビティの iframe)──▶ Clou
 - バスの**購読者**は、ソケットのルーム（アクティビティへのリアルタイム更新）、お知らせとウェブフックのペルソナ、DM キュー、受信箱、プレゼンス、統計・ミッション・ランキングです。
 - **スケジューラー**が時間で動く処理（相場の更新、レース、デイリーのリセット、闘技場、宝くじ、ローン、後片付け）を動かします。
 
-認証の手順や各層が守るルールまで含めた全体像は [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)（英語のみ）にあります。
+認証の手順や各層が守るルールまで含めた全体像は [docs/ARCHITECTURE.ja.md](docs/ARCHITECTURE.ja.md) にあります。
 
 ## ローカルですべて動かす
 
@@ -101,6 +102,7 @@ INVARIANT_RUNS=300 pnpm exec vitest run --config tests/vitest.config.ts tests/in
 ```
 
 - 失敗したプロパティテストをやり直すときは `INVARIANT_SEED=<数字>` を付けます。
+- 時間のかかるテストは、ふだんは飛ばします。リリースの前と、馬の配合に手を入れたときに走らせてください：`SLOW_TESTS=1 pnpm --filter @casino/server test`（今は配合の範囲をすべて調べる R-8）。
 - ブラウザでの一連の確認（デスクトップと幅 390 px）には Chrome が必要です：`pnpm --filter @casino/web exec vitest run --config e2e/vitest.config.ts`。
 - Pi の負荷テストには Docker が必要です：`ops/pi-sim/perf.sh --duration 60`（[docs/PI_SETUP.ja.md](docs/PI_SETUP.ja.md) を参照）。
 - 1 つのトークンでボットを 2 つ同時に動かさないでください。古い Python ボットや別のマシンが動いていたら、先に止めます。
@@ -131,14 +133,14 @@ INVARIANT_RUNS=300 pnpm exec vitest run --config tests/vitest.config.ts tests/in
 | `BOT_DISABLED` | いいえ | `0` でボットがログイン、`1` でオフライン。 |
 | `NODE_ENV` | いいえ | 省略可、既定は `production`。`development` にするとプロキシ署名の検査が切れます。 |
 
-ほかに出てくる名前：`VITE_DISCORD_CLIENT_ID` と `VITE_API_HOST`（Cloudflare Pages 用、公開される値）、`VITE_MOCK_DISCORD`（ローカルのモックモード）、`INVARIANT_RUNS` と `INVARIANT_SEED`（テスト用）、`CLOUDFLARED_CONFIG`（`dev:tunnel` 用）、`ART_OUT` と `ART_REF`（ドット絵ツール用）。`VITE_` で始まる変数に秘密を入れてはいけません。公開されるバンドルに入ってしまいます。
+ほかに出てくる名前：`VITE_DISCORD_CLIENT_ID` と `VITE_API_HOST`（Cloudflare Pages 用、公開される値）、`VITE_MOCK_DISCORD`（ローカルのモックモード）、`INVARIANT_RUNS`、`INVARIANT_SEED`、`SLOW_TESTS`（テスト用）、`CHROME_PATH` と `README_SHOTS`（スクリーンショットのスクリプト用）、`CLOUDFLARED_CONFIG`（`dev:tunnel` 用）、`ART_OUT`、`ART_REF`、`ART_THEME`（ドット絵ツール用）。`VITE_` で始まる変数に秘密を入れてはいけません。公開されるバンドルに入ってしまいます。
 
 ## リリースの手順
 
 リリース用のパイプラインはありません。Pages は `main` から自動でビルドされ、サーバーは手で更新します。`vX.Y.Z` を出すときの手順です。
 
-1. **`main` を確認する。** リリースするコミットで CI のジョブがすべて緑であること（check、invariants、e2e、pi-sim、サーバーを変えたなら Perf も）。
-2. **変更履歴を書く。** `CHANGELOG.md` の `Unreleased` を日付に変え、変わったことが分かりやすい言葉で並んでいるか確かめて、プルリクエストでマージします。
+1. **`main` を確認する。** リリースするコミットで CI のジョブがすべて緑であること（check、invariants、e2e、pi-sim、サーバーを変えたなら Perf も）。時間のかかるテストも 1 回走らせます：`SLOW_TESTS=1 pnpm --filter @casino/server test`。
+2. **変更履歴を書く。** `CHANGELOG.md` と `CHANGELOG.ja.md` の `Unreleased`（`未リリース`）を日付に変え、変わったことが両方の言語で分かりやすい言葉で並んでいるか確かめて、プルリクエストでマージします。
 3. **タグを付ける。**
 
    ```sh
@@ -148,7 +150,7 @@ INVARIANT_RUNS=300 pnpm exec vitest run --config tests/vitest.config.ts tests/in
    ```
 
    必要なら、タグから GitHub のリリースを作り、変更履歴の該当部分を本文にします。
-4. **Pages のデプロイ。** `main` への push でビルドはすでに始まっています。Cloudflare の **Workers & Pages → プロジェクト → Deployments** で、リリースのコミットのデプロイが **Success** になっているか確認し、Pages の URL をブラウザで開きます。ビルドが失敗していたら、サーバーを再起動する前に直して push します。設定は [docs/DEPLOY_PAGES.md](docs/DEPLOY_PAGES.md) にあります。
+4. **Pages のデプロイ。** `main` への push でビルドはすでに始まっています。Cloudflare の **Workers & Pages → プロジェクト → Deployments** で、リリースのコミットのデプロイが **Success** になっているか確認し、Pages の URL をブラウザで開きます。ビルドが失敗していたら、サーバーを再起動する前に直して push します。設定は [docs/DEPLOY_PAGES.ja.md](docs/DEPLOY_PAGES.ja.md) にあります。
 5. **サーバーの再起動。** 起動時に新しいマイグレーションが走るので、先にバックアップを取ります（[下](#マイグレーションとバックアップと復元)）。
    - Pi の場合：インストールに使ったクローンを更新して、`sudo bash ops/pi/install.sh` をもう一度実行します。コードの同期、インストール、ビルド、サービスの再起動までやってくれます。`.env` と `data/` には触りません。
    - Mac の場合：サーバーを止めて、`git pull`、`pnpm i`、`pnpm dev:server`。
@@ -163,7 +165,7 @@ API やソケットの取り決めを壊す変更は、画面とサーバーを�
 
 - マージ済みのマイグレーションは絶対に書き換えません。次の番号で新しく足します。適用済みのファイルが書き換わっていたり、このビルドが知らないマイグレーションがデータベースに入っていたり（新しいビルドが書いたもの）すると、サーバーは起動を拒否します。そのファイルで古いビルドを動かさないでください。
 - 最新は `0011_arena_runner_up` です（`arena_tournaments.runner_up_id` という NULL 可能な列を足し、決勝の 2 位を保存します。それ以前に終わった大会では空です）。
-- お金の列は整数、金利は bp（ベーシスポイント）、価格は固定小数点です。ルールとテーブルは [docs/DB_SCHEMA.md](docs/DB_SCHEMA.md)（英語のみ）にあります。
+- お金の列は整数、金利は bp（ベーシスポイント）、価格は固定小数点です。ルールとテーブルは [docs/DB_SCHEMA.ja.md](docs/DB_SCHEMA.ja.md) にあります。
 
 **バックアップ。** Pi では systemd のタイマーが毎晩 3:30 ごろに `ops/pi/backup.sh` を実行し、`/var/backups/discord-casino/` に 7 日分を残します。SQLite のオンライン `.backup` を使うので、サーバーが動いていても安全です。今すぐ取るには：
 
@@ -188,7 +190,7 @@ sudo journalctl -u discord-casino.service -n 50 --no-pager
 
 ## 旧データベースの取り込み
 
-取り込みツールが引き継ぐのは、旧 Python ボットの**財布**です。各プレイヤーの残高（最初の台帳行 `legacy_import` 1 行）、途中のゲームに預けていた賭け金の返金、サーバーの承認状態とメンバー、旧台帳（読み取り専用の履歴）です。ほかのもの（馬、株、会社、アイテムなど）は新しく始まります。テーブルごとの対応と、ペリカが 1 枚も動かないことの証明は [docs/DB_SCHEMA.md](docs/DB_SCHEMA.md#legacy-table-mapping)（英語のみ）にあります。
+取り込みツールが引き継ぐのは、旧 Python ボットの**財布**です。各プレイヤーの残高（最初の台帳行 `legacy_import` 1 行）、途中のゲームに預けていた賭け金の返金、サーバーの承認状態とメンバー、旧台帳（読み取り専用の履歴）です。ほかのもの（馬、株、会社、アイテムなど）は新しく始まります。テーブルごとの対応と、ペリカが 1 枚も動かないことの証明は [docs/DB_SCHEMA.ja.md](docs/DB_SCHEMA.ja.md#旧テーブルの対応) にあります。
 
 **v1.0.0 では、オーナーの判断で予行演習（dry run）を省きました。** そのため、テスト用のデータでは確かめてありますが、本物の `casino.db` ではまだ動かしていません。実行するときは次の手順で、必ず予行演習の出力を読んでから本番にします。
 
@@ -208,7 +210,7 @@ sudo journalctl -u discord-casino.service -n 50 --no-pager
 
 5. もう一度同じコマンドを実行します。同じデータへの 2 回目の `--apply` は何もしません（元データのダイジェストが `legacy_import_runs` に記録されています）。そのあとでサーバーを起動します。
 
-`casino.db` のコピーは、git の外の安全な場所に保管してください（`data/` は git の管理対象外です）。取り込みツールが読むのはこのファイルだけなので、`legacy/` フォルダがリポジトリから消えても使えます。
+`casino.db` のコピーは、git の外の安全な場所に保管してください（`data/` は git の管理対象外です）。取り込みツールが読むのはこのファイルだけで、もうリポジトリにない元のボットのコードは要りません。
 
 ## 新しいゲームを追加する
 
@@ -218,7 +220,7 @@ sudo journalctl -u discord-casino.service -n 50 --no-pager
 2. **ルール**（`packages/domain/src/<game>/`）：状態、入力、`DomainContext`（`rng`、`clock`）を受け取って `Outcome` を返す純粋な関数。入出力、実時間、勝手な乱数は使えません（lint と `purity.test.ts` が検査します）。調整できる数値は `catalogs/` に置き、domain の定数に整数でそろえて写します。
 3. **サービス**（`apps/server/src/games/<game>/`）：状態を読み、domain の関数を呼び、**1 つの** `store.transaction` の中で、`EconomyService` で残高を動かし（リクエストの idempotency キー付き）、ゲームの状態と idempotency の記録を保存します。イベントは `afterCommit` で流します。`games/index.ts`（カジノ系）か `games/progression/register.ts`（それ以外）に登録し、`runtime/server.ts` でつなぎます。
 4. **ソケットイベントか HTTP ルート**：カジノ形式のラウンドは既存の `game:bet` / `game:action` インテントを使います（`games/casino/handlers.ts`）。それ以外の画面は `http/activity/` にルートのファイルを足し、`http/activity/index.ts` に登録します。ユーザー・サーバー・インスタンスをリクエスト本文から受け取ってはいけません。セッションのものを使います。ルートの名前は `packages/shared/src/activity/` に 1 か所だけ定義し（たとえば `FINANCE_ROUTES`）、書き込みにはすべて idempotency キーを付けます。`POST /api/finance/listings/create`（持っている取引可能なアイテムを預けて、プレイヤー市場の出品にするルート。`GET /api/finance/listings` が返す `sellable` の一覧がフォームの元になります）が、まねしやすい小さな例です。
-5. **画面**（`apps/web/src/screens/<group>/`）：コンポーネント、API フック、`dev:mock` 用のモック、CSS、`screens/routes.tsx` への遅延読み込みの登録。部品は `@casino/ui` のコンポーネントとトークンだけを使います。ゲームアイコンは `tools/pixel-art/icons/` で描きます（[下](#ドット絵を作り直す)）。
+5. **画面**（`apps/web/src/screens/<group>/`）：コンポーネント、API フック、`dev:mock` 用のモック、CSS、`screens/routes.tsx` への遅延読み込みの登録。部品は `@casino/ui` のコンポーネントとトークンだけを使います。ゲームアイコンは `tools/pixel-art/icons/` で描きます。画面に場面の絵があるなら、`tools/pixel-art/` のほかのものと並べてジェネレーターを置き、画面の隣に `*-art.ts` を書き出します（[下](#ドット絵を作り直す)）。
 6. **スラッシュコマンド**（`apps/server/src/bot/`）：`commands.ts` の `COMMAND_SPECS` に、英語と日本語の名前・説明つきでコマンドを足し、対応するチャット用モジュールにハンドラーを書き、パスを `WIRED_COMMAND_PATHS` に加えて、`pnpm commands:deploy:guild` を実行します。
 7. **i18n**：新しい文言は `en.ts` と `ja.ts` の両方に（画面名は `screen.<id>`、ボットの返信は `bot.*`、エラーは `error.<code>`）。`pnpm i18n:check` が通ること。
 8. **テスト**：domain のユニットテスト、サービスのテスト（同じ idempotency キーの再送も）、ソケットまたはルートのテスト、お金が動くなら `tests/invariants/commands.ts` にコマンドを足してプロパティテストに遊ばせます。動作のメモを `docs/` に、1 行を `CHANGELOG.md` に足します。
@@ -252,13 +254,33 @@ sudo journalctl -u discord-casino.service -n 50 --no-pager
 
 ## ドット絵を作り直す
 
-ゲームアイコンと競走馬は、手で直さず、ジェネレーターで作っています。コマンド、入力、出力は [tools/pixel-art/README.md](tools/pixel-art/README.md)（英語のみ）にあります。リポジトリのルートから、要点だけ書くと次のとおりです。
+アイコン、スプライト、場面は、どれも手で直さず、ジェネレーターで作っています。コマンド、入力、プレビュー、出力は [tools/pixel-art/README.ja.md](tools/pixel-art/README.ja.md) にあります。`tools/pixel-art/` の構成：
+
+| フォルダ | 描くもの | 書き出す先（とくに書いていなければ `apps/web/src/screens/`） |
+| --- | --- | --- |
+| `icons/` | ゲームアイコン 35 個 | `packages/ui/src/pixel/icon-art.ts` と `packages/ui/src/styles/bundle.css` のアイコンの色 |
+| `horse/` | 8 コマの競走馬（参考資料が必要） | `horse/horse-art.ts` と `horse/horse.css` の毛色と勝負服の色 |
+| `scenes/` | レース、厩舎、配合、闘技場（戦士 16 人）、鉱山（鉱夫、鉱石、発掘品）、ショップ、持ち物 | `horse/race-art.ts`、`stable-art.ts`、`arena-art.ts`、`life/mine-art.ts`、`shop-art.ts`、`inventory-art.ts` |
+| `casino/` | スロット、チンチロ、ブラックジャック、ルーレット、パチンコ、チップ | `casino/art/*-art.ts` |
+| `social/` | クイズ、抽選、投票、ミッション、ランキング、発掘品、送金、デイリー、履歴、プロフィール | `life/*-art.ts`、`casino/daily-art.ts`、`casino/history-art.ts`、`profile/profile-art.ts` |
+| `finance/` | 銀行、融資、共済、株、暗号資産、会社、マーケット、コイン、バッジ、ハンマー | `finance/art/*.ts` |
+| `lib/` | 共通の部品：パレットの段階の名前（`palette.js`）、8 倍で描く補助（`hi.js`）、出力先（`env.js`） | |
+| `vendor/` | codixel の中核（`pixel.js`、MIT）。PNG、GIF、シートのプレビュー用 | |
+
+作り直すときは、リポジトリのルートから実行します（どの `ship.js` も書き出したファイルを整形します。ジェネレーターを変えずに実行し直しても差分は出ません）。
 
 ```sh
-node tools/pixel-art/icons/build.js    # packages/ui/src/pixel/icon-art.ts と bundle.css のアイコン色を書き出す
+node tools/pixel-art/icons/build.js
+ART_OUT=/some/folder ART_REF=/some/folder/ref node tools/pixel-art/horse/ship.js
+ART_REF=/some/folder/ref node tools/pixel-art/scenes/ship.js
+node tools/pixel-art/casino/ship.js
+node tools/pixel-art/social/ship.js
+node tools/pixel-art/finance/ship.js
 ```
 
-- 馬には参考写真が必要ですが、写真は**リポジトリに入れません**。入手方法は README にあります。参考にする資料は、パブリックドメインか CC0 のものに限り、[CREDITS.md](CREDITS.md) に（題名、作者、ライセンス、出典、使い方）を載せます。
+- **絵の出荷のしかた。** 絵は画像ではなくデータです。スプライトはそれぞれ行の文字列の並びと、各文字をパレットのトークンの組 `[ライト, ダーク]` に対応させる凡例でできています。`packages/ui/src/pixel/` の `PixelScene` と `useSceneFrame` / `useSceneOnce`（または画面ごとの `CasinoScene` / `FinanceScene`）が、各文字を今のテーマのトークンで、整数倍の大きさで塗ります。ライトは昼、ダークは夜です。動く部分は小さな重ね絵で出荷し、0 コマ目が、動きを減らす設定で見える止まった絵です。
+- **画面ごとの遅延読み込み。** `*-art.ts` は使う画面の隣にあり、その画面からしか読み込みません。画面は `screens/routes.tsx` が遅延読み込みします。ホーム（`index` のチャンク）はどれも読み込まないので、場面を足しても最初の画面は遅くなりません。この形を守り、画面の絵を外枠や `@casino/ui` から読み込まないでください。
+- 馬、厩舎の肖像、戦士、鉱夫は、**リポジトリに入れない**参考資料から作っています。必要なファイルの入手方法は README にあります。参考にする資料は、パブリックドメインか CC0 のものに限り、[CREDITS.md](CREDITS.md) と [CREDITS.ja.md](CREDITS.ja.md) に（題名、作者、ライセンス、出典、使い方）を載せます。
 - 使う色は `design/bitbloom/tokens.css` のパレットの段階だけです（`tools/pixel-art/lib/palette.js` に名前があります）。
 - 実行したあとは、`pnpm format`、`pnpm --filter @casino/ui test`、`pnpm --filter @casino/web test` を実行します。
 
@@ -304,4 +326,4 @@ node tools/pixel-art/icons/build.js    # packages/ui/src/pixel/icon-art.ts と b
 
 ## 元のボットとクレジット
 
-このプロジェクトは [fatcorn753/discord-casino-bot](https://github.com/fatcorn753/discord-casino-bot)（元の Python ボットで、ゲームのルールの出どころ）のハードフォークです。両方の作者の名前は [LICENSE](LICENSE)（MIT）にあります。外部のコード、フォント、馬のスプライトの元になったパブリックドメインの写真は、ライセンスとともに [CREDITS.md](CREDITS.md) に載せています。素材を足したら、そのつど更新してください。
+このプロジェクトは [fatcorn753/discord-casino-bot](https://github.com/fatcorn753/discord-casino-bot)（元の Python ボットで、ゲームのルールの出どころ）のハードフォークです。両方の作者の名前は [LICENSE](LICENSE)（MIT）にあります。外部のコード、フォント、馬、厩舎の肖像、戦士、鉱夫の元になったパブリックドメインと CC0 の参考資料は、ライセンスとともに [CREDITS.ja.md](CREDITS.ja.md) に載せています。素材を足したら、そのつど [CREDITS.md](CREDITS.md) と一緒に更新してください。

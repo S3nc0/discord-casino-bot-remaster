@@ -121,13 +121,16 @@ The live server uses `/opt/discord-casino/data/casino.sqlite` (`DATABASE_PATH`, 
 
 ## 5. Restoring a Backup
 
-1. Stop the server, copy the backup snapshot over `casino.sqlite`, and start the server again:
+1. Stop the server, delete the stale `casino.sqlite-wal` and `casino.sqlite-shm` files, copy the backup snapshot over `casino.sqlite`, and start the server again:
 
    ```sh
    sudo systemctl stop discord-casino.service
+   sudo -u casino rm -f /opt/discord-casino/data/casino.sqlite-wal /opt/discord-casino/data/casino.sqlite-shm
    sudo -u casino cp /var/backups/discord-casino/casino-YYYYMMDD-HHMMSS.sqlite /opt/discord-casino/data/casino.sqlite
    sudo systemctl start discord-casino.service
    ```
+
+   The `-wal` and `-shm` files belong to the database you are replacing. If they stay, SQLite may try to apply them to the restored copy. Everything since the backup is gone after a restore, so tell your players.
 
 ✅ **Check:** `sudo systemctl status discord-casino.service` shows `active (running)` with no database errors in `journalctl`.
 
@@ -143,19 +146,21 @@ Before deploying to real hardware, `ops/pi-sim/Dockerfile` and `ops/pi-sim/compo
 
 The server runs in the `pi-sim` container (`arm64`, 512 MB, 2 CPUs, no swap, `node --max-old-space-size=192`, `NODE_ENV=production`) on a GitHub `ubuntu-24.04-arm` runner. `apps/server/scripts/load.ts` logs in 30 simulated players over loopback with session tokens it signs itself (`BOT_DISABLED=1`, a throw-away `SESSION_SECRET`, a file database inside the container) and plays a realistic mix: roulette, slots and blackjack seats (one round per player at a time), race bets, daily claims, transfers, market orders and the read-only screens, plus a `time:ping` per player per second for the round trip. A probe preloaded into the server (`ops/pi-sim/perf/probe.mjs`) reports RSS, CPU and event-loop lag once a second.
 
-| Metric (30 players, 5 minutes) | Target | Before tuning | After tuning |
-| --- | --- | --- | --- |
-| Idle RSS after boot | ≤ 150 MB | 137.4 MB | 137.4 MB (unchanged) |
-| RSS under load, peak | ≤ 250 MB | 157.8 MB | 157.8 MB (unchanged) |
-| RSS under load, steady | – | 156.2 MB | 156.2 MB (unchanged) |
-| Container memory peak (cgroup) | – | 117 MB | 117 MB (unchanged) |
-| Socket round trip p95, loopback | < 50 ms | 0.73 ms | 0.73 ms (unchanged) |
-| Cold start (`docker run` to `/api/health`) | < 5 s | 1.16 s | 1.16 s (unchanged) |
-| CPU, mean / p95 (% of one of 2 cores) | – | 4.0 / 5.7 | 4.0 / 5.7 (unchanged) |
-| Event-loop lag idle, p50 / p95 / p99 | – | 0.1 / 0.3 / 1.1 ms | unchanged |
-| Event-loop lag under load, p50 / p95 / p99 | – | 0.1 / 1.1 / 1.6 ms | unchanged |
+| Metric (30 players, 5 minutes) | Target | Before tuning | After tuning | Release check (v1.0.0) |
+| --- | --- | --- | --- | --- |
+| Idle RSS after boot | ≤ 150 MB | 137.4 MB | 137.4 MB (unchanged) | 137.2 MB |
+| RSS under load, peak | ≤ 250 MB | 157.8 MB | 157.8 MB (unchanged) | 159.3 MB |
+| RSS under load, steady | – | 156.2 MB | 156.2 MB (unchanged) | 157.7 MB |
+| Container memory peak (cgroup) | – | 117 MB | 117 MB (unchanged) | 117.4 MB |
+| Socket round trip p95, loopback | < 50 ms | 0.73 ms | 0.73 ms (unchanged) | 0.72 ms |
+| Cold start (`docker run` to `/api/health`) | < 5 s | 1.16 s | 1.16 s (unchanged) | 1.12 s |
+| CPU, mean / p95 (% of one of 2 cores) | – | 4.0 / 5.7 | 4.0 / 5.7 (unchanged) | 3.6 / 5.3 |
+| Event-loop lag idle, p50 / p95 / p99 | – | 0.1 / 0.3 / 1.1 ms | unchanged | 0.1 / 0.2 / 1.1 ms |
+| Event-loop lag under load, p50 / p95 / p99 | – | 0.1 / 1.1 / 1.6 ms | unchanged | 0.1 / 1.1 / 1.4 ms |
 
 **Every target was met on the first measurement, so no server code was changed** ("after" equals "before"; the targets were not raised). Over the 5 minutes there were no `5xx`, no `internal` errors and no unexpected disconnects. Refusals such as `game_busy`, `insufficient_funds`, `transfer_min_games` and an already claimed daily bonus are normal play and are counted separately in the report.
+
+**Release check (2026-11-24, before v1.0.0):** the same 5-minute run on the release branch, with every Wave 4 change merged (run [45211982992](https://github.com/S3nc0/discord-casino-bot-remaster/actions/runs/45211982992)), met every target again with no failures and no unexpected disconnects. The numbers moved by run-to-run noise only (idle RSS 137.2 MB, peak 159.3 MB, round trip p95 0.72 ms, cold start 1.12 s).
 
 Headroom check, same container: 60 players at five times the action rate for 2 minutes gave RSS peak 184.5 MB, CPU 23.8 % mean / 34.2 % p95 of one core, socket round trip p95 2.5 ms and event-loop lag p99 2.2 ms, again with no failures.
 

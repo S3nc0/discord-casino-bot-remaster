@@ -10,12 +10,13 @@
 - `catalogs/games.yaml:97-150,151-155`
 - `catalogs/skins.yaml:54-69,98-105`
 - `docs/casino.md:24-35`
-- `legacy/python/domain/games/pachinko.py:1-211`
-- `legacy/python/domain/games/rtplevel.py:76-79,85`
-- `legacy/python/infra/db/pachinko.py:1-71`
-- `legacy/python/cogs/casino/cog.py:65-78`
-- `legacy/python/cogs/casino/pachinko.py:1-431`
-- `legacy/python/cogs/casino/texts.py:122-194`
+- 元の Python ボット（v1.0.0 より前の git 履歴を参照）。パスはそのフォルダからの相対パスです：
+  - `domain/games/pachinko.py:1-211`
+  - `domain/games/rtplevel.py:76-79,85`
+  - `infra/db/pachinko.py:1-71`
+  - `cogs/casino/cog.py:65-78`
+  - `cogs/casino/pachinko.py:1-431`
+  - `cogs/casino/texts.py:122-194`
 
 ## ルールと正確な数値
 

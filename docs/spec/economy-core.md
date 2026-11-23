@@ -8,28 +8,29 @@ Covers: **per-guild economy**, **3,000 initial balance**, `AccountCore` ledger &
 
 ## Source Files
 - `catalogs/economy.yaml:2-18`
-- `legacy/python/domain/types.py:8-37`
-- `legacy/python/domain/history.py:1-98`
-- `legacy/python/domain/approval.py:1-36`
-- `legacy/python/domain/features.py:1-85`
-- `legacy/python/infra/db/base.py:22-108`
-- `legacy/python/infra/db/account.py:1-68`
-- `legacy/python/infra/db/wallet.py:52-109,204-301`
-- `legacy/python/infra/db/assets.py:1-218`
-- `legacy/python/infra/db/guild.py:1-194`
-- `legacy/python/infra/db/notices.py:1-30`
-- `legacy/python/infra/db/repositories.py:278-296`
-- `legacy/python/services/economy.py:22-112`
-- `legacy/python/services/ranking.py:1-46`
-- `legacy/python/cogs/economy/cog.py:72-123,201-255,318-325`
-- `legacy/python/cogs/economy/embeds.py:15-79,170-173`
-- `legacy/python/cogs/economy/boards.py:1-188`
-- `legacy/python/cogs/shared/ranking.py:1-110`
-- `legacy/python/cogs/shared/approval_guard.py:1-112`
-- `legacy/python/cogs/shared/announce.py:1-21`
-- `legacy/python/cogs/shared/texts.py:1-20`
-- `legacy/python/cogs/shared/messages/base.py:88-100`
-- `legacy/python/main.py:56-104`
+- The original Python bot (see git history before v1.0.0), paths relative to its folder:
+  - `domain/types.py:8-37`
+  - `domain/history.py:1-98`
+  - `domain/approval.py:1-36`
+  - `domain/features.py:1-85`
+  - `infra/db/base.py:22-108`
+  - `infra/db/account.py:1-68`
+  - `infra/db/wallet.py:52-109,204-301`
+  - `infra/db/assets.py:1-218`
+  - `infra/db/guild.py:1-194`
+  - `infra/db/notices.py:1-30`
+  - `infra/db/repositories.py:278-296`
+  - `services/economy.py:22-112`
+  - `services/ranking.py:1-46`
+  - `cogs/economy/cog.py:72-123,201-255,318-325`
+  - `cogs/economy/embeds.py:15-79,170-173`
+  - `cogs/economy/boards.py:1-188`
+  - `cogs/shared/ranking.py:1-110`
+  - `cogs/shared/approval_guard.py:1-112`
+  - `cogs/shared/announce.py:1-21`
+  - `cogs/shared/texts.py:1-20`
+  - `cogs/shared/messages/base.py:88-100`
+  - `main.py:56-104`
 
 ## Rules & Exact Numbers
 

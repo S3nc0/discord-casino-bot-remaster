@@ -9,18 +9,19 @@ Planned owner: `B3` | Screen IDs: `teiai-bank`, `teiai-bank-cds`, `teiai-bank-de
 ## Source Files
 - `catalogs/teiai.yaml:1-112`
 - `docs/teiai.md:1-110`
-- `legacy/python/domain/teiai.py:1-115`
-- `legacy/python/domain/thermostat.py:1-89`
-- `legacy/python/domain/rates.py:1-68`
-- `legacy/python/infra/db/bank.py:1-755`
-- `legacy/python/infra/db/debt.py:1-669`
-- `legacy/python/infra/db/repositories.py:202-276`
-- `legacy/python/services/teiai.py:1-135`
-- `legacy/python/cogs/teiai/panel.py:1-308`
-- `legacy/python/cogs/teiai/escape.py:1-100`
-- `legacy/python/cogs/teiai/texts.py:1-64`
-- `legacy/python/cogs/shared/messages/economy.py:109-142`
-- `legacy/python/cogs/shared/messages/notices.py:10-20,25-30,39-41`
+- The original Python bot (see git history before v1.0.0), paths relative to its folder:
+  - `domain/teiai.py:1-115`
+  - `domain/thermostat.py:1-89`
+  - `domain/rates.py:1-68`
+  - `infra/db/bank.py:1-755`
+  - `infra/db/debt.py:1-669`
+  - `infra/db/repositories.py:202-276`
+  - `services/teiai.py:1-135`
+  - `cogs/teiai/panel.py:1-308`
+  - `cogs/teiai/escape.py:1-100`
+  - `cogs/teiai/texts.py:1-64`
+  - `cogs/shared/messages/economy.py:109-142`
+  - `cogs/shared/messages/notices.py:10-20,25-30,39-41`
 
 ## Rules & Exact Numbers
 
@@ -29,7 +30,7 @@ Planned owner: `B3` | Screen IDs: `teiai-bank`, `teiai-bank-cds`, `teiai-bank-de
   - `SEED = 3_000` (seed loan cap & Blackjack Teiai credit double cap)
   - `REPAY_RATE = 0.30` (30% of eligible `income` withheld toward debt: `int(income * 0.30)`; senior Teiai first, remaining budget to overdue P2P loans oldest-first)
   - `SKIM_RATE = 0.20` (20% daily bonus skim while in debt: `int(amount * 0.20)`, credited to Teiai House Account `teiai_house`, does NOT reduce debt)
-  - `LABOR_SKIM_RATE = 0.03` (3% labor pot claim skim credited to `teiai_house`; note `docs/teiai.md:46` stale-says 1%)
+  - `LABOR_SKIM_RATE = 0.03` (3% labor pot claim skim credited to `teiai_house`; note `docs/teiai.md:46` stale-says 1%. The remaster uses 3%: `LABOR_SKIM_RATE_BPS = 300` in `packages/domain/src/progression/economy-core.ts`)
   - `HORSE_PRIZE_SKIM_RATE = 0.0` (0%)
   - `DEBT_RATE_PER_DAY = 0.01` (1%/day simple interest = トイチ, whole completed days only)
   - `DEBT_INTEREST_MAX_DAYS = 10` (caps single accrual at 10 days; excess elapsed days reset `debt_interest_at = now`)

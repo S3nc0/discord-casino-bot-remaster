@@ -1,6 +1,6 @@
 # 地下闘技場
 
-[← README に戻る](../README.md)　／　[ドキュメントの一覧](../README.md#詳しい仕様docs)
+[← README に戻る](../README.ja.md)　／　[ドキュメントの一覧](spec/INDEX.ja.md)
 
 ## 地下闘技場
 

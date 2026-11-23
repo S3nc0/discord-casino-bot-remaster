@@ -11,7 +11,9 @@ for fam,d in t.items():
             light.append(f"  --{tok['name']}: {v(val.get('light',list(val.values())[0]))};")
             if 'dark' in val and val['dark']!=val.get('light'): dark.append(f"  --{tok['name']}: {v(val['dark'])};")
         else: light.append(f"  --{tok['name']}: {v(val)};")
-for k,f in t['type']['families'].items(): light.append(f"  --font-{k}: {f};")
+fams=t['type']['families']
+# a family that repeats the body stack (numeric) points at it, as the app's tokens.css does
+for k,f in fams.items(): light.append(f"  --font-{k}: {'var(--font-body)' if k!='body' and f==fams.get('body') else f};")
 out=["/* Bitbloom — generated from tokens.json. Do not edit by hand. */",":root, [data-theme=\"light\"] {",*light,"}",
 "[data-theme=\"dark\"] {",*dark,"}","@media (prefers-color-scheme: dark) {",":root:not([data-theme=\"light\"]) {",*dark,"}","}"]
 for g in t['type']['groups']:

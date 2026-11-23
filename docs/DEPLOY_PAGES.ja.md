@@ -5,7 +5,7 @@
 手順の全体（**Workers** ではなく **Pages** を選ぶための確認も含む）は、オーナー向けセットアップガイドを見てください。
 
 - **English:** [Owner Setup Guide — Step 3: Cloudflare Pages](OWNER_SETUP.md#3-cloudflare-pages-host-the-web-app)
-- **日本語:** [オーナー向けセットアップガイド](OWNER_SETUP.ja.md)（手順 3）
+- **日本語:** [オーナー向けセットアップガイド — 手順 3：Cloudflare Pages](OWNER_SETUP.ja.md#3-cloudflare-pagesweb-アプリの公開)
 
 ## クイックリファレンス
 

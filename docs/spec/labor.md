@@ -8,16 +8,17 @@
 
 - `catalogs/labor.yaml` (L1–L178): tools, click cap, fatigue, crits, terrain, workers, ores, relics, dorm, anti-macro thresholds
 - `catalogs/teiai.yaml` (L3): `labor_skim_rate: 0.03` (3% Teiai skim on collect)
-- `legacy/python/domain/labor.py` (L1–L421): pure clicker math, terrain, crits, worker settlement, ore/relic rolls, anti-macro CV detection
-- `legacy/python/infra/db/labor.py` (L1–L590): `LaborRepo` persistence, click, collect, drink, upgrade, hire/dismiss, dorm, renew, rankings, click hour logging
-- `legacy/python/services/labor.py` (L1–L67): `LaborService` facade
-- `legacy/python/cogs/labor/cog.py` (L1–L80): `/地下 作業` and `/地下 ランキング`
-- `legacy/python/cogs/labor/embeds.py` (L1–L168): work panel, hire panel, mining ranking embeds
-- `legacy/python/cogs/labor/views.py` (L1–L253): `LaborView` interactive tabs/buttons
-- `legacy/python/cogs/shared/messages/games.py` (L62–L71): failure messages
+- The original Python bot (see git history before v1.0.0), paths relative to its folder:
+  - `domain/labor.py` (L1–L421): pure clicker math, terrain, crits, worker settlement, ore/relic rolls, anti-macro CV detection
+  - `infra/db/labor.py` (L1–L590): `LaborRepo` persistence, click, collect, drink, upgrade, hire/dismiss, dorm, renew, rankings, click hour logging
+  - `services/labor.py` (L1–L67): `LaborService` facade
+  - `cogs/labor/cog.py` (L1–L80): `/地下 作業` and `/地下 ランキング`
+  - `cogs/labor/embeds.py` (L1–L168): work panel, hire panel, mining ranking embeds
+  - `cogs/labor/views.py` (L1–L253): `LaborView` interactive tabs/buttons
+  - `cogs/shared/messages/games.py` (L62–L71): failure messages
 - `docs/labor.md` (L1–L118): original design doc
 
-> **Doc Discrepancy Note**: `docs/teiai.md:46` mentions 1% labor skim, while `catalogs/teiai.yaml:3` and `docs/labor.md:18` use **`labor_skim_rate = 0.03` (3%)**. Follow `catalogs/teiai.yaml:3` (3%).
+> **Doc Discrepancy Note**: `docs/teiai.md:46` mentions 1% labor skim, while `catalogs/teiai.yaml:3` and `docs/labor.md:18` use **`labor_skim_rate = 0.03` (3%)**. Follow `catalogs/teiai.yaml:3` (3%). The remaster uses 3% too (`LABOR_SKIM_RATE_BPS = 300` in `packages/domain/src/progression/economy-core.ts`); `docs/teiai.md` is the original bot's own doc and is kept as it was.
 
 ---
 
@@ -80,6 +81,8 @@
 | `miner` | `坑夫` | `👷` | `10.05` | `520` | `0.415` | `0.8` | — |
 | `craftsman` | `職人` | `🧑‍🔧` | `23.55` | `1,160` | `0.95` | `1.0` | — |
 | `foreman` | `監督` | `🕴️` | `0` | `640` | `0.0` | `0.0` | `+25%` luck per foreman (`FOREMAN_LUCK = 0.25`) |
+
+> **Names in the remaster**: the names above are the original bot's. The app shows `craftsman` as **熟練工** (not 職人) and `foreman` as **現場監督** (not 監督); English Craftsman and Foreman (`screen.life.work.worker.*` in `packages/shared/i18n/ja.ts` and `en.ts`). The keys and numbers are the same.
 
 - Dismissing a worker removes the one with the earliest `expires_at` of that `kind`; contract fee is **not** refunded (`infra/db/labor.py:549-561`).
 

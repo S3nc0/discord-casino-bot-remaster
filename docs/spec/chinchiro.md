@@ -10,12 +10,13 @@ Shared contract alignment: `GameId = 'chinchiro'`, `ScreenId = 'chinchiro'`, `LE
 - `catalogs/games.yaml:74-96,151-157`
 - `catalogs/skins.yaml:8-53,81-96`
 - `docs/casino.md:5-22,138-144`
-- `legacy/python/domain/games/chinchiro.py:1-139`
-- `legacy/python/domain/games/rtplevel.py:27,86`
-- `legacy/python/cogs/casino/cog.py:51-63`
-- `legacy/python/cogs/casino/chinchiro.py:1-229`
-- `legacy/python/cogs/casino/chinchiro_table.py:1-209`
-- `legacy/python/cogs/casino/texts.py:42-76`
+- The original Python bot (see git history before v1.0.0), paths relative to its folder:
+  - `domain/games/chinchiro.py:1-139`
+  - `domain/games/rtplevel.py:27,86`
+  - `cogs/casino/cog.py:51-63`
+  - `cogs/casino/chinchiro.py:1-229`
+  - `cogs/casino/chinchiro_table.py:1-209`
+  - `cogs/casino/texts.py:42-76`
 
 ## Rules & Exact Numbers
 

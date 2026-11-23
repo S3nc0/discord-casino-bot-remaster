@@ -169,7 +169,7 @@ HorseFoaled = event('HorseFoaled', {
 
 ## 7. 実装の概要（B2-B 向け）
 
-- レースのドメインモジュール（`packages/domain/race/`、B2-B）に、純粋な `breedFoal({ a, b, name, silks }, ctx)` を置きます：対象の確認、能力（§3.1）、毛色。子馬の下書きと `HorseFoaled` イベントの下書きを持つ `Outcome` を返します。定数は、馬のカタログの隣のカタログのブロックに置きます。
+- レースのドメインモジュール（`packages/domain/src/race/breed.ts`、B2-B）に、純粋な `breedFoal({ a, b, name, silks }, ctx)` を置きます：対象の確認、能力（§3.1）、毛色。子馬の下書きと `HorseFoaled` イベントの下書きを持つ `Outcome` を返します。定数は、馬のカタログの隣のカタログのブロックに置きます。
 - サーバーのサービス：1 つのトランザクション ＝ 両方の馬と配合する人（残高、債務、頭数）の読み直し、条件つきの親の更新、`EconomyService` による `horse_breeding_fee` の引き落とし、子馬と `horse_breedings` の挿入、冪等性の記録。コミットのあとに `HorseFoaled` を発行します。
 - 出走登録：既存の登録の確認の隣に `matures_at` の確認を足します。`gold_carrot`：`TOTAL_CAP` の確認を足します。
 - 共有部分の変更（先に A1 のタスク）：台帳の理由、`HorseFoaled`、通知の種類 `horse_foaled`、i18n キー。

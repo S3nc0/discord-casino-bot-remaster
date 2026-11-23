@@ -4,6 +4,8 @@
 
 旧ボットの各モジュールを、挙動仕様、決定論的なパリティ用フィクスチャのディレクトリ、移植の担当に対応づけたマスター索引です。
 
+> **元のコードの場所。** 元の Python ボットは v1.0.0 でツリーから削除し、git 履歴にだけ残っています。これらの仕様にある `.py` のパス（`domain/…`、`infra/…`、`services/…`、`cogs/…`、`manage.py`）は、すべてそのボットのフォルダからの相対パスで、行番号も当時のものです。読むには：`git show "$(git log --diff-filter=D --format=%H -1 -- legacy/python)^:legacy/python/domain/horse.py"`。ここにあるルールと数値はリマスターが実装しているもので、リマスターが違う場合は仕様にそう書いてあります。
+
 - **B2-A**：カジノゲーム（`chinchiro`、`pachinko`、`slots`、`blackjack`、`roulette`、および共通の `casino-common`）。
 - **B2-B**：カジノ以外のゲーム、育成、ソーシャルゲーム、ショップ、経済の中核（`horse`、`arena`、`labor`、`relics`、`quiz`、`lottery`、`polls`、`shop`、`missions`、`weekly-ranking`、`daily`、`transfer`、`economy-core`、`admin`）。
 - **B3**：金融、証券、銀行、信用、共済、会社、プレイヤーマーケット（`stocks`、`crypto`、`teiai`、`p2p-loans`、`kyosai`、`player-market`、`companies`）。
@@ -50,6 +52,6 @@
 
 - **サーバー別経済**と**初期残高 3,000**は、同じ `AccountCore` / `WalletRepo` の初期化経路と `users` テーブルのスキーマを共有するため、[economy-core.ja.md](economy-core.ja.md) にまとめました。
 - **帝愛銀行**のサブシステムである**個人間融資**（[p2p-loans.ja.md](p2p-loans.ja.md)）と**帝愛共済**（[kyosai.ja.md](kyosai.ja.md)）は、それぞれ独立したドメインモジュール、データベーススキーマ、状態機械を持つため、[teiai.ja.md](teiai.ja.md) と並べて専用の仕様ファイルとフィクスチャのディレクトリを用意しました。
-- **馬の配合**は依頼文には挙がっていますが、`legacy/python/` のどこにも存在しません。[horse.ja.md](horse.ja.md) に、存在しないことを明記しています。
+- **馬の配合**は、元の Python ボットのどこにも存在しません。[horse.ja.md](horse.ja.md) に存在しないことを明記し、リマスター独自の設計は [horse-breeding.ja.md](horse-breeding.ja.md) にあります。
 - **暗号資産**（`/暗号`）は、旧版で `/証券` に統合されました（`cs` = `CSトークン`）。[crypto.ja.md](crypto.ja.md) が `CryptoRepo` の現物台帳を扱い、市場のティックと信用取引は [stocks.ja.md](stocks.ja.md) を参照します。
 - **カジノ共通**（[casino-common.ja.md](casino-common.ja.md)）は、RTP レベル、ジャックポット、ボーナスイベント、エスクローのルールを 1 か所にまとめ、5 つのカジノ仕様で重複しないようにしています。

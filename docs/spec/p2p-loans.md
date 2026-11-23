@@ -7,13 +7,14 @@ Planned owner: `B3` | Screen ID: `loans` (`packages/shared/src/ids.ts`) | Featur
 ## Source Files
 - `catalogs/economy.yaml:20-30`
 - `docs/teiai.md:111-124`
-- `legacy/python/domain/loans.py:1-67`
-- `legacy/python/infra/db/loans.py:1-432`
-- `legacy/python/services/loan.py:1-94`
-- `legacy/python/cogs/loan/cog.py:1-331`
-- `legacy/python/cogs/loan/embeds.py:1-70`
-- `legacy/python/cogs/loan/views.py:1-149`
-- `legacy/python/cogs/shared/messages/economy.py:144-167,200-202`
+- The original Python bot (see git history before v1.0.0), paths relative to its folder:
+  - `domain/loans.py:1-67`
+  - `infra/db/loans.py:1-432`
+  - `services/loan.py:1-94`
+  - `cogs/loan/cog.py:1-331`
+  - `cogs/loan/embeds.py:1-70`
+  - `cogs/loan/views.py:1-149`
+  - `cogs/shared/messages/economy.py:144-167,200-202`
 
 ## Rules & Exact Numbers
 

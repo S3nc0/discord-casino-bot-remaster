@@ -9,18 +9,19 @@
 ## 元ファイル
 - `catalogs/teiai.yaml:1-112`
 - `docs/teiai.md:1-110`
-- `legacy/python/domain/teiai.py:1-115`
-- `legacy/python/domain/thermostat.py:1-89`
-- `legacy/python/domain/rates.py:1-68`
-- `legacy/python/infra/db/bank.py:1-755`
-- `legacy/python/infra/db/debt.py:1-669`
-- `legacy/python/infra/db/repositories.py:202-276`
-- `legacy/python/services/teiai.py:1-135`
-- `legacy/python/cogs/teiai/panel.py:1-308`
-- `legacy/python/cogs/teiai/escape.py:1-100`
-- `legacy/python/cogs/teiai/texts.py:1-64`
-- `legacy/python/cogs/shared/messages/economy.py:109-142`
-- `legacy/python/cogs/shared/messages/notices.py:10-20,25-30,39-41`
+- 元の Python ボット（v1.0.0 より前の git 履歴を参照）。パスはそのフォルダからの相対パスです：
+  - `domain/teiai.py:1-115`
+  - `domain/thermostat.py:1-89`
+  - `domain/rates.py:1-68`
+  - `infra/db/bank.py:1-755`
+  - `infra/db/debt.py:1-669`
+  - `infra/db/repositories.py:202-276`
+  - `services/teiai.py:1-135`
+  - `cogs/teiai/panel.py:1-308`
+  - `cogs/teiai/escape.py:1-100`
+  - `cogs/teiai/texts.py:1-64`
+  - `cogs/shared/messages/economy.py:109-142`
+  - `cogs/shared/messages/notices.py:10-20,25-30,39-41`
 
 ## ルールと正確な数値
 
@@ -29,7 +30,7 @@
   - `SEED = 3_000`（種銭の貸付の上限と、ブラックジャックの帝愛の信用でのダブルの上限）
   - `REPAY_RATE = 0.30`（対象となる `income` の 30% を債務の返済に天引きします：`int(income * 0.30)`。優先は帝愛で、残りの枠は延滞中の P2P の貸付に古い順に回します）
   - `SKIM_RATE = 0.20`（債務中のデイリーボーナスから 20% をピンハネ：`int(amount * 0.20)`。帝愛のハウス口座 `teiai_house` に入り、債務は減りません）
-  - `LABOR_SKIM_RATE = 0.03`（地下労働のポットの受け取りから 3% のピンハネ。`teiai_house` に入ります。注：`docs/teiai.md:46` は古く、1% と書いています）
+  - `LABOR_SKIM_RATE = 0.03`（地下労働のポットの受け取りから 3% のピンハネ。`teiai_house` に入ります。注：`docs/teiai.md:46` は古く、1% と書いています。リマスターは 3% です：`packages/domain/src/progression/economy-core.ts` の `LABOR_SKIM_RATE_BPS = 300`）
   - `HORSE_PRIZE_SKIM_RATE = 0.0`（0%）
   - `DEBT_RATE_PER_DAY = 0.01`（1 日 1% の単利 ＝ トイチ。完了した日数だけ）
   - `DEBT_INTEREST_MAX_DAYS = 10`（1 回の加算を最大 10 日分に頭打ち。超えた経過日数は、`debt_interest_at = now` にリセット）

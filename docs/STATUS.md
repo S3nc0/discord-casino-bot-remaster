@@ -1,3 +1,5 @@
+**English** | [日本語](STATUS.ja.md)
+
 # Status board
 
 Hard fork of fatcorn753/discord-casino-bot, rewritten in TypeScript as a Discord Activity plus chat bot. Updated by the Scribe from task reports.
@@ -77,16 +79,27 @@ Owners register commands with `pnpm commands:deploy:guild` (see the [Owner Setup
 
 | Task | Scope | Owner | State |
 | --- | --- | --- | --- |
-| 4.1 | READMEs (EN/JA) + CHANGELOG | SC | READMEs done (PR #58); CHANGELOG in progress (this PR) |
+| 4.1 | READMEs (EN/JA) | SC | done (PR #58) |
+| 4.2 | MAINTAINERS/CONTRIBUTING/SECURITY (EN/JA) + CHANGELOG | SC | done (PR #64) |
 | 4.ART | Pixel art v2: horse, icons, README art | SC | done (PR #62) |
 | 4.D1 | Listing inventory picker, arena runner-up | D1 | done (PR #63) |
-| 4.2 | MAINTAINERS/CONTRIBUTING/SECURITY (EN/JA) | SC | in progress (this PR) |
-| 4.3 | Delete legacy, tag v1.0.0, deploy | O1 | todo |
+| 4.D1b | Listing an equipped cosmetic unequips it | D1 | done (PR #65) |
+| 4.ART2a | Casino games as detailed pixel scenes | SC | done (PR #68) |
+| 4.ART2b | Race, arena and life scenes | SC | done (PR #66) |
+| 4.ART2c | Finance scenes and pixel candlestick charts | SC | done (PR #71) |
+| 4.ART2d | Social and player scenes | SC | done (PR #69) |
+| 4.JA1 | Japanese versions of every `docs/spec` file | SC | done (PR #70) |
+| 4.JA2 | Japanese versions of the remaining guides | SC | done (PR #67) |
+| 4.D2 | Readable numbers everywhere, softer kit button colour rule | D1 | done (PR #72) |
+| 4.D2 follow-up | Casino lazy fallback and route test flake | D1 | done (PR #73) |
+| 4.D3 | Fast, deterministic breeding range test (`SLOW_TESTS=1` for the full sweep) | D1 | done (PR #74) |
+| 4.REL | Remove the original Python bot, every Markdown file up to date (EN/JA), final Pi check | SC + O1 | in review (PR #75) |
+| 4.3 | Tag v1.0.0, set the CHANGELOG date, deploy | Leader + O1 | todo |
 | 4.4 | Final tree check + push | Leader | todo |
 
 ## Blockers
 
-None. Wave 3 is complete (Gate 3 passed 2026-11-23); Wave 4, the release, is in progress.
+None. Wave 3 is complete (Gate 3 passed 2026-11-23). Wave 4: every feature, art and fix task is merged; the release itself (tag, date, deploy) is pending.
 
 ## Notes
 

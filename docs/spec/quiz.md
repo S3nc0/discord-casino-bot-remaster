@@ -7,16 +7,17 @@
 ## 1. Source Files
 
 - `catalogs/economy.yaml` (L32–L52): `quizpay` constants & text limits
-- `legacy/python/domain/quizpay.py` (L1–L58): author payout math (`factor`, `scale`, `base_reward`, `bonus`, `participation`, `author_payout`)
-- `legacy/python/domain/quizimport.py` (L1–L167): bulk text import parser (`parse_bulk`)
-- `legacy/python/domain/duration.py` (L1–L34): Japanese duration parser & formatter (`parse_duration`, `format_minutes`)
-- `legacy/python/infra/db/quiz.py` (L1–L329): `QuizRepo` CRUD, answering, real-time author payout adjustments, debt fallback, withdrawal, settlement
-- `legacy/python/services/quiz.py` (L1–L70): `QuizService` facade
-- `legacy/python/cogs/quiz/cog.py` (L1–L280): `/クイズ 挑戦|出題|取り下げ`, 1-minute settlement loop, admin broadcast
-- `legacy/python/cogs/quiz/embeds.py` (L1–L149): choice/term/verdict validation, question/result/public/settle embeds
-- `legacy/python/cogs/quiz/views.py` (L1–L290): `PublicButton` (dynamic persistent), `AnswerView`, `AddModal`, `UserModal`
-- `legacy/python/cogs/quiz/texts.py` (L1–L5): default verdict labels
-- `legacy/python/cogs/shared/messages/games.py` (L72–L83): failure messages
+- The original Python bot (see git history before v1.0.0), paths relative to its folder:
+  - `domain/quizpay.py` (L1–L58): author payout math (`factor`, `scale`, `base_reward`, `bonus`, `participation`, `author_payout`)
+  - `domain/quizimport.py` (L1–L167): bulk text import parser (`parse_bulk`)
+  - `domain/duration.py` (L1–L34): Japanese duration parser & formatter (`parse_duration`, `format_minutes`)
+  - `infra/db/quiz.py` (L1–L329): `QuizRepo` CRUD, answering, real-time author payout adjustments, debt fallback, withdrawal, settlement
+  - `services/quiz.py` (L1–L70): `QuizService` facade
+  - `cogs/quiz/cog.py` (L1–L280): `/クイズ 挑戦|出題|取り下げ`, 1-minute settlement loop, admin broadcast
+  - `cogs/quiz/embeds.py` (L1–L149): choice/term/verdict validation, question/result/public/settle embeds
+  - `cogs/quiz/views.py` (L1–L290): `PublicButton` (dynamic persistent), `AnswerView`, `AddModal`, `UserModal`
+  - `cogs/quiz/texts.py` (L1–L5): default verdict labels
+  - `cogs/shared/messages/games.py` (L72–L83): failure messages
 
 ---
 

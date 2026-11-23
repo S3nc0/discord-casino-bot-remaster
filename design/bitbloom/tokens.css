@@ -438,6 +438,7 @@
   --state-dragged: 0.16;
   --font-display: "Pixelify Sans", ui-rounded, system-ui, sans-serif;
   --font-body: "Atkinson Hyperlegible", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-numeric: var(--font-body);
 }
 [data-theme="dark"] {
   --primary: var(--green-70);

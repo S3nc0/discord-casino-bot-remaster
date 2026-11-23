@@ -9,10 +9,11 @@ Planned owner: `B3` | Screen IDs: `stocks`, `stocks-detail` (`packages/shared/sr
 ## Source Files
 - `catalogs/market.yaml:10-22,41-53,64-72,80-81`
 - `docs/stocks.md:1-35`
-- `legacy/python/domain/market.py:22-23,39-48,176-186,211-265`
-- `legacy/python/infra/db/crypto.py:1-192`
-- `legacy/python/cogs/shared/messages/market.py:42-51`
-- `legacy/python/cogs/market/embeds.py:54-62,322-330`
+- The original Python bot (see git history before v1.0.0), paths relative to its folder:
+  - `domain/market.py:22-23,39-48,176-186,211-265`
+  - `infra/db/crypto.py:1-192`
+  - `cogs/shared/messages/market.py:42-51`
+  - `cogs/market/embeds.py:54-62,322-330`
 
 ## Rules & Exact Numbers
 

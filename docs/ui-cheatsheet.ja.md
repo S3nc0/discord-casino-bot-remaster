@@ -43,3 +43,21 @@
 | `Tag` | `hue?`（`'neutral'` か 16 色の hue）、`solid?`、`icon?`、`children` | 操作できないカテゴリー、レア度、状態のピル。色は必ず文字と組にします。 |
 | `TextField` | `label`、`helperText?`、`error?`（`string \| boolean`）、`leadingIcon?` | 1 行の入力欄。上に常にラベルがあり、エラーは次の行動がわかる文にします。 |
 | `Surface` | `label?`、`children?` | 意味を持つ `<section class="bb-surface">` の入れ物。 |
+| `ScrollFade` | `revealSelector?`、`children` | 収まらないときに横にスクロールする行で、まだ隠れたものがある端をやわらかくぼかします（チップの行）。最初に選択中の子を見える位置まで動かします。 |
+
+## ドット絵
+
+ドット絵はすべて `tools/pixel-art/` が作るデータです（[MAINTAINERS.ja.md](../MAINTAINERS.ja.md#ドット絵を作り直す) を参照）。手で直さないでください。色はパレットのトークンなので、ライトとダークが同じ行から描かれます。どの絵も、`label` を渡さなければ飾り（`aria-hidden`）です。動きを減らす設定では、どのアニメーションも止まった絵になります。
+
+| エクスポート | 主なプロパティ | 使いどころ |
+| --- | --- | --- |
+| `GameIcon` | `name`（`GameIconName`、35 種）、`label?`、`bob?` | タイルや見出しのゲームや機能のアイコン。16×16 の絵を整数倍の大きさで。 |
+| `Skyline` | `variant?`（`'night'\|'day'`。テーマに従う） | ホームのヒーローの後ろのドット絵の街。 |
+| `Sparkle` | `twinkle?` | ごほうびの小さなきらめき（`tertiary`）。 |
+| `PixelScene` | `art`（`SceneArt`）、`frame?`、`scale?`（整数）、`label?`、`children?` | 画面の場面を、くっきりした整数倍の大きさで。上に重ねる層も置けます。 |
+| `SceneLayer` | `art`、`frame?`、`x?`、`y?`、`flip?` | `PixelScene` の中に置くスプライト（馬房の馬の肖像、闘技場の戦士）。 |
+| `PixelTile` | `art`、`scale?` | 箱全体に繰り返す絵（芝、壁紙）。 |
+| `useSceneFrame` | `(count, ms, play?)` | くり返す絵のコマ番号。止めているときと、動きを減らす設定では 0。 |
+| `useSceneOnce` | `{ frames, ms, trigger?, rest?, onMount? }` | 求めたときに 1 回だけ動く絵（正解の演出、プレゼントが開く）のコマ番号。終わると止まった絵に戻ります。 |
+
+`SceneArt` は `{ w, h, legend, frames }` です。各コマは行の文字列の並びで、`legend` は文字をパレットのトークン名の組 `[ライト, ダーク]` に対応させます。画面専用の場面の入れ物（`CasinoScene`、`FinanceScene`）は、`apps/web` の画面の隣にあります。

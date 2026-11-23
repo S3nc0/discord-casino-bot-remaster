@@ -72,6 +72,8 @@
   </tr>
 </table>
 
+どの画面にも、昼（ライト）と夜（ダーク）の2通りに描いた、細かいドット絵の場面があります。電球が流れるスロットの筐体、ブラックジャックの卓、スタンドとゲート、闘技場、鉱山、銀行のホール、立会場などです。短いアニメーションが動き、動きを減らす設定にすると止まった絵になります。
+
 画面は**日本語と英語**に対応していて、Discord の言語設定に合わせて切り替わります。
 
 ## はじめかた
@@ -145,19 +147,22 @@ packages/ui/     Bitbloom のピクセル部品、アイコン、サウンド
 catalogs/        調整できる数値（YAML）
 docs/            ガイド、仕様、設計メモ
 design/          Bitbloom のデザイントークン
+tools/pixel-art/ アイコン、スプライト、場面をすべて作る生成スクリプト
+tests/           複数クライアントのソケットのテストと、台帳のプロパティテスト
 ops/             Raspberry Pi 用キットとトンネルの雛形
-legacy/          元の Python 製 Bot（参考用に残しています）
 ```
 
-はじめて読むなら、[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)、続けて[挙動の仕様](docs/spec/INDEX.md)がおすすめです。進み具合は [docs/STATUS.md](docs/STATUS.md) にあります。
+元の Python 製 Bot はもうツリーにはありません。v1.0.0 より前の git 履歴に残っています。
 
-**メンテナー向け：** [メンテナー向けガイド](MAINTAINERS.ja.md) · [コントリビューション](CONTRIBUTING.ja.md) · [セキュリティ](SECURITY.ja.md) · [変更履歴](CHANGELOG.md) · [アーキテクチャ](docs/ARCHITECTURE.md)
+はじめて読むなら、[docs/ARCHITECTURE.ja.md](docs/ARCHITECTURE.ja.md)、続けて[挙動の仕様](docs/spec/INDEX.ja.md)がおすすめです。進み具合は [docs/STATUS.ja.md](docs/STATUS.ja.md) にあります。
+
+**メンテナー向け：** [メンテナー向けガイド](MAINTAINERS.ja.md) · [コントリビューション](CONTRIBUTING.ja.md) · [セキュリティ](SECURITY.ja.md) · [変更履歴](CHANGELOG.ja.md) · [アーキテクチャ](docs/ARCHITECTURE.ja.md) · [クレジット](CREDITS.ja.md)
 
 ## クレジット
 
 - **元の Bot：** [fatcorn753/discord-casino-bot](https://github.com/fatcorn753/discord-casino-bot)。ゲームのルールのもとになった、Discord カジノ Bot です。これはそのハードフォークで、TypeScript で書き直し、アクティビティとチャット Bot にしました。
 - **作者：** fatcorn753（元の Bot）と S3nc0（リマスター）。[LICENSE](LICENSE) のとおりです。
-- **素材：** 効果音の ZzFX、Pixelify Sans、Atkinson Hyperlegible。作者とライセンスは [CREDITS.md](CREDITS.md) にあります。
+- **素材：** 効果音の ZzFX、Pixelify Sans、Atkinson Hyperlegible、ドット絵のキット codixel、そして馬、闘技場の戦士、鉱夫のもとにしたパブリックドメインと CC0 の参考資料。作者とライセンスは [CREDITS.ja.md](CREDITS.ja.md) にあります。
 
 ## ライセンス
 

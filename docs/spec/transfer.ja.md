@@ -6,12 +6,13 @@
 
 ## 元ファイル
 - `catalogs/economy.yaml:13-17`
-- `legacy/python/domain/types.py:84-90`
-- `legacy/python/infra/db/wallet.py:305-356`
-- `legacy/python/services/economy.py:132-148`
-- `legacy/python/cogs/economy/cog.py:35-40,256-317`
-- `legacy/python/cogs/shared/confirm.py:13-87`
-- `legacy/python/cogs/shared/messages/economy.py:20,84,88-97`
+- 元の Python ボット（v1.0.0 より前の git 履歴を参照）。パスはそのフォルダからの相対パスです：
+  - `domain/types.py:84-90`
+  - `infra/db/wallet.py:305-356`
+  - `services/economy.py:132-148`
+  - `cogs/economy/cog.py:35-40,256-317`
+  - `cogs/shared/confirm.py:13-87`
+  - `cogs/shared/messages/economy.py:20,84,88-97`
 
 ## ルールと正確な数値
 

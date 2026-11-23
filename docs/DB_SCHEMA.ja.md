@@ -2,7 +2,7 @@
 
 # データベーススキーマ
 
-SQLite のファイルは 1 つで、サーバーのプロセス 1 つが `better-sqlite3` で開きます。マイグレーションは `apps/server/src/db/migrations/` に番号付きの `.sql` ファイルとして置き、サーバーのバンドルに埋め込み、順番に、1 つずつトランザクションで適用します。マージ済みのマイグレーションは決して編集せず、新しいファイルを足してください。`0001_init.sql` に、下のコアテーブルがあります。機能ごとのテーブルは、担当者が後のマイグレーションで書きます（[予定のテーブル](#予定のテーブルwave-2) を参照）。
+SQLite のファイルは 1 つで、サーバーのプロセス 1 つが `better-sqlite3` で開きます。マイグレーションは `apps/server/src/db/migrations/` に番号付きの `.sql` ファイルとして置き、サーバーのバンドルに埋め込み、順番に、1 つずつトランザクションで適用します。マージ済みのマイグレーションは決して編集せず、新しいファイルを足してください。`0001_init.sql` に、下のコアテーブルがあります。機能ごとのテーブルは、後のマイグレーションにあります（[機能ごとのテーブル](#機能ごとのテーブル) を参照）。
 
 ## 規約
 
@@ -95,82 +95,58 @@ SQLite のファイルは 1 つで、サーバーのプロセス 1 つが `bette
 | --- | --- | --- |
 | `runner_up_id` | `INTEGER REFERENCES arena_fighters (id)` | 決勝の 2 位。同じトーナメントの闘士で、決勝の決着時に `champion_id` と一緒に入ります。トーナメントが開催中のときと、マイグレーションより前に終わったトーナメント（2 位は保存されていませんでした）では `NULL` です。 |
 
-過去のデータは埋め直さず、お金の列も関係しません。[arena.md](spec/arena.md) の §4.5 を見てください。
+過去のデータは埋め直さず、お金の列も関係しません。[arena.ja.md](spec/arena.ja.md#45-準優勝リマスターでの追加マイグレーション-0011) の §4.5 を見てください。
 
-## 予定のテーブル（Wave 2）
+## 機能ごとのテーブル
 
-担当者が、自分のマイグレーション（`0002_...` 以降）で、規約に沿って作ります。名前は出発点で、担当者が見直してかまいません。
+機能ごとに、上の規約に沿って、それぞれのマイグレーションでテーブルを足しました。
 
 **ペリカ、賭け金、ポジション、請求権を持つテーブルは、すべてサーバーごとです**（`guild_id` を持ち、プレイヤーの行は `guild_members` を参照します）。証券も同じです。保有、信用、オプション、債券はサーバーごとです。サーバーをまたいで共有するのは、元のボットと同じく、下の読み取り専用のフィードだけです。
 
-| 分野 | サーバーごとのテーブル | 担当 |
+| マイグレーション | 分野 | サーバーごとのテーブル |
 | --- | --- | --- |
-| 統計 | `player_stats` | B1（`GameSettled` の購読者） |
-| カジノゲーム | `game_rounds`（進行中のラウンド、保留中の賭け金）、`jackpots`、`rtp_levels`、`pachinko_spins`、`pachinko_sets` | B2-A |
-| デイリー、ミッション、ランキング | `daily_claims`、`missions`、`weekly_stats`、`weekly_champions`、`weekly_state`、`titles`、`nick_prefs` | B2-B |
-| イベント | `event_state`、`manual_events` | B2-B |
-| レース、闘技場 | `horses`（＋繁殖の列。[horse-breeding.md](spec/horse-breeding.md) §5）、`horse_breedings`（`horse_breeding_fee` の台帳の `ref_id`）、`horse_races`、`horse_entries`、`horse_bets`、`horse_odds`、`arena_tournaments`、`arena_fighters`、`arena_bets` | B2-B |
-| 労働、クイズ、抽選会、投票 | `work_state`、`work_finds`、`work_click_hours`、`work_workers`、`quiz_answers`、`raffles`、`raffle_entries`、`polls`、`poll_votes` | B2-B |
-| ショップとアイテム | `inventory`、`shop_stock`、`profiles`、`seized_items`、`teiai_market`、`teiai_market_days` | B2-B |
-| プレイヤーマーケット | `marketplace_listings` | B3 |
-| 証券 | `positions_spot`、`positions_short`、`positions_long`、`options`、`bonds`、`earnings_memos`、`earnings_shop` | B3 |
-| 帝愛銀行 | `bank_accounts`（debt、bankrupt_at、blacklist_until）、`bank_reserve`、`house_account`、`bank_deposits`、`loans`、`cds` | B3 |
-| 共済、会社 | `kyosai_units`、`kyosai_auctions`、`kyosai_offers`、`kyosai_motions`、`kyosai_votes`、`companies`、`company_stakes` | B3 |
-| ボット | `bot_messages`、`guild_webhooks`（ペルソナ） | B4 |
-| 取り込み | `legacy_ledger`（読み取り専用の旧履歴）、`legacy_import_runs` | B1 |
+| `0003_legacy_import` | 取り込み | `legacy_ledger`（読み取り専用の旧履歴）、`legacy_import_runs` |
+| `0005_casino` | カジノゲーム | `game_rounds`（進行中のラウンド、保留中の賭け金）、`jackpots`、`rtp_levels`、`pachinko_sets`、`pachinko_spins` |
+| `0006_notify_webhooks` | ボット | `guild_webhooks`（ペルソナ） |
+| `0007_finance` | 帝愛銀行 | `bank_accounts`（debt、bankrupt_at、blacklist_until）、`bank_reserve`、`house_account`、`bank_deposits`、`loans`、`cds` |
+| `0007_finance` | 共済、会社 | `kyosai_units`、`kyosai_auctions`、`kyosai_offers`、`kyosai_motions`、`kyosai_votes`、`companies`、`company_stakes` |
+| `0007_finance` | 証券、プレイヤーマーケット | `positions_spot`、`positions_short`、`positions_long`、`options`、`bonds`、`earnings_memos`、`earnings_shop`、`marketplace_listings` |
+| `0008_games_progression` | 統計、デイリー、ミッション、ランキング | `play_state`（連勝や遊んだ回数）、`daily_claims`、`missions`、`weekly_stats`、`weekly_champions`、`weekly_state` |
+| `0008_games_progression` | ショップとアイテム | `inventory`、`profiles`、`shop_stock`、`seized_items`、`teiai_market`、`teiai_market_days` |
+| `0008_games_progression` | レース、闘技場 | `horses`、`horse_races`、`horse_entries`、`horse_odds`、`horse_bets`、`arena_tournaments`、`arena_fighters`、`arena_bets` |
+| `0008_games_progression` | 労働、クイズ、抽選会、投票 | `work_state`、`work_workers`、`work_finds`、`work_click_hours`、`quiz_answers`、`raffles`、`raffle_entries`、`polls`、`poll_votes` |
+| `0009_horse_breeding` | 配合 | `horse_breedings`（`horse_breeding_fee` の台帳の `ref_id`）と、`horses` の親、世代、誕生、成熟、間隔の列（[horse-breeding.ja.md](spec/horse-breeding.ja.md) §5） |
+| `0010_bot_tools` | 持ち主向けのツール | `leaderboards`（サーバーごとに固定表示するランキングのメッセージ）、`casino_events`（持ち主が手で始める特別イベント。サーバーごとに最大 1 つ） |
+| `0011_arena_runner_up` | 闘技場 | `arena_tournaments.runner_up_id`（上を参照） |
 
-| 共有フィード（`guild_id` なし、お金なし） | 担当 |
+| 共有フィード（`guild_id` なし、お金なし） | マイグレーション |
 | --- | --- |
-| `market_prices`（`price_micros`）、`market_fair`、`market_events`、`earnings` | B3 |
-| `quiz_questions` | B2-B |
+| `market_prices`（`price_micros`）、`market_fair`、`market_events`、`earnings` | `0007_finance` |
+| `quiz_questions`（公式のクイズは `guild_id` が `NULL`、サーバー独自の問題は値あり） | `0008_games_progression` |
 
 ## 旧テーブルの対応
 
-元は Python ボットの `data/casino.db` です。取り込みスクリプト（`apps/server/scripts/import-legacy.ts`、B1）は、Python のボットを止めた状態で実行します。
+元は、元の Bot の `data/casino.db` です。取り込みスクリプト（`apps/server/scripts/import-legacy.ts`。処理は `apps/server/src/db/legacy-import.ts`）は、元の Bot を止めた状態で実行します。`--apply` を付けないかぎり、試しに実行するだけです。
+
+v1.0.0 の取り込みスクリプトが運ぶのは、お金のテーブルだけです：
 
 | 旧テーブル | 新しいテーブル | メモ |
 | --- | --- | --- |
-| `users` | `guild_members`、台帳経由の `balances`、`player_stats`、`daily_claims`、`bank_accounts` | `balance` は `legacy_import` の台帳の行 1 つになります。`daily_streak`、`last_daily`、`last_slot` は `daily_claims` へ。`games_played`、`total_wagered`、`total_won`、`biggest_win` は `player_stats` へ。`debt`、`bankrupt_at`、`blacklist_until` は `bank_accounts` へ。 |
+| `users` | `users`、台帳の `legacy_import` | `balance` は、メンバーごとに `legacy_import` の台帳の行 1 つになります。 |
 | `guild_users` | `guild_members` | `users` の行も作ります。 |
 | `guild_status` | `guilds` | `status`、`name`、`decided_by`、`updated_at`、`notified_at`。 |
-| `features_off` | `guild_features_off` | 1 対 1。 |
-| `ledger` | `legacy_ledger` | 読み取り専用の履歴としてコピーします。`ledger` には再生しません。最初の `legacy_import` の行が、新しい連鎖の起点です。 |
 | `escrow` | 台帳の `game_refund` | 終わっていないゲームの賭け金は、最初の行の直後に返金します。 |
-| `play_state` | `player_stats` | 連勝、プレイ数、勝ち数、収支。 |
-| `missions` | `missions` | 1 対 1。 |
-| `weekly_stats`、`weekly_champions`、`weekly_state` | 同じ名前 | 1 対 1。 |
-| `nick_prefs` | `nick_prefs` | 1 対 1。 |
-| `profile` | `profiles`、`titles` | 称号、カード、スキン、デイリーのブースト、保険。 |
-| `inventory`、`shop_stock` | 同じ名前 | 1 対 1。 |
-| `jackpot` | `jackpots` | プールを引き継ぎます。 |
-| `rtp_level` | `rtp_levels` | 1 対 1。 |
-| `pachinko_spins`、`pachinko_sets` | 同じ名前 | 統計のみ。任意。 |
-| `event_state`、`manual_event` | `event_state`、`manual_events` | 1 対 1。 |
-| `horses`、`horse_races`、`horse_entries`、`horse_bets`、`horse_odds` | 同じ名前 | 未決着の賭けは、保留中の賭け金を保ちます。 |
-| `arena_tournaments`、`arena_fighters`、`arena_bets` | 同じ名前 | NPC の賭け手は負のユーザー ID を使っていました。`NULL` のユーザーと NPC の列として保存します。 |
-| `labor`、`labor_finds`、`labor_click_hours`、`labor_workers` | `work_state`、`work_finds`、`work_click_hours`、`work_workers` | 受け取っていない `pot` は、保留中のペリカです。 |
-| `market_listings` | `marketplace_listings` | 最高入札額は保留中のペリカです。 |
-| `seized_items`、`teiai_market`、`teiai_market_days` | 同じ名前 | `day`（REAL）は日付かミリ秒になります。 |
-| `quiz_questions`、`quiz_answers` | 同じ名前 | 問題は全体で共有です。 |
-| `raffle`、`raffle_entries` | `raffles`、`raffle_entries` | 開催中の抽選会の参加費は、保留中のペリカです。 |
-| `polls`、`poll_votes` | 同じ名前 | 1 対 1。 |
-| `market_prices`、`market_fair`、`market_events`、`earnings` | 同じ名前 | 共有フィード。価格と係数は固定小数点の整数にします。 |
-| `earnings_memos`、`earnings_shop` | 同じ名前 | サーバーごと（ペリカで買うため）。 |
-| `crypto`、`crypto_short`、`crypto_long` | `positions_spot`、`positions_short`、`positions_long` | サーバーごと。数量は `_milli`、価格は `_micros` に。信用は保留中のペリカです。 |
-| `options`、`bonds`、`loans`、`cds` | 同じ名前 | サーバーごと。権利行使価格と現物価格は `_micros` に。`loans.rate_tenths`（1 日あたり 0.1 %）は `rate_bps`（×10）に。 |
-| `teiai_bank`、`teiai_house`、`teiai_deposits` | `bank_reserve`、`house_account`、`bank_deposits` | サーバーごと。旧 `REAL` の現金、貸出額、サーモスタットの額は `INTEGER` のペリカになります（上の丸めのルールを使い、取り込みスクリプトが丸めの誤差の合計を報告します）。レートは bps に。 |
-| `kyosai_units`、`kyosai_auctions`、`kyosai_offers`、`kyosai_motions`、`kyosai_votes` | 同じ名前 | `user_id = 0`（ハウスのユニット）は、`NULL` のユーザーとハウスのフラグになります。 |
-| `companies`、`company_stakes` | 同じ名前 | 会社の資金は、プレイヤーの残高とは別です。 |
-| `leaderboards`、`chart_posts`、`chart_boards` | `bot_messages` | メッセージへのポインターです。チャンネルがなくなっていれば捨てて問題ありません。 |
+| `ledger` | `legacy_ledger` | 読み取り専用の履歴としてコピーします。`ledger` には再生しません。最初の `legacy_import` の行が、新しい連鎖の起点です。 |
+
+ほかの旧テーブル（統計、連続日数、プロフィール、持ち物、馬、闘技場、労働、マーケット、金融、クイズ、投票、抽選、メッセージへのポインター）は取り込みません。これらの機能は、リマスターでは一から始まります。そこに保留中のペリカ（未決着の賭け、入札、労働の pot、預金、信用）があれば、取り込みの前に元の Bot で精算してください。
 
 ### 値の変換
 
 - ID: 旧 `INTEGER` の ID は `safeIntegers(true)`（BigInt）で読み、10 進の文字列として書きます。JS の数値は決して経由しません。
-- 時刻: 旧 `REAL` のエポック秒は `Math.round(ts * 1000)` のミリ秒になります。テキストの日付はテキストのままです。
-- お金: 旧 `INTEGER` のペリカはそのままコピーします。旧 `REAL` のお金（銀行の内部の値）は、取り込み時に一度だけ丸めのルールで丸めます。プレイヤーの残高はもともと `INTEGER` なので、下のプレイヤーごとの証明は厳密に成り立ちます。
-- レート、価格、数量: bps、マイクロペリカ、ミリ単位に変換します（`REAL` は残りません）。
-- 旧データにマイナスの残高があれば、レポートを出して取り込みを止めます（上の決定を参照）。
+- 時刻: 旧 `REAL` のエポック秒は `Math.round(ts * 1000)` のミリ秒になります。
+- お金: 旧 `INTEGER` のペリカはそのままコピーします。
+- 旧データにマイナスの残高があれば、レポートを出して取り込みを止めます。
 
 ### ペリカが動いていない証明
 
-取り込みスクリプトは、サーバーごと、ユーザーごとに、項目（プレイヤーの残高、保留中の賭け金、保留中の入札額、受け取っていない労働の pot、預金、債券の元本、信用、抽選会の参加費）ごとの旧と新の合計を表示し、1 つでも差があれば 0 以外で終了します。プレイヤーごとに、新しい残高は `users.balance` に返金した `escrow` を足したものに等しく、それ以外の保留中の額は、そのまま新しいテーブルに引き継がれます。同じファイルでの 2 回目の実行は、何も起きないことが条件です（`legacy_import_runs`）。
+取り込みスクリプトは、サーバーごと、ユーザーごとに、期待する残高と取り込んだ残高を表示し、1 つでも差があれば 0 以外で終了します。プレイヤーごとに、新しい残高は `users.balance` に返金した `escrow` を足したものに等しくなります。同じファイルでの 2 回目の実行は何もしません（`legacy_import_runs` が元のファイルのダイジェストを持ちます）。

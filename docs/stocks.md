@@ -1,6 +1,6 @@
 # 証券・信用取引・オプション・債券
 
-[← README に戻る](../README.md)　／　[ドキュメントの一覧](../README.md#詳しい仕様docs)
+[← README に戻る](../README.ja.md)　／　[ドキュメントの一覧](spec/INDEX.ja.md)
 
 ## 証券の銘柄と相関
 

@@ -1,6 +1,21 @@
+**English** | [日本語](README.ja.md)
+
 # Pixel art generators
 
-The game icons and the race horse are generated, not hand-edited. Run from the repository root.
+Every icon, sprite and scene in the app is generated, not hand-edited. Run everything from the repository root. Each `ship.js` writes the same files on every run, so a re-run without a change to the generator gives no diff. Shipped art is data (row strings and a legend of palette tokens), never an image; each screen imports only its own art, so it loads with that screen's lazy chunk and never with Home.
+
+| Folder | What it draws | Section |
+| --- | --- | --- |
+| `icons/` | The 35 game icons | [Icons and the race horse](#icons-and-the-race-horse) |
+| `horse/` | The eight-frame race horse | [Icons and the race horse](#icons-and-the-race-horse) |
+| `scenes/` | Race, stable, breeding, arena, mine, shop, inventory | [Scenes](#scenes) |
+| `casino/` | Slots, chinchiro, blackjack, roulette, pachinko | [Casino scenes](#casino-scenes) |
+| `social/` | Quiz, lottery, poll, missions, ranking, relics, transfer, daily, history, profile | [Social and player scenes](#social-and-player-scenes) |
+| `finance/` | Bank, loans, kyosai, stocks, crypto, companies, market | [Finance scenes](#finance-scenes) |
+| `lib/` | Shared palette names, the 8x drawing helper, output folders | |
+| `vendor/` | The codixel core | |
+
+## Icons and the race horse
 
 ```sh
 # icons: writes packages/ui/src/pixel/icon-art.ts and the fills in packages/ui/src/styles/bundle.css

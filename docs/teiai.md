@@ -1,6 +1,6 @@
 # 借金と身分・帝愛銀行・CDS・貸し借り
 
-[← README に戻る](../README.md)　／　[ドキュメントの一覧](../README.md#詳しい仕様docs)
+[← README に戻る](../README.ja.md)　／　[ドキュメントの一覧](spec/INDEX.ja.md)
 
 ## ペリカのお金の流れ
 

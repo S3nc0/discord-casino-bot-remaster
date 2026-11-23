@@ -7,13 +7,14 @@
 ## 1. Source Files
 
 - `catalogs/arena.yaml` (L1–L36): schedule, fighter pool, base power, weapon scaling, odds, limits, spectator bets, subsidies
-- `legacy/python/domain/arena.py` (L1–L158): pure logic for fighter generation, weapon bonus, odds, match simulation, HP battle frames, anti-inflation payout settlement
-- `legacy/python/infra/db/arena.py` (L1–L275): daily tournament lifecycle, spectator seeding, betting, semi/final settlement
-- `legacy/python/services/arena.py` (L1–L64): `ArenaService` facade
-- `legacy/python/cogs/arena/cog.py` (L1–L248): `/闘技場 大会`, 30-second scheduler loop, battle animation, admin `host_now`
-- `legacy/python/cogs/arena/embeds.py` (L1–L117): tournament board, HP bar, semi/final result embeds
-- `legacy/python/cogs/arena/views.py` (L1–L108): `BetPanel`, `FighterSelect`, `StakeModal`
-- `legacy/python/cogs/shared/messages/games.py` (L91–L95): failure messages
+- The original Python bot (see git history before v1.0.0), paths relative to its folder:
+  - `domain/arena.py` (L1–L158): pure logic for fighter generation, weapon bonus, odds, match simulation, HP battle frames, anti-inflation payout settlement
+  - `infra/db/arena.py` (L1–L275): daily tournament lifecycle, spectator seeding, betting, semi/final settlement
+  - `services/arena.py` (L1–L64): `ArenaService` facade
+  - `cogs/arena/cog.py` (L1–L248): `/闘技場 大会`, 30-second scheduler loop, battle animation, admin `host_now`
+  - `cogs/arena/embeds.py` (L1–L117): tournament board, HP bar, semi/final result embeds
+  - `cogs/arena/views.py` (L1–L108): `BetPanel`, `FighterSelect`, `StakeModal`
+  - `cogs/shared/messages/games.py` (L91–L95): failure messages
 - `docs/arena.md` (L1–L70): original design doc
 
 ---
