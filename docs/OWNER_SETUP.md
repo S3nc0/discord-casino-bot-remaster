@@ -212,6 +212,7 @@ A **`.env` file** is a local text file in your project folder that stores settin
    - **Test Server ID:** Right-click your test server's icon in the left bar → **Copy Server ID**.
    - **Your User ID:** Right-click your own name or avatar → **Copy User ID**.
    - **Announce Channel ID:** Right-click a text channel in your test server → **Copy Channel ID**.
+   - *(On mobile, or for a full guide to IDs and `/admin` commands, see the [Owner Admin Guide](OWNER_ADMIN.md).)*
 
 3. Generate a random `SESSION_SECRET` in Terminal and copy the output:
 
@@ -435,7 +436,7 @@ If you just changed any URL Mappings, **reload Discord first** (`Cmd+R` on macOS
 
 ✅ **Check:** The Activity opens on the **Home** screen inside Discord and displays **3,000 Pelica**.
 
-Next, run the full [Owner Testing Checklist](OWNER_TESTING.md) to verify desktop, mobile, theme, language, and saved settings (and re-run it after every update).
+Next, run the full [Owner Testing Checklist](OWNER_TESTING.md) to verify desktop, mobile, theme, language, and saved settings (and re-run it after every update). To learn how to copy IDs and use `/admin` commands, see the [Owner Admin Guide](OWNER_ADMIN.md).
 
 ---
 
