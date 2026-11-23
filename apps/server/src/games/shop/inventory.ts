@@ -33,8 +33,9 @@ export class Inventory {
       .run(guildId, userId, itemId, qty);
   }
 
-  /** Remove `qty`; false (and nothing changes) when the player holds fewer. */
+  /** Remove `qty` (a positive integer); false (and nothing changes) when the player holds fewer. */
   take(guildId: string, userId: string, itemId: string, qty: number): boolean {
+    if (!Number.isSafeInteger(qty) || qty <= 0) throw new AppError('invalid_payload');
     if (this.qty(guildId, userId, itemId) < qty) return false;
     this.store
       .stmt('UPDATE inventory SET qty = qty - ? WHERE guild_id = ? AND user_id = ? AND item_id = ?')
