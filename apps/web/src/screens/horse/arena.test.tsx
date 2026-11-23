@@ -6,6 +6,8 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { dictionaries } from '@casino/shared/i18n';
 import type { HorseApi } from './api.ts';
 import { ArenaScreen } from './ArenaScreen.tsx';
+import { fighterSprite } from './ArenaScene.tsx';
+import { FIGHTER_ART } from './arena-art.ts';
 import { HorseApiProvider } from './context.tsx';
 import { createMockHorseApi } from './mock.ts';
 import { useBalanceStore } from '../../shell/stores/balance.ts';
@@ -83,6 +85,25 @@ describe('arena screen', () => {
     expect($$(view.container, '.hr-fighter').some((f) => f.textContent?.includes('Win ×'))).toBe(
       true,
     );
+  });
+
+  it('shows the pit with the final pair and a sprite on every fighter card', async () => {
+    const view = await show();
+    expect($$(view.container, '.hr-pit svg')).toHaveLength(1);
+    const fighters = $$(view.container, '.hr-fighter');
+    for (const f of fighters) expect(f.querySelector('.hr-fighter__art')).not.toBeNull();
+    // decorative: the names are in the text
+    expect(view.container.querySelector('.hr-pit svg')!.getAttribute('aria-hidden')).toBe('true');
+  });
+
+  it('gives each roster fighter their own sprite and any other name a stable one', () => {
+    expect(fighterSprite('鉄拳のゴウ')).toBe(0);
+    expect(fighterSprite('影帝のシャドウキング')).toBe(15);
+    expect(FIGHTER_ART).toHaveLength(16);
+    const other = fighterSprite('Someone New');
+    expect(other).toBe(fighterSprite('Someone New'));
+    expect(other).toBeGreaterThanOrEqual(0);
+    expect(other).toBeLessThan(16);
   });
 
   it('lists the 16 royale fighters in four groups', async () => {

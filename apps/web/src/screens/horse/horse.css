@@ -351,39 +351,121 @@
 
 .hr-lanes {
   display: grid;
-  gap: var(--space-1);
+}
+
+/* grandstand, sky and the finish post: right-aligned, so the post sits over the finish line */
+.hr-track__stand {
+  display: flex;
+  justify-content: flex-end;
+  height: 44px;
+  overflow: hidden;
+  margin-bottom: calc(-1 * var(--space-2));
+  border-top: 2px solid var(--outline-variant);
+}
+
+.hr-track__stand .bb-scene {
+  flex: none;
+}
+
+.hr-track__rail {
+  height: 10px;
+  margin-top: calc(-1 * var(--space-2));
+}
+
+.hr-track__rail .bb-scene {
+  display: block;
 }
 
 .hr-lane {
+  position: relative;
   display: grid;
   grid-template-columns: 1.75rem 1fr;
   column-gap: var(--space-2);
   align-items: center;
+  padding-block: 2px 4px;
 }
 
+.hr-lane__turf {
+  position: absolute;
+  inset: 0;
+}
+
+.hr-lane > :not(.hr-lane__turf) {
+  position: relative;
+}
+
+/* saddle cloth with the lane number in the usual race colours */
 .hr-lane__no {
   grid-row: 1 / span 2;
-  text-align: center;
+  align-self: center;
+  justify-self: center;
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 26px;
   font-weight: 700;
+  font-size: 15px;
+  border: 2px solid var(--neutral-4);
+  background: var(--paper-96);
+  color: var(--neutral-10);
 }
 
+.hr-lane:nth-child(2) .hr-lane__no {
+  background: var(--neutral-10);
+  color: var(--paper-96);
+  border-color: var(--neutral-35);
+}
+
+.hr-lane:nth-child(3) .hr-lane__no {
+  background: var(--red-40);
+  color: var(--paper-99);
+}
+
+.hr-lane:nth-child(4) .hr-lane__no {
+  background: var(--blue-40);
+  color: var(--paper-99);
+}
+
+.hr-lane:nth-child(5) .hr-lane__no {
+  background: var(--yellow-80);
+}
+
+.hr-lane:nth-child(6) .hr-lane__no {
+  background: var(--green-30);
+  color: var(--paper-99);
+}
+
+.hr-lane:nth-child(7) .hr-lane__no {
+  background: var(--orange-70);
+}
+
+.hr-lane:nth-child(8) .hr-lane__no {
+  background: var(--pink-80);
+}
+
+/* name plate: dark in both themes, so the text stays readable on the turf */
 .hr-lane__name {
   grid-column: 2;
+  justify-self: start;
+  max-width: 100%;
+  margin-top: 2px;
+  padding: 0 6px;
   font-size: 14px;
   line-height: 16px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  color: var(--on-surface-variant);
+  background: var(--neutral-10);
+  color: var(--paper-96);
 }
 
 .hr-lane.is-mine .hr-lane__name {
-  color: var(--success);
+  color: var(--green-80);
   font-weight: 700;
 }
 
 .hr-lane.is-leader .hr-lane__name {
-  color: var(--tertiary);
+  color: var(--yellow-80);
   font-weight: 700;
 }
 
@@ -392,29 +474,38 @@
   display: block;
   height: 36px;
   overflow: hidden;
-  background: var(--surface-container-high);
-  border-block: 2px solid var(--outline-variant);
+}
+
+.hr-lane__gate {
+  position: absolute;
+  left: 0;
+  top: 0;
+  z-index: 2;
 }
 
 .hr-lane__runner {
   position: absolute;
-  top: 0;
+  top: 2px;
   left: calc((100% - 48px) * var(--p, 0) / 1000);
+  z-index: 1;
   width: 48px;
   height: 32px;
   transition: left 260ms steps(4, end);
 }
 
+.hr-lane__dust {
+  position: absolute;
+  left: -13px;
+  bottom: 0;
+}
+
 .hr-lane__finish {
   position: absolute;
   inset-block: 0;
-  right: 0;
-  width: 6px;
-  background: repeating-linear-gradient(
-    to bottom,
-    var(--on-surface) 0 4px,
-    var(--surface-container-high) 4px 8px
-  );
+  right: 3px;
+  width: 2px;
+  background: var(--paper-99);
+  box-shadow: 1px 0 0 var(--neutral-35);
 }
 
 /* ---- pixel horse ---- */
@@ -702,6 +793,14 @@
   .hr-track__fill {
     transition: none;
   }
+
+  .hr-lane__dust {
+    display: none;
+  }
+}
+
+[data-reduced-motion='true'] .hr-lane__dust {
+  display: none;
 }
 
 [data-reduced-motion='true'] .hr-lane__runner,
@@ -723,31 +822,22 @@
   gap: var(--space-2);
 }
 
-.hr-horsecard__art {
-  display: grid;
-  place-items: center;
-  padding: var(--space-3);
+.hr-horsecard__art,
+.hr-preview__pair {
+  display: flex;
+  justify-content: center;
+  overflow: hidden;
   margin-bottom: var(--space-3);
-  background: var(--surface-container-high);
 }
 
-.hr-horsecard__art .hr-horse {
-  width: 96px;
-  height: 64px;
+/* the scene keeps whole pixels: on a narrow card it is cropped at the sides, never scaled */
+.hr-stall,
+.hr-paddock {
+  flex: none;
+  border: 2px solid var(--outline-variant);
 }
 
 /* ---- breeding ---- */
-.hr-preview__pair {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: var(--space-4);
-}
-
-.hr-preview__pair .hr-horse {
-  width: 96px;
-  height: 64px;
-}
 
 .hr-ranges {
   display: grid;
@@ -788,9 +878,7 @@
   border: 2px solid var(--outline-variant);
 }
 
-.hr-foal .hr-horse {
-  width: 48px;
-  height: 32px;
+.hr-foal .hr-portrait-icon {
   flex: none;
 }
 
@@ -827,6 +915,39 @@
 
 .hr-fighter.is-out {
   opacity: 0.8;
+}
+
+/* the fighter on guard in the top right corner of the card, text kept clear of it */
+.hr-fighter {
+  position: relative;
+  min-height: 124px;
+}
+
+.hr-fighter__art {
+  position: absolute;
+  top: var(--space-2);
+  right: var(--space-3);
+}
+
+.hr-fighter.is-out .hr-fighter__art {
+  filter: grayscale(1);
+  opacity: 0.6;
+}
+
+.hr-fighter__main {
+  padding-right: 96px;
+}
+
+/* the pit, whole pixels: cropped at the sides on a narrow screen, never scaled */
+.hr-pit {
+  display: flex;
+  justify-content: center;
+  overflow: hidden;
+}
+
+.hr-pit .bb-scene {
+  flex: none;
+  border: 2px solid var(--outline-variant);
 }
 
 .hr-fighter__main {

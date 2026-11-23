@@ -8,7 +8,7 @@ import { useHorseApi } from './context.tsx';
 import { formatClock, formatSpan } from './format.ts';
 import { applyBalance, useResource, useRunner, useServerNow } from './hooks.ts';
 import { ErrorNote, Loading, Section, SilksDot } from './parts.tsx';
-import { PixelHorse } from './PixelHorse.tsx';
+import { HorsePortrait, PaddockScene } from './HorseScenes.tsx';
 import { coatName, silksName } from './StableTab.tsx';
 
 /** Why a horse cannot breed now, in words (the first rule that says no). */
@@ -141,9 +141,7 @@ export function BreedTab({ stable, onChange }: { stable: HorseStable; onChange: 
       {a && b ? (
         <Card variant="filled" className="hr-preview" title={t('screen.horse.breed.previewTitle')}>
           <div className="hr-preview__pair">
-            <PixelHorse coat={a.coat} silks={a.silks} />
-            <span aria-hidden="true">×</span>
-            <PixelHorse coat={b.coat} silks={b.silks} />
+            <PaddockScene a={a} b={b} />
           </div>
           {preview.loading && !p ? <Loading /> : null}
           {p ? (
@@ -245,7 +243,7 @@ export function BreedTab({ stable, onChange }: { stable: HorseStable; onChange: 
         <ul className="hr-list">
           {foals.map((h) => (
             <li key={h.id} className="hr-foal">
-              <PixelHorse coat={h.coat} silks={h.silks} />
+              <HorsePortrait coat={h.coat} silks={h.silks} />
               <div>
                 <strong>{h.name}</strong>
                 <p className="hr-muted">
@@ -261,7 +259,7 @@ export function BreedTab({ stable, onChange }: { stable: HorseStable; onChange: 
           ))}
           {resting.map((h) => (
             <li key={`rest-${h.id}`} className="hr-foal">
-              <PixelHorse coat={h.coat} silks={h.silks} />
+              <HorsePortrait coat={h.coat} silks={h.silks} />
               <div>
                 <strong>{h.name}</strong>
                 <p className="hr-muted">

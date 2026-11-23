@@ -17,6 +17,7 @@ import { newKey } from './api.ts';
 import { useHorseApi } from './context.tsx';
 import { formatClock, formatNumber, formatOddsHundredths } from './format.ts';
 import { applyBalance, useResource, useRunner } from './hooks.ts';
+import { ArenaPit, FighterSprite } from './ArenaScene.tsx';
 import { ErrorNote, LoadFailed, Loading } from './parts.tsx';
 import './horse.css';
 
@@ -53,6 +54,7 @@ function FighterRow({
   const canBet = stage !== null && fighter.stage === stage;
   return (
     <li className={`hr-fighter${state === 'out' ? ' is-out' : ''}`}>
+      <FighterSprite name={fighter.name} />
       <div className="hr-fighter__main">
         <strong className="hr-fighter__name">{fighter.name}</strong>
         {state ? (
@@ -105,6 +107,8 @@ function TournamentView({
   const champion = tournament.fighters.find((f) => f.id === tournament.championId);
   const runnerUp = tournament.fighters.find((f) => f.id === tournament.runnerUpId);
   const byId = new Map(tournament.fighters.map((f) => [f.id, f]));
+  // the pit shows the final pair once it is known, else the first two fighters
+  const pair = (finalists.length >= 2 ? finalists : tournament.fighters).slice(0, 2);
   return (
     <div className="hr-stack">
       <div className="hr-race__row">
@@ -134,6 +138,8 @@ function TournamentView({
           ) : null}
         </p>
       ) : null}
+
+      {pair.length === 2 ? <ArenaPit left={pair[0]!.name} right={pair[1]!.name} /> : null}
 
       {tournament.status !== 'semi_betting' && finalists.length > 0 ? (
         <section className="hr-section" aria-labelledby={`final-${tournament.id}`}>
