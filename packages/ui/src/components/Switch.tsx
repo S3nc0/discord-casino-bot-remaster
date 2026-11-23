@@ -13,10 +13,10 @@ export interface SwitchProps extends Omit<
   defaultChecked?: boolean;
   /** Called when the switch toggles. */
   onChange?: (checked: boolean) => void;
-  /** Text shown when on (default: "On"). */
-  onLabel?: string;
-  /** Text shown when off (default: "Off"). */
-  offLabel?: string;
+  /** Text shown when on. */
+  onLabel: string;
+  /** Text shown when off. */
+  offLabel: string;
 }
 
 export function Switch({
@@ -24,8 +24,8 @@ export function Switch({
   checked,
   defaultChecked = false,
   onChange,
-  onLabel = 'On',
-  offLabel = 'Off',
+  onLabel,
+  offLabel,
   disabled,
   className,
   ...props

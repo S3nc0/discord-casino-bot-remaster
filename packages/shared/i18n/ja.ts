@@ -7,6 +7,8 @@ export const ja: Messages = {
   'common.ok': 'OK',
   'common.cancel': 'キャンセル',
   'common.loading': '読み込み中…',
+  'common.on': 'オン',
+  'common.off': 'オフ',
   'launch.openInActivity': 'アクティビティで開く',
   'settings.language': '言語',
   'settings.sound': 'サウンド',
