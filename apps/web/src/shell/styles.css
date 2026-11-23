@@ -284,8 +284,9 @@ body {
 
 .home__amount {
   color: var(--tertiary);
-  font: 600 clamp(40px, 13vw, 56px) / 1.1 var(--font-display);
-  font-variant-numeric: tabular-nums;
+  font-size: clamp(40px, 13vw, 56px);
+  font-weight: 700;
+  line-height: 1.1;
   overflow-wrap: anywhere;
 }
 

@@ -12,6 +12,7 @@
 
 - **まず読みやすさ:** 本文は Atkinson Hyperlegible（`--font-body`。日本語のシステムフォントのフォールバック付き）を **16px 以上**（`body-medium`）で使います。`label-small`（12px）はバッジ専用です。文は常に sentence case です。
 - **Pixelify は見出しだけ:** Pixelify Sans（`--font-display`）は、Display、Headline、Title のスタイル（56 → 16px）にだけ使います。
+- **数字は Atkinson、Pixelify は使わない:** Pixelify Sans は、どのサイズでも 2 を 8 に、5 を S に似せて描きます（12,400 が 18,400 に見えます）。お金、オッズ、順位、タイマー、個数は `.num` クラス（`--font-numeric` = Atkinson Hyperlegible、`tabular-nums`）で表示します。見出しなど Pixelify の文字列に混ざる数字（「Race 12」）は、`--font-display` の先頭にある `Bitbloom Numerals` が受け持つので、個別の上書きは要りません。
 - **ピクセルの枠線、角丸なし:** 2px（`--pixel`）の、四隅に切り欠きのある 4 方向のシャドウ枠（`--pb`）を使い、`border-radius: 0` をどこでも守ります。
 - **ぼかさない段差の影:** `--elevation-1`〜`3`（2px / 4px / 6px の実線のオフセット。ぼかしは使いません）。塗りのボタンと FAB は 4px の `--pixel-lip` を持ち、押すとアートのピクセル 1 つ分下がります。
 - **コマ送りの動き:** アニメーションは `steps(n)` のタイミング（`steps(3)`、`steps(12)`）を使い、`prefers-reduced-motion` か `ThemeProvider` の `reducedMotion` で自動的にオフになります。

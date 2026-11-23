@@ -78,7 +78,7 @@ export function HomeScreen() {
         <div className="home__body">
           <h1 className="bb-eyebrow home__eyebrow">{t('shell.balance')}</h1>
           <p className="home__balance">
-            <span className="home__amount">
+            <span className="home__amount num">
               {balance !== null ? new Intl.NumberFormat(locale).format(balance) : '—'}
             </span>
             <span className="home__unit">{t('currency.name')}</span>
