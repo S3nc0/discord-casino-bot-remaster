@@ -37,17 +37,22 @@ async function play(seed: number, played: number[], list: Cmd[]): Promise<void> 
 const options = { numRuns: RUNS, ...(SEED === undefined ? {} : { seed: SEED }) };
 
 describe('economy invariants over random command sequences', () => {
-  it('keeps balances, the ledger, supply, transfers and replays consistent', async () => {
-    await fc.assert(
-      fc.asyncProperty(
-        fc.integer({ min: 1, max: 1_000_000 }),
-        fc.array(fc.integer({ min: 0, max: 4 }), { minLength: 6, maxLength: 6 }),
-        commands(),
-        async (seed, played, list) => {
-          await play(seed, played, list);
-        },
-      ),
-      options,
-    );
-  });
+  it(
+    'keeps balances, the ledger, supply, transfers and replays consistent',
+    async () => {
+      await fc.assert(
+        fc.asyncProperty(
+          fc.integer({ min: 1, max: 1_000_000 }),
+          fc.array(fc.integer({ min: 0, max: 4 }), { minLength: 6, maxLength: 6 }),
+          commands(),
+          async (seed, played, list) => {
+            await play(seed, played, list);
+          },
+        ),
+        options,
+      );
+      // fast-check enforces no deadline of its own; vitest's limit grows with the number of runs.
+    },
+    20_000 + RUNS * 150,
+  );
 });
