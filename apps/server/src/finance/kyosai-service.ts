@@ -18,7 +18,7 @@ import {
   type KyosaiOfferStatus,
 } from '@casino/domain/finance';
 import type { ServiceResult, TeiaiService } from './teiai-service.ts';
-import { getSharedPairVolume24h, type FinanceDeps } from './types.ts';
+import { financeDeps, getSharedPairVolume24h, type FinanceDeps } from './types.ts';
 
 const HOUSE_HOLDER_KEY = '__house__';
 
@@ -93,7 +93,7 @@ export class KyosaiService {
   private readonly teiai: TeiaiService;
 
   constructor(deps: FinanceDeps, teiai: TeiaiService) {
-    this.deps = deps;
+    this.deps = financeDeps(deps);
     this.teiai = teiai;
   }
 

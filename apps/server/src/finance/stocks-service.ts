@@ -57,7 +57,7 @@ import {
   type VolatilityEvent,
 } from '@casino/domain/finance';
 import type { ServiceResult, TeiaiService } from './teiai-service.ts';
-import { listKnownGuildIds, type FinanceDeps } from './types.ts';
+import { financeDeps, listKnownGuildIds, type FinanceDeps } from './types.ts';
 
 export interface SpotHoldingRow {
   guild_id: string;
@@ -139,7 +139,7 @@ export class StocksService {
   private readonly teiai: TeiaiService;
 
   constructor(deps: FinanceDeps, teiai: TeiaiService) {
-    this.deps = deps;
+    this.deps = financeDeps(deps);
     this.teiai = teiai;
   }
 
@@ -1488,6 +1488,7 @@ export class StocksService {
           reason: 'margin_close',
           refType: 'option_buyback_margin',
           refId: String(optionId),
+          idempotencyKey: idempotencyKey ? `${idempotencyKey}:margin` : undefined,
         });
       }
 

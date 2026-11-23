@@ -13,7 +13,12 @@ import {
   type MarketplaceStatus,
 } from '@casino/domain/finance';
 import type { ServiceResult, TeiaiService } from './teiai-service.ts';
-import { getSharedPairVolume24h, type FinanceDeps, type MarketplaceAssetAdapter } from './types.ts';
+import {
+  financeDeps,
+  getSharedPairVolume24h,
+  type FinanceDeps,
+  type MarketplaceAssetAdapter,
+} from './types.ts';
 
 export interface MarketplaceListingRow {
   id: number;
@@ -116,7 +121,7 @@ export class PlayerMarketService {
   private readonly assets: MarketplaceAssetAdapter;
 
   constructor(deps: FinanceDeps, teiai: TeiaiService, assets: MarketplaceAssetAdapter) {
-    this.deps = deps;
+    this.deps = financeDeps(deps);
     this.teiai = teiai;
     this.assets = assets;
   }
