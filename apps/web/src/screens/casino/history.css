@@ -1,0 +1,26 @@
+/* History: the ledger scene, and the list as a ruled ledger page with a red margin line. */
+.cc-history-screen .sc-scene {
+  display: flex;
+  justify-content: center;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.cc-history-screen .sc-scene > .bb-scene {
+  flex: none;
+}
+
+.cc-history-screen .cc-ledger {
+  background:
+    linear-gradient(90deg, transparent 26px, var(--red-60) 26px 28px, transparent 28px),
+    var(--paper-96);
+  --bc: var(--green-30);
+  box-shadow:
+    var(--pb),
+    inset 4px 0 0 var(--green-40);
+}
+
+.cc-history-screen .cc-ledger .bb-list__item {
+  padding-left: 36px;
+  border-bottom: 2px solid var(--sky-80);
+}

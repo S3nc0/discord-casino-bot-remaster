@@ -159,5 +159,13 @@ export {
   Sparkle,
 } from './pixel/index.ts';
 export type { GameIconName, GameIconProps, SkylineProps, SparkleProps } from './pixel/index.ts';
-export { PixelScene, PixelTile, SceneLayer, scenePaths, useSceneFrame } from './pixel/index.ts';
+export {
+  PixelScene,
+  PixelTile,
+  SceneLayer,
+  scenePaths,
+  useSceneFrame,
+  useSceneOnce,
+} from './pixel/index.ts';
+export type { SceneOnceOptions } from './pixel/index.ts';
 export type { PixelSceneProps, PixelTileProps, SceneArt, SceneLayerProps } from './pixel/index.ts';

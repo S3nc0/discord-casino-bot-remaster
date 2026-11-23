@@ -20,7 +20,7 @@ import MissionsScreen from './MissionsScreen.tsx';
 import PollScreen from './PollScreen.tsx';
 import QuizScreen from './QuizScreen.tsx';
 import RankingScreen from './RankingScreen.tsx';
-import RelicsScreen from './RelicsScreen.tsx';
+import RelicsScreen, { bestStars } from './RelicsScreen.tsx';
 import ShopScreen from './ShopScreen.tsx';
 import TransferScreen, { parseAmount } from './TransferScreen.tsx';
 import { errorMessage } from './hooks.ts';
@@ -665,5 +665,100 @@ describe('errors and keys', () => {
         expect(ja, prefix + name).toHaveProperty(prefix + name);
       }
     }
+  });
+});
+
+describe('social scenes', () => {
+  const scene = (root: ParentNode) => root.querySelector('.sc-scene > svg.bb-scene');
+
+  it('draws the quiz stage and letters the answers without changing their names', async () => {
+    const root = await show(<QuizScreen />);
+    expect(scene(root)?.getAttribute('aria-hidden')).toBe('true');
+    const choices = [...root.querySelectorAll<HTMLButtonElement>('.life__choice')];
+    expect(choices.map((b) => b.querySelector('.sc-letter')?.textContent)).toEqual([
+      'A',
+      'B',
+      'C',
+      'D',
+    ]);
+    for (const b of choices)
+      expect(b.querySelector('.sc-letter')?.getAttribute('aria-hidden')).toBe('true');
+    expect(root.querySelector('.sc-fx')).toBeNull();
+    await click(button(root, 'Mars'));
+    // a cross on the wrong pick, a ring on the right answer
+    expect(root.querySelectorAll('.sc-fx')).toHaveLength(2);
+    expect(text(root)).toContain('Wrong… The answer was “Saturn”.');
+  });
+
+  it('shows the answer effects on their still frame under reduced motion', async () => {
+    document.documentElement.setAttribute('data-reduced-motion', 'true');
+    try {
+      const root = await show(<QuizScreen />);
+      await click(button(root, 'Saturn'));
+      expect(root.querySelectorAll('.sc-fx')).toHaveLength(1);
+      expect(text(root)).toContain('Correct!');
+    } finally {
+      document.documentElement.removeAttribute('data-reduced-motion');
+    }
+  });
+
+  it('pins every mission note and stamps the done ones', async () => {
+    const root = await show(<MissionsScreen />);
+    expect(scene(root)).not.toBeNull();
+    const notes = [...root.querySelectorAll('.life-mission')];
+    expect(notes).toHaveLength(3);
+    for (const note of notes) expect(note.querySelector('.sc-pin')).not.toBeNull();
+    expect(notes.map((n) => !!n.querySelector('.sc-stamp'))).toEqual(
+      notes.map((n) => n.getAttribute('data-done') === 'true'),
+    );
+  });
+
+  it('gives places 1 to 3 a medal named by its place', async () => {
+    const root = await show(<RankingScreen />);
+    expect(scene(root)).not.toBeNull();
+    const rows = [...root.querySelectorAll('.bb-list li')];
+    const medals = rows.map((r) => r.querySelector('.sc-medal svg')?.getAttribute('aria-label'));
+    expect(medals.slice(0, 3)).toEqual(['1', '2', '3']);
+    expect(medals[3]).toBeUndefined();
+    expect(text(rows[3]?.querySelector('.bb-avatar'))).toBe('4');
+  });
+
+  it('puts the counter over the lottery and a ticket on the buy button', async () => {
+    const root = await show(<LotteryScreen />);
+    expect(scene(root)).not.toBeNull();
+    expect(button(root, 'Buy a ticket').querySelector('svg.sc-ticket')).not.toBeNull();
+  });
+
+  it('draws the voting corner and a ballot by each poll title', async () => {
+    const root = await show(<PollScreen />);
+    expect(scene(root)).not.toBeNull();
+    for (const card of root.querySelectorAll('.life-poll'))
+      expect(card.querySelector('.bb-card__title svg.sc-ballot')).not.toBeNull();
+  });
+
+  it('draws the street above the transfer form', async () => {
+    const root = await show(<TransferScreen />);
+    expect(scene(root)).not.toBeNull();
+  });
+
+  it('shows the museum over the relics, naming what is on display', async () => {
+    const root = await show(<RelicsScreen />);
+    const hall = scene(root);
+    expect(hall?.getAttribute('role')).toBe('img');
+    expect(hall?.getAttribute('aria-label')).toBe('Trilobite fossil, Dinosaur bone, Ancient vase★');
+    // the museum sits above the tabs, inside the screen
+    expect(root.querySelector('.life .sc-scene + div > [role="tablist"]')).not.toBeNull();
+  });
+
+  it('keeps the labor screen as it was: no museum without a hero', async () => {
+    const root = await show(<LaborScreen />);
+    expect(root.querySelector('.sc-scene')).toBeNull();
+    expect(root.querySelector('[role="tab"][aria-selected="true"]')?.textContent).toBe('Dig');
+  });
+
+  it('reads the best star level held of each relic kind', () => {
+    expect(
+      bestStars({ relic_vase: 3, relic_vase_s2: 1, relic_bone_s1: 0, relic_tear_s3: 2, coal: 4 }),
+    ).toEqual({ relic_vase: 2, relic_tear: 3 });
   });
 });

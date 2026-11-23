@@ -1,0 +1,212 @@
+/*
+ * The social screens (quiz, lottery, poll, missions, ranking, relics, transfer): a pixel scene
+ * under the nav and a few themed panels. Every colour is a palette token; the scene art lives in
+ * the *-art.ts files and is drawn at 2 CSS px per art pixel.
+ */
+.sc-scene {
+  display: flex;
+  justify-content: center;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.sc-scene > .bb-scene {
+  flex: none;
+}
+
+.life .bb-card__body > * {
+  min-width: 0;
+}
+
+/* Chunky pixel bars (polls, missions): a lit top band on a dark trough, cut every 12 px. */
+.life[data-screen='poll'] .bb-progress,
+.life[data-screen='missions'] .bb-progress {
+  height: 20px;
+  padding: 3px;
+  background: var(--neutral-10);
+  --bc: var(--neutral-4);
+}
+
+.life[data-screen='poll'] .bb-progress__fill,
+.life[data-screen='missions'] .bb-progress__fill {
+  background:
+    repeating-linear-gradient(90deg, transparent 0 10px, var(--neutral-10) 10px 12px),
+    linear-gradient(var(--sky-80) 0 3px, var(--sky-60) 3px 10px, var(--sky-40) 10px);
+}
+
+.life[data-screen='poll'] .bb-progress--success .bb-progress__fill,
+.life[data-screen='missions'] .bb-progress--success .bb-progress__fill {
+  background:
+    repeating-linear-gradient(90deg, transparent 0 10px, var(--neutral-10) 10px 12px),
+    linear-gradient(var(--green-80) 0 3px, var(--green-60) 3px 10px, var(--green-40) 10px);
+}
+
+/* ---- quiz: the question on a stage panel, lettered answer plates ----
+ * The plates outrank the kit's enabled-button edge rule (four classes), so the frame stays gold. */
+.life[data-screen='quiz'] .sc-show {
+  --bc: var(--yellow-70);
+  background: var(--indigo-10);
+  color: var(--paper-99);
+}
+
+.life[data-screen='quiz'] .sc-show > .bb-card__title {
+  color: var(--yellow-90);
+}
+
+.life[data-screen='quiz'] .life__choices li {
+  position: relative;
+}
+
+.life[data-screen='quiz'] .life__choices .bb-btn.life__choice {
+  gap: var(--space-3);
+  outline: none;
+  background: var(--indigo-30);
+  color: var(--paper-99);
+  --bc: var(--yellow-80);
+  box-shadow:
+    var(--pb),
+    inset 0 0 0 2px var(--orange-40),
+    inset 0 -4px 0 var(--indigo-20);
+}
+
+.life[data-screen='quiz'] .life__choices .bb-btn.life__choice:disabled {
+  opacity: 1;
+}
+
+.sc-letter {
+  display: inline-grid;
+  flex: none;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  background: var(--yellow-80);
+  color: var(--neutral-4);
+  font: 700 16px / 1 var(--font-body);
+  box-shadow:
+    inset -2px -2px 0 var(--orange-40),
+    inset 2px 2px 0 var(--yellow-95);
+}
+
+.life[data-screen='quiz'] .life__choices .bb-btn.life__choice[data-state='right'] {
+  background: var(--green-30);
+  --bc: var(--green-80);
+}
+
+.life[data-screen='quiz'] .life__choices .bb-btn.life__choice[data-state='right'] .sc-letter {
+  background: var(--green-80);
+}
+
+.life[data-screen='quiz'] .life__choices .bb-btn.life__choice[data-state='wrong'] {
+  background: var(--red-30);
+  --bc: var(--red-60);
+}
+
+.life[data-screen='quiz'] .life__choices .bb-btn.life__choice[data-state='wrong'] .sc-letter {
+  background: var(--red-80);
+}
+
+.life[data-screen='quiz'] .life__choices .bb-btn.life__choice[data-state] {
+  padding-right: 56px;
+}
+
+.sc-fx {
+  position: absolute;
+  top: 50%;
+  right: 10px;
+  margin-top: -24px;
+  pointer-events: none;
+}
+
+/* ---- lottery: a striped awning over the booth, digits in the reading font ---- */
+.life[data-screen='lottery'] .sc-booth {
+  position: relative;
+  padding-top: 28px;
+}
+
+.life[data-screen='lottery'] .sc-booth::before {
+  content: '';
+  position: absolute;
+  inset: 0 0 auto;
+  height: 16px;
+  background: repeating-linear-gradient(90deg, var(--red-50) 0 16px, var(--paper-96) 16px 32px);
+  box-shadow:
+    0 2px 0 var(--red-30),
+    0 4px 0 var(--yellow-70);
+}
+
+/* The display face draws 2 and 5 like 8 at this size; numbers use the reading face. */
+.life[data-screen='lottery'] .life-stat__value {
+  font-family: var(--font-body);
+  font-weight: 700;
+}
+
+.sc-ticket {
+  flex: none;
+}
+
+/* ---- poll: the no bar in red, a ballot by the title ---- */
+.life[data-screen='poll'] .bb-progress-wrap + .bb-progress-wrap .bb-progress__fill {
+  background:
+    repeating-linear-gradient(90deg, transparent 0 10px, var(--neutral-10) 10px 12px),
+    linear-gradient(var(--red-70) 0 3px, var(--red-50) 3px 10px, var(--red-30) 10px);
+}
+
+.sc-ballot {
+  display: inline-block;
+  margin-right: var(--space-2);
+  vertical-align: -2px;
+}
+
+/* ---- missions: notes pinned on a cork board ---- */
+.life[data-screen='missions'] .sc-cork {
+  padding: 14px 12px;
+  background: var(--amber-40);
+  box-shadow:
+    inset 0 0 0 4px var(--brown-40),
+    inset 0 0 0 6px var(--brown-20),
+    inset 6px 6px 0 6px var(--amber-30);
+}
+
+.life[data-screen='missions'] .life-mission {
+  position: relative;
+  padding-top: 22px;
+  background: var(--paper-96);
+  color: var(--neutral-10);
+  --bc: var(--paper-80);
+  clip-path: polygon(0 0, 100% 0, 100% calc(100% - 12px), calc(100% - 12px) 100%, 0 100%);
+}
+
+.life[data-screen='missions'] .life-mission::after {
+  content: '';
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  width: 12px;
+  height: 12px;
+  background: var(--paper-80);
+}
+
+.sc-pin {
+  position: absolute;
+  top: 4px;
+  left: 50%;
+  margin-left: -7px;
+}
+
+.sc-stamp {
+  position: absolute;
+  top: 14px;
+  right: 8px;
+}
+
+.life[data-screen='missions'] .life-mission[data-done='true'] .life-mission__top {
+  padding-right: 44px;
+}
+
+/* ---- ranking: medals instead of avatars for places 1 to 3 ---- */
+.bb-avatar.sc-medal {
+  display: grid;
+  place-items: center;
+  background: transparent;
+  box-shadow: none;
+}
