@@ -565,6 +565,13 @@ export class RaceService {
       const balance = ctx.economy.getBalance(guildId, userId);
       if (balance < ENTRY_FEE)
         throw new GameRuleError('entry_fee_short', { fee: ENTRY_FEE, balance });
+      const entry = ctx.store
+        .stmt(
+          'INSERT INTO horse_entries (race_id, guild_id, horse_id, owner_id, name, lane) VALUES (?, ?, ?, ?, ?, -1)',
+        )
+        .run(raceId, guildId, horseId, userId, h.name);
+      // Keyed by the entry row (ids are never reused): a re-entry after a withdraw is a new
+      // entry and pays again instead of replaying the first fee.
       ctx.economy.debit({
         guildId,
         userId,
@@ -572,13 +579,8 @@ export class RaceService {
         reason: 'race_entry_fee',
         refType: 'race',
         refId: String(raceId),
-        idempotencyKey: `race:${raceId}:entry:${horseId}`,
+        idempotencyKey: `race:${raceId}:entry:${horseId}:${entry.lastInsertRowid}`,
       });
-      ctx.store
-        .stmt(
-          'INSERT INTO horse_entries (race_id, guild_id, horse_id, owner_id, name, lane) VALUES (?, ?, ?, ?, ?, -1)',
-        )
-        .run(raceId, guildId, horseId, userId, h.name);
     });
   }
 
@@ -588,10 +590,11 @@ export class RaceService {
       const race = this.race(raceId);
       if (race.status !== 'entry' || ctx.clock.now() >= race.entry_close)
         throw new GameRuleError('entry_closed');
-      const info = ctx.store
-        .stmt('DELETE FROM horse_entries WHERE race_id = ? AND horse_id = ? AND owner_id = ?')
-        .run(raceId, horseId, userId);
-      if (info.changes === 0) throw new GameRuleError('not_entered');
+      const entry = ctx.store
+        .stmt('SELECT id FROM horse_entries WHERE race_id = ? AND horse_id = ? AND owner_id = ?')
+        .get(raceId, horseId, userId) as { id: number } | undefined;
+      if (!entry) throw new GameRuleError('not_entered');
+      ctx.store.stmt('DELETE FROM horse_entries WHERE id = ?').run(entry.id);
       ctx.economy.credit({
         guildId,
         userId,
@@ -599,7 +602,7 @@ export class RaceService {
         reason: 'race_refund',
         refType: 'race',
         refId: String(raceId),
-        idempotencyKey: `race:${raceId}:withdraw:${horseId}`,
+        idempotencyKey: `race:${raceId}:withdraw:${horseId}:${entry.id}`,
       });
     });
   }
