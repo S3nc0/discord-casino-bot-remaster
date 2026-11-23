@@ -1,3 +1,5 @@
+**English** | [日本語](README.ja.md)
+
 # Button
 
 A pixel-edged button in M3's five emphasis levels, used for any action someone takes on purpose.

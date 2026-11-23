@@ -1,3 +1,5 @@
+**English** | [日本語](README.ja.md)
+
 # Tabs
 
 M3 primary tabs, for switching between views of the same content.

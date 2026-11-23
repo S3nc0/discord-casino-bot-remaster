@@ -1,3 +1,5 @@
+**English** | [日本語](README.ja.md)
+
 # Dialog
 
 A modal for decisions that need an answer before moving on. It is M3's basic dialog with a pixel frame.

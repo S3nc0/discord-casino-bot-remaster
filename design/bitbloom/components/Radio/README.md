@@ -1,3 +1,5 @@
+**English** | [日本語](README.ja.md)
+
 # Radio
 
 A pixel-circle radio button for picking exactly one option from a short list.

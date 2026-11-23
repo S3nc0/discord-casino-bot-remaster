@@ -1,3 +1,5 @@
+**English** | [日本語](README.ja.md)
+
 # Progress
 
 A segmented pixel bar that shows how far along something is. It is M3's linear progress indicator.

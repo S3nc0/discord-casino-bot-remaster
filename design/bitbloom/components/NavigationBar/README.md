@@ -1,3 +1,5 @@
+**English** | [日本語](README.ja.md)
+
 # NavigationBar
 
 The bottom bar for moving between 3–5 top-level destinations on phones. It includes the Badge.

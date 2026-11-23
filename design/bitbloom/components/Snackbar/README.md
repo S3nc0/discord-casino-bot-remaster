@@ -1,3 +1,5 @@
+**English** | [日本語](README.ja.md)
+
 # Snackbar
 
 A brief message about something that just happened, shown at the bottom of the screen with an optional action.

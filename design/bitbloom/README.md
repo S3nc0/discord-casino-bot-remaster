@@ -1,3 +1,5 @@
+**English** | [日本語](README.ja.md)
+
 # Bitbloom
 
 Bitbloom is a friendly design system that pairs Material 3's color science and component structure with the look of pixel art. It suits cozy games, kids' and learning apps, community tools and anything that should feel playful while still being easy for everyone to use.

@@ -1,3 +1,5 @@
+**English** | [日本語](README.ja.md)
+
 # Tag
 
 A static label tinted from any of the 16 hues, for categories, rarities and statuses. This is where the large palette shows up in the UI.

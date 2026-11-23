@@ -1,3 +1,5 @@
+**English** | [日本語](README.ja.md)
+
 # List
 
 Rows of related items with a leading pixel avatar, two lines of text and trailing metadata. It includes the Avatar.
