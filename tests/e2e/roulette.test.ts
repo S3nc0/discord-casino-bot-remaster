@@ -161,8 +161,16 @@ describe('shared roulette table', () => {
       expect(states.every((t) => t.phase === 'idle')).toBe(true);
       expect(states.every((t) => dataOf(t).bets.length === 0)).toBe(true);
     }
-    // Domain events go to the guild: the same guild hears the round, another guild does not.
-    expect(dave.seen.domain.some((e) => e.type === 'GameSettled')).toBe(true);
+    // Round results are private domain events: each player hears their own settlement and
+    // nobody else's, whether in the same guild (other instance) or another one.
+    for (const c of room) {
+      const settled = c.seen.domain.filter((e) => e.type === 'GameSettled');
+      expect(settled.length).toBeGreaterThan(0);
+      expect(settled.every((e) => e.userId === c.person.id)).toBe(true);
+    }
+    for (const outsider of [dave, daveB]) {
+      expect(outsider.seen.domain.filter((e) => e.type === 'GameSettled')).toEqual([]);
+    }
     expect(daveB.seen.domain).toEqual([]);
 
     // The result stays up, then the table is idle again for the next spin.
