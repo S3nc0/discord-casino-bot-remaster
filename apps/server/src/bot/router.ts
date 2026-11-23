@@ -157,6 +157,15 @@ function checkCommandAccess(
   }
 }
 
+/** Buttons, selects, modals and autocomplete get the same guild gate as slash commands. */
+function checkInteractionGuild(
+  deps: BotRouterDeps,
+  interaction: Pick<Interaction, 'guildId' | 'guild' | 'user'>,
+): void {
+  if (interaction.guildId === null) return;
+  checkGuildAccess(deps, interaction.guildId, interaction.guild?.name ?? null, interaction.user.id);
+}
+
 type ComponentOrModal = ButtonInteraction | StringSelectMenuInteraction | ModalSubmitInteraction;
 
 async function sendReply(
@@ -446,6 +455,7 @@ export function createInteractionHandler(
 
     if (interaction.isAutocomplete()) {
       try {
+        checkInteractionGuild(deps, interaction);
         await dispatchChatAutocomplete({ deps, locale }, interaction);
       } catch (error) {
         deps.logger.warn({ err: error }, 'autocomplete failed');
@@ -455,6 +465,7 @@ export function createInteractionHandler(
     }
 
     try {
+      checkInteractionGuild(deps, interaction);
       if (interaction.isModalSubmit()) {
         await dispatchChatModal({ deps, locale }, interaction);
       } else if (interaction.isStringSelectMenu()) {
