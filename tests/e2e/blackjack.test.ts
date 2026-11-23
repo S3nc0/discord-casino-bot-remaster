@@ -1,5 +1,9 @@
 import { afterEach, describe, expect, it } from 'vitest';
-import { createSeededRng, type IntentAck, type TableSnapshot } from '../../packages/shared/src/index.ts';
+import {
+  createSeededRng,
+  type IntentAck,
+  type TableSnapshot,
+} from '../../packages/shared/src/index.ts';
 import {
   BLACKJACK_BETTING_MS,
   BLACKJACK_RESULT_MS,
@@ -52,7 +56,7 @@ async function dealtTable(seats = 3): Promise<{ players: TestClient[]; roundId: 
     // Alice starts the hand early; the window would deal it anyway after 15 s.
     const dealt = await (players[0] as TestClient).action('blackjack', roundId, 'deal');
     expect(dealt).toMatchObject({ ok: true });
-    const view = ((dealt as Extract<IntentAck, { ok: true }>).result as BlackjackView);
+    const view = (dealt as Extract<IntentAck, { ok: true }>).result as BlackjackView;
     if (view.phase === 'player' && view.seats.filter((s) => s.status === 'playing').length >= 2) {
       return { players, roundId };
     }
@@ -112,7 +116,10 @@ describe('shared blackjack table', () => {
       });
     }
     expect(await byTurn.action('blackjack', roundId, 'stand')).toMatchObject({ ok: true });
-    const next = await alice.waitTable('blackjack', (t) => t.phase !== 'idle' && t.phase !== 'betting' && viewOf(t).turn !== view.turn);
+    const next = await alice.waitTable(
+      'blackjack',
+      (t) => t.phase !== 'idle' && t.phase !== 'betting' && viewOf(t).turn !== view.turn,
+    );
     expect(viewOf(next).seats[view.turn]?.status).toBe('done');
     // An outsider who is not seated cannot act on the table either.
     const dave = await sit(DAVE);
@@ -148,10 +155,16 @@ describe('shared blackjack table', () => {
     }
     // After the result window the table is idle and empty again.
     stack.timers.advance(BLACKJACK_RESULT_MS);
-    const idle = await alice.waitTable('blackjack', (t) => t.phase === 'idle' && t.roundId === null);
+    const idle = await alice.waitTable(
+      'blackjack',
+      (t) => t.phase === 'idle' && t.roundId === null,
+    );
     expect(idle.seats.every((s) => s.userId === null)).toBe(true);
     // The old round is gone: acting on it is a conflict.
-    expect(await alice.action('blackjack', roundId, 'hit')).toMatchObject({ ok: false, error: 'conflict' });
+    expect(await alice.action('blackjack', roundId, 'hit')).toMatchObject({
+      ok: false,
+      error: 'conflict',
+    });
   });
 
   it('deals by itself when the betting window closes', async () => {
@@ -161,7 +174,10 @@ describe('shared blackjack table', () => {
     await alice.bet('blackjack', 100);
     await bob.bet('blackjack', 100);
     stack.timers.advance(BLACKJACK_BETTING_MS);
-    const s = await bob.waitTable('blackjack', (t) => t.phase === 'player' || t.phase === 'settled');
+    const s = await bob.waitTable(
+      'blackjack',
+      (t) => t.phase === 'player' || t.phase === 'settled',
+    );
     expect(['player', 'settled']).toContain(s.phase);
     expect(viewOf(s).seats).toHaveLength(2);
   });

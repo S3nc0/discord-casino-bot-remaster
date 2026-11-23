@@ -43,7 +43,12 @@ export interface TestClient {
   bet(
     game: GameId,
     stake: number,
-    extra?: { bets?: { kind: string; targets: (number | string)[]; stake: number }[]; roundId?: string; args?: Record<string, string | number | boolean>; key?: string },
+    extra?: {
+      bets?: { kind: string; targets: (number | string)[]; stake: number }[];
+      roundId?: string;
+      args?: Record<string, string | number | boolean>;
+      key?: string;
+    },
   ): Promise<IntentAck>;
   action(
     game: GameId,

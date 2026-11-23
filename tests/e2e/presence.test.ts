@@ -85,7 +85,9 @@ describe('instance participants', () => {
       const everyone = outsider.seen.participants.flatMap((p) => p.users.map((u) => u.id));
       expect(everyone).not.toContain(ALICE.id);
       expect(everyone).not.toContain(BOB.id);
-      expect(outsider.seen.participants.every((p) => p.instanceId === outsider.instanceId)).toBe(true);
+      expect(outsider.seen.participants.every((p) => p.instanceId === outsider.instanceId)).toBe(
+        true,
+      );
     }
     // Leaving in one instance does not disturb the other.
     const before = sameGuildOther.seen.participants.length;
@@ -99,7 +101,9 @@ describe('instance participants', () => {
     stack = await startStack();
     const alice = await connect(ALICE);
     const rooms = [...stack.io.sockets.sockets.values()].flatMap((s) => [...s.rooms]);
-    expect(rooms.some((r) => r.startsWith('instance:') && r !== `instance:${alice.instanceId}`)).toBe(false);
+    expect(
+      rooms.some((r) => r.startsWith('instance:') && r !== `instance:${alice.instanceId}`),
+    ).toBe(false);
     expect(rooms).toContain(`user:${ALICE.id}`);
     expect(rooms).toContain(`guild:${alice.guildId}`);
   });

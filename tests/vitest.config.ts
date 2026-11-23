@@ -30,6 +30,8 @@ export default defineConfig({
     alias: [
       { find: /^fast-check$/, replacement: fromServer.resolve('fast-check') },
       { find: /^socket\.io-client$/, replacement: fromServer.resolve('socket.io-client') },
+      { find: /^typebox$/, replacement: fromServer.resolve('typebox') },
+      { find: /^typebox\/value$/, replacement: fromServer.resolve('typebox/value') },
     ],
   },
   test: {

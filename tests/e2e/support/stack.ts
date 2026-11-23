@@ -3,7 +3,11 @@
 // knows several users, guilds and Activity instances. Nothing reaches the network and the chat
 // bot is never started (the equivalent of BOT_DISABLED=1: `startRuntime` is not called).
 import { manualClock, type ManualClock, type Rng } from '../../../packages/shared/src/index.ts';
-import type { HttpClient, HttpRequest, HttpResponse } from '../../../apps/server/src/auth/discord.ts';
+import type {
+  HttpClient,
+  HttpRequest,
+  HttpResponse,
+} from '../../../apps/server/src/auth/discord.ts';
 import { manualScheduler } from '../../../apps/server/src/games/casino/test-kit.ts';
 import { createLogger } from '../../../apps/server/src/runtime/logger.ts';
 import { createServer, type CasinoServices } from '../../../apps/server/src/runtime/server.ts';
@@ -73,7 +77,10 @@ export function worldDiscord(world: WorldSpec): HttpClient {
       if (path === '/oauth2/token') {
         const code = request.form?.['code'] ?? '';
         return people.has(code)
-          ? reply(200, { access_token: `at:${code}`, scope: 'identify guilds rpc.activities.write' })
+          ? reply(200, {
+              access_token: `at:${code}`,
+              scope: 'identify guilds rpc.activities.write',
+            })
           : reply(400, { error: 'invalid_grant' });
       }
       if (path === '/users/@me') {

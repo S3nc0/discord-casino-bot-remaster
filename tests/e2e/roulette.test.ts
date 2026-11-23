@@ -1,6 +1,9 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { createSeededRng, type TableSnapshot } from '../../packages/shared/src/index.ts';
-import { ROULETTE_BETTING_MS, ROULETTE_RESULT_MS } from '../../apps/server/src/games/casino/roulette.ts';
+import {
+  ROULETTE_BETTING_MS,
+  ROULETTE_RESULT_MS,
+} from '../../apps/server/src/games/casino/roulette.ts';
 import { INITIAL_BALANCE } from '../../apps/server/src/economy/economy-service.ts';
 import { connectClient, newKey, settle, type TestClient } from './support/clients.ts';
 import {
@@ -23,7 +26,9 @@ afterEach(async () => {
   await stack?.close();
 });
 
-async function join(...args: Parameters<typeof connectClient> extends [unknown, ...infer R] ? R : never) {
+async function join(
+  ...args: Parameters<typeof connectClient> extends [unknown, ...infer R] ? R : never
+) {
   const client = await connectClient(stack, ...args);
   clients.push(client);
   return client;
@@ -95,7 +100,9 @@ describe('shared roulette table', () => {
 
     // The betting window closes: one server spin, the same timeline for everybody.
     stack.timers.advance(ROULETTE_BETTING_MS);
-    const spins = await Promise.all(room.map((c) => c.waitTable('roulette', (t) => t.phase === 'spinning')));
+    const spins = await Promise.all(
+      room.map((c) => c.waitTable('roulette', (t) => t.phase === 'spinning')),
+    );
     const first0 = dataOf(spins[0] as TableSnapshot);
     expect(first0.result).toBeGreaterThanOrEqual(0);
     expect(first0.result).toBeLessThanOrEqual(36);
@@ -103,27 +110,37 @@ describe('shared roulette table', () => {
     for (const s of spins) expect(dataOf(s)).toEqual(first0);
 
     // No new bets while the wheel turns.
-    const late = await carol.bet('roulette', 50, { bets: [{ kind: 'red', targets: [], stake: 50 }] });
+    const late = await carol.bet('roulette', 50, {
+      bets: [{ kind: 'red', targets: [], stake: 50 }],
+    });
     expect(late).toMatchObject({ ok: false, error: 'conflict' });
 
     // The wheel stops: payouts are in the snapshot and in each player's own balance update.
     const duration = first0.timeline?.at(-1)?.atMs ?? 0;
     stack.timers.advance(duration);
-    const results = await Promise.all(room.map((c) => c.waitTable('roulette', (t) => t.phase === 'result')));
+    const results = await Promise.all(
+      room.map((c) => c.waitTable('roulette', (t) => t.phase === 'result')),
+    );
     const result = first0.result as number;
     for (const s of results) {
       expect(dataOf(s).result).toBe(result);
       expect(dataOf(s).payouts).toEqual(dataOf(results[0] as TableSnapshot).payouts);
     }
     const payouts = new Map(dataOf(results[0] as TableSnapshot).payouts?.map((p) => [p.userId, p]));
-    const redWins = result !== 0 && [1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25, 27, 30, 32, 34, 36].includes(result);
+    const redWins =
+      result !== 0 &&
+      [1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25, 27, 30, 32, 34, 36].includes(result);
     const blackWins = result !== 0 && !redWins;
     expect(payouts.get(ALICE.id)?.payout).toBeGreaterThanOrEqual(0);
     expect((payouts.get(ALICE.id)?.payout ?? 0) > 0).toBe(redWins);
     expect((payouts.get(CAROL.id)?.payout ?? 0) > 0).toBe(blackWins);
     expect((payouts.get(BOB.id)?.payout ?? 0) > 0).toBe(result === 17);
 
-    const stakes = new Map([[ALICE.id, 200], [BOB.id, 50], [CAROL.id, 200]]);
+    const stakes = new Map([
+      [ALICE.id, 200],
+      [BOB.id, 50],
+      [CAROL.id, 200],
+    ]);
     for (const c of room) {
       const mine = payouts.get(c.person.id);
       const expected = INITIAL_BALANCE - (stakes.get(c.person.id) ?? 0) + (mine?.payout ?? 0);
@@ -150,7 +167,10 @@ describe('shared roulette table', () => {
 
     // The result stays up, then the table is idle again for the next spin.
     stack.timers.advance(ROULETTE_RESULT_MS);
-    const idle = await alice.waitTable('roulette', (t) => t.phase === 'idle' && t.seq > results[0]!.seq);
+    const idle = await alice.waitTable(
+      'roulette',
+      (t) => t.phase === 'idle' && t.seq > results[0]!.seq,
+    );
     expect(dataOf(idle).history[0]).toBe(result);
   });
 
