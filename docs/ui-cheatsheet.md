@@ -1,3 +1,5 @@
+**English** | [日本語](ui-cheatsheet.ja.md)
+
 # Bitbloom UI Cheatsheet (`@casino/ui`)
 
 Import from `@casino/ui` (self-hosted fonts, `tokens.css`, and `bundle.css` load automatically with zero external URLs).

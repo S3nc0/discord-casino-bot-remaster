@@ -1,8 +1,9 @@
+**English** | [日本語](ARCHITECTURE.ja.md)
+
 # Architecture
 
-**English** | Japanese: the architecture notes are kept in English only. For the maintainer view
-(running, releasing, adding things) see [MAINTAINERS.md](../MAINTAINERS.md) /
-[MAINTAINERS.ja.md](../MAINTAINERS.ja.md).
+For the maintainer view (running, releasing, adding things) see
+[MAINTAINERS.md](../MAINTAINERS.md) / [MAINTAINERS.ja.md](../MAINTAINERS.ja.md).
 
 ## Process and packages
 

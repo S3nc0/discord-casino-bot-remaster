@@ -1,3 +1,5 @@
+**English** | [日本語](DB_SCHEMA.ja.md)
+
 # Database schema
 
 One SQLite file, opened by the single server process through `better-sqlite3`. Migrations live in
