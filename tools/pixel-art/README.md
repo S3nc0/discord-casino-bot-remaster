@@ -59,3 +59,24 @@ ART_OUT=/some/folder node tools/pixel-art/casino/preview.js
 - One file per game draws its scene: `slots.js` (cabinet, reels, spin blur), `chinchiro.js` (tatami, donburi bowl, dice and their tumble), `cards.js` and `table.js` (52 faces with J/Q/K portraits, the back, the dealer's strip, arc and rail), `roulette.js` (wheel, ball, betting board), `pachinko.js` (machine face, pins, tulips, lamp, ball paths).
 - `ship.js` stores each sprite as row strings with its own legend of palette tokens. Parts that change (bulbs, lever, lamp, tulips, a lit pocket) ship as a base with holes plus one small overlay per state. The screens draw them as SVG paths filled from the token variables, at a whole number of device pixels per art pixel.
 - Drawn from scratch: no reference images.
+
+## Social and player scenes
+
+The pictures above the quiz, lottery, poll, missions, ranking, relics and transfer screens, the daily bonus room, the history ledger and the profile card. Drawn in code with no references. Run from the repository root.
+
+```sh
+# writes quiz-art.ts, lottery-art.ts, poll-art.ts, missions-art.ts, ranking-art.ts, relics-art.ts,
+# transfer-art.ts (apps/web/src/screens/life/), daily-art.ts, history-art.ts
+# (apps/web/src/screens/casino/) and profile-art.ts (apps/web/src/screens/profile/), then formats them
+node tools/pixel-art/social/ship.js
+
+# previews, not shipped: 4x sheets and gifs of every scene
+ART_OUT=/some/folder node tools/pixel-art/social/preview.js
+```
+
+- Every scene is 176 art pixels wide, drawn at 2 CSS px per art pixel (352 px, inside a 390 px phone). Scenes carry their own frame and wall, so the light and dark themes use the same tokens and the scene reads on navy and on cream alike.
+- Animated parts ship as small overlays: `ship.js` draws every frame in full, finds the box where any frame differs from the still one, and cuts only that box (`*_AT` gives where it goes). Frame 0 of an overlay is the still frame, which is what reduced motion shows (`useSceneFrame` and `useSceneOnce` in `packages/ui/src/pixel/` stay on it).
+- `kit.js` shared helpers: `prop()` draws a lit part at 8x (`lib/hi.js`), `frame()` the stepped 2 px border, `glaze()` a dithered tint. `person.js` a 26 by 32 character (coat, hair, arm pose).
+- `quiz.js` game-show stage, sign bulbs (2 frames) and the host; `fx.js` the right ring and wrong cross (4 frames, the last is still). `lottery.js` festival counter and the drawing globe (6 frames), the ticket. `poll.js` booth, voter and ballot box, the ballot drop (8 frames). `missions.js` the quest board, pin heads, done stamp. `ranking.js` podium, trophy glint (8 frames), medals 1 to 3. `relics.js` the museum hall and, per case, a silhouette and four glow levels around the mine's relic sprite (`scenes/finds.js`), so both screens show the same relic. `transfer.js` the street and the letter flight (8 frames). `daily.js` the room, calendar stamp and gift box (6 frames). `history.js` the ledger desk. `profile.js` the player card and its slots (`PROFILE_SLOTS`); the avatar placeholder is a bust drawn in `ship.js`.
+- Numbers placed on these scenes (plaques, stats) use the reading face (`--font-body`): the display face draws 2 and 5 too close to 8 at small sizes.
+

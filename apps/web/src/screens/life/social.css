@@ -41,7 +41,8 @@
     linear-gradient(var(--green-80) 0 3px, var(--green-60) 3px 10px, var(--green-40) 10px);
 }
 
-/* ---- quiz: the question on a stage panel, lettered answer plates ---- */
+/* ---- quiz: the question on a stage panel, lettered answer plates ----
+ * The plates outrank the kit's enabled-button edge rule (four classes), so the frame stays gold. */
 .life[data-screen='quiz'] .sc-show {
   --bc: var(--yellow-70);
   background: var(--indigo-10);
@@ -56,7 +57,7 @@
   position: relative;
 }
 
-.life[data-screen='quiz'] .life__choice {
+.life[data-screen='quiz'] .life__choices .bb-btn.life__choice {
   gap: var(--space-3);
   outline: none;
   background: var(--indigo-30);
@@ -68,7 +69,7 @@
     inset 0 -4px 0 var(--indigo-20);
 }
 
-.life[data-screen='quiz'] .life__choice:disabled {
+.life[data-screen='quiz'] .life__choices .bb-btn.life__choice:disabled {
   opacity: 1;
 }
 
@@ -86,25 +87,25 @@
     inset 2px 2px 0 var(--yellow-95);
 }
 
-.life[data-screen='quiz'] .life__choice[data-state='right'] {
+.life[data-screen='quiz'] .life__choices .bb-btn.life__choice[data-state='right'] {
   background: var(--green-30);
   --bc: var(--green-80);
 }
 
-.life[data-screen='quiz'] .life__choice[data-state='right'] .sc-letter {
+.life[data-screen='quiz'] .life__choices .bb-btn.life__choice[data-state='right'] .sc-letter {
   background: var(--green-80);
 }
 
-.life[data-screen='quiz'] .life__choice[data-state='wrong'] {
+.life[data-screen='quiz'] .life__choices .bb-btn.life__choice[data-state='wrong'] {
   background: var(--red-30);
   --bc: var(--red-60);
 }
 
-.life[data-screen='quiz'] .life__choice[data-state='wrong'] .sc-letter {
+.life[data-screen='quiz'] .life__choices .bb-btn.life__choice[data-state='wrong'] .sc-letter {
   background: var(--red-80);
 }
 
-.life[data-screen='quiz'] .life__choice[data-state] {
+.life[data-screen='quiz'] .life__choices .bb-btn.life__choice[data-state] {
   padding-right: 56px;
 }
 
@@ -203,7 +204,7 @@
 }
 
 /* ---- ranking: medals instead of avatars for places 1 to 3 ---- */
-.sc-medal {
+.bb-avatar.sc-medal {
   display: grid;
   place-items: center;
   background: transparent;
