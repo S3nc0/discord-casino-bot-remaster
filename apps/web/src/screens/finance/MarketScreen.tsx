@@ -38,6 +38,10 @@ import {
   Stats,
 } from './parts.tsx';
 import { PixelChart } from './PixelChart.tsx';
+import { CryptoScene } from './scenes/CryptoScene.tsx';
+import { MarketScene } from './scenes/MarketScene.tsx';
+import { StocksScene } from './scenes/StocksScene.tsx';
+import { SymbolCoin } from './sprites.tsx';
 
 type Mode = 'spot' | 'margin' | 'call' | 'put' | 'pair' | 'bond';
 const MODES: readonly Mode[] = ['spot', 'margin', 'call', 'put', 'pair', 'bond'];
@@ -60,6 +64,7 @@ function Board({
         const name = symbolName(s.key);
         const change = `${s.changeBps > 0 ? '+' : ''}${num(s.changeBps / 100, 2)}%`;
         const price = num(s.priceMicros / PRICE_SCALE, 2);
+        const hist = s.history.length > 0 ? s.history : [s.priceMicros];
         return (
           <Card
             key={s.key}
@@ -70,15 +75,24 @@ function Board({
             onClick={() => onPick(s.key)}
           >
             <div className="fin-symbol__head">
-              <strong>{name}</strong>
+              <strong>
+                <SymbolCoin symbol={s.key} />
+                <span>{name}</span>
+              </strong>
               <Tag hue={s.changeBps > 0 ? 'green' : s.changeBps < 0 ? 'red' : 'neutral'}>
                 {change}
               </Tag>
             </div>
             <p className="fin-symbol__price">{price}</p>
             <PixelChart
-              points={s.history}
-              label={t('screen.finance.market.chartLabel', { name, change })}
+              points={hist}
+              label={t('screen.finance.market.chartLabel', { name, change, price })}
+              high={t('screen.finance.market.chartHigh', {
+                value: num(Math.max(...hist) / PRICE_SCALE, 2),
+              })}
+              low={t('screen.finance.market.chartLow', {
+                value: num(Math.min(...hist) / PRICE_SCALE, 2),
+              })}
             />
             {s.pin !== 0 ? (
               <Tag hue="amber">
@@ -175,7 +189,15 @@ function Trade({
     });
   };
 
-  const symbolOptions = view.symbols.map((s) => ({ value: s.key, label: s.key.toUpperCase() }));
+  const symbolOptions = view.symbols.map((s) => ({
+    value: s.key,
+    label: (
+      <>
+        <SymbolCoin symbol={s.key} size={1} />
+        {s.key.toUpperCase()}
+      </>
+    ),
+  }));
   const amountLabel =
     mode === 'margin'
       ? t('screen.finance.market.marginAmount')
@@ -258,7 +280,15 @@ function Trade({
   );
 }
 
-function Holdings({ view, action }: { view: FinanceMarketView; action: Action }) {
+function Holdings({
+  view,
+  action,
+  onSold,
+}: {
+  view: FinanceMarketView;
+  action: Action;
+  onSold: () => void;
+}) {
   const t = useT();
   const client = useFinanceClient();
   const pelica = usePelica();
@@ -266,14 +296,14 @@ function Holdings({ view, action }: { view: FinanceMarketView; action: Action })
   const timeLeft = useTimeLeft();
   const settle = (position: string) => {
     const body = (key: string): FinanceSettleRequest => ({ idempotencyKey: key, position });
-    void action.run(
-      `settle:${position}`,
-      (key) => client.post(FINANCE_ROUTES.marketSettle, body(key)),
-      {
+    void action
+      .run(`settle:${position}`, (key) => client.post(FINANCE_ROUTES.marketSettle, body(key)), {
         key: 'screen.finance.market.settled',
         params: (r) => ({ amount: pelica(r.amount ?? r.returned ?? 0) }),
-      },
-    );
+      })
+      .then((ok) => {
+        if (ok) onSold();
+      });
   };
   const units = (milli: number) => num(milli / QUANTITY_SCALE, 3);
   const none =
@@ -446,23 +476,37 @@ export default function MarketScreen({
 }: MarketScreenProps) {
   const t = useT();
   const { data, error, reload } = useView(FINANCE_ROUTES.market, 30_000);
+  // the player market's stalls show its listings, so the market screen loads them up here
+  const listings = useView(FINANCE_ROUTES.listings, 20_000, screen === 'market');
   const action = useAction(reload);
   const [tab, setTab] = useState<string>(initialTab);
   const [symbol, setSymbol] = useState<FinanceSymbol>(initialSymbol);
+  const [flash, setFlash] = useState<{ n: number; tone: 'buy' | 'sell' }>({ n: 0, tone: 'buy' });
+  const traded = (tone: 'buy' | 'sell') => setFlash((f) => ({ n: f.n + 1, tone }));
   const title = t(`screen.${screen}`);
+  const icon = screen === 'stocks' ? 'stocks' : screen === 'crypto' ? 'crypto' : 'market';
+  const scene =
+    screen === 'stocks' ? (
+      <StocksScene symbols={data?.symbols ?? []} flash={flash} />
+    ) : screen === 'crypto' ? (
+      <CryptoScene flash={flash} />
+    ) : (
+      <MarketScene listings={listings.data?.listings ?? []} flash={flash} />
+    );
+  const lead =
+    screen === 'market'
+      ? t('screen.finance.market.leadMarket')
+      : screen === 'crypto'
+        ? t('screen.finance.market.leadCrypto')
+        : t('screen.finance.market.lead');
   if (!data)
     return (
-      <ScreenFrame screen={screen} icon={screen === 'stocks' ? 'stocks' : 'market'} title={title}>
+      <ScreenFrame screen={screen} icon={icon} title={title} scene={scene}>
         <LoadError failed={error !== null} onRetry={() => void reload()} />
       </ScreenFrame>
     );
   return (
-    <ScreenFrame
-      screen={screen}
-      icon={screen === 'stocks' ? 'stocks' : 'market'}
-      title={title}
-      lead={t('screen.finance.market.lead')}
-    >
+    <ScreenFrame screen={screen} icon={icon} title={title} lead={lead} scene={scene}>
       <Tabs
         label={title}
         activeId={tab}
@@ -490,7 +534,10 @@ export default function MarketScreen({
                 symbol={symbol}
                 setSymbol={setSymbol}
                 action={action}
-                onBought={() => setTab('holdings')}
+                onBought={() => {
+                  traded('buy');
+                  setTab('holdings');
+                }}
               />
             ),
           },
@@ -500,14 +547,14 @@ export default function MarketScreen({
             panel: (
               <>
                 <ErrorBanner message={action.error} />
-                <Holdings view={data} action={action} />
+                <Holdings view={data} action={action} onSold={() => traded('sell')} />
               </>
             ),
           },
           {
             id: 'listings',
             label: t('screen.finance.market.tabListings'),
-            panel: <ListingsPanel />,
+            panel: <ListingsPanel {...(screen === 'market' ? { view: listings } : {})} />,
           },
         ]}
       />

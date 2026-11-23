@@ -17,7 +17,7 @@ import KyosaiScreen from './KyosaiScreen.tsx';
 import LoansScreen from './LoansScreen.tsx';
 import MarketScreen from './MarketScreen.tsx';
 import { glueAmount } from './hooks.ts';
-import { PixelChart } from './PixelChart.tsx';
+import { PixelChart, toCandles } from './PixelChart.tsx';
 import { FinanceClientContext } from './client.ts';
 import { createMockFinanceClient } from './mock.ts';
 import { FinanceApiError, type FinanceBody, type FinanceClient } from './types.ts';
@@ -106,17 +106,49 @@ async function type(view: Rendered, label: string | RegExp, value: string, nth =
 const text = (view: Rendered) => view.container.textContent ?? '';
 
 describe('PixelChart', () => {
-  it('draws one column per price and follows the move', () => {
+  it('draws pixel candles that follow the move, at a whole-pixel scale', () => {
     const view = render(<PixelChart points={[1, 2, 3, 4]} label="Gold up" />);
     const svg = view.container.querySelector('svg')!;
     expect(svg.getAttribute('data-tone')).toBe('up');
-    expect(svg.querySelectorAll('.fin-chart__line')).toHaveLength(4);
+    expect(svg.querySelectorAll('[data-candle]')).toHaveLength(4);
+    expect(svg.querySelectorAll('[data-candle="up"]')).toHaveLength(4);
     expect(svg.getAttribute('shape-rendering')).toBe('crispEdges');
+    // 4 candles, 3 wide with a 1 pixel gap, 3 CSS px per art pixel
+    expect(svg.getAttribute('viewBox')).toBe('0 0 15 20');
+    expect(svg.getAttribute('width')).toBe('45');
     expect(svg.querySelector('title')!.textContent).toBe('Gold up');
     view.rerender(<PixelChart points={[4, 3, 1]} label="down" />);
     expect(view.container.querySelector('svg')!.getAttribute('data-tone')).toBe('down');
+    // the first candle holds one price and has not moved yet; the two after it fall
+    expect(view.container.querySelectorAll('[data-candle="down"]')).toHaveLength(2);
     view.rerender(<PixelChart points={[5, 5, 5]} label="flat" />);
     expect(view.container.querySelector('svg')!.getAttribute('data-tone')).toBe('flat');
+    view.unmount();
+  });
+
+  it('cuts a long history into at most ten candles that join up', () => {
+    const points = Array.from({ length: 48 }, (_, i) => 100 + Math.sin(i / 4) * 10);
+    const candles = toCandles(points);
+    expect(candles).toHaveLength(10);
+    for (let i = 1; i < candles.length; i++) expect(candles[i]!.open).toBe(candles[i - 1]!.close);
+    for (const c of candles) {
+      expect(c.high).toBeGreaterThanOrEqual(Math.max(c.open, c.close));
+      expect(c.low).toBeLessThanOrEqual(Math.min(c.open, c.close));
+    }
+    expect(toCandles([])).toEqual([]);
+  });
+
+  it('shows the high and low as text and flashes the last candle on a new price', () => {
+    const view = render(<PixelChart points={[1, 3, 2]} label="x" high="High 3" low="Low 1" />);
+    const axis = [...view.container.querySelectorAll('.fin-candles__axis')].map(
+      (p) => p.textContent,
+    );
+    expect(axis).toEqual(['High 3', 'Low 1']);
+    expect(view.container.querySelector('svg')!.hasAttribute('data-flash')).toBe(false);
+    view.rerender(<PixelChart points={[1, 3, 2, 4]} label="x" high="High 4" low="Low 1" />);
+    expect(view.container.querySelector('svg')!.getAttribute('data-flash')).toBe('up');
+    view.rerender(<PixelChart points={[1, 3, 2, 4, 2]} label="x" high="High 4" low="Low 1" />);
+    expect(view.container.querySelector('svg')!.getAttribute('data-flash')).toBe('down');
     view.unmount();
   });
 });

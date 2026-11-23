@@ -31,6 +31,7 @@ import {
   PersonPicker,
   ScreenFrame,
 } from './parts.tsx';
+import { LoansScene } from './scenes/LoansScene.tsx';
 
 const STATUS_HUE: Partial<Record<FinanceLoanView['status'], TagHue>> = {
   offer: 'sky',
@@ -264,10 +265,20 @@ function Composer({ limits, action }: { limits: FinanceLoansView['limits']; acti
 export default function LoansScreen() {
   const t = useT();
   const { data, error, reload } = useView(FINANCE_ROUTES.loans, 30_000);
-  const action = useAction(reload);
+  // every loan step that goes through (offer, accept, repay) is sealed by the stamp in the scene
+  const [signed, setSigned] = useState(0);
+  const action = useAction(async () => {
+    setSigned((n) => n + 1);
+    await reload();
+  });
   if (!data)
     return (
-      <ScreenFrame screen="loans" icon="loan" title={t('screen.loans')}>
+      <ScreenFrame
+        scene={<LoansScene signed={signed} />}
+        screen="loans"
+        icon="loan"
+        title={t('screen.loans')}
+      >
         <LoadError failed={error !== null} onRetry={() => void reload()} />
       </ScreenFrame>
     );
@@ -275,6 +286,7 @@ export default function LoansScreen() {
   const open = data.loans.filter((l) => l.role === 'open');
   return (
     <ScreenFrame
+      scene={<LoansScene signed={signed} />}
       screen="loans"
       icon="loan"
       title={t('screen.loans')}

@@ -58,6 +58,7 @@ export function SellPanel({
 
   return (
     <Panel
+      className="fin-stall"
       title={t('screen.finance.listings.sell.title')}
       hint={t('screen.finance.listings.sell.hint')}
       tone="outlined"

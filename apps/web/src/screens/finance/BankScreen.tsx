@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { FINANCE_ROUTES, type FinanceRepayRequest } from '@casino/shared';
 import { Button, Progress, Tag, type TagHue } from '@casino/ui';
 import { useT } from '../../shell/i18n.ts';
@@ -13,6 +14,7 @@ import {
   Stat,
   Stats,
 } from './parts.tsx';
+import { BankScene } from './scenes/BankScene.tsx';
 
 const STATUS_HUE: Record<string, TagHue> = {
   katagi: 'green',
@@ -28,12 +30,22 @@ export default function BankScreen() {
   const num = useNumber();
   const timeLeft = useTimeLeft();
   const { data, error, reload } = useView(FINANCE_ROUTES.bank, 30_000);
-  const action = useAction(reload);
+  // each repayment that goes through turns the vault wheel in the scene
+  const [paid, setPaid] = useState(0);
+  const action = useAction(async () => {
+    setPaid((n) => n + 1);
+    await reload();
+  });
   const [text, setText, amount] = useInt();
 
   if (!data)
     return (
-      <ScreenFrame screen="bank" icon="bank" title={t('screen.bank')}>
+      <ScreenFrame
+        scene={<BankScene paid={paid} />}
+        screen="bank"
+        icon="bank"
+        title={t('screen.bank')}
+      >
         <LoadError failed={error !== null} onRetry={() => void reload()} />
       </ScreenFrame>
     );
@@ -58,6 +70,7 @@ export default function BankScreen() {
   const ratio = data.bank.ratio;
   return (
     <ScreenFrame
+      scene={<BankScene paid={paid} />}
       screen="bank"
       icon="bank"
       title={t('screen.bank')}

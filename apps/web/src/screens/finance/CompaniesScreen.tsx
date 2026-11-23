@@ -24,6 +24,8 @@ import {
   Stat,
   Stats,
 } from './parts.tsx';
+import { CompaniesScene, type SceneCompany } from './scenes/CompaniesScene.tsx';
+import { CompanyBadge } from './sprites.tsx';
 
 function Found({ view, action }: { view: FinanceCompaniesView; action: Action }) {
   const t = useT();
@@ -198,7 +200,10 @@ function StakeRow({
   return (
     <Card variant="outlined" className="fin-row" data-owner={other.owner.id}>
       <div className="fin-row__head">
-        <strong>{other.name}</strong>
+        <strong>
+          <CompanyBadge name={other.name} kind={other.kind} />
+          <span>{other.name}</span>
+        </strong>
         <Tag hue={other.kind === 'farm' ? 'lime' : 'brown'}>
           {t(`screen.finance.companies.kind.${other.kind}`)}
         </Tag>
@@ -248,20 +253,49 @@ function StakeRow({
   );
 }
 
+/** The companies on the skyline: yours first, then the ones you hold, then the others. */
+function sceneCompanies(view: FinanceCompaniesView | null): SceneCompany[] {
+  if (!view) return [];
+  const kindOf = new Map(view.others.map((o) => [o.owner.id, o.kind] as const));
+  const out: SceneCompany[] = [];
+  const seen = new Set<string>();
+  const add = (key: string, name: string, kind: SceneCompany['kind']) => {
+    if (seen.has(key)) return;
+    seen.add(key);
+    out.push({ name, kind });
+  };
+  if (view.mine) add('mine', view.mine.name, view.mine.kind);
+  for (const h of view.holdings) add(h.owner.id, h.name, kindOf.get(h.owner.id) ?? 'farm');
+  for (const o of view.others) add(o.owner.id, o.name, o.kind);
+  return out;
+}
+
 /** Companies: found yours, fund it, set the dividend, and take stakes in other players'. */
 export default function CompaniesScreen() {
   const t = useT();
   const pelica = usePelica();
   const { data, error, reload } = useView(FINANCE_ROUTES.companies, 60_000);
-  const action = useAction(reload);
+  const [staked, setStaked] = useState(0);
+  const action = useAction(async () => {
+    setStaked((n) => n + 1);
+    await reload();
+  });
+  const scene = (
+    <CompaniesScene
+      companies={sceneCompanies(data)}
+      dividends={(data?.holdings.length ?? 0) > 0}
+      flash={{ n: staked, tone: 'buy' }}
+    />
+  );
   if (!data)
     return (
-      <ScreenFrame screen="companies" icon="company" title={t('screen.companies')}>
+      <ScreenFrame scene={scene} screen="companies" icon="company" title={t('screen.companies')}>
         <LoadError failed={error !== null} onRetry={() => void reload()} />
       </ScreenFrame>
     );
   return (
     <ScreenFrame
+      scene={scene}
       screen="companies"
       icon="company"
       title={t('screen.companies')}
@@ -276,7 +310,13 @@ export default function CompaniesScreen() {
         {data.holdings.map((h) => (
           <Card key={h.owner.id} variant="outlined" className="fin-row" data-holding={h.owner.id}>
             <div className="fin-row__head">
-              <strong>{h.name}</strong>
+              <strong>
+                <CompanyBadge
+                  name={h.name}
+                  kind={data.others.find((o) => o.owner.id === h.owner.id)?.kind ?? 'farm'}
+                />
+                <span>{h.name}</span>
+              </strong>
               <Tag hue="green">{`${h.dividendRateBps / 100}%`}</Tag>
             </div>
             <p className="fin-row__meta">

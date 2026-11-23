@@ -5,7 +5,7 @@ import {
   type FinanceListingRefRequest,
   type FinanceListingView,
 } from '@casino/shared';
-import { Banner, Button, Card, Tag } from '@casino/ui';
+import { Banner, Button, Card, GameIcon, Tag } from '@casino/ui';
 import { useT } from '../../shell/i18n.ts';
 import { RuntimeContext } from '../../shell/runtime.ts';
 import { useSessionStore } from '../../shell/stores/session.ts';
@@ -18,9 +18,12 @@ import {
   useTimeLeft,
   useView,
   type Action,
+  type View,
 } from './hooks.ts';
 import { AmountField, Empty, ErrorBanner, LoadError, Panel } from './parts.tsx';
 import { SellPanel } from './SellPanel.tsx';
+import { Gavel } from './sprites.tsx';
+import { itemIcon } from '../life/items.ts';
 
 /** Listing ids where somebody just bid above the signed-in player. */
 function useOutbid(
@@ -89,10 +92,16 @@ function ListingCard({
     <Card variant="outlined" className="fin-row" data-listing={listing.id} data-mode={listing.mode}>
       <div className="fin-row__head">
         <strong>
-          {assetName(listing)}
-          {listing.qty > 1 ? ` ×${listing.qty}` : ''}
+          <span className="fin-item" aria-hidden="true">
+            <GameIcon name={listing.kind === 'horse' ? 'horse' : itemIcon(listing.ref)} />
+          </span>
+          <span>
+            {assetName(listing)}
+            {listing.qty > 1 ? ` ×${listing.qty}` : ''}
+          </span>
         </strong>
         <Tag hue={auction ? 'violet' : 'teal'}>
+          {auction ? <Gavel size={1} /> : null}
           {t(`screen.finance.listings.mode.${listing.mode}`)}
         </Tag>
       </div>
@@ -104,6 +113,7 @@ function ListingCard({
       </p>
       {outbid ? (
         <div role="alert" className="fin__notice fin__notice--warn" data-outbid={listing.id}>
+          <Gavel size={2} />
           <span>{t('screen.finance.listings.outbid', { amount: pelica(listing.bid) })}</span>
           <Button variant="text" onClick={onSeen}>
             {t('common.ok')}
@@ -195,10 +205,14 @@ function ListingCard({
   );
 }
 
-/** Player market: fixed-price and auction listings with outbid notices. */
-export function ListingsPanel() {
+/**
+ * Player market: fixed-price and auction listings with outbid notices. The market screen passes
+ * the `view` it already loads for its stalls; without one the panel loads its own.
+ */
+export function ListingsPanel({ view }: { view?: View<typeof FINANCE_ROUTES.listings> } = {}) {
   const t = useT();
-  const { data, error, reload } = useView(FINANCE_ROUTES.listings, 20_000);
+  const own = useView(FINANCE_ROUTES.listings, view ? undefined : 20_000, !view);
+  const { data, error, reload } = view ?? own;
   const action = useAction(reload);
   const [outbid, dismiss] = useOutbid(data?.listings, reload);
   if (!data) return <LoadError failed={error !== null} onRetry={() => void reload()} />;

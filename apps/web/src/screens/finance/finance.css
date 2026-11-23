@@ -1,9 +1,11 @@
 /* Finance screens (bank, loans, kyosai, market, companies). Colours come from the kit tokens
    (round 2 theme): soft container fills, one small bright accent per tone. Mobile first; the
-   shell already pads the safe areas. Nothing here animates, so reduced motion needs no override. */
+   shell already pads the safe areas. The pixel scenes at the end animate in steps; reduced
+   motion (the player's setting or the system's) stops every one of them on a still frame. */
 
 .fin {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: var(--space-4);
   width: 100%;
   max-width: 40rem;
@@ -58,6 +60,7 @@
 
 .fin-panel {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: var(--space-3);
   width: 100%;
   max-width: none;
@@ -117,6 +120,7 @@
 /* ---- rows and forms ---- */
 .fin-row {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: var(--space-2);
   width: 100%;
   max-width: none;
@@ -245,4 +249,418 @@
 
 .fin-stat__value .bb-tag {
   white-space: normal;
+}
+
+/* A grid item never grows past the column (a long amount or chip row wraps instead). */
+.fin > * {
+  min-width: 0;
+}
+
+/* ---- pixel scenes: 3 px per art pixel, 4 px on wide screens, never scaled in between ---- */
+.fx-scene {
+  --fx-px: 3px;
+  position: relative;
+  height: calc(var(--fx-h) * var(--fx-px));
+  overflow: hidden;
+  border: 2px solid var(--outline-variant);
+  background: var(--surface-container-lowest);
+}
+
+@media (min-width: 600px) {
+  .fx-scene {
+    --fx-px: 4px;
+  }
+}
+
+.fx-scene__stage {
+  position: absolute;
+  top: 0;
+  left: 50%;
+  width: calc(var(--fx-w) * var(--fx-px));
+  height: calc(var(--fx-h) * var(--fx-px));
+  transform: translateX(-50%);
+}
+
+.fx-scene__art {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.fx-scene__stage > span {
+  position: absolute;
+}
+
+/* light set by default, dark set in the dark theme */
+.fx-night {
+  display: none;
+}
+
+[data-theme='dark'] .fx-day {
+  display: none;
+}
+
+[data-theme='dark'] .fx-night {
+  display: inline;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme]) .fx-day {
+    display: none;
+  }
+
+  :root:not([data-theme]) .fx-night {
+    display: inline;
+  }
+}
+
+.fx-sprite,
+.fx-frames,
+.fx-badge {
+  display: inline-block;
+  flex: none;
+  vertical-align: middle;
+  shape-rendering: crispEdges;
+}
+
+/* stacked frames: one visible at a time, the first when still */
+.fx-frames g {
+  visibility: hidden;
+  animation: fx-frame calc(var(--fx-n) * 110ms) steps(1) infinite;
+  animation-delay: calc(var(--fx-i) * 110ms);
+}
+
+@keyframes fx-frame {
+  0% {
+    visibility: visible;
+  }
+
+  25%,
+  100% {
+    visibility: hidden;
+  }
+}
+
+.fx-gavel g {
+  animation-name: fx-gavel;
+  animation-duration: 900ms;
+  animation-delay: calc(var(--fx-i) * 450ms);
+}
+
+@keyframes fx-gavel {
+  0% {
+    visibility: visible;
+  }
+
+  50%,
+  100% {
+    visibility: hidden;
+  }
+}
+
+/* the LED ticker over the trading floor board */
+.fx-ticker {
+  display: flex;
+  align-items: center;
+  overflow: hidden;
+  white-space: nowrap;
+  font-family: var(--font-display);
+  font-size: calc(var(--fx-px) * 4.4);
+  line-height: 1;
+  color: var(--amber-70);
+}
+
+.fx-ticker__run {
+  display: inline-flex;
+  animation: fx-ticker 24s steps(240) infinite;
+}
+
+.fx-ticker__set {
+  display: inline-flex;
+  gap: calc(var(--fx-px) * 8);
+  /* the same space before each set as between items, so the loop has no seam; it also keeps the
+     first price clear of the edge that narrow phones crop off the scene */
+  padding-inline-start: calc(var(--fx-px) * 8);
+}
+
+.fx-ticker__item b {
+  font-weight: 400;
+  color: var(--amber-80);
+}
+
+.fx-ticker [data-dir='up'] {
+  color: var(--green-70);
+}
+
+.fx-ticker [data-dir='down'] {
+  color: var(--red-70);
+}
+
+@keyframes fx-ticker {
+  to {
+    transform: translateX(-50%);
+  }
+}
+
+/* rack lights in the mining room go dark for a beat, each on its own phase */
+.fx-leds rect {
+  fill: var(--neutral-17);
+  opacity: 0;
+  animation: fx-led 1.6s steps(1) infinite;
+  animation-delay: calc(var(--fx-phase) * -400ms);
+}
+
+@keyframes fx-led {
+  0%,
+  70% {
+    opacity: 0;
+  }
+
+  71%,
+  100% {
+    opacity: 1;
+  }
+}
+
+/* listed items standing on the market stalls */
+.fx-slot .bb-px {
+  width: 100%;
+  height: 100%;
+}
+
+/* coins: a hop from the bank counter into the vault, dividends dropping from a tower */
+.fx-hop {
+  opacity: 0;
+  animation: fx-hop 900ms steps(12) both;
+}
+
+@keyframes fx-hop {
+  0% {
+    opacity: 1;
+    transform: translate(0, 0);
+  }
+
+  50% {
+    opacity: 1;
+    transform: translate(
+      calc(var(--fx-dx) * 0.5 * var(--fx-px)),
+      calc((var(--fx-dy) * 0.5 - 16) * var(--fx-px))
+    );
+  }
+
+  95% {
+    opacity: 1;
+  }
+
+  100% {
+    opacity: 0;
+    transform: translate(calc(var(--fx-dx) * var(--fx-px)), calc(var(--fx-dy) * var(--fx-px)));
+  }
+}
+
+.fx-drop {
+  opacity: 0;
+  animation: fx-drop 1.8s steps(18) infinite;
+}
+
+@keyframes fx-drop {
+  0% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+
+  90% {
+    opacity: 1;
+  }
+
+  100% {
+    opacity: 0;
+    transform: translateY(calc(18 * var(--fx-px)));
+  }
+}
+
+/* a pixel border flash around the scene after a trade, a repayment or a stake */
+.fx-flash {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  border: 3px solid var(--fx-flash, var(--success));
+  opacity: 0;
+  animation: fx-flash 600ms steps(1) 1;
+}
+
+.fx-flash[data-tone='sell'] {
+  --fx-flash: var(--tertiary);
+}
+
+@keyframes fx-flash {
+  0%,
+  33% {
+    opacity: 1;
+  }
+
+  34%,
+  66% {
+    opacity: 0;
+  }
+
+  67%,
+  99% {
+    opacity: 1;
+  }
+}
+
+/* outbid: the notice flashes twice and the gavel strikes */
+.fin__notice[data-outbid] {
+  animation: fx-outbid 900ms steps(1) 1;
+}
+
+@keyframes fx-outbid {
+  0%,
+  25%,
+  50%,
+  75% {
+    box-shadow: inset 0 0 0 3px var(--error);
+  }
+
+  12%,
+  37%,
+  62%,
+  100% {
+    box-shadow: none;
+  }
+}
+
+/* symbol coins and company badges next to names */
+.fin-symbol__head strong,
+.fin-row__head strong {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.fin-item {
+  display: inline-grid;
+  place-items: center;
+  width: 2.25rem;
+  height: 2.25rem;
+  flex: none;
+  background: var(--surface-container-high);
+  border: 2px solid var(--outline-variant);
+}
+
+.fin-item .bb-px {
+  width: 32px;
+  height: 32px;
+}
+
+/* the sell panel as a market stall: a striped awning over a wood-edged counter */
+.fin-stall {
+  position: relative;
+  padding-top: calc(var(--space-4) + 12px);
+  border-bottom: 4px solid var(--brown-40);
+}
+
+.fin-stall::before {
+  content: '';
+  position: absolute;
+  inset: 0 0 auto;
+  height: 12px;
+  background: repeating-linear-gradient(90deg, var(--red-50) 0 12px, var(--paper-96) 12px 24px);
+  border-bottom: 3px solid var(--brown-40);
+}
+
+/* ---- candles ---- */
+.fin-candles {
+  display: grid;
+  gap: 2px;
+  justify-items: start;
+}
+
+.fin-candles .fin-chart {
+  width: auto;
+  height: auto;
+}
+
+.fin-chart__grid {
+  fill: var(--outline-variant);
+}
+
+.fin-chart__up {
+  fill: var(--success);
+}
+
+.fin-chart__down {
+  fill: var(--error);
+}
+
+.fin-chart__last {
+  fill: none;
+  stroke: var(--tertiary);
+  stroke-width: 1;
+  opacity: 0;
+}
+
+.fin-chart[data-flash] .fin-chart__last {
+  animation: fx-last 900ms steps(1) 1;
+}
+
+@keyframes fx-last {
+  0%,
+  33%,
+  67% {
+    opacity: 1;
+  }
+
+  17%,
+  50%,
+  83%,
+  100% {
+    opacity: 0;
+  }
+}
+
+.fin-candles__axis {
+  display: flex;
+  justify-content: space-between;
+  width: 100%;
+  gap: var(--space-2);
+  margin: 0;
+  color: var(--on-surface);
+  font-size: 0.8125rem;
+  line-height: 1.3;
+  font-variant-numeric: tabular-nums;
+}
+
+/* reduced motion: every scene, sprite and flash rests on its first frame */
+@media (prefers-reduced-motion: reduce) {
+  .fx-frames g,
+  .fx-leds rect,
+  .fx-ticker__run,
+  .fx-hop,
+  .fx-drop,
+  .fx-flash,
+  .fin__notice[data-outbid],
+  .fin-chart[data-flash] .fin-chart__last {
+    animation: none;
+  }
+
+  .fx-frames g:first-child {
+    visibility: visible;
+  }
+}
+
+[data-reduced-motion='true'] .fx-frames g,
+[data-reduced-motion='true'] .fx-leds rect,
+[data-reduced-motion='true'] .fx-ticker__run,
+[data-reduced-motion='true'] .fx-hop,
+[data-reduced-motion='true'] .fx-drop,
+[data-reduced-motion='true'] .fx-flash,
+[data-reduced-motion='true'] .fin__notice[data-outbid],
+[data-reduced-motion='true'] .fin-chart[data-flash] .fin-chart__last {
+  animation: none;
+}
+
+[data-reduced-motion='true'] .fx-frames g:first-child {
+  visibility: visible;
 }
