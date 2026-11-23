@@ -136,3 +136,36 @@ The live server uses `/opt/discord-casino/data/casino.sqlite` (`DATABASE_PATH`, 
 ## Container Simulation (`ops/pi-sim`)
 
 Before deploying to real hardware, `ops/pi-sim/Dockerfile` and `ops/pi-sim/compose.yaml` test the exact `arm64` / Debian Bookworm / Node 24 / prebuilt `better-sqlite3` runtime under `512m` RAM and `2` CPUs (this runs automatically in CI on `ubuntu-24.04-arm`).
+
+---
+
+## Performance results (`ops/pi-sim/perf.sh`)
+
+The server runs in the `pi-sim` container (`arm64`, 512 MB, 2 CPUs, no swap, `node --max-old-space-size=192`, `NODE_ENV=production`) on a GitHub `ubuntu-24.04-arm` runner. `apps/server/scripts/load.ts` logs in 30 simulated players over loopback with session tokens it signs itself (`BOT_DISABLED=1`, a throw-away `SESSION_SECRET`, a file database inside the container) and plays a realistic mix: roulette, slots and blackjack seats (one round per player at a time), race bets, daily claims, transfers, market orders and the read-only screens, plus a `time:ping` per player per second for the round trip. A probe preloaded into the server (`ops/pi-sim/perf/probe.mjs`) reports RSS, CPU and event-loop lag once a second.
+
+| Metric (30 players, 5 minutes) | Target | Before tuning | After tuning |
+| --- | --- | --- | --- |
+| Idle RSS after boot | ≤ 150 MB | 137.4 MB | 137.4 MB (unchanged) |
+| RSS under load, peak | ≤ 250 MB | 157.8 MB | 157.8 MB (unchanged) |
+| RSS under load, steady | – | 156.2 MB | 156.2 MB (unchanged) |
+| Container memory peak (cgroup) | – | 117 MB | 117 MB (unchanged) |
+| Socket round trip p95, loopback | < 50 ms | 0.73 ms | 0.73 ms (unchanged) |
+| Cold start (`docker run` to `/api/health`) | < 5 s | 1.16 s | 1.16 s (unchanged) |
+| CPU, mean / p95 (% of one of 2 cores) | – | 4.0 / 5.7 | 4.0 / 5.7 (unchanged) |
+| Event-loop lag idle, p50 / p95 / p99 | – | 0.1 / 0.3 / 1.1 ms | unchanged |
+| Event-loop lag under load, p50 / p95 / p99 | – | 0.1 / 1.1 / 1.6 ms | unchanged |
+
+**Every target was met on the first measurement, so no server code was changed** ("after" equals "before"; the targets were not raised). Over the 5 minutes there were no `5xx`, no `internal` errors and no unexpected disconnects. Refusals such as `game_busy`, `insufficient_funds`, `transfer_min_games` and an already claimed daily bonus are normal play and are counted separately in the report.
+
+Headroom check, same container: 60 players at five times the action rate for 2 minutes gave RSS peak 184.5 MB, CPU 23.8 % mean / 34.2 % p95 of one core, socket round trip p95 2.5 ms and event-loop lag p99 2.2 ms, again with no failures.
+
+How to read these numbers:
+
+- Idle RSS has the least room (137 of 150 MB). The run has the chat bot off (`BOT_DISABLED=1`), so the Discord gateway cache of a real login is **not** in these figures; check `RSS` with `systemctl status discord-casino.service` after the first real day.
+- The runner's CPU is faster than a Raspberry Pi, so CPU and round-trip figures are a lower bound; memory and the code paths are the same. The round trip is a loopback one and does not include the tunnel.
+- The race card opens a race for bets by choosing `UTC_OFFSET_HOURS` so that it is 20:00 local, one hour before the 21:00 race. The scheduler runs the earlier races of that local day at once, so a race run is part of the load. Only the bets are on the 21:00 race; the race itself runs after the test.
+
+Running it:
+
+- **CI:** the job `perf (pi-sim arm64)` (`.github/workflows/perf.yml`) runs 60 s on every pull request that touches `apps/server`, `packages/shared`, `packages/domain` or `ops/pi-sim`, and fails when a target is missed. Start the full 5-minute run from **Actions → Perf → Run workflow** (inputs: `duration`, `players`, `rate_scale`). The result table is in the job summary and `perf-results` artifact.
+- **On a machine with Docker and Node 24 (arm64):** `pnpm install` then `ops/pi-sim/perf.sh --duration 300`. Results land in `perf-out/` (`result.md`, `result.json`, `probe.jsonl`, `server.log`).
