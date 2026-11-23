@@ -23,7 +23,29 @@ The eight-frame gallop in `apps/web/src/screens/horse/horse-art.ts` was made by 
 - **Source:** https://commons.wikimedia.org/wiki/File:The_Horse_in_Motion_high_res.jpg
 - **Usage:** Plate frames 3 to 10 give the eight poses of the race sprite; frame 12 informed the proportions of the horse head icon. Rider, coat, mane, tail and silks are drawn in code.
 
-All other pixel art (the 35 game icons in `packages/ui/src/pixel/icon-art.ts`) is drawn in code in `tools/pixel-art/` with no reference photographs.
+### Scene art: reference photographs
+
+The arena fighters, the miner and the horse portraits (`apps/web/src/screens/horse/arena-art.ts`, `apps/web/src/screens/life/mine-art.ts`, `apps/web/src/screens/horse/stable-art.ts`) were made from the references below: poses measured on the plates, the head shape and the light sampled from the photograph, then redrawn in code with the Bitbloom palette (`tools/pixel-art/scenes/`). No photograph is shipped or kept in the repository: only the generated pixel rows are.
+
+- **Title:** Two men in pelvis clothes boxing (Animal Locomotion, plate 336, "Boxing, open hand")
+- **Author:** Eadweard Muybridge (1830 to 1904)
+- **License:** Public domain (published 1887; the author died in 1904). Scan from the University of Southern California Libraries.
+- **Source:** https://commons.wikimedia.org/wiki/File:Two_men_in_pelvis_clothes_boxing_(rbm-QP301M8-1887-336).jpg
+- **Usage:** Frame 7 (guard) and frame 11 (punch) give the idle and attack poses of the 16 arena fighters. Faces, hair, clothes and colours are drawn in code, each fighter an original design.
+
+- **Title:** Nude farmer using a pick (Animal Locomotion, plate 385, "Farmer, using a pick")
+- **Author:** Eadweard Muybridge (1830 to 1904)
+- **License:** Public domain (published 1887; the author died in 1904). Scan from the University of Southern California Libraries.
+- **Source:** https://commons.wikimedia.org/wiki/File:Nude_farmer_using_a_pick_(rbm-QP301M8-1887-385).jpg
+- **Usage:** Frames 4, 6, 8 and 10 give the four poses of the miner's swing. Clothes, helmet and pickaxe are drawn in code.
+
+- **Title:** Head of a thoroughbred racehorse
+- **Author:** Mjitomobile (Wikimedia Commons user)
+- **License:** CC0 1.0 Universal (public domain dedication)
+- **Source:** https://commons.wikimedia.org/wiki/File:Head_of_a_thoroughbred_racehorse.jpg
+- **Usage:** Outline of the head and neck and the light on them, for the horse portrait in the stall and the paddock. The halter, the coat colours and the mane are drawn in code.
+
+All other pixel art (the 35 game icons in `packages/ui/src/pixel/icon-art.ts`, the race track, stall, paddock, arena, mine, shop and storeroom scenery, the ores and relics) is drawn in code in `tools/pixel-art/` with no reference photographs.
 
 ### Pixel art kit
 
