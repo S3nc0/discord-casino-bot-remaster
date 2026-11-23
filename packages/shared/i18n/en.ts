@@ -10,6 +10,8 @@ export const en = {
   'common.ok': 'OK',
   'common.cancel': 'Cancel',
   'common.loading': 'Loading…',
+  'common.on': 'On',
+  'common.off': 'Off',
   'launch.openInActivity': 'Open in Activity',
   'settings.language': 'Language',
   'settings.sound': 'Sound',

@@ -7,6 +7,7 @@ import { createSeededRng } from '../../../packages/shared/src/index.ts';
 import {
   ALICE,
   BOB,
+  CAROL,
   GUILD_A,
   INSTANCE_A1,
   INSTANCE_A2,
@@ -193,22 +194,24 @@ describe.each(VIEWPORTS)('Activity flow at $name', (viewport) => {
   });
 });
 
-// F-T2-03 (low): the sound switch in Settings prints its state as "On"/"Off" in every language
-// (`Switch` in packages/ui defaults to English labels and `SettingsScreen` passes none), so the
-// Japanese settings screen still shows an English word. Kept as an expected failure: it starts
-// failing (and should become a plain `it`) when the screen passes translated labels.
+// F-T2-03: the sound switch in Settings shows localized state labels (オン/オフ in Japanese).
 describe('Japanese settings screen', () => {
-  it.fails('F-T2-03: shows no English state word on the sound switch', async () => {
+  it('F-T2-03: shows no English state word on the sound switch', async () => {
     const { page, context } = await openPage(h, VIEWPORTS[0] as (typeof VIEWPORTS)[number], {
       locale: 'ja-JP',
     });
     try {
-      await page.goto(activityUrl(h.base, { person: ALICE, instanceId: INSTANCE_A1 }));
+      await page.goto(activityUrl(h.base, { person: CAROL, instanceId: INSTANCE_A1 }));
+      await expect.poll(() => page.evaluate(() => document.documentElement.lang)).toBe('ja');
       await page.getByRole('button', { name: '設定' }).first().click();
       await page
         .getByText('サウンド', { exact: false })
         .first()
         .waitFor({ state: 'visible', timeout: 10_000 });
+      expect(await page.innerText('body')).not.toMatch(/\b(On|Off)\b/);
+      expect(await page.locator('.bb-switch__state').innerText()).toBe('オン');
+      await page.getByRole('switch').click();
+      expect(await page.locator('.bb-switch__state').innerText()).toBe('オフ');
       expect(await page.innerText('body')).not.toMatch(/\b(On|Off)\b/);
     } finally {
       await context.close();

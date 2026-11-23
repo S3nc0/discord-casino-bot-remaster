@@ -91,6 +91,8 @@ const ENGLISH_WORDS = [
   'Stable',
   'Breed',
   'Race',
+  'On',
+  'Off',
 ];
 const ENGLISH = new RegExp(
   `(?<![A-Za-z])(?:${ENGLISH_WORDS.map((w) => w.replace(/ /g, '\\s')).join('|')})(?![A-Za-z])`,
@@ -237,6 +239,8 @@ describe('every route in Japanese', () => {
       'screen.life.work.title',
       'work_dig_failed',
       'Loading',
+      'On',
+      'Off',
       'もう一度 retry',
       'まで {time}',
       'undefined',

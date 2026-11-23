@@ -117,7 +117,7 @@ describe('Keyboard and ARIA checks', () => {
   it('Switch: toggles aria-checked and On/Off label via keyboard Space and click', async () => {
     const user = userEvent.setup();
     const onChange = vi.fn();
-    render(<Switch label="Music" onChange={onChange} />);
+    render(<Switch label="Music" onLabel="On" offLabel="Off" onChange={onChange} />);
 
     const sw = screen.getByRole('switch', { name: /Music/ });
     expect(sw.getAttribute('aria-checked')).toBe('false');

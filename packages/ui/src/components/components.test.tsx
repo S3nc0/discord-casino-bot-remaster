@@ -304,11 +304,11 @@ describe('Bitbloom components render suite', () => {
     expect(onAction).toHaveBeenCalledTimes(1);
   });
 
-  it('renders Switch with role="switch" and visible On/Off label', () => {
-    render(<Switch label="Sound effects" defaultChecked />);
+  it('renders Switch with role="switch" and caller-provided state labels', () => {
+    render(<Switch label="Sound effects" defaultChecked onLabel="オン" offLabel="オフ" />);
     const sw = screen.getByRole('switch', { name: /Sound effects/ });
     expect(sw.getAttribute('aria-checked')).toBe('true');
-    expect(screen.getByText('On')).toBeTruthy();
+    expect(screen.getByText('オン')).toBeTruthy();
   });
 
   it('renders Tabs with tablist, tabs, and active tabpanel', () => {
