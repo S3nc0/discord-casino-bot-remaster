@@ -1,3 +1,5 @@
+**English** | [日本語](README.ja.md)
+
 # Card
 
 A container for one subject, such as a save slot, an item or a friend, with optional pixel-art media and actions.

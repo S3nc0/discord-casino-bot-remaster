@@ -1,3 +1,5 @@
+**English** | [日本語](DEPLOY_PAGES.ja.md)
+
 # Deploying `apps/web` to Cloudflare Pages
 
 For the full step-by-step setup (including how to make sure you choose **Pages** instead of **Workers**), follow the owner setup guide:

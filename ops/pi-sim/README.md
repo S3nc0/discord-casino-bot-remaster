@@ -1,3 +1,5 @@
+**English** | [日本語](README.ja.md)
+
 # Pi-Like Container (`ops/pi-sim`)
 
 Simulates the target Raspberry Pi runtime environment:

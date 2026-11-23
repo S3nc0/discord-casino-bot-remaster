@@ -1,3 +1,5 @@
+**English** | [日本語](README.ja.md)
+
 # Switch
 
 An on/off control for settings that apply immediately.

@@ -1,3 +1,5 @@
+**English** | [日本語](README.ja.md)
+
 # Checkbox
 
 A pixel-drawn checkbox for choosing any number of options from a list.

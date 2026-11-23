@@ -1,3 +1,5 @@
+**English** | [日本語](README.ja.md)
+
 # Slider
 
 A range control for picking a value along a scale, with its current value always shown as text.

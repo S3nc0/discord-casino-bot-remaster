@@ -1,3 +1,5 @@
+**English** | [日本語](README.ja.md)
+
 # IconButton
 
 A 48px square button with one pixel icon, for compact or repeated actions such as search, favorite or close.

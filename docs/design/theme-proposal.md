@@ -1,3 +1,5 @@
+**English** | [日本語](theme-proposal.ja.md)
+
 # Bitbloom theme re-tune: proposal
 
 Status: **round 2 is applied.** It is the only theme: `design/bitbloom/tokens.json` and `tokens.css` carry the round 2 values (dark and light), `packages/ui` ships them with the component deltas, the pixel art (`GameIcon`, `Skyline`, `Sparkle`) and the Home hero and game tiles in `apps/web`. The proposal tooling moved: `design/bitbloom/build_tokens.py` (builds the tokens from the original palette in `design/bitbloom/proposal/archive/`) and `design/bitbloom/contrast_check.py`. The round 1 files and the three-column preview were removed; git history has them.

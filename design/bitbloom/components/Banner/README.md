@@ -1,3 +1,5 @@
+**English** | [日本語](README.ja.md)
+
 # Banner
 
 An inline message that stays on the page until the situation changes, in four tones.

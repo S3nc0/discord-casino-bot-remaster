@@ -1,3 +1,5 @@
+**English** | [日本語](README.ja.md)
+
 # Chip
 
 A compact, toggleable control for filtering or picking options. It covers M3's filter and assist chips.
