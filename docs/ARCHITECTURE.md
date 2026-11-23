@@ -40,6 +40,19 @@ consumed as TypeScript source: erasable syntax only, `.ts` relative imports.
 passes `canJoinRoom`: guild and user rooms only for the token's guild and user, instance and table
 rooms only for the token's instance (verified above to belong to that guild).
 
+**Limits per user.** All sockets of one user share one event budget (`eventsPer10s`, default 100
+per 10 s, then `rate_limited`), so opening more sockets never raises it. At most
+`maxSocketsPerUser` (default 5) sockets of one user are live at once; the next handshake is refused
+with `rate_limited`, and a handshake that slips past the check concurrently is dropped on
+connection. Upgrade attempts are also capped per client address (`upgradesPerMinute`, default 300).
+
+**Guild revoke.** `/admin server-revoke` (owner only, never for a guild in `ALLOWED_GUILD_IDS`)
+sets the guild to `denied` and then calls the `onGuildRevoked` hook. `startBot` wires that hook to
+`SessionService.revokeGuild`, so every live socket of the guild is disconnected at once. Nothing
+else needs to be told: HTTP routes, new token requests and new socket handshakes read the `denied`
+status through `isGuildDenied` and answer 403 `guild_not_allowed`, and a socket that somehow
+survives is ended on its next event. A failing hook is logged and never blocks the revoke.
+
 ## URL mappings and proxy signatures
 
 Developer Portal: `/` → Pages domain, `/api` → API domain with `/api` kept, so routes match dev
@@ -248,8 +261,10 @@ DB_SCHEMA.md and fails on any Pelica difference. Never run both bots on one toke
 (never the legacy `data/casino.db`, which only the importer reads), `LOG_LEVEL` `info`,
 `NODE_ENV` `production`, `BOT_DISABLED` `0` (`1` skips the chat bot's gateway login; HTTP,
 Socket.io and jobs still run). `HOST` stays on loopback: the tunnel connects
-locally and `trustProxy` is on, so a directly reachable server would accept forged
-`X-Forwarded-For` (a container is the only reason to bind elsewhere). Pino `redact.paths`:
+locally and `trustProxy` is set to one trusted hop (`TRUSTED_PROXY_HOPS = 1`, not `true`), so only
+the address the tunnel appended to `X-Forwarded-For` is believed and a chain written by the client
+is ignored; a directly reachable server would still see the wrong peer (a container is the only
+reason to bind elsewhere). Pino `redact.paths`:
 `req.headers.authorization`, `req.headers.cookie`, `req.headers["x-discord-proxy-payload"]`,
 `*.code`, `*.accessToken`, `*.access_token`, `*.sessionToken`, `*.token`, `*.secret`; a
 serializer also masks `Bearer …`, JWS-shaped strings and bot-token-shaped strings in messages.
