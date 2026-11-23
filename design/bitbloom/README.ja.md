@@ -59,6 +59,9 @@ Bitbloom は、親しみやすいデザインシステムです。Material 3 の
 | --- | --- | --- |
 | Display、Headline、Title | Pixelify Sans（`font-display`） | 56 → 16px |
 | Body、Label | Atkinson Hyperlegible（`font-body`） | 18 → 12px |
+| 数字（お金、オッズ、順位、タイマー、個数） | Atkinson Hyperlegible の数字（`font-numeric`。`font-body` を指します） | すべて |
+
+数字には Pixelify の字形を使いません。どの大きさでも 2 を 8 のように、5 を S のように描くためです。数字は `font-numeric`（アプリの `.num` ユーティリティ）で表示します。見出しの中では、アプリが数字だけの書体 `Bitbloom Numerals` を `font-display` の先頭に置くので、「Race 12」はピクセルの文字のまま、数字だけが読みやすくなります。`build_tokens.py` は `tokens.json` に `numeric` の書体を、`tokens.css` に `--font-numeric` を書き出します。
 
 M3 の 15 スタイルのスケールをすべて使います。本文のサイズは、読みやすさのために、M3 より約 2px 大きくしてあります。`body-medium` は 16px で、人が読まなければならないものの下限です。`label-small`（12px）はバッジ専用です。ボタンも含めて、文は常に sentence case です。
 

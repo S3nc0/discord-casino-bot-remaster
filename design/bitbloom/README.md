@@ -59,6 +59,9 @@ Pick hues by meaning and keep them consistent. A suggested set for games:
 | --- | --- | --- |
 | Display, Headline, Title | Pixelify Sans (`font-display`) | 56 → 16px |
 | Body, Label | Atkinson Hyperlegible (`font-body`) | 18 → 12px |
+| Numbers (money, odds, ranks, timers, counts) | Atkinson Hyperlegible digits (`font-numeric`, which points at `font-body`) | any |
+
+Numbers never use Pixelify's digits: it draws 2 like 8 and 5 like S at every size. Set numbers in `font-numeric` (the app's `.num` utility). Inside display titles, the app puts a digit-only face, `Bitbloom Numerals`, first in `font-display`, so "Race 12" keeps pixel letters with legible digits. `build_tokens.py` writes the `numeric` family into `tokens.json` and `--font-numeric` into `tokens.css`.
 
 This is M3's full 15-style scale. Body sizes run about 2px larger than M3's for comfort: `body-medium` is 16px and is the floor for anything people must read. `label-small` (12px) is for badges only. Use sentence case everywhere, including buttons.
 
