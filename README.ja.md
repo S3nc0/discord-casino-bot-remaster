@@ -151,6 +151,8 @@ legacy/          元の Python 製 Bot（参考用に残しています）
 
 はじめて読むなら、[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)、続けて[挙動の仕様](docs/spec/INDEX.md)がおすすめです。進み具合は [docs/STATUS.md](docs/STATUS.md) にあります。
 
+**メンテナー向け：** [メンテナー向けガイド](MAINTAINERS.ja.md) · [コントリビューション](CONTRIBUTING.ja.md) · [セキュリティ](SECURITY.ja.md) · [変更履歴](CHANGELOG.md) · [アーキテクチャ](docs/ARCHITECTURE.md)
+
 ## クレジット
 
 - **元の Bot：** [fatcorn753/discord-casino-bot](https://github.com/fatcorn753/discord-casino-bot)。ゲームのルールのもとになった、Discord カジノ Bot です。これはそのハードフォークで、TypeScript で書き直し、アクティビティとチャット Bot にしました。
