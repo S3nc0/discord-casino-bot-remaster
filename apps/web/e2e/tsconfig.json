@@ -1,0 +1,12 @@
+{
+  "extends": "../../../tsconfig.base.json",
+  "compilerOptions": {
+    "lib": ["ES2024", "DOM", "DOM.Iterable"],
+    "types": ["node"],
+    "paths": {
+      "typebox": ["../../server/node_modules/typebox/build/index.d.mts"],
+      "typebox/value": ["../../server/node_modules/typebox/build/value/index.d.mts"]
+    }
+  },
+  "include": ["./**/*.ts", "../../server/src/sql.d.ts"]
+}
