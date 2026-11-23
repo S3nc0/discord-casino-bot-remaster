@@ -44,9 +44,28 @@ const SHOTS = [
   { name: 'market-holdings', screen: 'market', tab: 2, wait: '[data-position]' },
   { name: 'market-listings', screen: 'market', tab: 3, wait: '[data-listing]' },
   { name: 'companies', screen: 'companies', wait: '[data-owner]' },
+  { name: 'stocks', screen: 'stocks', wait: '[data-scene="stocks"]' },
+  { name: 'crypto', screen: 'crypto', wait: '[data-scene="crypto"]' },
 ];
 
-/** Fails the run when a nav label or an amount breaks over two lines at 360 or 390 px. */
+/** The mock API has no live socket: hide its "Connecting" chip so shots show the connected look. */
+const CONNECTED = '[role="status"][data-status]{display:none !important}';
+
+/** Screens and tabs whose page must never scroll sideways (the scenes are cropped, not wider). */
+const NO_SIDE_SCROLL = [
+  { screen: 'bank' },
+  { screen: 'loans' },
+  { screen: 'kyosai' },
+  { screen: 'companies' },
+  { screen: 'stocks' },
+  { screen: 'crypto' },
+  ...[0, 1, 2, 3].map((tab) => ({ screen: 'market', tab })),
+];
+
+/**
+ * Fails the run when a nav label or an amount breaks over two lines at 360 or 390 px, or when a
+ * screen (any market tab included) is wider than the phone.
+ */
 async function checkLayout(browser) {
   const problems = [];
   for (const width of [360, 390]) {
@@ -84,11 +103,34 @@ async function checkLayout(browser) {
         });
         for (const b of bad) problems.push(`${width}px ${locale} ${screen}: ${b}`);
       }
+      for (const { screen, tab } of NO_SIDE_SCROLL) {
+        await page.goto(`${origin}/?screen=${screen}&locale=${locale}`);
+        await page.waitForSelector('.fin-panel, .fin-symbol');
+        if (tab) await page.getByRole('tab').nth(tab).click();
+        await page.waitForTimeout(100);
+        const wide = await page.evaluate(() => {
+          const page = document.scrollingElement;
+          const out = [];
+          if (page.scrollWidth > page.clientWidth) out.push(`page ${page.scrollWidth}px wide`);
+          // every box inside the screen, a card or a row stays inside it (the scene crops itself)
+          for (const outer of document.querySelectorAll('.fin, .fin-panel, .fin-row')) {
+            const edge = outer.getBoundingClientRect().right;
+            for (const el of outer.querySelectorAll('*')) {
+              if (el.closest('.fx-scene')) continue;
+              const right = el.getBoundingClientRect().right;
+              if (right > edge + 1)
+                out.push(`${el.tagName}.${el.className} ends at ${Math.round(right)}px`);
+            }
+          }
+          return [...new Set(out)];
+        });
+        for (const w of wide) problems.push(`${width}px ${locale} ${screen}#${tab ?? 0}: ${w}`);
+      }
       await page.close();
     }
   }
   if (problems.length > 0) throw new Error(`layout problems:\n${problems.join('\n')}`);
-  console.log('layout ok at 360 and 390 px, en and ja');
+  console.log('layout ok at 360 and 390 px, en and ja, no sideways scroll');
 }
 
 try {
@@ -106,6 +148,7 @@ try {
       for (const shot of SHOTS) {
         const page = await context.newPage();
         await page.goto(`${origin}/?screen=${shot.screen}&locale=${locale}`);
+        await page.addStyleTag({ content: CONNECTED });
         if (shot.tab) {
           const tab = page.getByRole('tab').nth(shot.tab);
           await tab.waitFor();

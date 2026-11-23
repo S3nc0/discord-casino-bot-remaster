@@ -1095,11 +1095,17 @@ export const ja: Messages = {
   'screen.finance.kyosai.proposeButton': '提案する',
   'screen.finance.kyosai.proposed': '動議を出しました。',
   'screen.finance.market.lead': '4銘柄が毎分動きます。値幅制限は±30%です。',
+  'screen.finance.market.leadMarket':
+    '4銘柄の売買のほか、ほかのプレイヤーとアイテムを定額やオークションで売り買いできます。',
+  'screen.finance.market.leadCrypto':
+    'CSトークンなどの銘柄を24時間取引できます。価格は毎分動き、値幅制限は±30%です。',
   'screen.finance.market.tabBoard': 'ボード',
   'screen.finance.market.tabTrade': '売買',
   'screen.finance.market.tabHoldings': '保有',
   'screen.finance.market.tabListings': 'プレイヤー',
-  'screen.finance.market.chartLabel': '{name}の直近の値動き、{change}',
+  'screen.finance.market.chartLabel': '{name}の直近の値動き、現在{price}、{change}',
+  'screen.finance.market.chartHigh': '高値 {value}',
+  'screen.finance.market.chartLow': '安値 {value}',
   'screen.finance.market.limitUp': 'ストップ高',
   'screen.finance.market.limitDown': 'ストップ安',
   'screen.finance.market.trade': '売買',

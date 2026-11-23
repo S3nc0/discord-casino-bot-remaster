@@ -1105,11 +1105,17 @@ export const en = {
   'screen.finance.kyosai.proposeButton': 'Propose',
   'screen.finance.kyosai.proposed': 'Motion opened.',
   'screen.finance.market.lead': 'Four tickers move every minute. Daily limit: 30%.',
+  'screen.finance.market.leadMarket':
+    'Trade the four tickers, or buy and sell items with other players at a fixed price or by auction.',
+  'screen.finance.market.leadCrypto':
+    'The CS token and the other tickers trade around the clock; prices move every minute. Daily limit: 30%.',
   'screen.finance.market.tabBoard': 'Board',
   'screen.finance.market.tabTrade': 'Trade',
   'screen.finance.market.tabHoldings': 'Holdings',
   'screen.finance.market.tabListings': 'Players',
-  'screen.finance.market.chartLabel': '{name}, last prices, {change}',
+  'screen.finance.market.chartLabel': '{name}, last prices, now {price}, {change}',
+  'screen.finance.market.chartHigh': 'High {value}',
+  'screen.finance.market.chartLow': 'Low {value}',
   'screen.finance.market.limitUp': 'Limit up',
   'screen.finance.market.limitDown': 'Limit down',
   'screen.finance.market.trade': 'Trade',

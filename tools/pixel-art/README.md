@@ -80,3 +80,20 @@ ART_OUT=/some/folder node tools/pixel-art/social/preview.js
 - `quiz.js` game-show stage, sign bulbs (2 frames) and the host; `fx.js` the right ring and wrong cross (4 frames, the last is still). `lottery.js` festival counter and the drawing globe (6 frames), the ticket. `poll.js` booth, voter and ballot box, the ballot drop (8 frames). `missions.js` the quest board, pin heads, done stamp. `ranking.js` podium, trophy glint (8 frames), medals 1 to 3. `relics.js` the museum hall and, per case, a silhouette and four glow levels around the mine's relic sprite (`scenes/finds.js`), so both screens show the same relic. `transfer.js` the street and the letter flight (8 frames). `daily.js` the room, calendar stamp and gift box (6 frames). `history.js` the ledger desk. `profile.js` the player card and its slots (`PROFILE_SLOTS`); the avatar placeholder is a bust drawn in `ship.js`.
 - Numbers placed on these scenes (plaques, stats) use the reading face (`--font-body`): the display face draws 2 and 5 too close to 8 at small sizes.
 
+## Finance scenes
+
+The bank, loans, kyosai, stocks, crypto, companies and market scenes, with the symbol coins, company badges, the gavel and the dividend coin.
+
+```sh
+# writes apps/web/src/screens/finance/art/*.ts (prettier runs on them)
+node tools/pixel-art/finance/ship.js
+
+# previews: every scene in both themes, the sprite sheet, and the animations as GIFs and
+# frame sheets (ART_THEME=day or night picks one theme for the GIFs)
+ART_OUT=/some/folder node tools/pixel-art/finance/preview.js
+ART_OUT=/some/folder node tools/pixel-art/finance/sheet.js
+ART_OUT=/some/folder node tools/pixel-art/finance/anim.js
+```
+
+- `finance/*.js` draw each scene twice, light (day) and dark (night), with the same shapes; `lib.js` throws if the two differ. Each pixel stores a palette token, so the shipped rows name a [light, dark] token pair per character and the screen picks the set with CSS. Animated parts ship as small crops of the pixels that change.
+- Drawn from scratch: no reference images.

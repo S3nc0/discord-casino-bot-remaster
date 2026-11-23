@@ -32,6 +32,7 @@ import {
   Stat,
   Stats,
 } from './parts.tsx';
+import { KyosaiScene } from './scenes/KyosaiScene.tsx';
 
 function AuctionPanel({ view, action }: { view: FinanceKyosaiView; action: Action }) {
   const t = useT();
@@ -328,12 +329,13 @@ export default function KyosaiScreen() {
   const action = useAction(reload);
   if (!data)
     return (
-      <ScreenFrame screen="kyosai" icon="shield" title={t('screen.kyosai')}>
+      <ScreenFrame scene={<KyosaiScene />} screen="kyosai" icon="shield" title={t('screen.kyosai')}>
         <LoadError failed={error !== null} onRetry={() => void reload()} />
       </ScreenFrame>
     );
   return (
     <ScreenFrame
+      scene={<KyosaiScene />}
       screen="kyosai"
       icon="shield"
       title={t('screen.kyosai')}

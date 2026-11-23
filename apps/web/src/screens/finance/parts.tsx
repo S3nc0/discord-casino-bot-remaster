@@ -13,26 +13,34 @@ import {
 import { useT } from '../../shell/i18n.ts';
 import type { Person } from './hooks.ts';
 
-/** One screen: a pixel icon, the title, an optional line under it and the panels. */
+/**
+ * One screen: its pixel scene (or, without one, a pixel icon), the title, an optional line under
+ * it and the panels.
+ */
 export function ScreenFrame({
   screen,
   icon,
   title,
   lead,
+  scene,
   children,
 }: {
   screen: string;
   icon: GameIconName;
   title: string;
   lead?: string | undefined;
+  scene?: ReactNode;
   children: ReactNode;
 }) {
   return (
     <section className="fin" data-screen={screen} aria-labelledby={`fin-${screen}-title`}>
+      {scene}
       <header className="fin__head">
-        <span className="fin__badge" aria-hidden="true">
-          <GameIcon name={icon} />
-        </span>
+        {scene ? null : (
+          <span className="fin__badge" aria-hidden="true">
+            <GameIcon name={icon} />
+          </span>
+        )}
         <div>
           <h1 id={`fin-${screen}-title`} className="fin__title">
             {title}
@@ -50,14 +58,16 @@ export function Panel({
   hint,
   children,
   tone = 'filled',
+  className,
 }: {
   title: string;
   hint?: string | undefined;
   children: ReactNode;
   tone?: 'filled' | 'outlined' | 'elevated';
+  className?: string | undefined;
 }) {
   return (
-    <Card variant={tone} className="fin-panel">
+    <Card variant={tone} className={className ? `fin-panel ${className}` : 'fin-panel'}>
       <h2 className="fin-panel__title bb-eyebrow">{title}</h2>
       {hint ? <p className="fin-panel__hint">{hint}</p> : null}
       {children}
@@ -176,7 +186,7 @@ export function ChoiceChips<T extends string | number>({
   onChange,
 }: {
   label: string;
-  options: readonly { value: T; label: string }[];
+  options: readonly { value: T; label: ReactNode }[];
   value: T;
   onChange: (value: T) => void;
 }) {

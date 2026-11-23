@@ -16,9 +16,13 @@ export interface View<R extends FinanceReadRoute> {
 
 /**
  * Loads one read route, then again after every write, when the balance changes (another player
- * settled something with us) and, if asked, on a timer.
+ * settled something with us) and, if asked, on a timer. `enabled: false` loads nothing.
  */
-export function useView<R extends FinanceReadRoute>(route: R, pollMs?: number): View<R> {
+export function useView<R extends FinanceReadRoute>(
+  route: R,
+  pollMs?: number,
+  enabled = true,
+): View<R> {
   const client = useFinanceClient();
   const balance = useBalanceStore((s) => s.balance);
   const [data, setData] = useState<FinanceReads[R] | null>(null);
@@ -44,13 +48,13 @@ export function useView<R extends FinanceReadRoute>(route: R, pollMs?: number): 
   }, [client, route]);
 
   useEffect(() => {
-    void reload();
-  }, [reload, balance]);
+    if (enabled) void reload();
+  }, [reload, balance, enabled]);
   useEffect(() => {
-    if (!pollMs) return;
+    if (!pollMs || !enabled) return;
     const timer = setInterval(() => void reload(), pollMs);
     return () => clearInterval(timer);
-  }, [pollMs, reload]);
+  }, [pollMs, reload, enabled]);
 
   return { data, error, reload };
 }

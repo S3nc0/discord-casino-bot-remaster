@@ -45,7 +45,7 @@ The arena fighters, the miner and the horse portraits (`apps/web/src/screens/hor
 - **Source:** https://commons.wikimedia.org/wiki/File:Head_of_a_thoroughbred_racehorse.jpg
 - **Usage:** Outline of the head and neck and the light on them, for the horse portrait in the stall and the paddock. The halter, the coat colours and the mane are drawn in code.
 
-All other pixel art (the 35 game icons in `packages/ui/src/pixel/icon-art.ts`, the race track, stall, paddock, arena, mine, shop and storeroom scenery, the ores and relics, the quiz, lottery, poll, missions, ranking, relics, transfer, daily bonus, history and profile scenes in `tools/pixel-art/social/`) is drawn in code in `tools/pixel-art/` with no reference photographs.
+All other pixel art (the 35 game icons in `packages/ui/src/pixel/icon-art.ts`, the race track, stall, paddock, arena, mine, shop and storeroom scenery, the ores and relics, the quiz, lottery, poll, missions, ranking, relics, transfer, daily bonus, history and profile scenes in `tools/pixel-art/social/`, and the finance scenes and sprites in `apps/web/src/screens/finance/art/`) is drawn in code in `tools/pixel-art/` with no reference photographs.
 
 ### Pixel art kit
 
