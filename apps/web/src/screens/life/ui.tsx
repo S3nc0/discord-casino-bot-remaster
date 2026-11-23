@@ -104,7 +104,9 @@ export function Stat({ label, value, tone }: { label: string; value: ReactNode; 
     <div className="life-stat">
       <span className="life-stat__label">{label}</span>
       <span
-        className={tone === 'coin' ? 'life-stat__value life-stat__value--coin' : 'life-stat__value'}
+        className={
+          tone === 'coin' ? 'life-stat__value num life-stat__value--coin' : 'life-stat__value num'
+        }
       >
         {value}
       </span>

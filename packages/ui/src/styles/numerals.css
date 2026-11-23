@@ -1,0 +1,29 @@
+/* Digit-safe display text. Pixelify Sans draws 2 like 8 and 5 like S at every size, so a balance of
+   12,400 can read as 18,400. This face covers only the digits, % and the multiplication sign, and
+   takes its glyphs from Atkinson Hyperlegible (designed for distinct digits). It is listed first in
+   --font-display, so a title such as "Race 12" keeps the pixel letters and gets legible numbers.
+   The same OFL font files are already bundled for body text, so nothing new ships. */
+@font-face {
+  font-family: 'Bitbloom Numerals';
+  font-style: normal;
+  font-display: swap;
+  font-weight: 400;
+  src:
+    url(../../node_modules/@fontsource/atkinson-hyperlegible/files/atkinson-hyperlegible-latin-400-normal.woff2)
+      format('woff2'),
+    url(../../node_modules/@fontsource/atkinson-hyperlegible/files/atkinson-hyperlegible-latin-400-normal.woff)
+      format('woff');
+  unicode-range: U+0025, U+0030-0039, U+00D7;
+}
+@font-face {
+  font-family: 'Bitbloom Numerals';
+  font-style: normal;
+  font-display: swap;
+  font-weight: 700;
+  src:
+    url(../../node_modules/@fontsource/atkinson-hyperlegible/files/atkinson-hyperlegible-latin-700-normal.woff2)
+      format('woff2'),
+    url(../../node_modules/@fontsource/atkinson-hyperlegible/files/atkinson-hyperlegible-latin-700-normal.woff)
+      format('woff');
+  unicode-range: U+0025, U+0030-0039, U+00D7;
+}

@@ -5,6 +5,7 @@ import '@fontsource/pixelify-sans/700.css';
 import '@fontsource/atkinson-hyperlegible/400.css';
 import '@fontsource/atkinson-hyperlegible/700.css';
 import '@fontsource/atkinson-hyperlegible/400-italic.css';
+import './styles/numerals.css';
 import './styles/tokens.css';
 import './styles/bundle.css';
 

@@ -1109,7 +1109,7 @@ button.bb-card:hover,
    the text colour. Structure is untouched: no radius, 2px notched pixel border, hard-offset shadow,
    steps() motion. */
 
-.bb-btn:not(:disabled):not(.bb-btn--outlined):not(.bb-btn--text) {
+.bb-btn:where(:not(:disabled):not(.bb-btn--outlined):not(.bb-btn--text)) {
   --bc: color-mix(in srgb, var(--primary), var(--on-surface) 24%);
 }
 .bb-btn--tonal:not(:disabled) {
@@ -1189,6 +1189,13 @@ button.bb-card:hover,
   box-shadow:
     0 0 0 2px var(--surface),
     0 0 0 4px color-mix(in srgb, var(--primary), var(--on-surface) 24%);
+}
+
+/* Numbers a player reads (balances, prices, odds, ranks, timers): legible digits, same width per
+   digit so columns and live counters do not jitter. Never use the display font for these. */
+.num {
+  font-family: var(--font-numeric);
+  font-variant-numeric: tabular-nums lining-nums;
 }
 
 /* New, optional: the quiet label above a heading. 14px, never the only carrier of meaning. */
