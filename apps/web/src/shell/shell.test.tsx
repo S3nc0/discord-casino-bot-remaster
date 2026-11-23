@@ -102,6 +102,18 @@ describe('rendering', () => {
     expect(view.html()).not.toContain('Animations');
   });
 
+  it('F-T2-03: Settings sound switch shows オン/オフ in Japanese, not On/Off', () => {
+    useSettingsStore.getState().update({ language: 'ja' });
+    const view = show(<SettingsScreen />);
+    const state = () => view.container.querySelector('.bb-switch__state')?.textContent;
+    expect(state()).toBe('オン');
+    expect(view.container.textContent).not.toMatch(/\b(On|Off)\b/);
+    const toggle = view.container.querySelector<HTMLInputElement>('input[role=switch]')!;
+    act(() => toggle.click());
+    expect(state()).toBe('オフ');
+    expect(view.container.textContent).not.toMatch(/\b(On|Off)\b/);
+  });
+
   it('writes edits to the settings store from the kit controls', () => {
     const view = show(<SettingsScreen />);
     const radio = (value: string) =>

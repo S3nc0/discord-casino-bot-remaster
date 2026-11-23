@@ -46,6 +46,8 @@ export function SettingsScreen() {
           <Switch
             label={t('settings.sound.enabled')}
             checked={sound.enabled}
+            onLabel={t('common.on')}
+            offLabel={t('common.off')}
             onChange={(enabled) => update({ sound: { enabled } })}
           />
           <Slider
