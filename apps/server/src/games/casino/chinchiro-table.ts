@@ -4,6 +4,7 @@ import type { ErrorCode, TableSnapshot } from '@casino/shared';
 import { AppError } from '../../runtime/errors.ts';
 import type { RoundRow } from './core.ts';
 import type { GameContext } from './context.ts';
+import { evictIdleTables } from './tables.ts';
 import type { Caller, SettlementSummary } from './types.ts';
 
 /** How long the result stays on the table before it is free for the next lobby. */
@@ -43,6 +44,8 @@ interface Table {
   /** The last table ended without a seat (`誰も座らなかったので、卓をたたみました。`). */
   closedEmpty: boolean;
   cancel: (() => void) | null;
+  /** Epoch ms of the last change, for idle eviction. */
+  touchedAt: number;
 }
 
 export interface TableSeatAccepted {
@@ -87,6 +90,11 @@ export class ChinchiroTableService {
 
   constructor(ctx: GameContext) {
     this.ctx = ctx;
+  }
+
+  /** Tables held in memory (idle ones of past instances are evicted). */
+  tableCount(): number {
+    return this.tables.size;
   }
 
   snapshot(guildId: string, instanceId: string): TableSnapshot {
@@ -210,6 +218,7 @@ export class ChinchiroTableService {
     const key = `${guildId}:${instanceId}`;
     let table = this.tables.get(key);
     if (!table) {
+      evictIdleTables(this.tables, this.ctx.clock.now());
       table = {
         guildId,
         instanceId,
@@ -223,6 +232,7 @@ export class ChinchiroTableService {
         deadline: null,
         closedEmpty: false,
         cancel: null,
+        touchedAt: this.ctx.clock.now(),
       };
       this.tables.set(key, table);
     }
@@ -372,6 +382,7 @@ export class ChinchiroTableService {
 
   private push(table: Table): void {
     table.seq += 1;
+    table.touchedAt = this.ctx.clock.now();
     this.ctx.broadcast(this.snap(table));
   }
 }

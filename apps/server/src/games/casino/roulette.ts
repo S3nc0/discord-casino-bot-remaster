@@ -2,6 +2,7 @@ import { MIN_BET, adjustPayout, roulette as rl, type RtpLevel } from '@casino/do
 import type { TableSnapshot } from '@casino/shared';
 import { AppError } from '../../runtime/errors.ts';
 import type { GameContext } from './context.ts';
+import { evictIdleTables } from './tables.ts';
 import type { RoundRow } from './core.ts';
 import type { Caller, SettlementSummary } from './types.ts';
 
@@ -51,6 +52,8 @@ interface Table {
   timeline: rl.SpinFrame[] | null;
   history: number[];
   cancel: (() => void) | null;
+  /** Epoch ms of the last change, for idle eviction. */
+  touchedAt: number;
 }
 
 export interface RouletteSolo {
@@ -177,6 +180,11 @@ export class RouletteService {
     );
   }
 
+  /** Tables held in memory (idle ones of past instances are evicted). */
+  tableCount(): number {
+    return this.tables.size;
+  }
+
   snapshot(guildId: string, instanceId: string): TableSnapshot {
     return this.snap(this.table(guildId, instanceId));
   }
@@ -221,6 +229,7 @@ export class RouletteService {
     const key = `${guildId}:${instanceId}`;
     let table = this.tables.get(key);
     if (!table) {
+      evictIdleTables(this.tables, this.ctx.clock.now());
       table = {
         guildId,
         instanceId,
@@ -233,6 +242,7 @@ export class RouletteService {
         timeline: null,
         history: [],
         cancel: null,
+        touchedAt: this.ctx.clock.now(),
       };
       this.tables.set(key, table);
     }
@@ -337,6 +347,7 @@ export class RouletteService {
 
   private push(table: Table): void {
     table.seq += 1;
+    table.touchedAt = this.ctx.clock.now();
     this.ctx.broadcast(this.snap(table));
   }
 }
