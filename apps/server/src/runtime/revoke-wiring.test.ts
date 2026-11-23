@@ -1,15 +1,18 @@
 // R-7 wiring: `/admin server-revoke` in the bot reaches the session service of the same process.
 import { io as connect, type Socket as ClientSocket } from 'socket.io-client';
 import { afterEach, describe, expect, it } from 'vitest';
-import {
-  SOCKET_PATH,
-  type ClientToServerEvents,
-  type ServerToClientEvents,
-} from '@casino/shared';
+import { SOCKET_PATH, type ClientToServerEvents, type ServerToClientEvents } from '@casino/shared';
 import { startBot } from '../bot/client.ts';
 import { createInteractionHandler, type BotRouterDeps } from '../bot/router.ts';
 import { button, command, customIds, fakeClient } from '../bot/chat-test-kit.ts';
-import { GUILD, INSTANCE, OTHER_GUILD, USER, createTestServer, type TestServer } from './test-kit.ts';
+import {
+  GUILD,
+  INSTANCE,
+  OTHER_GUILD,
+  USER,
+  createTestServer,
+  type TestServer,
+} from './test-kit.ts';
 
 type Client = ClientSocket<ServerToClientEvents, ClientToServerEvents>;
 
