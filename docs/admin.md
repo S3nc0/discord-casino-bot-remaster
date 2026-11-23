@@ -1,6 +1,6 @@
 # 持ち主向けの管理・サーバーの承認・ランキング掲示板
 
-[← README に戻る](../README.md)　／　[ドキュメントの一覧](../README.md#詳しい仕様docs)
+[← README に戻る](../README.ja.md)　／　[ドキュメントの一覧](spec/INDEX.ja.md)
 
 ## サーバーの承認（友達のサーバーだけで遊ぶ）
 `config.json` に `"require_approval": true` と、自分のユーザーIDを入れた `owner_ids` を設定すると、**Bot が新しいサーバーに追加されたとき、持ち主に DM で通知が届きます**。

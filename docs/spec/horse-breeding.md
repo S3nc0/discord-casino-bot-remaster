@@ -169,7 +169,7 @@ Subscribers: breeder's inbox + opt-in DM (new `NotificationKind` `horse_foaled` 
 
 ## 7. Implementation outline (for B2-B)
 
-- Pure `breedFoal({ a, b, name, silks }, ctx)` in the race domain module (`packages/domain/race/`, B2-B): eligibility checks, stats (§3.1), coat; returns `Outcome` with the foal draft and a `HorseFoaled` event draft. Constants in a catalog block next to the horse catalog.
+- Pure `breedFoal({ a, b, name, silks }, ctx)` in the race domain module (`packages/domain/src/race/breed.ts`, B2-B): eligibility checks, stats (§3.1), coat; returns `Outcome` with the foal draft and a `HorseFoaled` event draft. Constants in a catalog block next to the horse catalog.
 - Server service: one transaction = re-read both horses and the breeder (balance, debt, count), conditional parent update, `EconomyService` debit `horse_breeding_fee`, insert foal + `horse_breedings`, idempotency record; publish `HorseFoaled` after commit.
 - Race entry: add the `matures_at` check next to the existing entry checks. `gold_carrot`: add the `TOTAL_CAP` check.
 - Shared changes (A1 task first): ledger reason(s), `HorseFoaled`, `horse_foaled` notification kind, i18n keys.
