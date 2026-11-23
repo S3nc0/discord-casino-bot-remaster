@@ -1,0 +1,70 @@
+name: Perf
+
+# Runs the server inside the pi-sim container (arm64, 512 MB, 2 CPUs) under simulated players and
+# fails when a target is missed (ops/pi-sim/perf.sh, apps/server/scripts/load.ts).
+# Pull requests that touch the server run 60 s; a manual run defaults to the full 5 minutes.
+on:
+  pull_request:
+    paths:
+      - 'apps/server/**'
+      - 'packages/shared/**'
+      - 'packages/domain/**'
+      - 'ops/pi-sim/**'
+      - '.github/workflows/perf.yml'
+  workflow_dispatch:
+    inputs:
+      duration:
+        description: Seconds of load
+        default: '300'
+      players:
+        description: Simulated players
+        default: '30'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: perf-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  perf:
+    name: perf (pi-sim arm64)
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: Load test in pi-sim
+        env:
+          DURATION: ${{ github.event_name == 'workflow_dispatch' && inputs.duration || '60' }}
+          PLAYERS: ${{ github.event_name == 'workflow_dispatch' && inputs.players || '30' }}
+        run: |
+          ops/pi-sim/perf.sh --duration "$DURATION" --players "$PLAYERS" \
+            --out "$RUNNER_TEMP/perf-out" \
+            --label "pi-sim arm64, 512 MB, 2 CPUs: $PLAYERS players, ${DURATION} s"
+
+      - name: Job summary
+        if: always()
+        run: |
+          if [ -f "$RUNNER_TEMP/perf-out/result.md" ]; then
+            cat "$RUNNER_TEMP/perf-out/result.md" >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Upload results
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: perf-results
+          path: ${{ runner.temp }}/perf-out
+          if-no-files-found: ignore
