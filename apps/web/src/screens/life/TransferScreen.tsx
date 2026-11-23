@@ -243,7 +243,7 @@ export default function TransferScreen() {
   const api = useLifeApi();
   const state = useLoad(() => api.transfer());
   return (
-    <LifeFrame screen="transfer" icon="coin">
+    <LifeFrame screen="transfer" icon="transfer">
       <Await state={state}>{(v) => <Form view={v} onSent={state.reload} />}</Await>
     </LifeFrame>
   );

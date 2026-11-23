@@ -62,7 +62,7 @@ export default function LotteryScreen() {
       });
 
   return (
-    <LifeFrame screen="lottery" icon="roulette">
+    <LifeFrame screen="lottery" icon="lottery">
       <Await state={state}>
         {(v) => (
           <>

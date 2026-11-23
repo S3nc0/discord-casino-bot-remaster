@@ -1,4 +1,10 @@
-export { GAME_ICON_NAMES, GAME_ICON_ROWS, SKYLINE_COLUMNS, SKYLINE_ROWS } from './art.ts';
+export {
+  GAME_ICON_NAMES,
+  GAME_ICON_ROWS,
+  ICON_LEGEND,
+  SKYLINE_COLUMNS,
+  SKYLINE_ROWS,
+} from './art.ts';
 export type { GameIconName } from './art.ts';
 export { GameIcon } from './GameIcon.tsx';
 export type { GameIconProps } from './GameIcon.tsx';

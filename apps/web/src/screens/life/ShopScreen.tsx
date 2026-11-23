@@ -332,7 +332,7 @@ export default function ShopScreen() {
   const api = useLifeApi();
   const state = useLoad(() => api.shop(), 30_000);
   return (
-    <LifeFrame screen="shop" icon="coin">
+    <LifeFrame screen="shop" icon="shop">
       <Await state={state}>{(v) => <Body view={v} reload={state.reload} />}</Await>
     </LifeFrame>
   );

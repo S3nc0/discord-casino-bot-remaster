@@ -267,7 +267,7 @@ export default function LoansScreen() {
   const action = useAction(reload);
   if (!data)
     return (
-      <ScreenFrame screen="loans" icon="coin" title={t('screen.loans')}>
+      <ScreenFrame screen="loans" icon="loan" title={t('screen.loans')}>
         <LoadError failed={error !== null} onRetry={() => void reload()} />
       </ScreenFrame>
     );
@@ -276,7 +276,7 @@ export default function LoansScreen() {
   return (
     <ScreenFrame
       screen="loans"
-      icon="coin"
+      icon="loan"
       title={t('screen.loans')}
       lead={t('screen.finance.loans.lead')}
     >

@@ -14,7 +14,7 @@ export default function RankingScreen() {
   const state = useLoad(() => api.ranking(), 60_000);
   const now = useNow(1000);
   return (
-    <LifeFrame screen="ranking" icon="stocks">
+    <LifeFrame screen="ranking" icon="trophy">
       <Await state={state}>
         {(v) => (
           <>

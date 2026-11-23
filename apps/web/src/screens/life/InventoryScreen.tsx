@@ -41,7 +41,7 @@ export default function InventoryScreen() {
   const api = useLifeApi();
   const state = useLoad(() => api.shop(), 30_000);
   return (
-    <LifeFrame screen="inventory" icon="gem">
+    <LifeFrame screen="inventory" icon="inventory">
       <Await state={state}>{(view) => <Owned view={view} />}</Await>
     </LifeFrame>
   );

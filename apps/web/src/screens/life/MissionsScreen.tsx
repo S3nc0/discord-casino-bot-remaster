@@ -24,7 +24,7 @@ export default function MissionsScreen() {
   const state = useLoad(() => api.missions(), 30_000);
   const now = useNow(1000);
   return (
-    <LifeFrame screen="missions" icon="sword">
+    <LifeFrame screen="missions" icon="missions">
       <Await state={state}>
         {(v) => {
           const allDone = v.missions.every((m) => m.done);

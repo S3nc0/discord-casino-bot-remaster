@@ -149,7 +149,7 @@ const FEATURED: ReadonlyArray<{ game: CasinoGameId; icon: GameIconName }> = [
   { game: 'chinchiro', icon: 'dice' },
   { game: 'blackjack', icon: 'cards' },
   { game: 'roulette', icon: 'roulette' },
-  { game: 'pachinko', icon: 'coin' },
+  { game: 'pachinko', icon: 'pachinko' },
 ];
 
 /** The featured game rotates by day; its card shows the jackpot pool and opens the game. */

@@ -4,7 +4,13 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { render } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
-import { GAME_ICON_NAMES, GAME_ICON_ROWS, SKYLINE_COLUMNS, SKYLINE_ROWS } from './art.ts';
+import {
+  GAME_ICON_NAMES,
+  GAME_ICON_ROWS,
+  ICON_LEGEND,
+  SKYLINE_COLUMNS,
+  SKYLINE_ROWS,
+} from './art.ts';
 import { GameIcon } from './GameIcon.tsx';
 import { rowsToPaths } from './paths.ts';
 import { Skyline } from './Skyline.tsx';
@@ -17,7 +23,9 @@ const css = readFileSync(
 
 describe('pixel art data', () => {
   it('has the game and item icons on a 16 by 16 grid', () => {
-    expect([...GAME_ICON_NAMES]).toEqual([
+    expect(GAME_ICON_NAMES).toHaveLength(35);
+    expect(new Set(GAME_ICON_NAMES).size).toBe(35);
+    for (const name of [
       'dice',
       'slots',
       'cards',
@@ -35,11 +43,37 @@ describe('pixel art data', () => {
       'gem',
       'carrot',
       'drink',
-    ]);
+    ])
+      expect([...GAME_ICON_NAMES]).toContain(name);
+    // one icon per screen or item family, none reused: these are the added ones
+    for (const name of [
+      'pachinko',
+      'shop',
+      'market',
+      'crypto',
+      'bank',
+      'loan',
+      'company',
+      'transfer',
+      'trophy',
+      'quiz',
+      'lottery',
+      'poll',
+      'missions',
+      'daily',
+      'inventory',
+      'relic',
+      'history',
+      'profile',
+    ])
+      expect([...GAME_ICON_NAMES]).toContain(name);
     for (const name of GAME_ICON_NAMES) {
       const rows = GAME_ICON_ROWS[name];
       expect(rows, name).toHaveLength(16);
-      for (const row of rows) expect(row, name).toMatch(/^[.owgGyYhrRbBnNkK]{16}$/);
+      for (const row of rows) expect(row, name).toMatch(/^[.a-zA-Z0-9]{16}$/);
+      const used = new Set(rows.join('').replaceAll('.', ''));
+      for (const key of used) expect(ICON_LEGEND, `${name} uses ${key}`).toHaveProperty(key);
+      expect(rows.join(''), `${name} is not empty`).toMatch(/[a-zA-Z0-9]/);
     }
   });
 
@@ -58,7 +92,9 @@ describe('pixel art data', () => {
   });
 
   it('every art character has a fill rule in the stylesheet', () => {
-    for (const key of 'owgGyYhrRbBnNkK') expect(css).toContain(`.bb-px-${key} {`);
+    for (const [key, token] of Object.entries(ICON_LEGEND)) {
+      expect(css).toContain(`.bb-px-${key} {\n  fill: var(--${token});\n}`);
+    }
     for (const key of 'smfnv') expect(css).toContain(`.bb-sky-${key} {`);
   });
 });

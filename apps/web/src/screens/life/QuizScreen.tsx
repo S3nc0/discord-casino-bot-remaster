@@ -305,7 +305,7 @@ export default function QuizScreen() {
   const api = useLifeApi();
   const state = useLoad(() => api.quiz(), 30_000);
   return (
-    <LifeFrame screen="quiz" icon="cards">
+    <LifeFrame screen="quiz" icon="quiz">
       <Await state={state}>
         {(v) => (
           <Tabs

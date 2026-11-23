@@ -328,14 +328,14 @@ export default function KyosaiScreen() {
   const action = useAction(reload);
   if (!data)
     return (
-      <ScreenFrame screen="kyosai" icon="stocks" title={t('screen.kyosai')}>
+      <ScreenFrame screen="kyosai" icon="shield" title={t('screen.kyosai')}>
         <LoadError failed={error !== null} onRetry={() => void reload()} />
       </ScreenFrame>
     );
   return (
     <ScreenFrame
       screen="kyosai"
-      icon="stocks"
+      icon="shield"
       title={t('screen.kyosai')}
       lead={t('screen.finance.kyosai.lead')}
     >
