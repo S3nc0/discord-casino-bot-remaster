@@ -273,3 +273,65 @@ describe('R-7: a denied guild loses its sockets', () => {
     expect(client.connected).toBe(true);
   });
 });
+
+describe('R-11: limits per user, not per socket', () => {
+  const join = (c: Client): Promise<{ error?: string }> =>
+    new Promise((r) => c.emit('table:join', { game: 'slots' }, r as never));
+
+  it('R-11: two sockets of one user share one event budget', async () => {
+    const url = await start({ socketLimits: { eventsPer10s: 10 } });
+    const token = await loginAs(USER);
+    const a = open(url, token);
+    const b = open(url, token);
+    await Promise.all([connected(a), connected(b)]);
+    const results = await Promise.all([
+      ...Array.from({ length: 8 }, () => join(a)),
+      ...Array.from({ length: 8 }, () => join(b)),
+    ]);
+    // 16 events against a budget of 10: at least 6 are refused (per-socket counting allowed all).
+    expect(results.filter((r) => r.error === 'rate_limited').length).toBeGreaterThanOrEqual(6);
+  });
+
+  it('R-11: reconnecting does not reset the budget', async () => {
+    const url = await start({ socketLimits: { eventsPer10s: 5 } });
+    const token = await loginAs(USER);
+    const a = open(url, token);
+    await connected(a);
+    for (let i = 0; i < 5; i++) await join(a);
+    a.close();
+    await settle(100);
+    const b = open(url, token);
+    await connected(b);
+    expect((await join(b)).error).toBe('rate_limited');
+  });
+
+  it('R-11: a user cannot hold more than the socket cap; closing one frees a slot', async () => {
+    const url = await start({ socketLimits: { maxSocketsPerUser: 2 } });
+    const token = await loginAs(USER);
+    const a = open(url, token);
+    const b = open(url, token);
+    await Promise.all([connected(a), connected(b)]);
+    const err = await failedWith(open(url, token));
+    expect(err.data).toEqual({ error: 'rate_limited' });
+    // Another user is not affected.
+    await connected(open(url, await loginAs(OTHER_USER)));
+    a.close();
+    await settle(100);
+    await connected(open(url, token));
+  });
+
+  it('R-11: websocket upgrades are limited per IP', async () => {
+    const url = await start({ socketLimits: { upgradesPerMinute: 3 } });
+    const token = await loginAs(USER);
+    for (let i = 0; i < 3; i++) {
+      const c = open(url, token);
+      await connected(c);
+      c.close();
+    }
+    const refused = open(url, token);
+    await failedWith(refused);
+    // A minute later the window is new.
+    server.clock.advance(61_000);
+    await connected(open(url, token));
+  });
+});

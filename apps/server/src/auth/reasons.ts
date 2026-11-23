@@ -22,6 +22,7 @@ export const REASONS = {
   userNotInGuild: 'user_not_in_guild',
   instanceMismatch: 'instance_mismatch',
   socketAuthFailed: 'socket_auth_failed',
+  rateLimited: 'rate_limited',
 } as const;
 
 const PROXY_REASONS: Record<ProxyRejection, string> = {

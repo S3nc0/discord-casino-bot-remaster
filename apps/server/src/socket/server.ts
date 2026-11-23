@@ -38,6 +38,7 @@ import type { IdentityRepo } from '../db/identity.ts';
 import type { InboxService } from '../db/inbox.ts';
 import type { EventBus } from '../runtime/bus.ts';
 import { RateLimiter } from '../runtime/rate-limit.ts';
+import { clientIpOf } from './client-ip.ts';
 import { audienceOf } from './domain-audience.ts';
 
 export type CasinoServer = Server<
@@ -65,6 +66,21 @@ export interface SocketHandlers {
   presence?(scope: RoomScope, payload: PresenceScreen): void;
 }
 
+export interface SocketLimits {
+  /** Events per user (all of their sockets together) per 10 s before `rate_limited`. */
+  eventsPer10s?: number;
+  /** Concurrent sockets per user; the next handshake is refused with `rate_limited`. */
+  maxSocketsPerUser?: number;
+  /** Websocket upgrade attempts per client address per minute. */
+  upgradesPerMinute?: number;
+}
+
+export const DEFAULT_SOCKET_LIMITS = {
+  eventsPer10s: 100,
+  maxSocketsPerUser: 5,
+  upgradesPerMinute: 300,
+} as const satisfies Required<SocketLimits>;
+
 export interface SocketServerOptions {
   httpServer: HttpServer;
   sessions: SessionService;
@@ -78,8 +94,12 @@ export interface SocketServerOptions {
   /** Refuse an upgrade without proxy signature headers. */
   requireProxySignature?: boolean;
   handlers?: SocketHandlers;
-  /** Events per socket per 10 s before they are dropped with `rate_limited`. */
-  eventsPer10s?: number;
+  limits?: SocketLimits;
+  /**
+   * How many proxies in front of the server append to `X-Forwarded-For` (`true` = trust the whole
+   * header, as Fastify's `trustProxy` does). 0 or absent: the socket's own address.
+   */
+  trustProxy?: boolean | number;
 }
 
 export interface SocketServer {
@@ -177,11 +197,24 @@ export function attachSocketServer(options: SocketServerOptions): SocketServer {
   const { identity, inbox } = options;
   const handlers = options.handlers ?? {};
   const participants = new InstanceParticipants(identity);
+  const limits = { ...DEFAULT_SOCKET_LIMITS, ...options.limits };
+  const trustProxy = options.trustProxy ?? false;
+  // Keyed by user, so many sockets (or reconnects) of one user share one budget.
   const eventLimiter = new RateLimiter({
-    limit: options.eventsPer10s ?? 100,
+    limit: limits.eventsPer10s,
     windowMs: 10_000,
     clock,
   }).start();
+  const upgradeLimiter = new RateLimiter({
+    limit: limits.upgradesPerMinute,
+    windowMs: 60_000,
+    clock,
+  }).start();
+  const socketsOf = (userId: string): number => {
+    let count = 0;
+    for (const s of io.sockets.sockets.values()) if (s.data.userId === userId) count += 1;
+    return count;
+  };
 
   const observer = new ProxySignatureObserver(logger);
   /** What `allowRequest` found, by upgrade request (the handshake sees the same object). */
@@ -196,6 +229,11 @@ export function attachSocketServer(options: SocketServerOptions): SocketServer {
     // Same policy as HTTP: signature headers are verified when present, and refused when absent
     // only with REQUIRE_PROXY_SIGNATURE. The handshake still needs our session token.
     allowRequest(request, callback) {
+      // Before anything costly: an unauthenticated flood of upgrades stops here.
+      if (!upgradeLimiter.hit(clientIpOf(request, trustProxy)).allowed) {
+        logger.warn({ reason: REASONS.rateLimited, transport: 'socket' }, 'upgrade rate limited');
+        return callback(null, false);
+      }
       const pick = (name: string): string | undefined => {
         const value = request.headers[name];
         return typeof value === 'string' ? value : undefined;
@@ -256,6 +294,10 @@ export function attachSocketServer(options: SocketServerOptions): SocketServer {
     socket.data.locale = claims.loc;
     socket.data.expiresAt = claims.exp * 1000;
     socket.data.jti = claims.jti;
+    if (socketsOf(claims.sub) >= limits.maxSocketsPerUser) {
+      logger.warn({ reason: REASONS.rateLimited, transport: 'socket' }, 'socket cap reached');
+      return next(rejection('rate_limited'));
+    }
     observer.note(claims.jti, 'socket', proxyStates.get(socket.request) ?? 'absent');
     return next();
   });
@@ -280,6 +322,12 @@ export function attachSocketServer(options: SocketServerOptions): SocketServer {
 
   io.on('connection', (socket) => {
     const scope = scopeOf(socket.data);
+    // Concurrent handshakes can pass the check above together; the later ones end here.
+    if (socketsOf(scope.userId) > limits.maxSocketsPerUser) {
+      socket.emit('session:error', { error: 'rate_limited' });
+      socket.disconnect(true);
+      return;
+    }
     for (const room of [
       rooms.guild(scope.guildId),
       rooms.instance(scope.instanceId),
@@ -333,12 +381,11 @@ export function attachSocketServer(options: SocketServerOptions): SocketServer {
           ack({ ok: false, error: code });
         }
       };
-      if (!eventLimiter.hit(socket.id).allowed) return refuse('rate_limited');
+      if (!eventLimiter.hit(socket.data.userId).allowed) return refuse('rate_limited');
       const schema = (CLIENT_PAYLOADS as unknown as Record<string, TSchema | undefined>)[event];
       if (schema && !Value.Check(schema, args[0])) return refuse('invalid_payload');
       next();
     });
-    socket.on('disconnect', () => eventLimiter.forget(socket.id));
 
     socket.on('time:ping', (ack) => {
       if (typeof ack === 'function') ack(clock.now());
@@ -454,6 +501,7 @@ export function attachSocketServer(options: SocketServerOptions): SocketServer {
       offBalance();
       offUnread();
       eventLimiter.stop();
+      upgradeLimiter.stop();
       io.local.disconnectSockets(true);
       await io.close();
     },

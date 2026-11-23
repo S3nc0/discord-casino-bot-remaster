@@ -22,7 +22,12 @@ import { Inventory } from '../games/shop/inventory.ts';
 import { createNonCasinoGames, type NonCasinoGames } from '../games/progression/index.ts';
 import { registerLifeRoutes } from '../http/activity/life.ts';
 import { buildApp, type RateLimits } from '../http/app.ts';
-import { attachSocketServer, type CasinoServer, type SocketHandlers } from '../socket/server.ts';
+import {
+  attachSocketServer,
+  type CasinoServer,
+  type SocketHandlers,
+  type SocketLimits,
+} from '../socket/server.ts';
 import {
   createCasinoPorts,
   createExternalLiquidation,
@@ -49,7 +54,9 @@ export interface CreateServerOptions {
   socketHandlers?: SocketHandlers;
   rateLimits?: RateLimits;
   sessionTtlSeconds?: number;
-  trustProxy?: boolean;
+  /** `true` or a hop count: trust `X-Forwarded-For` (see `TRUSTED_PROXY_HOPS`). */
+  trustProxy?: boolean | number;
+  socketLimits?: SocketLimits;
   /** Defaults to the crypto RNG. Tests pass a seeded one. */
   rng?: Rng;
   /** Defaults to croner. Tests pass a driver they fire by hand. */
@@ -225,6 +232,8 @@ export function createServer(options: CreateServerOptions): CasinoServices {
     proxyVerifier,
     requireProxySignature: config.requireProxySignature,
     handlers: options.socketHandlers ?? casino.handlers,
+    ...(options.socketLimits === undefined ? {} : { limits: options.socketLimits }),
+    trustProxy: options.trustProxy ?? false,
   });
   casino.attach(sockets.io);
   // A crash can leave rounds open with their stakes held: give every stake back before play.

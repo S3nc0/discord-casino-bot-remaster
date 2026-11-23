@@ -86,7 +86,7 @@ export interface AppDeps {
   proxyVerifier: ProxySignatureVerifier | null;
   rateLimits?: RateLimits;
   /** Trust `X-Forwarded-For` (the server sits behind the tunnel on loopback). */
-  trustProxy?: boolean;
+  trustProxy?: boolean | number;
   /** Put the auth reason code in 401/403 bodies. Off in production (the log always has it). */
   exposeReasons?: boolean;
   /** Refuse missing proxy signature headers (health and token excepted). */
@@ -120,6 +120,18 @@ function sendError(reply: FastifyReply, error: AppError, exposeReasons = false):
   return reply.code(error.status).send(body);
 }
 
+/**
+ * `true` trusts the whole `X-Forwarded-For` chain (anyone can forge it). A number trusts that
+ * many proxies in front of the server and takes the address the nearest of them saw: with 1, the
+ * last entry, which the proxy appended itself.
+ */
+function fastifyTrustProxy(
+  trust: boolean | number | undefined,
+): boolean | ((address: string, hop: number) => boolean) {
+  if (typeof trust === 'number') return (_address, hop) => hop < trust;
+  return trust ?? false;
+}
+
 function limitHit(limiter: RateLimiter, key: string): void {
   const result = limiter.hit(key);
   if (!result.allowed) throw new AppError('rate_limited', { retryAfterMs: result.retryAfterMs });
@@ -146,7 +158,7 @@ export function buildApp(deps: AppDeps): FastifyInstance {
 
   const app = Fastify({
     loggerInstance: deps.logger,
-    trustProxy: deps.trustProxy ?? false,
+    trustProxy: fastifyTrustProxy(deps.trustProxy),
     bodyLimit: 16 * 1024,
   });
   app.decorateRequest('session', null);
