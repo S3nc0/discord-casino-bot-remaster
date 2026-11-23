@@ -1,0 +1,14 @@
+{
+  "extends": "../tsconfig.base.json",
+  "compilerOptions": {
+    "types": ["node"],
+    "typeRoots": ["../apps/server/node_modules/@types", "../node_modules/@types"],
+    "paths": {
+      "fast-check": ["../apps/server/node_modules/fast-check/lib/fast-check.d.ts"],
+      "socket.io-client": ["../apps/server/node_modules/socket.io-client/build/esm/index.d.ts"],
+      "typebox": ["../apps/server/node_modules/typebox/build/index.d.mts"],
+      "typebox/value": ["../apps/server/node_modules/typebox/build/value/index.d.mts"]
+    }
+  },
+  "include": ["**/*.ts", "../apps/server/src/sql.d.ts"]
+}
