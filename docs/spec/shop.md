@@ -1,3 +1,5 @@
+**English** | [日本語](shop.ja.md)
+
 # Shop, Inventory, Cosmetics & Teiai Auction/Market Specification (`shop`)
 
 > Planned Owner: **B2-B** · Screen IDs: `shop`, `inventory` · Ledger Reasons: `shop_purchase`, `teiai_auction_buy`, `teiai_market_buy`

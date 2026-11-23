@@ -1,3 +1,5 @@
+**English** | [日本語](blackjack.ja.md)
+
 # Blackjack (`blackjack`)
 
 Single-deck Blackjack (`/カジノ ブラックジャック`) with Hit, Stand, Double Down (including Teiai credit double), no Split, no Blackjack Insurance.

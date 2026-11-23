@@ -1,3 +1,5 @@
+**English** | [日本語](arena.ja.md)
+
 # Underground Arena Specification (`arena`)
 
 > Planned Owner: **B2-B** · Game ID: `arena` · Screen ID: `arena` · Ledger Reasons: `arena_bet`, `arena_payout`

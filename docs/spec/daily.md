@@ -1,3 +1,5 @@
+**English** | [日本語](daily.ja.md)
+
 # Daily Bonus & Streaks Specification
 
 Planned owner: `B2-B` | Screen ID: `daily` (`packages/shared/src/ids.ts`) | Feature toggle: none (always enabled)

@@ -1,3 +1,5 @@
+**English** | [日本語](weekly-ranking.ja.md)
+
 # Weekly Ranking & Titles Specification
 
 Planned owner: `B2-B` | Screen ID: `ranking` (`packages/shared/src/ids.ts`) | Feature toggle: none

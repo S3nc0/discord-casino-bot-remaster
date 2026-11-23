@@ -1,3 +1,5 @@
+**English** | [日本語](horse.ja.md)
+
 # Horse Racing Specification (`horse`)
 
 > Planned Owner: **B2-B** · Game ID: `horse` · Screen ID: `horse` · Ledger Reasons: `horse_bet`, `horse_payout`, `horse_entry_fee`, `horse_prize`, `horse_retire` (note: `horse_upkeep` in `packages/shared/src/ledger.ts` has no legacy counterpart — legacy has no periodic upkeep)

@@ -1,3 +1,5 @@
+**English** | [日本語](transfer.ja.md)
+
 # Player Transfer Specification
 
 Planned owner: `B2-B` | Screen ID: `transfer` (`packages/shared/src/ids.ts`) | Feature toggle: none

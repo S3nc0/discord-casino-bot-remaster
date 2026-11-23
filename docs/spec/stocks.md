@@ -1,3 +1,5 @@
+**English** | [日本語](stocks.ja.md)
+
 # Securities Market (Stocks, Margin, Options, Bonds, Events & Earnings) Specification
 
 Planned owner: `B3` | Screen IDs: `stocks`, `stocks-detail`, `stocks-margin`, `stocks-options`, `stocks-bonds` (`packages/shared/src/ids.ts`) | Feature toggles: `market` (spot/margin/options/chart/holdings), `bonds` (`/証券 注文 債券`)

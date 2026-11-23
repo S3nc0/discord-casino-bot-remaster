@@ -1,3 +1,5 @@
+**English** | [日本語](teiai.ja.md)
+
 # Teiai Bank, Debt, Bankruptcy Grace, CDS, Thermostat & Escape Specification
 
 Planned owner: `B3` | Screen IDs: `teiai-bank`, `teiai-bank-cds`, `teiai-bank-debt` (`packages/shared/src/ids.ts`) | Feature toggle: none (always enabled; `/ペリカ 帝愛`, `/ペリカ 返済`, `/ペリカ 破産`)

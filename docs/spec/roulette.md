@@ -1,3 +1,5 @@
+**English** | [日本語](roulette.ja.md)
+
 # Roulette (`roulette`)
 
 European single-zero roulette (`0`–`36`) (`/カジノ ルーレット`).

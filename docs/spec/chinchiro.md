@@ -1,3 +1,5 @@
+**English** | [日本語](chinchiro.ja.md)
+
 # Chinchiro (`chinchiro`)
 
 Dice hand-comparison game against a dealer (solo `/カジノ チンチロ` and multiplayer table `/カジノ チンチロ卓`).

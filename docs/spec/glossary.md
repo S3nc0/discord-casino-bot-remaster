@@ -1,3 +1,5 @@
+**English** | [日本語](glossary.ja.md)
+
 # Glossary (EN / JA)
 
 Canonical English and Japanese terms used across the legacy bot, YAML catalogs, behaviour specs, and `packages/shared`. One term per line.

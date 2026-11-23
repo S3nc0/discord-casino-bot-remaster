@@ -1,3 +1,5 @@
+**English** | [日本語](slots.ja.md)
+
 # Slots (`slots`)
 
 3-reel weighted slot machine (`/カジノ スロット`).

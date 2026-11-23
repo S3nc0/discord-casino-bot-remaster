@@ -1,3 +1,5 @@
+**English** | [日本語](commands.ja.md)
+
 # Slash Command Specification (`commands`)
 
 Single source of truth for all Discord slash commands, subcommand groups, subcommands, options, bounds, choices, contexts, and default ephemerality. `apps/server/src/bot/commands.ts` generates the discord.js command tree directly from this specification.

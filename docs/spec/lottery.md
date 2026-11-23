@@ -1,3 +1,5 @@
+**English** | [日本語](lottery.ja.md)
+
 # Lottery / Raffle Specification (`lottery`)
 
 > Planned Owner: **B2-B** · Screen ID: `lottery` · Ledger Reasons: `lottery_ticket`, `lottery_payout`, `lottery_refund`

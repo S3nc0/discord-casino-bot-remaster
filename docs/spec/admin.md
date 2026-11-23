@@ -1,3 +1,5 @@
+**English** | [日本語](admin.ja.md)
+
 # Admin Tools Specification
 
 Planned owner: `B2-B` | Feature toggle: none (owner-only DM commands + guild admin leaderboard + CLI)
