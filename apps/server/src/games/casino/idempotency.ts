@@ -51,6 +51,10 @@ export class IdempotencyStore {
         if (row.status !== 'done' || row.response === null) throw new AppError('in_flight');
         return { response: JSON.parse(row.response) as T, replayed: true };
       }
+      // The key row expires after a day but ledger keys are permanent: a key whose money moved
+      // once (`key` itself or a scoped leg `key:…`) is spent for good, so a repeat after the
+      // purge is `conflict` instead of a run whose ledger legs would silently replay.
+      if (this.spentInLedger(who, key)) throw new AppError('conflict');
       const now = this.clock.now();
       this.store
         .stmt(
@@ -68,6 +72,17 @@ export class IdempotencyStore {
         .run(JSON.stringify(response ?? null), who.guildId, who.userId, key);
       return { response, replayed: false };
     });
+  }
+
+  private spentInLedger(who: { guildId: string; userId: string }, key: string): boolean {
+    const row = this.store
+      .stmt(
+        `SELECT 1 FROM ledger WHERE guild_id = ? AND user_id = ?
+           AND (idempotency_key = ? OR (idempotency_key >= ? AND idempotency_key < ?))
+         LIMIT 1`,
+      )
+      .get(who.guildId, who.userId, key, `${key}:`, `${key};`);
+    return row !== undefined;
   }
 
   /** Drop expired keys. */
