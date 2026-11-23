@@ -1,69 +1,57 @@
-import { rowsToPaths } from '@casino/ui';
-import { coatColor, silksColor } from './format.ts';
+import { useEffect, useState } from 'react';
+import { isReducedMotionActive, rowsToPaths } from '@casino/ui';
+import { coatKey, silksKey } from './format.ts';
+import { HORSE_ART_HEIGHT, HORSE_ART_WIDTH, HORSE_FRAMES, HORSE_STILL_FRAME } from './horse-art.ts';
 
 /*
- * A racehorse in profile with a rider, 18 by 12 art pixels, two gallop frames.
- *   o outline   k coat   m mane and tail   s silks   h cap   w eye
- * Drawn here (not imported art), flat colours from the palette; the coat and the silks come from
- * the horse's own look.
+ * A racehorse in profile with a rider, 48 by 32 art pixels, eight frames of one gallop stride
+ * (art in horse-art.ts, made from a public domain photo series; see CREDITS.md). The coat and the
+ * silks pick the colours through classes, so nothing here carries a colour value.
  */
-const FRAME_A = [
-  '..............oo..',
-  '.....hh......ookko',
-  '....ssss.....okkwo',
-  '...osssso...ookkko',
-  'mm.okkkkkkkkkkkoo.',
-  'mmmokkkkkkkkkkkoo.',
-  '.mmokkkkkkkkkkko..',
-  '..ookkkkkkkkkkoo..',
-  '..okko....ookko...',
-  '.okko......okko...',
-  'okko........okko..',
-  'oo...........oo...',
-] as const;
-const FRAME_B = [
-  '..............oo..',
-  '.....hh......ookko',
-  '....ssss.....okkwo',
-  '...osssso...ookkko',
-  'mm.okkkkkkkkkkkoo.',
-  'mmmokkkkkkkkkkkoo.',
-  '.mmokkkkkkkkkkko..',
-  '..ookkkkkkkkkkoo..',
-  '...ookkoookkoo....',
-  '....okko..okko....',
-  '.....oo....oo.....',
-  '..................',
-] as const;
-
-const WIDTH = 18;
-const pad = (rows: readonly string[]) => rows.map((r) => r.padEnd(WIDTH, '.').slice(0, WIDTH));
-const PATHS = [rowsToPaths(pad(FRAME_A)), rowsToPaths(pad(FRAME_B))];
+const FRAME_MS = 80;
+const PATHS = new Map<number, ReturnType<typeof rowsToPaths>>();
+const pathsOf = (frame: number) => {
+  let paths = PATHS.get(frame);
+  if (!paths) {
+    paths = rowsToPaths(HORSE_FRAMES[frame] as readonly string[]);
+    PATHS.set(frame, paths);
+  }
+  return paths;
+};
 
 export interface PixelHorseProps {
   coat: string;
   silks: string;
-  /** Alternate the two gallop frames. Off when still or under reduced motion. */
+  /** Play the gallop. Off when still or under reduced motion (then the still frame shows). */
   running?: boolean;
+  /** Start the stride at another frame, so a field of horses does not move in step. */
+  phase?: number;
   className?: string;
 }
 
-export function PixelHorse({ coat, silks, running = false, className }: PixelHorseProps) {
+export function PixelHorse({
+  coat,
+  silks,
+  running = false,
+  phase = 0,
+  className,
+}: PixelHorseProps) {
+  const animate = running && !isReducedMotionActive();
+  const [tick, setTick] = useState(0);
+  useEffect(() => {
+    if (!animate) return undefined;
+    const id = setInterval(() => setTick((n) => n + 1), FRAME_MS);
+    return () => clearInterval(id);
+  }, [animate]);
+  const frame = animate ? (tick + phase) % HORSE_FRAMES.length : HORSE_STILL_FRAME;
   return (
     <svg
-      className={`hr-horse${running ? ' is-running' : ''}${className ? ` ${className}` : ''}`}
-      viewBox={`0 0 ${WIDTH} 12`}
+      className={`hr-horse hr-coat-${coatKey(coat)} hr-silks-${silksKey(silks)}${animate ? ' is-running' : ''}${className ? ` ${className}` : ''}`}
+      viewBox={`0 0 ${HORSE_ART_WIDTH} ${HORSE_ART_HEIGHT}`}
       aria-hidden="true"
-      style={
-        { '--hr-coat': coatColor(coat), '--hr-silks': silksColor(silks) } as React.CSSProperties
-      }
     >
-      {PATHS.map((paths, frame) => (
-        <g key={frame} className={`hr-horse__frame hr-horse__frame--${frame === 0 ? 'a' : 'b'}`}>
-          {paths.map(([key, d]) => (
-            <path key={key} className={`hr-px-${key}`} d={d} />
-          ))}
-        </g>
+      {pathsOf(frame).map(([key, d]) => (
+        <path key={key} className={`hr-px-${key}`} d={d} />
       ))}
     </svg>
   );
