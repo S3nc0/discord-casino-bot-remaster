@@ -64,7 +64,10 @@ function ticket() {
     const star = part('gold', { fixed: 4, outline: false });
     hi.cells(9, 5, ['..#..', '..#..', '#####', '.###.', '.#.#.', '#...#'], { '#': star });
     const ink = part('red', { fixed: 1, outline: false });
-    hi.rect(ink, 5, 13, 12, 1).rect(ink, 23, 5, 3, 1).rect(ink, 23, 7, 3, 1).rect(ink, 23, 11, 3, 1);
+    hi.rect(ink, 5, 13, 12, 1)
+      .rect(ink, 23, 5, 3, 1)
+      .rect(ink, 23, 7, 3, 1)
+      .rect(ink, 23, 11, 3, 1);
   });
 }
 
@@ -184,7 +187,7 @@ function globe(b, t, T) {
       const d = Math.hypot(x - GX + 0.5, y - GY + 0.5);
       if (d > GR + 0.5) continue;
       const c = b.px[y * W + x];
-      if (d > GR - 1) set(b, x, y, (x - GX) + (y - GY) < 0 ? C('neutral-80') : C('neutral-40'));
+      if (d > GR - 1) set(b, x, y, x - GX + (y - GY) < 0 ? C('neutral-80') : C('neutral-40'));
       else set(b, x, y, map.get(c) ?? c);
     }
   // balls: a pile at the bottom that churns and a few in the air, all turning with the drum
@@ -206,7 +209,12 @@ function globe(b, t, T) {
   // glass shine: a short arc top left and a dot, drawn over the balls
   for (let k = 0; k < 9; k++) {
     const an = Math.PI * 1.05 + k * 0.07;
-    set(b, Math.round(GX + Math.cos(an) * (GR - 3)), Math.round(GY + Math.sin(an) * (GR - 3)), C('paper-99'));
+    set(
+      b,
+      Math.round(GX + Math.cos(an) * (GR - 3)),
+      Math.round(GY + Math.sin(an) * (GR - 3)),
+      C('paper-99'),
+    );
   }
   set(b, GX - 8, GY - 11, C('paper-99'));
   set(b, GX - 7, GY - 12, C('paper-99'));

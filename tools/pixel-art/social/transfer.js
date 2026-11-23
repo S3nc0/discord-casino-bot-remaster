@@ -54,12 +54,19 @@ function house(wall, roof) {
 function transferBase() {
   const b = new P.Buf(W, H);
   // dusk sky: navy at the top to warm at the horizon, in flat bands
-  vbands(b, 2, 2, W - 4, GROUND - 2, CR(['indigo-10', 'indigo-20', 'violet-30', 'pink-40', 'orange-50']), (t) =>
-    t * 0.95,
+  vbands(
+    b,
+    2,
+    2,
+    W - 4,
+    GROUND - 2,
+    CR(['indigo-10', 'indigo-20', 'violet-30', 'pink-40', 'orange-50']),
+    (t) => t * 0.95,
   );
   // stars in the dark part
   const R = P.rng(5);
-  for (let i = 0; i < 18; i++) set(b, 4 + Math.floor(R() * (W - 8)), 4 + Math.floor(R() * 14), C('sky-90'));
+  for (let i = 0; i < 18; i++)
+    set(b, 4 + Math.floor(R() * (W - 8)), 4 + Math.floor(R() * 14), C('sky-90'));
   // far roofs, flat silhouettes
   const far = C('violet-20');
   for (let x = 2; x < W - 2; x++) {
@@ -69,13 +76,29 @@ function transferBase() {
   for (let x = 6; x < W - 6; x += 9) if ((x * 7) % 5 < 2) set(b, x, GROUND - 12, C('amber-70'));
   // houses at the sides
   paste(b, house(['teal-20', 'teal-30', 'teal-40', 'teal-50', 'teal-60'], 'red'), 4, GROUND - 29);
-  paste(b, house(['brown-20', 'brown-30', 'brown-40', 'brown-50', 'brown-60'], 'blue'), W - 38, GROUND - 29);
+  paste(
+    b,
+    house(['brown-20', 'brown-30', 'brown-40', 'brown-50', 'brown-60'], 'blue'),
+    W - 38,
+    GROUND - 29,
+  );
   // street: cobbles
-  field(b, 2, GROUND, W - 4, H - 2 - GROUND, CR(['neutral-17', 'neutral-25', 'neutral-35']), (x, y) => {
-    const row = Math.floor((y - GROUND) / 3);
-    const u = (x - 2 + (row % 2) * 3) % 6;
-    return u === 0 || (y - GROUND) % 3 === 0 ? 0.1 : 0.45 + 0.4 * (1 - (y - GROUND) / (H - GROUND));
-  }, 0.01);
+  field(
+    b,
+    2,
+    GROUND,
+    W - 4,
+    H - 2 - GROUND,
+    CR(['neutral-17', 'neutral-25', 'neutral-35']),
+    (x, y) => {
+      const row = Math.floor((y - GROUND) / 3);
+      const u = (x - 2 + (row % 2) * 3) % 6;
+      return u === 0 || (y - GROUND) % 3 === 0
+        ? 0.1
+        : 0.45 + 0.4 * (1 - (y - GROUND) / (H - GROUND));
+    },
+    0.01,
+  );
   for (let x = 2; x < W - 2; x++) set(b, x, GROUND, C('neutral-40'));
   // players
   paste(b, person({ coat: 'teal', hair: 'black', pose: 'out' }), 38, GROUND - 31);

@@ -41,7 +41,8 @@ function calendar() {
     }
     const num = part('ink', { fixed: 2, outline: false }),
       numSun = part('red', { fixed: 1, outline: false });
-    for (let i = 0; i < 7; i++) hi.cells(6 + i * (CELL + 1) + 2, 24, DIG[i + 1], { '#': i === 6 ? numSun : num });
+    for (let i = 0; i < 7; i++)
+      hi.cells(6 + i * (CELL + 1) + 2, 24, DIG[i + 1], { '#': i === 6 ? numSun : num });
     // title bar dots and rings
     const gold = part('gold', { fixed: 3, outline: false });
     hi.rect(gold, w / 2 - 14, 8, 28, 2);
@@ -102,7 +103,14 @@ function gift(f) {
         for (let k = -2; k <= 2; k++) {
           const a = k * 0.42 + phase,
             l = k === 0 ? 22 : 18 - Math.abs(k) * 2;
-          hi.line(light, ax + Math.sin(a) * 4, ay - Math.cos(a) * 4, ax + Math.sin(a) * l, ay - Math.cos(a) * l, 1.4);
+          hi.line(
+            light,
+            ax + Math.sin(a) * 4,
+            ay - Math.cos(a) * 4,
+            ax + Math.sin(a) * l,
+            ay - Math.cos(a) * l,
+            1.4,
+          );
         }
       }
       const body = part('red', { bevel: true, steps: [1, 2, 3] });
@@ -113,7 +121,9 @@ function gift(f) {
         const inside = part('red', { fixed: 0 });
         hi.rect(inside, 8 + dx, 26, 24, 2);
         const coin = part('gold', { round: 1.2, steps: [1, 3, 4] });
-        hi.ellipse(coin, 14 + dx, 22, 2.6, 2.6).ellipse(coin, 25 + dx, 20, 2.6, 2.6).ellipse(coin, 20 + dx, 14, 3, 3);
+        hi.ellipse(coin, 14 + dx, 22, 2.6, 2.6)
+          .ellipse(coin, 25 + dx, 20, 2.6, 2.6)
+          .ellipse(coin, 20 + dx, 14, 3, 3);
       } else {
         const ly = 21 - lidUp;
         const lid = part('red', { bevel: true, steps: [2, 3, 4] });
@@ -140,7 +150,8 @@ const GIFT = { x: 128, y: H - 52 };
 function dailyFrame(streak, f) {
   const b = room();
   const st = dayStamp();
-  for (let i = 0; i < Math.min(7, streak); i++) paste(b, st, DAY_CELLS[i][0] + 1, DAY_CELLS[i][1] + 1);
+  for (let i = 0; i < Math.min(7, streak); i++)
+    paste(b, st, DAY_CELLS[i][0] + 1, DAY_CELLS[i][1] + 1);
   paste(b, gift(f), GIFT.x, GIFT.y);
   frame(b);
   return b;

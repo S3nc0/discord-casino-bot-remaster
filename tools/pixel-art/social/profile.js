@@ -74,10 +74,19 @@ function plaque() {
 function profileCard() {
   const b = new P.Buf(W, H);
   // card face: violet with a faint diamond lattice
-  field(b, 2, 2, W - 4, H - 4, CR(['violet-10', 'violet-20', 'violet-30']), (x, y) => {
-    const lat = (x + y) % 12 === 0 || (x - y + 240) % 12 === 0;
-    return lat ? 0.95 : 0.45 - (y / H) * 0.3;
-  }, 0.01);
+  field(
+    b,
+    2,
+    2,
+    W - 4,
+    H - 4,
+    CR(['violet-10', 'violet-20', 'violet-30']),
+    (x, y) => {
+      const lat = (x + y) % 12 === 0 || (x - y + 240) % 12 === 0;
+      return lat ? 0.95 : 0.45 - (y / H) * 0.3;
+    },
+    0.01,
+  );
   // gold border inside the frame, corner gems
   for (let x = 4; x < W - 4; x++) {
     set(b, x, 4, C('yellow-80'));

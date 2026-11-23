@@ -33,7 +33,8 @@ function shelf(b) {
       for (let i = 0; i < w && x + i < W - 3; i++)
         for (let y = base - h; y < base; y++) set(b, x + i, y, C(i === 0 ? l : d));
       // gold band on some spines
-      if (R() < 0.5) for (let i = 0; i < w && x + i < W - 3; i++) set(b, x + i, base - h + 2, C('yellow-70'));
+      if (R() < 0.5)
+        for (let i = 0; i < w && x + i < W - 3; i++) set(b, x + i, base - h + 2, C('yellow-70'));
       set(b, x + w - 1, base - h, C('brown-10'));
       x += w;
     }
@@ -125,7 +126,15 @@ function historyScene() {
   const b = new P.Buf(W, H);
   shelf(b);
   // desk
-  vbands(b, 2, DESK, W - 4, H - 2 - DESK, CR(['brown-30', 'brown-40', 'brown-50']), (t) => 0.95 - t * 0.7);
+  vbands(
+    b,
+    2,
+    DESK,
+    W - 4,
+    H - 2 - DESK,
+    CR(['brown-30', 'brown-40', 'brown-50']),
+    (t) => 0.95 - t * 0.7,
+  );
   for (let x = 2; x < W - 2; x++) {
     set(b, x, DESK, C('brown-60'));
     set(b, x, H - 4, C('brown-20'));

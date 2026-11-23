@@ -46,7 +46,12 @@ function right() {
         [0.9, true],
         [2.4, false],
       ])
-        spark(b, Math.round(11.5 + Math.cos(a) * d), Math.round(11.5 + Math.sin(a) * d), big && f === 1);
+        spark(
+          b,
+          Math.round(11.5 + Math.cos(a) * d),
+          Math.round(11.5 + Math.sin(a) * d),
+          big && f === 1,
+        );
     }
     if (f === 3) spark(b, 4, 4, false);
     out.push(b);
@@ -73,7 +78,8 @@ function cross(b, dx, size) {
       const onA = a <= 2.2,
         onB = bb <= 2.2;
       let col = mid;
-      if ((onA && edgeA && !onB) || (onB && edgeB && !onA)) col = u + v < 0 || u - v < 0 ? lit : dark;
+      if ((onA && edgeA && !onB) || (onB && edgeB && !onA))
+        col = u + v < 0 || u - v < 0 ? lit : dark;
       set(b, x, y, col);
     }
 }

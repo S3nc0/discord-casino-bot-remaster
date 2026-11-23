@@ -109,8 +109,14 @@ const FLOOR = 62;
 function quizScene() {
   const b = new P.Buf(W, H);
   // back wall: violet, darker at the top
-  vbands(b, 2, 2, W - 4, FLOOR - 2, CR(['neutral-4', 'violet-10', 'indigo-10', 'violet-20']), (t) =>
-    0.15 + t * 0.75,
+  vbands(
+    b,
+    2,
+    2,
+    W - 4,
+    FLOOR - 2,
+    CR(['neutral-4', 'violet-10', 'indigo-10', 'violet-20']),
+    (t) => 0.15 + t * 0.75,
   );
   // wall panels: a dark seam and a lit edge
   for (let x = 30; x < W - 28; x += 14) {
@@ -244,7 +250,9 @@ export { quizScene, bulbs, host, podium, buzzer, sign, W, H };
 
 export function preview(T = 2) {
   const s = quizScene();
-  return Array.from({ length: T }, (_, t) => bulbs(s.buf.constructor === Object ? s.buf : cloneBuf(s.buf), s, t % 2));
+  return Array.from({ length: T }, (_, t) =>
+    bulbs(s.buf.constructor === Object ? s.buf : cloneBuf(s.buf), s, t % 2),
+  );
 }
 function cloneBuf(b) {
   const o = new P.Buf(b.w, b.h);

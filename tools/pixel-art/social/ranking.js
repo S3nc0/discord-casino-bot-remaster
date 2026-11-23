@@ -118,14 +118,25 @@ function rankingBase() {
       const k = Math.floor(((a + Math.PI) / (Math.PI * 2)) * 24) % 2;
       const d = Math.hypot(x - cx, (y - cy) * 1.4);
       const far = d > 70 ? 1 : d > 40 ? 0.5 : 0;
-      const tone = k ? (far === 1 ? 'neutral-4' : far ? 'violet-10' : 'violet-20') : far === 1 ? 'neutral-4' : far ? 'neutral-4' : 'violet-10';
+      const tone = k
+        ? far === 1
+          ? 'neutral-4'
+          : far
+            ? 'violet-10'
+            : 'violet-20'
+        : far === 1
+          ? 'neutral-4'
+          : far
+            ? 'neutral-4'
+            : 'violet-10';
       set(b, x, y, C(tone));
     }
   // dither at the ring edges so the bands meet softly
   for (let y = 2; y < H - 2; y++)
     for (let x = 2; x < W - 2; x++) {
       const d = Math.hypot(x - cx, (y - cy) * 1.4);
-      if ((Math.abs(d - 40) < 1.5 || Math.abs(d - 70) < 1.5) && (x + y) % 2) set(b, x, y, b.px[y * W + x - 1]);
+      if ((Math.abs(d - 40) < 1.5 || Math.abs(d - 70) < 1.5) && (x + y) % 2)
+        set(b, x, y, b.px[y * W + x - 1]);
     }
   // confetti
   const R = P.rng(11);

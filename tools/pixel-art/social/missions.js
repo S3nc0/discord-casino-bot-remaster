@@ -102,7 +102,8 @@ function missionsBase() {
     }
   for (let y = 2; y < H - 2; y += 7) {
     const off = ((y / 7) | 0) % 2 ? 23 : 7;
-    for (let x = off; x < W - 4; x += 38) for (let j = 0; j < 6; j++) set(b, x, y + j + 2, C('brown-10'));
+    for (let x = off; x < W - 4; x += 38)
+      for (let j = 0; j < 6; j++) set(b, x, y + j + 2, C('brown-10'));
   }
   // warm glow round the lantern: one step lighter in a circle
   const glow = (x, y) => (x - 14) ** 2 + ((y - 30) * 1.2) ** 2 < 16 ** 2;
@@ -115,7 +116,8 @@ function missionsBase() {
     ].map(([a, c]) => [C(a), C(c)]),
   );
   for (let y = 2; y < H - 2; y++)
-    for (let x = 2; x < 40; x++) if (glow(x, y)) set(b, x, y, map.get(b.px[y * W + x]) ?? b.px[y * W + x]);
+    for (let x = 2; x < 40; x++)
+      if (glow(x, y)) set(b, x, y, map.get(b.px[y * W + x]) ?? b.px[y * W + x]);
   paste(b, lantern(), 7, 16);
 
   // board: frame and cork
@@ -129,11 +131,20 @@ function missionsBase() {
   });
   paste(b, frameP, BX, BY);
   const cork = CR(['amber-30', 'amber-40', 'amber-50', 'amber-60']);
-  field(b, BX + 4, BY + 4, BW - 8, BH - 8, cork, (x, y) => {
-    const n = P.fbm(x * 0.18, y * 0.18, 3, 7);
-    const shade = 1 - ((x - BX) / BW) * 0.25 - ((y - BY) / BH) * 0.3;
-    return 0.2 + 0.4 * n * shade + 0.1 * shade;
-  }, 0.25);
+  field(
+    b,
+    BX + 4,
+    BY + 4,
+    BW - 8,
+    BH - 8,
+    cork,
+    (x, y) => {
+      const n = P.fbm(x * 0.18, y * 0.18, 3, 7);
+      const shade = 1 - ((x - BX) / BW) * 0.25 - ((y - BY) / BH) * 0.3;
+      return 0.2 + 0.4 * n * shade + 0.1 * shade;
+    },
+    0.25,
+  );
   // inner shadow of the frame on the cork (top and left)
   for (let x = BX + 4; x < BX + BW - 4; x++) set(b, x, BY + 4, C('amber-20'));
   for (let y = BY + 4; y < BY + BH - 4; y++) set(b, BX + 4, y, C('amber-20'));
@@ -167,8 +178,11 @@ function missionsBase() {
     [BX + 92, BY + 8, 30, 26],
     [BX + 98, BY + 34, 22, 18],
   ]) {
-    for (let i = 2; i < w; i++) if (b.px[(y + h) * W + x + i] >>> 24 && isCork(b.px[(y + h) * W + x + i])) set(b, x + i, y + h, C('amber-20'));
-    for (let j = 2; j < h; j++) if (isCork(b.px[(y + j) * W + x + w])) set(b, x + w, y + j, C('amber-20'));
+    for (let i = 2; i < w; i++)
+      if (b.px[(y + h) * W + x + i] >>> 24 && isCork(b.px[(y + h) * W + x + i]))
+        set(b, x + i, y + h, C('amber-20'));
+    for (let j = 2; j < h; j++)
+      if (isCork(b.px[(y + j) * W + x + w])) set(b, x + w, y + j, C('amber-20'));
   }
   function isCork(c) {
     return cork.includes(c);

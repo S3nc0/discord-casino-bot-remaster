@@ -24,9 +24,14 @@ function box() {
     const plate = part('paper', { bevel: true, steps: [2, 3, 4] });
     hi.rect(plate, 12, 10, 16, 11);
     const tick = part('green', { fixed: 1, outline: false });
-    hi.cells(15, 12, ['.......##', '......##.', '##...##..', '.##.##...', '..###....', '...#.....'], {
-      '#': tick,
-    });
+    hi.cells(
+      15,
+      12,
+      ['.......##', '......##.', '##...##..', '.##.##...', '..###....', '...#.....'],
+      {
+        '#': tick,
+      },
+    );
     const lock = part('gold', { bevel: true, steps: [1, 3, 4] });
     hi.rect(lock, 18, 22, 4, 3);
   });
@@ -103,22 +108,37 @@ function pollBase() {
       set(b, x + 1, y, C('brown-40'));
     }
   // floor tiles
-  field(b, 2, FLOOR, W - 4, H - 2 - FLOOR, CR(['neutral-17', 'neutral-24', 'neutral-30']), (x, y) =>
-    (Math.floor((x - 2) / 8) + Math.floor((y - FLOOR) / 4)) % 2 ? 0.25 : 0.7,
-  0.01);
+  field(
+    b,
+    2,
+    FLOOR,
+    W - 4,
+    H - 2 - FLOOR,
+    CR(['neutral-17', 'neutral-24', 'neutral-30']),
+    (x, y) => ((Math.floor((x - 2) / 8) + Math.floor((y - FLOOR) / 4)) % 2 ? 0.25 : 0.7),
+    0.01,
+  );
   // booth on the left: frame, striped curtain, shadow inside
   const BX = 10,
     BY = FLOOR - 45;
   for (let y = BY + 8; y < FLOOR - 1; y++)
     for (let x = BX + 4; x < BX + 38; x++) set(b, x, y, C('neutral-10'));
-  field(b, BX + 5, BY + 8, 32, FLOOR - 2 - (BY + 8), CR(['sky-30', 'sky-50', 'paper-80', 'paper-95']), (x, y) => {
-    const u = (x - BX - 5) / 32;
-    const gather = y > FLOOR - 14 ? 0.05 : 0;
-    if (u > 0.62 + gather && u < 0.7) return null; // the gap the voter slips through
-    const stripe = Math.floor((x - BX - 5) / 4) % 2;
-    const fold = 0.5 + 0.5 * Math.cos(((x - BX - 5) % 4) * 1.4);
-    return stripe ? 0.55 + 0.4 * fold : 0.05 + 0.4 * fold;
-  });
+  field(
+    b,
+    BX + 5,
+    BY + 8,
+    32,
+    FLOOR - 2 - (BY + 8),
+    CR(['sky-30', 'sky-50', 'paper-80', 'paper-95']),
+    (x, y) => {
+      const u = (x - BX - 5) / 32;
+      const gather = y > FLOOR - 14 ? 0.05 : 0;
+      if (u > 0.62 + gather && u < 0.7) return null; // the gap the voter slips through
+      const stripe = Math.floor((x - BX - 5) / 4) % 2;
+      const fold = 0.5 + 0.5 * Math.cos(((x - BX - 5) % 4) * 1.4);
+      return stripe ? 0.55 + 0.4 * fold : 0.05 + 0.4 * fold;
+    },
+  );
   paste(b, booth(), BX, BY);
   // table with the ballot box
   paste(b, table(), 62, FLOOR - 15);
