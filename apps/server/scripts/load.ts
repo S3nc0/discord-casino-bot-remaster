@@ -159,6 +159,8 @@ interface OpStats {
   rejected: number;
   failed: number;
   rttMs: number[];
+  /** Why the rejections happened (server error code or rule), by count. */
+  reasons: Map<string, number>;
 }
 
 class Recorder {
@@ -178,7 +180,8 @@ class Recorder {
 
   private stats(op: string): OpStats {
     let s = this.ops.get(op);
-    if (!s) this.ops.set(op, (s = { ok: 0, rejected: 0, failed: 0, rttMs: [] }));
+    if (!s)
+      this.ops.set(op, (s = { ok: 0, rejected: 0, failed: 0, rttMs: [], reasons: new Map() }));
     return s;
   }
 
@@ -187,6 +190,9 @@ class Recorder {
     const s = this.stats(op);
     s[outcome]++;
     s.rttMs.push(rttMs);
+    if (outcome === 'rejected' && detail.length > 0) {
+      s.reasons.set(detail, (s.reasons.get(detail) ?? 0) + 1);
+    }
     if (outcome === 'failed' && this.failures.length < 20) this.failures.push(`${op}: ${detail}`);
   }
 
@@ -202,6 +208,7 @@ class Player {
   private readonly timers = new Set<NodeJS.Timeout>();
   private running = false;
   private blackjackRound: string | null = null;
+  private blackjackPhase = 'idle';
 
   readonly userId: string;
   private readonly token: string;
@@ -248,7 +255,9 @@ class Player {
     });
     // Same rooms and snapshots a player's Activity subscribes to.
     socket.on('table:state', (state) => {
-      if (state.game === 'blackjack') this.blackjackRound = state.roundId ?? null;
+      if (state.game !== 'blackjack') return;
+      this.blackjackRound = state.roundId ?? null;
+      this.blackjackPhase = state.phase;
     });
     for (const game of ['roulette', 'blackjack'] as const) {
       await socket.emitWithAck('table:join', { game }).catch(() => undefined);
@@ -316,12 +325,7 @@ class Player {
       this.rec.record(op, 'ok', rtt);
       return { ok: true, result: ack.result };
     }
-    this.rec.record(
-      op,
-      UNEXPECTED_ERRORS.has(ack.error) ? 'failed' : 'rejected',
-      rtt,
-      `bet rejected: ${ack.error}`,
-    );
+    this.rec.record(op, UNEXPECTED_ERRORS.has(ack.error) ? 'failed' : 'rejected', rtt, ack.error);
     return {
       ok: false,
       ...(ack.retryAfterMs === undefined ? {} : { retryAfterMs: ack.retryAfterMs }),
@@ -332,7 +336,7 @@ class Player {
   private async game(): Promise<void> {
     const roll = Math.random();
     const waitMs =
-      roll < 0.5 ? await this.slots() : roll < 0.8 ? await this.roulette() : await this.blackjack();
+      roll < 0.4 ? await this.slots() : roll < 0.7 ? await this.roulette() : await this.blackjack();
     await sleep(waitMs / this.opts.rateScale);
   }
 
@@ -359,7 +363,9 @@ class Player {
   }
 
   private async blackjack(): Promise<number> {
-    const roundId = this.blackjackRound;
+    // A hand in play takes no bets; join the open betting window of the table, or start one.
+    if (this.blackjackPhase === 'player') return between(2000, 4000);
+    const roundId = this.blackjackPhase === 'betting' ? this.blackjackRound : null;
     const bet = await this.intent('blackjack_bet', {
       idempotencyKey: key(),
       game: 'blackjack',
@@ -414,21 +420,24 @@ class Player {
     });
     const rtt = performance.now() - at;
     const text = await response.text();
-    if (response.status >= 500) {
+    let parsed: unknown;
+    try {
+      parsed = text.length > 0 ? (JSON.parse(text) as unknown) : null;
+    } catch {
+      parsed = null;
+    }
+    if (response.status >= 500 || response.status === 401 || response.status === 403) {
       this.rec.record(op, 'failed', rtt, `HTTP ${response.status}`);
     } else if (response.ok) {
       this.rec.record(op, 'ok', rtt);
-    } else if (response.status === 401 || response.status === 403) {
-      this.rec.record(op, 'failed', rtt, `HTTP ${response.status}`);
     } else {
-      // 400/404/409/429: a game rule or limit said no. Counted, not a failure.
-      this.rec.record(op, 'rejected', rtt);
+      // 400/404/409/429: a game rule or limit said no. Counted with its reason, not a failure.
+      const body = parsed as { error?: unknown; rule?: unknown } | null;
+      const reason = [body?.rule, body?.error].find((v) => typeof v === 'string') as
+        string | undefined;
+      this.rec.record(op, 'rejected', rtt, reason ?? `HTTP ${response.status}`);
     }
-    try {
-      return text.length > 0 ? (JSON.parse(text) as unknown) : null;
-    } catch {
-      return null;
-    }
+    return parsed;
   }
 
   private async daily(): Promise<void> {
@@ -470,7 +479,7 @@ class Player {
       idempotencyKey: key(),
       kind: 'win',
       lanes: [between(1, 5)],
-      stake: 10,
+      stake: between(100, 300),
     });
   }
 
@@ -585,7 +594,16 @@ export interface PerfResult {
   socketRttMs: ReturnType<typeof summarize>;
   coldStartMs: number | null;
   serverListenMs: number | null;
-  ops: Record<string, { ok: number; rejected: number; failed: number; p95Ms: number }>;
+  ops: Record<
+    string,
+    {
+      ok: number;
+      rejected: number;
+      failed: number;
+      p95Ms: number;
+      reasons: Record<string, number>;
+    }
+  >;
   failures: string[];
   disconnects: number;
   pass: boolean;
@@ -617,9 +635,13 @@ function markdown(result: PerfResult): string {
     '',
     '| Operation | ok | refused by a rule | failed | p95 |',
     '| --- | --- | --- | --- | --- |',
-    ...Object.entries(result.ops).map(
-      ([op, s]) => `| ${op} | ${s.ok} | ${s.rejected} | ${s.failed} | ${s.p95Ms} ms |`,
-    ),
+    ...Object.entries(result.ops).map(([op, s]) => {
+      const why = Object.entries(s.reasons)
+        .sort((a, b) => b[1] - a[1])
+        .map(([reason, n]) => `${reason} ${n}`)
+        .join(', ');
+      return `| ${op} | ${s.ok} | ${s.rejected}${why ? ` (${why})` : ''} | ${s.failed} | ${s.p95Ms} ms |`;
+    }),
     '',
   ];
   return lines.join('\n');
@@ -734,6 +756,7 @@ async function main(): Promise<void> {
         {
           ok: s.ok,
           rejected: s.rejected,
+          reasons: Object.fromEntries(s.reasons),
           failed: s.failed,
           p95Ms: round(percentile(sortedCopy(s.rttMs), 95)),
         },

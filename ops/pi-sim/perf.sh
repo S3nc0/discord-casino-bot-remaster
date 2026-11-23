@@ -45,6 +45,15 @@ rm -f "$out/probe.jsonl" "$out/server.log" "$out/result.json" "$out/result.md"
 # The container runs as the unprivileged `node` user and appends the probe file here.
 chmod 777 "$out"
 
+# Races start at fixed local hours and take bets from 60 to 2 minutes before the start. Pick the
+# UTC offset so that "now" is local 20:00, one hour before the 21:00 race (every day has one):
+# the race card then has a race open for bets whatever time the run happens to start. The earlier
+# races of the local day are run by the scheduler right away, so a race run is part of the load.
+utc_hour="$(date -u +%H)"
+offset=$(( (20 - 10#$utc_hour + 24) % 24 ))
+if [ "$offset" -gt 12 ]; then offset=$(( offset - 24 )); fi
+echo "UTC offset for the race card: $offset h"
+
 secret="$(head -c 32 /dev/urandom | od -An -tx1 | tr -d ' \n')"
 name="casino-perf-$$"
 cleanup() {
@@ -73,7 +82,7 @@ docker run -d --name "$name" --network host --memory=512m --memory-swap=512m --c
   -e OWNER_IDS=100000000000000001 \
   -e TEST_GUILD_ID=900000000000000001 \
   -e REQUIRE_APPROVAL=0 \
-  -e UTC_OFFSET_HOURS=9 \
+  -e UTC_OFFSET_HOURS="$offset" \
   -e SESSION_SECRET="$secret" \
   -e PUBLIC_API_ORIGIN=https://api.example.com \
   -e ANNOUNCE_CHANNEL_ID=100000000000000002 \

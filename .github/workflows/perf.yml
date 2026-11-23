@@ -27,8 +27,9 @@ permissions:
   contents: read
 
 concurrency:
-  group: perf-${{ github.ref }}
-  cancel-in-progress: true
+  # A new push cancels the previous pull request run; manual runs never cancel each other.
+  group: perf-${{ github.event_name == 'pull_request' && github.ref || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   perf:
