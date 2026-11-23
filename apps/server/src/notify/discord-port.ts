@@ -143,11 +143,14 @@ function isTransientNetworkCode(code: number | string | undefined): boolean {
   );
 }
 
+/** Nothing the bot posts may ping: discord.js takes `allowedMentions`, the raw REST body `allowed_mentions`. */
 function serializeMessagePayload(
   message: ChannelMessage,
-  options: { allowLaunchButton: boolean },
+  options: { allowLaunchButton: boolean; raw?: boolean },
 ): Record<string, unknown> {
-  const payload: Record<string, unknown> = {};
+  const payload: Record<string, unknown> = options.raw
+    ? { allowed_mentions: { parse: [] } }
+    : { allowedMentions: { parse: [] } };
   if (message.content !== undefined) payload.content = message.content;
   if (message.embeds !== undefined) payload.embeds = [...message.embeds];
   if (options.allowLaunchButton && message.openInActivity) {
@@ -233,7 +236,7 @@ export function createDiscordNotifyPort(client: Client | DiscordPortClient): Dis
       identity?: WebhookIdentity,
     ): Promise<WebhookPostResult> {
       try {
-        const body = serializeMessagePayload(message, { allowLaunchButton: true });
+        const body = serializeMessagePayload(message, { allowLaunchButton: true, raw: true });
         if (identity?.name) body.username = identity.name;
         if (identity?.avatarUrl) body.avatar_url = identity.avatarUrl;
 

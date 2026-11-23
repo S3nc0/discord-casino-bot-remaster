@@ -195,6 +195,27 @@ describe('createDiscordNotifyPort', () => {
     ).toMatchObject({ ok: false, reason: 'rate_limited', retryAfterMs: 1200 });
   });
 
+  it('R-10: channel posts and webhook posts never allow mentions', async () => {
+    const send = vi.fn<(payload: Record<string, unknown>) => Promise<{ id: string }>>(async () => ({
+      id: 'm1',
+    }));
+    const restPost = vi.fn(async () => ({ id: 'w1' }));
+    const { client } = makeFakeClient({ channels: { [CHANNEL_ID]: { send } }, restPost });
+    const port = createDiscordNotifyPort(client);
+    const content = '@everyone <@&123456789012345678> <@123456789012345678>';
+
+    await port.postToChannel(CHANNEL_ID, { content });
+    expect(send.mock.calls[0]?.[0]).toMatchObject({ allowedMentions: { parse: [] } });
+
+    await port.postViaWebhook({ webhookId: '111', token: 'tok' }, { content });
+    expect(restPost).toHaveBeenCalledWith(
+      Routes.webhook('111', 'tok'),
+      expect.objectContaining({
+        body: expect.objectContaining({ allowed_mentions: { parse: [] } }),
+      }),
+    );
+  });
+
   it('createWebhook checks Manage Webhooks permission, creates webhook when allowed, and maps permission/cap errors', async () => {
     const createOk = vi.fn(async () => ({ id: 'wh-1', token: 'tok-1' }));
     const createDenied = vi.fn();
