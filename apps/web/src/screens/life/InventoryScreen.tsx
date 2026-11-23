@@ -1,10 +1,11 @@
-import { GameIcon, List, ListItem, Button, Tag } from '@casino/ui';
+import { List, ListItem, Button, Tag } from '@casino/ui';
 import type { ShopView } from '@casino/shared';
 import { useLocale, useT } from '../../shell/i18n.ts';
 import { useNavStore } from '../../shell/stores/nav.ts';
 import { useLifeApi } from './api.tsx';
 import { useLoad } from './hooks.ts';
 import { itemIcon, itemLabel } from './items.ts';
+import { SlotIcon, StoreBanner } from './InventoryScene.tsx';
 import { Await, LifeFrame } from './ui.tsx';
 
 function Owned({ view }: { view: ShopView }) {
@@ -15,6 +16,7 @@ function Owned({ view }: { view: ShopView }) {
   if (owned.length === 0) {
     return (
       <>
+        <StoreBanner />
         <p className="life__empty">{t('screen.life.inventory.empty')}</p>
         <Button variant="tonal" onClick={() => go('shop')}>
           {t('screen.life.inventory.toShop')}
@@ -23,16 +25,19 @@ function Owned({ view }: { view: ShopView }) {
     );
   }
   return (
-    <List label={t('screen.inventory')}>
-      {owned.map((item) => (
-        <ListItem
-          key={item.id}
-          leading={<GameIcon name={itemIcon(item.id)} className="life-item__icon" />}
-          headline={itemLabel(locale, item.id)}
-          trailing={<Tag hue="sky">×{item.owned}</Tag>}
-        />
-      ))}
-    </List>
+    <>
+      <StoreBanner />
+      <List label={t('screen.inventory')}>
+        {owned.map((item) => (
+          <ListItem
+            key={item.id}
+            leading={<SlotIcon name={itemIcon(item.id)} />}
+            headline={itemLabel(locale, item.id)}
+            trailing={<Tag hue="sky">×{item.owned}</Tag>}
+          />
+        ))}
+      </List>
+    </>
   );
 }
 

@@ -289,3 +289,52 @@
   width: 32px;
   height: 32px;
 }
+
+/* the item icon on its bit of shelf (shop) or in its slot (inventory), whole pixels */
+.life-slot {
+  position: relative;
+  display: block;
+  flex: none;
+}
+
+.life-slot__bg {
+  display: block;
+}
+
+.life-slot .life-item__icon {
+  position: absolute;
+}
+
+.life-slot--shelf .life-item__icon {
+  left: 6px;
+  top: 2px;
+}
+
+.life-slot--box .life-item__icon {
+  left: 4px;
+  top: 4px;
+}
+
+/* scene banners (mine, shop, storeroom): cropped at the sides on a narrow screen, never scaled */
+.life-banner {
+  margin-bottom: var(--space-2);
+}
+
+.life-banner,
+.life-mine {
+  display: flex;
+  justify-content: center;
+  overflow: hidden;
+}
+
+.life-banner .bb-scene,
+.life-mine .bb-scene {
+  flex: none;
+  border: 2px solid var(--outline-variant);
+}
+
+.life-find {
+  display: block;
+  flex: none;
+  margin-block: -6px;
+}

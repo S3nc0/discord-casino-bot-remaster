@@ -13,3 +13,5 @@ export type { SkylineProps } from './Skyline.tsx';
 export { Sparkle } from './Sparkle.tsx';
 export type { SparkleProps } from './Sparkle.tsx';
 export { rowsToPaths } from './paths.ts';
+export { PixelScene, PixelTile, SceneLayer, scenePaths, useSceneFrame } from './PixelScene.tsx';
+export type { PixelSceneProps, PixelTileProps, SceneArt, SceneLayerProps } from './PixelScene.tsx';

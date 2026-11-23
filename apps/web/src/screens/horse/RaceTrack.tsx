@@ -1,6 +1,15 @@
 import type { HorseTimeline } from '@casino/shared';
+import { PixelScene, PixelTile, useSceneFrame } from '@casino/ui';
 import { useT } from '../../shell/i18n.ts';
 import { PixelHorse } from './PixelHorse.tsx';
+import {
+  RACE_DUST,
+  RACE_GATE,
+  RACE_LANE,
+  RACE_LANE_DARK,
+  RACE_RAIL,
+  RACE_STAND,
+} from './race-art.ts';
 
 export interface RaceTrackProps {
   timeline: HorseTimeline;
@@ -39,13 +48,18 @@ export function commentary(timeline: HorseTimeline, tick: number): { key: string
   return { key: 'screen.horse.live.lead', name };
 }
 
-/** Eight lanes, a pixel horse in each, moving in steps along the track. */
+/**
+ * Eight lanes, a pixel horse in each, moving in steps along the track. Behind them: the grandstand
+ * and the finish post, turf with mowing stripes, the inner rail; the starting gate stands in each
+ * lane until the off, and dust flies behind a running horse (not under reduced motion).
+ */
 export function RaceTrack({ timeline, tick, playing, coats }: RaceTrackProps) {
   const t = useT();
   const positions = positionsAt(timeline, tick);
   const leader = leaderIndex(positions);
   const line = commentary(timeline, tick);
   const percent = Math.round(((positions[leader] ?? 0) / 1000) * 100);
+  const dust = useSceneFrame(RACE_DUST.frames.length, 90, playing);
   return (
     <div className="hr-track" role="group" aria-label={t('screen.horse.live.title')}>
       <p className="hr-track__line" role="status" aria-live="polite">
@@ -61,18 +75,30 @@ export function RaceTrack({ timeline, tick, playing, coats }: RaceTrackProps) {
       >
         <span className="hr-track__fill" style={{ width: `${percent}%` }} />
       </div>
+      <div className="hr-track__stand" aria-hidden="true">
+        <PixelScene art={RACE_STAND} />
+      </div>
       <ol className="hr-lanes">
         {timeline.runners.map((runner, i) => (
           <li
             key={runner.lane}
             className={`hr-lane${runner.mine ? ' is-mine' : ''}${i === leader && tick > 0 ? ' is-leader' : ''}`}
           >
+            <PixelTile art={i % 2 ? RACE_LANE_DARK : RACE_LANE} className="hr-lane__turf" />
             <span className="hr-lane__no">{runner.lane}</span>
             <span className="hr-lane__course">
+              {tick <= 0 ? <PixelScene art={RACE_GATE} className="hr-lane__gate" /> : null}
               <span
                 className="hr-lane__runner"
                 style={{ '--p': positions[i] ?? 0 } as React.CSSProperties}
               >
+                {playing && tick > 0 && (positions[i] ?? 0) < 1000 ? (
+                  <PixelScene
+                    art={RACE_DUST}
+                    frame={(dust + i) % RACE_DUST.frames.length}
+                    className="hr-lane__dust"
+                  />
+                ) : null}
                 <PixelHorse
                   coat={coats[runner.lane] ?? ''}
                   silks={runner.silks}
@@ -86,6 +112,9 @@ export function RaceTrack({ timeline, tick, playing, coats }: RaceTrackProps) {
           </li>
         ))}
       </ol>
+      <div className="hr-track__rail" aria-hidden="true">
+        <PixelTile art={RACE_RAIL} />
+      </div>
     </div>
   );
 }

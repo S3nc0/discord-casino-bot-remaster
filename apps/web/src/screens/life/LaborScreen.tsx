@@ -18,6 +18,7 @@ import { formatPelica, useLocale, useT, type Translate } from '../../shell/i18n.
 import { useLifeApi } from './api.tsx';
 import { formatDuration } from './format.ts';
 import { pushToast, useIntent, useLoad, useNow, usePlay } from './hooks.ts';
+import { FindSprite, MineScene } from './MineScene.tsx';
 import { Await, LifeFrame, Stat } from './ui.tsx';
 
 const MEDALS = ['🥇', '🥈', '🥉'];
@@ -54,6 +55,7 @@ function Dig({
   const nf = new Intl.NumberFormat(locale);
   const seenAt = useMemo(() => Date.now(), [view]);
   const [last, setLast] = useState<WorkClickResponse | null>(null);
+  const [swings, setSwings] = useState(0);
   const fatigue = Math.max(
     0,
     view.fatigue - ((now - seenAt) / 1000) * RECOVER_PER_SEC * (1 + (view.buffs.recovery ?? 0)),
@@ -67,6 +69,7 @@ function Dig({
         if (!r) return;
         setLast(r);
         if (r.tooFast) return;
+        setSwings((n) => n + 1);
         play(r.crit ? 'bigWin' : 'chip');
         patch((v) => ({
           ...v,
@@ -131,6 +134,7 @@ function Dig({
 
   return (
     <>
+      <MineScene swings={swings} />
       <Card variant="elevated" className="life-dig">
         <div className="life-stats">
           <Stat
@@ -182,14 +186,14 @@ function Dig({
             <ul className="life__tags">
               {Object.entries(view.ores).map(([id, n]) => (
                 <li key={id}>
-                  <Tag hue="amber">
+                  <Tag hue="amber" icon={<FindSprite id={id} />}>
                     {oreName(t, id)} ×{n}
                   </Tag>
                 </li>
               ))}
               {Object.entries(view.relics).map(([id, n]) => (
                 <li key={id}>
-                  <Tag hue="violet">
+                  <Tag hue="violet" icon={<FindSprite id={id} />}>
                     {relicName(t, id)} ×{n}
                   </Tag>
                 </li>

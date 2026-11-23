@@ -17,7 +17,7 @@ import { useHorseApi } from './context.tsx';
 import { coatIndex, formatNumber, silksIndex } from './format.ts';
 import { applyBalance, useRunner } from './hooks.ts';
 import { ErrorNote, SilksDot, StatBars } from './parts.tsx';
-import { PixelHorse } from './PixelHorse.tsx';
+import { StallScene } from './HorseScenes.tsx';
 
 export interface StableTabProps {
   stable: HorseStable;
@@ -166,7 +166,7 @@ function HorseCard({
       }
     >
       <div className="hr-horsecard__art">
-        <PixelHorse coat={h.coat} silks={h.silks} />
+        <StallScene coat={h.coat} silks={h.silks} />
       </div>
       <p>
         {t('screen.horse.runner.record', { races: h.races, wins: h.wins, places: h.places })} ·{' '}

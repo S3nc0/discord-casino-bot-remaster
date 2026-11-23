@@ -235,6 +235,15 @@ describe('labor: layout and routes', () => {
     expect(root.querySelector('.life-dig + .bb-progress-wrap')).toBeNull();
   });
 
+  it('shows the mine above the dig card and a sprite on every find', async () => {
+    const root = await show(<LaborScreen />);
+    expect(root.querySelector('.life-mine + .life-dig')).not.toBeNull();
+    expect(root.querySelector('.life-mine svg')!.getAttribute('aria-hidden')).toBe('true');
+    const finds = [...root.querySelectorAll('.life__tags .bb-tag')];
+    expect(finds.length).toBeGreaterThan(0);
+    for (const tag of finds) expect(tag.querySelector('svg.life-find')).not.toBeNull();
+  });
+
   it('opens the relics screen id on the relics tab', async () => {
     const root = await show(<RelicsScreen />);
     expect(text(root.querySelector('h1'))).toBe('Relics');
@@ -248,7 +257,11 @@ describe('inventory', () => {
     expect(text(root.querySelector('h1'))).toBe('Inventory');
     const rows = [...root.querySelectorAll('.bb-list li')];
     expect(rows.length).toBeGreaterThan(0);
-    for (const row of rows) expect(row.querySelector('svg.bb-px')).not.toBeNull();
+    for (const row of rows) {
+      expect(row.querySelector('svg.bb-px.life-item__icon')).not.toBeNull();
+      expect(row.querySelector('.life-slot--box .life-slot__bg')).not.toBeNull();
+    }
+    expect(root.querySelector('.life-banner svg')).not.toBeNull();
     expect(text(rows.find((r) => text(r).includes('Rookie Gambler')))).toContain('×1');
   });
 });
@@ -389,8 +402,10 @@ describe('shop', () => {
 
   it('shows pixel icons and no emoji on the shelf', async () => {
     const root = await show(<ShopScreen />);
+    expect(root.querySelector('.life-banner svg')).not.toBeNull();
     for (const row of root.querySelectorAll('.bb-list li')) {
-      expect(row.querySelector('svg.bb-px')).not.toBeNull();
+      expect(row.querySelector('svg.bb-px.life-item__icon')).not.toBeNull();
+      expect(row.querySelector('.life-slot--shelf .life-slot__bg')).not.toBeNull();
       expect(text(row)).not.toMatch(/\p{Extended_Pictographic}/u);
     }
   });

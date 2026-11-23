@@ -303,9 +303,17 @@ describe('a race that has run', () => {
     await click(button(view.container, 'Watch the race'));
     expect($$(view.container, '.hr-lane')).toHaveLength(8);
     expect(view.container.querySelector('.hr-track__line')!.textContent).toContain('off!');
+    // scenery: grandstand and rail around the lanes, the gate in every lane before the off
+    expect(view.container.querySelector('.hr-track__stand svg')).not.toBeNull();
+    expect(view.container.querySelector('.hr-track__rail svg')).not.toBeNull();
+    expect($$(view.container, '.hr-lane__gate')).toHaveLength(8);
+    expect($$(view.container, '.hr-lane__dust')).toHaveLength(0);
     act(() => {
       vi.advanceTimersByTime(260 * 3);
     });
+    // once they are off the gate is gone and dust flies behind the runners
+    expect($$(view.container, '.hr-lane__gate')).toHaveLength(0);
+    expect($$(view.container, '.hr-lane__dust').length).toBeGreaterThan(0);
     const early = view.container
       .querySelector<HTMLElement>('.hr-lane__runner')!
       .style.getPropertyValue('--p');
@@ -314,6 +322,8 @@ describe('a race that has run', () => {
     await click(button(view.container, 'Skip to the result'));
     expect(view.container.querySelector('.hr-track__line')!.textContent).toContain('wins!');
     expect(view.container.querySelectorAll('.hr-horse.is-running')).toHaveLength(0);
+    expect($$(view.container, '.hr-lane__gate')).toHaveLength(0);
+    expect($$(view.container, '.hr-lane__dust')).toHaveLength(0);
     expect(button(view.container, 'Watch again')).toBeDefined();
   });
 
@@ -357,7 +367,11 @@ describe('stable', () => {
     const view = await openStable();
     expect($$(view.container, '.hr-horsecard')).toHaveLength(2);
     const first = $$(view.container, '.hr-horsecard')[0]!;
-    expect(first.querySelector('.hr-horse')).not.toBeNull();
+    // the horse looks out of its stall, coloured by its own coat and silks
+    expect(first.querySelector('.hr-horsecard__art .hr-stall')).not.toBeNull();
+    expect(first.querySelector('.hr-stall .hr-portrait')!.getAttribute('class')).toMatch(
+      /hr-coat-\S+ hr-silks-blue/,
+    );
     expect(first.textContent).toContain('Speed');
     expect(first.textContent).toContain('9 runs, 3 wins, 5 top 3');
     expect($$(first, '.hr-stats__row')).toHaveLength(4);
@@ -413,6 +427,11 @@ describe('breeding', () => {
     expect(card.textContent).toContain('Total 190 to 210');
     expect(card.textContent).toContain('Generation 1');
     expect($$(card, '.hr-ranges div')).toHaveLength(4);
+    // both parents over the paddock fence, each in its own coat and silks
+    const heads = $$(card, '.hr-preview__pair .hr-paddock .hr-portrait');
+    expect(heads).toHaveLength(2);
+    expect(heads[0]!.getAttribute('class')).toContain('hr-silks-blue');
+    expect(heads[1]!.getAttribute('class')).toContain('hr-silks-green');
     expect(card.textContent).toContain('Breeding fee: 15,000 Pelica');
     expect(card.textContent).toContain('Can race from 2d 0h');
     expect(card.textContent).toContain('Stats are rolled once');
@@ -430,6 +449,7 @@ describe('breeding', () => {
     await click(button(dialog, 'Breed'));
     expect(useBalanceStore.getState().balance).toBe(25_000);
     expect($(view.container, '.hr-foal').textContent).toContain('Little Comet');
+    expect($(view.container, '.hr-foal').querySelector('.hr-portrait-icon')).not.toBeNull();
     expect(view.container.textContent).toContain('Can race in');
   });
 
