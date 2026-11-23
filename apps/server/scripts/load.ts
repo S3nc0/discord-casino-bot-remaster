@@ -272,10 +272,10 @@ class Player {
       ['ping', 1000, 1000, () => this.ping()],
       // One casino round at a time per player, like the real session guard allows.
       ['game', 500, 1500, () => this.game()],
-      ['race', 15000, 25000, () => this.race()],
+      ['race', 25000, 40000, () => this.race()],
       ['daily', 40000, 70000, () => this.daily()],
-      ['transfer', 12000, 22000, () => this.transfer()],
-      ['market', 7000, 12000, () => this.market()],
+      ['transfer', 20000, 35000, () => this.transfer()],
+      ['market', 12000, 20000, () => this.market()],
       ['screens', 8000, 14000, () => this.screens()],
     ];
     for (const [name, min, max, run] of tasks) {
@@ -448,7 +448,7 @@ class Player {
   private async transfer(): Promise<void> {
     const others = this.peers().filter((id) => id !== this.userId);
     const receiverId = pick(others);
-    const amount = between(10, 60);
+    const amount = between(10, 40);
     await this.http('transfer_preview', 'POST', '/api/life/transfer/preview', {
       receiverId,
       amount,
@@ -465,7 +465,7 @@ class Player {
     await this.http('market_spot', 'POST', '/api/finance/market/spot', {
       idempotencyKey: key(),
       symbol: pick(SYMBOLS),
-      amount: between(50, 200),
+      amount: between(30, 100),
     });
   }
 
