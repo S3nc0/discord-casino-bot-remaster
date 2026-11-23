@@ -4,7 +4,7 @@
 
 Hard fork of fatcorn753/discord-casino-bot, rewritten in TypeScript as a Discord Activity plus chat bot. Updated by the Scribe from task reports.
 
-Current wave: 4 — Release
+Current wave: done — v1.0.0 released 2026-11-24
 
 ## Wave 0 — Foundation
 
@@ -94,12 +94,12 @@ Owners register commands with `pnpm commands:deploy:guild` (see the [Owner Setup
 | 4.D2 follow-up | Casino lazy fallback and route test flake | D1 | done (PR #73) |
 | 4.D3 | Fast, deterministic breeding range test (`SLOW_TESTS=1` for the full sweep) | D1 | done (PR #74) |
 | 4.REL | Remove the original Python bot, every Markdown file up to date (EN/JA), final Pi check | SC + O1 | in review (PR #75) |
-| 4.3 | Tag v1.0.0, set the CHANGELOG date, deploy | Leader + O1 | todo |
+| 4.3 | Tag v1.0.0, set the CHANGELOG date, deploy | Leader + O1 | done (2026-11-24) |
 | 4.4 | Final tree check + push | Leader | todo |
 
 ## Blockers
 
-None. Wave 3 is complete (Gate 3 passed 2026-11-23). Wave 4: every feature, art and fix task is merged; the release itself (tag, date, deploy) is pending.
+None. Wave 3 is complete (Gate 3 passed 2026-11-23). Wave 4: every feature, art and fix task is merged; the release itself (tag, date, deploy) is done: v1.0.0, 2026-11-24.
 
 ## Notes
 

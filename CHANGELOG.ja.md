@@ -4,7 +4,7 @@
 
 このプロジェクトの主な変更は、ここに書きます。書式は [Keep a Changelog](https://keepachangelog.com/ja/1.1.0/) に、バージョンは [セマンティック バージョニング](https://semver.org/lang/ja/) に従います。
 
-## [1.0.0] - 未リリース
+## [1.0.0] - 2026-11-24
 
 リマスター版です。元の Python 製のチャット Bot を TypeScript で書き直し、Discord のアクティビティとチャット Bot にしました。リポジトリは 1 つ、サーバーのプロセスも 1 つ、SQLite のファイルも 1 つです。
 
