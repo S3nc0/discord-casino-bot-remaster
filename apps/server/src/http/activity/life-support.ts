@@ -4,7 +4,7 @@ import { Value } from 'typebox/value';
 import type { Static } from 'typebox';
 import type { Clock, LifeError, SessionClaims } from '@casino/shared';
 import type { SessionService } from '../../auth/sessions.ts';
-import { REASONS } from '../../auth/reasons.ts';
+import { REASONS, sessionError } from '../../auth/reasons.ts';
 import type { Store } from '../../db/store.ts';
 import type { EconomyService } from '../../economy/economy-service.ts';
 import { IdempotencyStore } from '../../games/casino/idempotency.ts';
@@ -64,14 +64,7 @@ export class LifeKit {
       if (!match?.[1]) return done(new AppError('unauthorized', { reason: REASONS.bearerMissing }));
       const check = this.deps.sessions.verify(match[1]);
       if (!check.ok) {
-        const reason = {
-          expired: REASONS.sessionExpired,
-          revoked: REASONS.sessionRevoked,
-          invalid: REASONS.sessionInvalid,
-        }[check.reason];
-        return done(
-          new AppError(check.reason === 'expired' ? 'expired' : 'unauthorized', { reason }),
-        );
+        return done(sessionError(check.reason));
       }
       request.session = check.claims;
       return done();

@@ -20,9 +20,13 @@ import {
 } from '../games/index.ts';
 import { Inventory } from '../games/shop/inventory.ts';
 import { createNonCasinoGames, type NonCasinoGames } from '../games/progression/index.ts';
-import { registerLifeRoutes } from '../http/activity/life.ts';
 import { buildApp, type RateLimits } from '../http/app.ts';
-import { attachSocketServer, type CasinoServer, type SocketHandlers } from '../socket/server.ts';
+import {
+  attachSocketServer,
+  type CasinoServer,
+  type SocketHandlers,
+  type SocketLimits,
+} from '../socket/server.ts';
 import {
   createCasinoPorts,
   createExternalLiquidation,
@@ -37,6 +41,12 @@ import { createLogger } from './logger.ts';
 import { cryptoRng } from './rng.ts';
 import { Scheduler, type CronDriver } from './scheduler.ts';
 
+/**
+ * Proxies between the client and this server: the tunnel, which appends the client address to
+ * `X-Forwarded-For`. Only that last entry is believed, so a client cannot choose its own address.
+ */
+export const TRUSTED_PROXY_HOPS = 1;
+
 export interface CreateServerOptions {
   config: Config;
   /** Defaults to the real clock. */
@@ -49,7 +59,9 @@ export interface CreateServerOptions {
   socketHandlers?: SocketHandlers;
   rateLimits?: RateLimits;
   sessionTtlSeconds?: number;
-  trustProxy?: boolean;
+  /** `true` or a hop count: trust `X-Forwarded-For` (see `TRUSTED_PROXY_HOPS`). */
+  trustProxy?: boolean | number;
+  socketLimits?: SocketLimits;
   /** Defaults to the crypto RNG. Tests pass a seeded one. */
   rng?: Rng;
   /** Defaults to croner. Tests pass a driver they fire by hand. */
@@ -103,6 +115,7 @@ export function createServer(options: CreateServerOptions): CasinoServices {
   const sessions = new SessionService({
     secret: config.sessionSecret,
     clock,
+    isGuildDenied: (guildId) => identity.getGuildStatus(guildId) === 'denied',
     ...(options.sessionTtlSeconds === undefined ? {} : { ttlSeconds: options.sessionTtlSeconds }),
   });
   const launchIntents = new SqliteLaunchIntentService(store, clock);
@@ -134,7 +147,11 @@ export function createServer(options: CreateServerOptions): CasinoServices {
   const utcOffsetHours = config.utcOffsetHours;
   // The finance services are built first; bankruptcy liquidation reaches the shop through here.
   // The casino Activity routes look the games up per request, so they use this too.
-  const lazy: { games?: NonCasinoGames; casino?: CasinoGames } = {};
+  const lazy: {
+    games?: NonCasinoGames;
+    casino?: CasinoGames;
+    teiai?: ReturnType<typeof createTeiaiPort>;
+  } = {};
   const finance = createFinanceServices(
     { store, economy, identity, clock, rng, bus, utcOffsetHours },
     {
@@ -166,6 +183,18 @@ export function createServer(options: CreateServerOptions): CasinoServices {
         progression: () => (lazy.games as NonCasinoGames).progression,
         core: () => (lazy.casino as CasinoGames).core,
       },
+      // Inside the authed plugin, so session auth, the user limit and the proxy-signature
+      // observation apply as on every other route. Read once the plugin loads.
+      life: () => ({
+        sessions,
+        identity,
+        economy,
+        store,
+        clock,
+        games: lazy.games as NonCasinoGames,
+        teiai: lazy.teiai as ReturnType<typeof createTeiaiPort>,
+        offsetHours: utcOffsetHours,
+      }),
       horse: {
         store,
         economy,
@@ -180,6 +209,7 @@ export function createServer(options: CreateServerOptions): CasinoServices {
   });
 
   const teiaiPort = createTeiaiPort({ store, teiai: finance.teiai, clock });
+  lazy.teiai = teiaiPort;
   const games = createNonCasinoGames({
     store,
     economy,
@@ -190,16 +220,6 @@ export function createServer(options: CreateServerOptions): CasinoServices {
     offsetHours: utcOffsetHours,
   });
   lazy.games = games;
-  registerLifeRoutes(app, {
-    sessions,
-    identity,
-    economy,
-    store,
-    clock,
-    games,
-    teiai: teiaiPort,
-    offsetHours: utcOffsetHours,
-  });
   const casino = createCasinoGames({
     store,
     economy,
@@ -224,6 +244,8 @@ export function createServer(options: CreateServerOptions): CasinoServices {
     proxyVerifier,
     requireProxySignature: config.requireProxySignature,
     handlers: options.socketHandlers ?? casino.handlers,
+    ...(options.socketLimits === undefined ? {} : { limits: options.socketLimits }),
+    trustProxy: options.trustProxy ?? false,
   });
   casino.attach(sockets.io);
   // A crash can leave rounds open with their stakes held: give every stake back before play.

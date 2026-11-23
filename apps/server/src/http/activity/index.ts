@@ -2,6 +2,7 @@ import type { FastifyInstance } from 'fastify';
 import { registerCasinoRoutes, type CasinoHttpDeps, type SessionOf } from './casino.ts';
 import { createActivityKit, type ActivityKitDeps } from './context.ts';
 import { registerHorseRoutes } from './horse.ts';
+import { registerLifeRoutes, type LifeRouteDeps } from './life.ts';
 
 export type { ActivityKit, ActivityKitDeps, ActivityServices } from './context.ts';
 
@@ -9,6 +10,8 @@ export type { ActivityKit, ActivityKitDeps, ActivityServices } from './context.t
 export interface ActivityDeps {
   casino?: CasinoHttpDeps;
   horse?: ActivityKitDeps;
+  /** Called once when the routes are registered (after the games exist). */
+  life?: () => LifeRouteDeps;
 }
 
 /**
@@ -22,4 +25,5 @@ export function registerActivityRoutes(
 ): void {
   if (deps.casino) registerCasinoRoutes(authed, deps.casino, sessionOf);
   if (deps.horse) registerHorseRoutes(createActivityKit(authed, deps.horse, sessionOf));
+  if (deps.life) registerLifeRoutes(authed, deps.life());
 }

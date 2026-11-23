@@ -10,7 +10,7 @@ import { runMigrations } from '../db/migrate.ts';
 import { loadConfig, type Config } from './config.ts';
 import type { Logger } from 'pino';
 import { createLogger } from './logger.ts';
-import type { SocketHandlers } from '../socket/server.ts';
+import type { SocketHandlers, SocketLimits } from '../socket/server.ts';
 import type { CronDriver } from './scheduler.ts';
 import { createServer, type CasinoServices } from './server.ts';
 
@@ -157,6 +157,8 @@ export function createTestServer(
     /** A hand-fired cron driver, so no real timer runs. */
     cronDriver?: CronDriver;
     rateLimits?: { ipPerMinute: number; tokenPerMinute: number; userPerMinute: number };
+    socketLimits?: SocketLimits;
+    trustProxy?: boolean | number;
   } = {},
 ): TestServer {
   const keys = makeProxyKeys();
@@ -176,6 +178,8 @@ export function createTestServer(
     ...(options.casinoHandlers === true ? {} : { socketHandlers: options.socketHandlers ?? {} }),
     ...(options.cronDriver === undefined ? {} : { cronDriver: options.cronDriver }),
     ...(options.rateLimits === undefined ? {} : { rateLimits: options.rateLimits }),
+    ...(options.socketLimits === undefined ? {} : { socketLimits: options.socketLimits }),
+    ...(options.trustProxy === undefined ? {} : { trustProxy: options.trustProxy }),
   });
   return {
     ...server,

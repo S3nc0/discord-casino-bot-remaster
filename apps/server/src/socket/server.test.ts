@@ -237,13 +237,19 @@ describe('rooms and fan-out', () => {
     a.on('balance:update', (u) => gotA.push(`balance:${u.balance}`));
     b.on('balance:update', (u) => gotB.push(`balance:${u.balance}`));
 
-    const event = { type: 'DailyReady', guildId: GUILD, at: 1, userId: USER } as DomainEvent;
+    // A guild-public event reaches both; see transport-fixes.test.ts (R-4) for private ones.
+    const event = {
+      type: 'MarketTick',
+      guildId: GUILD,
+      at: 1,
+      prices: { ABC: 1_000_000 },
+    } as DomainEvent;
     server.bus.publishDomain(event);
     server.bus.publishDomain({ ...event, guildId: OTHER_GUILD } as DomainEvent); // another guild: nobody here
     server.economy.credit({ guildId: GUILD, userId: USER, amount: 10, reason: 'admin_grant' });
     await settle();
-    expect(gotA).toEqual(['domain:DailyReady', 'balance:3010']);
-    expect(gotB).toEqual(['domain:DailyReady']);
+    expect(gotA).toEqual(['domain:MarketTick', 'balance:3010']);
+    expect(gotB).toEqual(['domain:MarketTick']);
   });
 
   it("never delivers another guild's or user's room traffic", async () => {
