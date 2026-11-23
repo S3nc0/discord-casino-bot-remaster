@@ -163,16 +163,23 @@ afterEach(() => {
 
 const sleep = (ms: number) => act(async () => void (await new Promise((r) => setTimeout(r, ms))));
 
-/** Wait until the screen's text stops changing (lazy chunks and mock API calls have landed). */
+/**
+ * Wait until the screen is really in: no loader is marked busy (lazy chunks), the screen has its
+ * h1, and the text has stopped changing (mock API calls have landed). A slow chunk only makes
+ * this wait longer; it never lets the test read the loading state as the screen.
+ */
 async function settled(screen: Element): Promise<void> {
   let last = '';
   let same = 0;
-  for (let i = 0; i < 80 && same < 4; i++) {
+  for (let i = 0; i < 400; i++) {
     await sleep(25);
+    const ready = !screen.querySelector('[aria-busy="true"]') && screen.querySelector('h1');
     const now = screen.textContent ?? '';
-    same = now === last && !screen.querySelector('[aria-busy="true"]') ? same + 1 : 0;
+    same = ready && now === last ? same + 1 : 0;
     last = now;
+    if (same >= 4) return;
   }
+  throw new Error(`screen did not settle: ${(screen.textContent ?? '').slice(0, 80)}`);
 }
 
 describe('every route in Japanese', () => {
