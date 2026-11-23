@@ -4,7 +4,7 @@
 
 All notable changes to this project are written here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow [Semantic Versioning](https://semver.org/).
 
-## [1.0.0] - Unreleased
+## [1.0.0] - 2026-11-24
 
 The remaster: the original Python chat bot rewritten in TypeScript as a Discord Activity plus a chat bot, in one repository, with one server process and one SQLite file.
 
