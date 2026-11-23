@@ -588,7 +588,11 @@ export class RaceService {
     const { ctx } = this;
     ctx.store.transaction(() => {
       const race = this.race(raceId);
-      if (race.status !== 'entry' || ctx.clock.now() >= race.entry_close)
+      if (
+        race.guild_id !== guildId ||
+        race.status !== 'entry' ||
+        ctx.clock.now() >= race.entry_close
+      )
         throw new GameRuleError('entry_closed');
       const entry = ctx.store
         .stmt('SELECT id FROM horse_entries WHERE race_id = ? AND horse_id = ? AND owner_id = ?')

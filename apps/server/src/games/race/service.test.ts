@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { IdentityRepo } from '../../db/identity.ts';
 import { EconomyService } from '../../economy/economy-service.ts';
 import { EventBus } from '../../runtime/bus.ts';
-import { GUILD, USER, memoryStore } from '../../runtime/test-kit.ts';
+import { GUILD, OTHER_GUILD, USER, memoryStore } from '../../runtime/test-kit.ts';
 import { createMemoryTeiai } from '../progression/ports.ts';
 import { createNonCasinoGames } from '../progression/register.ts';
 
@@ -58,5 +58,23 @@ describe('race entries', () => {
     games.race.withdraw(GUILD, USER, raceId, horseId);
     expect(economy.getBalance(GUILD, USER)).toBe(3000);
     expect(fees(GUILD)).toEqual([-1000, 1000, -1000, 1000]);
+  });
+
+  it('R-14: withdraw refuses a race of another guild and refunds nothing', () => {
+    const { store, economy, games, horseIn } = harness();
+    horseIn(GUILD);
+    const other = horseIn(OTHER_GUILD);
+    games.race.register(OTHER_GUILD, USER, other.raceId, other.horseId);
+
+    expect(() => games.race.withdraw(GUILD, USER, other.raceId, other.horseId)).toThrow(
+      /entry_closed/,
+    );
+    expect(economy.getBalance(GUILD, USER)).toBe(3000);
+    expect(economy.getBalance(OTHER_GUILD, USER)).toBe(2000);
+    expect(
+      store
+        .stmt('SELECT COUNT(*) AS n FROM horse_entries WHERE race_id = ? AND horse_id = ?')
+        .get(other.raceId, other.horseId),
+    ).toEqual({ n: 1 });
   });
 });
