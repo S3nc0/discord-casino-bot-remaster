@@ -1,5 +1,9 @@
 # Architecture
 
+**English** | Japanese: the architecture notes are kept in English only. For the maintainer view
+(running, releasing, adding things) see [MAINTAINERS.md](../MAINTAINERS.md) /
+[MAINTAINERS.ja.md](../MAINTAINERS.ja.md).
+
 ## Process and packages
 
 One Node 24 process: Fastify (HTTP API), Socket.io (same server), discord.js (chat bot, `Guilds`
@@ -12,6 +16,139 @@ is a Vite + React build on Cloudflare Pages.
 ledger reasons, ids, env contract, proxy verifier and RNG/clock interfaces, i18n).
 `packages/domain` holds pure rules, `packages/ui` the Bitbloom components. Workspace packages are
 consumed as TypeScript source: erasable syntax only, `.ts` relative imports.
+
+## Boot order and shutdown
+
+`apps/server/src/main.ts` validates the environment (`loadConfig` against `ServerEnv`; a bad value
+stops the process with a message that names the key, never the value), creates the data folder,
+then calls `createServer` and `startRuntime`.
+
+- `createServer` (`runtime/server.ts`) builds every service on one `EventBus`: the SQLite
+  `Store` (migrations run here), `EconomyService`, settings, inbox, sessions, launch intents, the
+  token flow, finance, the casino games, the non-casino games, the Fastify app, the Socket.io
+  server and the scheduler with its job manifest. Nothing listens yet.
+- `startRuntime` (`runtime/lifecycle.ts`) starts, in order: the chat bot (`startBot`, no gateway
+  login with `BOT_DISABLED=1`), the notify runtime (subscribes to the bus before any job can
+  publish), then HTTP and sockets (`listen`), then the scheduler.
+- `SIGINT` / `SIGTERM` stop in reverse: scheduler (waits for jobs in flight), notify, bot, HTTP and
+  sockets, then the database. A failing step is logged and the next one still runs.
+  `installProcessGuards` logs unhandled rejections instead of letting one bad handler kill the
+  process.
+
+## Persistence
+
+One SQLite file through `better-sqlite3`, one connection (`db/store.ts`). `Store.transaction`
+opens `BEGIN IMMEDIATE` (the write lock is taken first, so a reader is never upgraded into a
+busy error half way), nests as savepoints, and runs `afterCommit` callbacks only after the
+outermost commit; they are dropped on rollback. That is how "events are published after commit"
+holds. Per-connection pragmas (`db/pragmas.ts`): WAL, `synchronous = NORMAL`,
+`busy_timeout = 5000`, foreign keys, recursive triggers.
+
+Migrations are numbered `.sql` files in `db/migrations/` (`0001_init` to `0011_arena_runner_up` at
+the time of writing), listed in `db/migrations/index.ts` and inlined into the bundle. `runMigrations`
+applies the newer ones in order, one transaction each, and records a SHA-256 checksum in
+`schema_migrations`. The server refuses to start if an applied migration was edited, or if the file
+has a migration this build does not know (a newer build wrote it). Never edit a merged migration;
+add a new one. Tables and rules: [DB_SCHEMA.md](DB_SCHEMA.md).
+
+## Scheduler and jobs
+
+`runtime/scheduler.ts` runs `JobSpec`s (`id`, cron, `run`) on `croner`, with the cron fields read in
+the game's time zone (`UTC_OFFSET_HOURS`, 9 for JST). `runtime/jobs.ts` is the one manifest:
+the finance jobs (the market, Teiai bank, loans and kyosai each every minute; companies daily plus maintenance; player-market settlement), the game jobs
+(races four times a day, daily reset and reminders, arena, weekly ranking, lottery, polls, quiz,
+shop market) which run once per guild that is not `denied`, and housekeeping (expired idempotency
+keys every 10 minutes, expired launch intents every minute). A job that throws is logged and never
+stops the scheduler; a guild that throws never stops the other guilds.
+
+## Chat bot
+
+`apps/server/src/bot/`. `commands.ts` holds `COMMAND_SPECS`: every slash command, subcommand and
+option with its English and Japanese name and description, whether it is owner-only or
+guild-only, and its module. `buildSlashCommands` turns the specs into Discord's JSON with
+localizations. `WIRED_COMMAND_PATHS` lists the commands that have a handler. `router.ts` receives
+interactions (commands, autocomplete, buttons, modals, select menus), resolves the user's locale
+(`locale.ts`), enforces owner and guild rules from the spec, and hands the call to the chat
+modules (`casino-chat.ts`, `finance-chat.ts`, `progress-chat.ts`, `admin-tools.ts`,
+`wired-commands.ts`). The chat modules call the same services as the Activity routes. Registration
+is a script, not a server start: `pnpm commands:deploy:guild` (to `TEST_GUILD_ID`),
+`pnpm commands:deploy:global`, or `pnpm commands:dry-run` to print what would be sent. The client
+asks for the `Guilds` intent only, and the cache and sweeper settings keep it small
+(`BOT_CACHE_SETTINGS`, `BOT_SWEEPER_OPTIONS`).
+
+## Notify
+
+`apps/server/src/notify/`. `attachNotify` subscribes to every domain event except the per-minute
+`MarketTick` (`SUBSCRIBED_EVENT_TYPES`) and fans each one out through `EVENT_META` (its title and
+body i18n keys, embed colour role, optional webhook persona, whether it is announced by default,
+its `NotificationKind` if players can opt in, and the toast tone):
+
+- **Announcer** (`announcer.ts`): batches events into embeds in the guild's announce channel (the
+  per-guild setting, else `ANNOUNCE_CHANNEL_ID`), limited per guild per minute and honouring
+  Discord's retry-after.
+- **Personas** (`personas.ts`): webhooks that post as the race caller, the market news desk or
+  the Teiai bank.
+- **DM queue** (`dm-queue.ts`): opt-in direct messages with retry and backoff, and a digest when
+  many arrive at once. Discord error 50007 (DMs closed) turns every DM kind off for that user and
+  writes the inbox notice `dm_disabled`.
+- **Inbox** (`inbox-writer.ts`) and **toasts**: the same events are stored in the inbox and sent
+  to the user's socket room.
+
+Everything reaches Discord through `DiscordNotifyPort` (`ports.ts`); with `BOT_DISABLED=1` a no-op
+port is used, so HTTP, sockets and jobs still run.
+
+## Activity front end
+
+`apps/web` is a Vite + React 19 app with Zustand stores, bundled with every font and asset (the
+Discord iframe can reach only mapped URLs; `scripts/check-bundle.js` fails the build when the
+bundle names an unlisted host, and a test fails on external URLs in CSS).
+
+- `shell/` is the app frame. `ShellRuntime` (`shell/runtime.ts`) wires `ActivitySdk` (the real
+  Embedded App SDK inside Discord, `DiscordSDKMock` with `VITE_MOCK_DISCORD=1`), `AuthController`
+  (the auth flow above, silent refresh), the HTTP `Api`, `SocketController` (reconnect, rooms),
+  presence, and settings sync. State lives in `shell/stores/` (session, balance, inbox, nav,
+  connection, settings, toasts). `shell/config.ts` decides the mode from the URL
+  (`frame_id` and `instance_id` mean Discord).
+- `screens/routes.tsx` maps every `ScreenId` to a component. Built screens are loaded lazily;
+  any id without one shows a placeholder. Screens are grouped by slice: `casino/`, `finance/`,
+  `horse/` (races, breeding, arena), `life/` (labor, quiz, lottery, polls, shop, missions,
+  ranking, transfer, relics, inventory) and `profile/`. Each slice has its own `api.ts` or
+  `client.ts`, hooks, a mock for `dev:mock` and its CSS.
+- All text goes through `useT()` and the shared dictionaries. All UI parts come from
+  `@casino/ui` (Bitbloom): components, tokens, self-hosted fonts, the pixel icons and sprites
+  (`pixel/`), FX and the ZzFX audio manager.
+
+## Server routes and sockets
+
+HTTP: `http/app.ts` builds the Fastify app: the proxy policy hook, per-IP and per-user rate
+limits (`DEFAULT_RATE_LIMITS`: 600 requests per IP per minute, 30 per IP per minute on
+`POST /api/token`, 240 per user per minute), the session check, then the core routes in
+[HTTP API](#http-api). `http/activity/` adds the authenticated routes of each Activity slice
+(casino, horse and arena, life, finance); each slice registers itself in
+`http/activity/index.ts` through an optional entry in `ActivityDeps`. Routes are named once, in
+`packages/shared/src/activity/` (for finance, `FINANCE_ROUTES`), and every write takes an
+idempotency key. For example, the player market has `GET /api/finance/listings` (open listings,
+the fee, and what the form needs: `sellable` = the tradable items the caller owns with quantity
+and reference value, `maxActive`, `auctionHours`, `fixedDays`) and `POST
+/api/finance/listings/create`, `…/buy`, `…/bid` and `…/cancel`. `create` escrows a quantity of
+one tradable item through the player-market service, which enforces the price range and the
+listing limit; the seller is always the session's user. The arena view carries
+`ArenaTournament.runnerUpId` (see [spec/arena.md](spec/arena.md#45-runner-up-remaster-addition-migration-0011)).
+
+Sockets: `socket/server.ts` attaches Socket.io at `/api/socket.io` (websocket only). The handshake
+verifies the session token, the proxy policy and the socket caps, joins the automatic rooms, and
+installs the per-event expiry check and rate limit. `socket/domain-audience.ts` decides which
+rooms receive a domain event: an allowlist of event types that every guild member may see, and
+anything not listed goes only to the users it names, so a new event type is never public by accident. Game handlers (`games/casino/handlers.ts`) turn `game:bet` and
+`game:action` intents into service calls with the session's own user, guild and instance, behind a
+per-user limiter (`DEFAULT_LIMITS`: 12 bets and 30 follow-up actions per 10 s).
+
+## Catalogs
+
+`catalogs/*.yaml` is the human-readable source of the tunable numbers (payouts, prices, rates,
+schedules); the Japanese comments are the original author's. The domain constants mirror them as
+integers (`packages/domain/src/**/constants.ts`). When you change a number, change both and let
+the domain tests tell you if a rule moved.
 
 ## Auth flow
 
@@ -141,7 +278,7 @@ Rules for callers:
 - `isDeltaAllowed(reason, delta)` must hold for every row. When a legacy flow had one string
   for both directions there are two reasons (`horse_retirement` / `horse_retirement_fee`,
   `quiz_author_reward` / `quiz_author_clawback`, `admin_grant` / `admin_revoke`).
-- Wave 2 additions: `horse_breeding_fee` (sink, the 15,000 breeding fee), `quiz_author_pay`
+- Later additions: `horse_breeding_fee` (sink, the 15,000 breeding fee), `quiz_author_pay`
   (sink: a user author pays a correct answer's reward; the answerer's `quiz_reward` is a faucet
   because a shortfall becomes the author's Teiai debt, so the rows need not sum to zero) and
   `game_insurance_refund` (faucet, see below).
@@ -169,7 +306,7 @@ Rules for callers:
   matching sink (`debt_seizure` for forced execution, `bankruptcy_writeoff` for cash seized into
   a bankruptcy pool).
 
-Wave 3 supply check: per guild, `SUM(delta)` over faucet rows plus over sink rows equals the
+Supply check (`tests/invariants`, random command sequences through the real services): per guild, `SUM(delta)` over faucet rows plus over sink rows equals the
 change in total balances, and transfer rows sum to zero per transaction.
 
 ## HTTP API
@@ -269,23 +406,28 @@ reason to bind elsewhere). Pino `redact.paths`:
 `*.code`, `*.accessToken`, `*.access_token`, `*.sessionToken`, `*.token`, `*.secret`; a
 serializer also masks `Bearer …`, JWS-shaped strings and bot-token-shaped strings in messages.
 
-## Directory ownership
+## Where to change what
 
-| Path | Owner |
+| Path | What lives there |
 | --- | --- |
-| `packages/shared/`, root config, these two docs | A1 (shared frozen; changes need an A1 task) |
-| `packages/domain/casino/` | B2-A |
-| `packages/domain/{race,arena,work,quiz,lottery,poll,shop}/` | B2-B |
-| `packages/domain/finance/` (incl. player market) | B3 |
-| `apps/server/src/{http,socket,db,auth}/`, `apps/server/scripts/` | B1 |
-| `apps/server/src/{bot,notify}/` | B4 |
-| `packages/ui/` (`src/{audio,fx}`: F3) | F1 |
-| `apps/web/src/shell/` / `apps/web/src/screens/` | F4 / F2 |
-| `**/*.test.ts` next to code / `tests/e2e/`, `tests/invariants/` | T1 / T2 |
-| `ops/`, `.github/workflows/` | O1 |
-| `docs/spec/` / `docs/STATUS.md`, READMEs | S1 / SC |
+| `packages/shared/` | Contracts: ids, TypeBox schemas, socket and domain events, ledger reasons, env contract, proxy verifier, RNG and clock interfaces, i18n dictionaries. A change here touches both sides, so keep it small and additive. |
+| `packages/domain/` | Pure rules per game and finance module. No I/O. |
+| `packages/ui/` | Bitbloom components, tokens, fonts, pixel art, audio and FX. |
+| `apps/server/src/{http,socket,db,auth,runtime}/` | Transport, persistence, auth, boot and jobs. |
+| `apps/server/src/{economy,finance,games}/` | Services: the ledger writer, the money modules, the games. |
+| `apps/server/src/{bot,notify}/` | Slash commands, announcements, DMs, inbox. |
+| `apps/server/scripts/` | The legacy importer and the load generator. |
+| `apps/web/src/shell/`, `apps/web/src/screens/` | The Activity frame and its screens. |
+| `tests/e2e/`, `tests/invariants/` | Multi-client socket suites and economy property tests. Unit tests sit next to the code (`*.test.ts`). |
+| `catalogs/`, `design/`, `tools/pixel-art/` | Tunable numbers, design tokens, pixel art generators. |
+| `ops/`, `.github/workflows/` | Raspberry Pi kit, tunnel template, pi-sim container, CI. |
+| `docs/spec/` | Behaviour specs extracted from the original bot. |
 
-## Known follow-ups
+## Known limits
 
-- arm64 CI job on `ubuntu-24.04-arm` (O1, task 1.5).
-- Proxy verifier, socket expiry and room checks are contracts here; B1 implements them in Wave 1.
+- Discord sends no proxy signature headers on Activity traffic (observed 2026-11-21), so the
+  signature check is verify-if-present and the session token is the real boundary.
+- Guilds outside `ALLOWED_GUILD_IDS` cannot be admitted yet: `REQUIRE_APPROVAL` is reserved for the
+  day the bot can admit them.
+- One process and one SQLite connection: scale-out would need a different store and a broker for
+  the bus.

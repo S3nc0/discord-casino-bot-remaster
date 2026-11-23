@@ -2,7 +2,7 @@
 
 Hard fork of fatcorn753/discord-casino-bot, rewritten in TypeScript as a Discord Activity plus chat bot. Updated by the Scribe from task reports.
 
-Current wave: 3 — Integration
+Current wave: 4 — Release
 
 ## Wave 0 — Foundation
 
@@ -65,27 +65,31 @@ Owners register commands with `pnpm commands:deploy:guild` (see the [Owner Setup
 
 | Task | Scope | Owner | State |
 | --- | --- | --- | --- |
-| 3.1 | E2E/multi-client/invariants | T2 | in progress |
-| 3.2 | Fixes | D1 | todo |
-| 3.3 | Pi profiling | O1 | in progress |
-| 3.4 | Legacy import dry run | B1 | todo |
-| 3.5 | Review + security pass | R1 | in progress |
-| 3.SC | Owner guide: admin commands and IDs (EN + JA) | SC | this PR |
-| Gate 3 | Wave 3 gate | Leader | todo |
+| 3.1 | E2E/multi-client/invariants | T2 | done (PR #54) |
+| 3.2 | Fixes | D1 | done (PR #55, #56, #57, #59, #60, #61) |
+| 3.3 | Pi profiling | O1 | done (PR #53: every target met on the first measurement) |
+| 3.4 | Legacy import dry run | B1 | skipped by the owner (see [Notes](#notes)) |
+| 3.5 | Review + security pass | R1 | done (findings fixed in PR #55, #56, #57, #59) |
+| 3.SC | Owner guide: admin commands and IDs (EN + JA) | SC | done (PR #52) |
+| Gate 3 | Wave 3 gate | Leader | passed (2026-11-23) |
 
 ## Wave 4 — Release
 
 | Task | Scope | Owner | State |
 | --- | --- | --- | --- |
-| 4.1 | READMEs (EN/JA) + CHANGELOG | SC | todo |
-| 4.2 | MAINTAINERS/CONTRIBUTING/SECURITY (EN/JA) | SC | todo |
+| 4.1 | READMEs (EN/JA) + CHANGELOG | SC | READMEs done (PR #58); CHANGELOG in progress (this PR) |
+| 4.ART | Pixel art v2: horse, icons, README art | SC | done (PR #62) |
+| 4.D1 | Listing inventory picker, arena runner-up | D1 | done (PR #63) |
+| 4.2 | MAINTAINERS/CONTRIBUTING/SECURITY (EN/JA) | SC | in progress (this PR) |
 | 4.3 | Delete legacy, tag v1.0.0, deploy | O1 | todo |
 | 4.4 | Final tree check + push | Leader | todo |
 
 ## Blockers
 
-None. Wave 2 is complete (Gate 2 passed 2026-11-22); Wave 3 integration is in progress.
+None. Wave 3 is complete (Gate 3 passed 2026-11-23); Wave 4, the release, is in progress.
 
 ## Notes
 
 Discord sends no proxy signature headers on Activity traffic; `REQUIRE_PROXY_SIGNATURE` stays `0`.
+
+The legacy import dry run (3.4) was skipped by the owner for v1.0.0. The importer is tested against fixtures, but it has not been run on the real `casino.db`. Before anyone relies on it, follow [Importing the legacy database](../MAINTAINERS.md#importing-the-legacy-database) and do a dry run on a copy first.

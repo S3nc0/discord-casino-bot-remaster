@@ -151,6 +151,8 @@ legacy/          the original Python bot, kept for reference
 
 New here? Start with [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md), then the [behaviour specs](docs/spec/INDEX.md). Project progress lives in [docs/STATUS.md](docs/STATUS.md).
 
+**For maintainers:** [Maintainer guide](MAINTAINERS.md) · [Contributing](CONTRIBUTING.md) · [Security](SECURITY.md) · [Changelog](CHANGELOG.md) · [Architecture](docs/ARCHITECTURE.md)
+
 ## Credits
 
 - **Upstream bot:** [fatcorn753/discord-casino-bot](https://github.com/fatcorn753/discord-casino-bot), the original Discord casino bot and the source of the game rules. This is a hard fork, rewritten in TypeScript as an Activity plus chat bot.
