@@ -8,12 +8,15 @@ const Kyosai = lazy(() => import('./KyosaiScreen.tsx'));
 const Market = lazy(() => import('./MarketScreen.tsx'));
 const Companies = lazy(() => import('./CompaniesScreen.tsx'));
 
-/** While a screen's chunk loads, the title and a loading line show instead of a blank page. */
+/**
+ * While a screen's chunk loads, the title and a loading line show instead of a blank page, marked
+ * busy so assistive tech (and the route test) know the screen is not in yet.
+ */
 function Loading({ screen }: { screen: ScreenId }) {
   const t = useT();
   const locale = useLocale();
   return (
-    <section className="fin" data-screen={screen}>
+    <section className="fin" data-screen={screen} aria-busy="true">
       <h1 className="fin__title">{screenName(locale, screen)}</h1>
       <p role="status" className="fin__loading">
         {t('common.loading')}
