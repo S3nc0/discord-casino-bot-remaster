@@ -550,8 +550,20 @@ export async function dispatchWiredCommand(
         const lines = board.fighters
           .map((f) => `• **${f.name}** (${(f.oddsHundredths / 100).toFixed(2)}x)`)
           .join('\n');
+        const nameOf = (id: number | null): string | undefined =>
+          board.fighters.find((f) => f.id === id)?.name;
+        const champion = nameOf(board.tournament.champion_id);
+        const runnerUp = nameOf(board.tournament.runner_up_id);
+        const result = [
+          champion ? t(locale, 'bot.arena.champion', { name: champion }) : null,
+          runnerUp ? t(locale, 'bot.arena.runnerUp', { name: runnerUp }) : null,
+        ].filter((line) => line !== null);
         embed.setDescription(
-          `#${board.tournament.id} (${board.tournament.format} · ${board.tournament.status})\n${lines}`,
+          [
+            `#${board.tournament.id} (${board.tournament.format} · ${board.tournament.status})`,
+            lines,
+            ...(result.length > 0 ? ['', ...result] : []),
+          ].join('\n'),
         );
       }
       await replyWithScreen(sendReply, interaction, locale, embed, 'arena', false);

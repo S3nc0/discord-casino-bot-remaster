@@ -103,6 +103,7 @@ function TournamentView({
     (f) => f.stage === 'final' || f.id === tournament.championId,
   );
   const champion = tournament.fighters.find((f) => f.id === tournament.championId);
+  const runnerUp = tournament.fighters.find((f) => f.id === tournament.runnerUpId);
   const byId = new Map(tournament.fighters.map((f) => [f.id, f]));
   return (
     <div className="hr-stack">
@@ -123,7 +124,15 @@ function TournamentView({
       {stage !== null ? <p className="hr-muted">{t('screen.horse.arena.oddsNote')}</p> : null}
 
       {champion ? (
-        <p className="hr-ok">{t('screen.horse.arena.championLine', { name: champion.name })}</p>
+        <p className="hr-ok">
+          {t('screen.horse.arena.championLine', { name: champion.name })}
+          {runnerUp ? (
+            <>
+              {' · '}
+              {t('screen.horse.arena.runnerUpLine', { name: runnerUp.name })}
+            </>
+          ) : null}
+        </p>
       ) : null}
 
       {tournament.status !== 'semi_betting' && finalists.length > 0 ? (

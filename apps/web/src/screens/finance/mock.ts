@@ -216,6 +216,18 @@ export function createMockFinanceClient(options: { balance?: number } = {}): Fin
 
   const listings: FinanceListingsView = {
     feeBps: 500,
+    sellable: [
+      {
+        ref: 'carrot',
+        name: { en: '🥕 Carrot', ja: '🥕 ニンジン' },
+        qty: 3,
+        unitValue: 1_000,
+      },
+      { ref: 'relic_bone', name: null, qty: 1, unitValue: 4_000 },
+    ],
+    maxActive: 5,
+    auctionHours: [1, 6, 24, 72],
+    fixedDays: 7,
     listings: [
       {
         id: 21,
@@ -524,6 +536,31 @@ export function createMockFinanceClient(options: { balance?: number } = {}): Fin
       });
       listing.minNextBid = Math.round(Number(b.amount) * 1.05);
       return { id: listing.id, amount: Number(b.amount) };
+    },
+    [R.listingCreate]: (b) => {
+      const owned = listings.sellable.find((i) => i.ref === b.ref);
+      const qty = Number(b.qty);
+      if (!owned || owned.qty < qty) fail('conflict', 'marketplace_asset_not_owned');
+      owned.qty -= qty;
+      listings.sellable = listings.sellable.filter((i) => i.qty > 0);
+      const id = Math.max(0, ...listings.listings.map((l) => l.id)) + 1;
+      listings.listings.push({
+        id,
+        seller: { id: '200000000000000001', name: 'Mock Player' },
+        kind: 'item',
+        ref: owned.ref,
+        name: owned.name,
+        qty,
+        mode: b.mode === 'auction' ? 'auction' : 'fixed',
+        price: Number(b.price),
+        bid: 0,
+        topBidder: null,
+        youAreTop: false,
+        mine: true,
+        endAt: now() + (b.mode === 'auction' ? Number(b.hours ?? 24) * HOUR : 7 * DAY),
+        minNextBid: Number(b.price),
+      });
+      return { id };
     },
     [R.listingCancel]: (b) => {
       listings.listings = listings.listings.filter((l) => l.id !== b.listingId);

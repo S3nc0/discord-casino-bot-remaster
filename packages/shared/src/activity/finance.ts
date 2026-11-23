@@ -43,6 +43,7 @@ export const FINANCE_ROUTES = {
   listingBuy: '/api/finance/listings/buy',
   listingBid: '/api/finance/listings/bid',
   listingCancel: '/api/finance/listings/cancel',
+  listingCreate: '/api/finance/listings/create',
 } as const;
 export type FinanceRoute = (typeof FINANCE_ROUTES)[keyof typeof FINANCE_ROUTES];
 
@@ -473,9 +474,27 @@ export const FinanceListingView = Type.Object({
 });
 export type FinanceListingView = Static<typeof FinanceListingView>;
 
+/** One tradable item the caller owns (the inventory picker of the listing form). */
+export const FinanceSellableItem = Type.Object({
+  ref: Type.String(),
+  name: Type.Union([Type.Object({ en: Type.String(), ja: Type.String() }), Type.Null()]),
+  qty: Type.Integer({ minimum: 1 }),
+  /** Reference value of one unit; the allowed price range is a multiple of it. */
+  unitValue: Pelica,
+});
+export type FinanceSellableItem = Static<typeof FinanceSellableItem>;
+
 export const FinanceListingsView = Type.Object({
   listings: Type.Array(FinanceListingView),
   feeBps: Type.Integer(),
+  /** Tradable items the caller owns, with quantities; empty when there is nothing to sell. */
+  sellable: Type.Array(FinanceSellableItem),
+  /** Listings one player may keep open at once. */
+  maxActive: Type.Integer({ minimum: 1 }),
+  /** Allowed auction lengths in hours. */
+  auctionHours: Type.Array(Type.Integer({ minimum: 1 })),
+  /** How long a fixed-price listing stays open. */
+  fixedDays: Type.Integer({ minimum: 1 }),
 });
 export type FinanceListingsView = Static<typeof FinanceListingsView>;
 
@@ -484,5 +503,18 @@ export const FinanceListingBidRequest = Type.Object(
   { ...idem, listingId: RecordId, amount: Amount },
   closed,
 );
+export const FinanceListingCreateRequest = Type.Object(
+  {
+    ...idem,
+    ref: Type.String({ minLength: 1, maxLength: 64 }),
+    qty: Type.Integer({ minimum: 1, maximum: 1_000_000 }),
+    mode: Type.Enum(['fixed', 'auction'] as const),
+    price: Amount,
+    /** Auction length; ignored for fixed-price listings. */
+    hours: Type.Optional(Type.Integer({ minimum: 1, maximum: 72 })),
+  },
+  closed,
+);
+export type FinanceListingCreateRequest = Static<typeof FinanceListingCreateRequest>;
 export type FinanceListingRefRequest = Static<typeof FinanceListingRefRequest>;
 export type FinanceListingBidRequest = Static<typeof FinanceListingBidRequest>;

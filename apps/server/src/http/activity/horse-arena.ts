@@ -34,6 +34,7 @@ export function registerArenaRoutes(kit: ActivityKit): void {
           day: t.day,
           status: t.status,
           championId: t.champion_id,
+          runnerUpId: t.runner_up_id,
           fighters: fighters.map((f): ArenaFighter => ({
             id: f.id,
             name: f.name,

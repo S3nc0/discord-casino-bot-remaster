@@ -486,6 +486,113 @@ describe('Player market listings', () => {
   });
 });
 
+describe('Selling an item from the inventory', () => {
+  async function openListings(client: FinanceClient) {
+    const view = await show(<MarketScreen />, client);
+    await click(
+      [...view.container.querySelectorAll('[role="tab"]')].find(
+        (x) => x.textContent === 'Players',
+      )!,
+    );
+    await flush();
+    return view;
+  }
+  const submit = (view: Rendered) => button(view, 'List for sale');
+
+  it('offers what I own with quantities and lists the chosen quantity at a price', async () => {
+    const s = spy();
+    const view = await openListings(s.client);
+    const chips = [...view.container.querySelectorAll('[data-sellable]')].map((c) => c.textContent);
+    expect(chips).toEqual(['🥕 Carrot ×3', 'Dinosaur bone ×1']);
+    await type(view, /^Quantity/, '2');
+    await type(view, 'Price', '1500');
+    await click(submit(view));
+    expect(s.posts[0]).toMatchObject({
+      route: FINANCE_ROUTES.listingCreate,
+      body: { ref: 'carrot', qty: 2, mode: 'fixed', price: 1500 },
+    });
+    expect(s.posts[0]!.body).not.toHaveProperty('hours');
+    // The list and the picker both refresh: 1 carrot left, the new listing is mine.
+    expect(view.container.querySelectorAll('[data-listing]')).toHaveLength(4);
+    expect(view.container.querySelector('[data-sellable="carrot"]')!.textContent).toBe(
+      '🥕 Carrot ×1',
+    );
+  });
+
+  it('sends an auction with its length and starting price', async () => {
+    const s = spy();
+    const view = await openListings(s.client);
+    await click(button(view, 'Auction'));
+    await click(button(view, '24 h'));
+    await type(view, 'Starting price', '900');
+    await click(submit(view));
+    expect(s.posts[0]).toMatchObject({
+      route: FINANCE_ROUTES.listingCreate,
+      body: { ref: 'carrot', qty: 1, mode: 'auction', hours: 24, price: 900 },
+    });
+  });
+
+  it('refuses a quantity above what I hold before sending anything', async () => {
+    const s = spy();
+    const view = await openListings(s.client);
+    await type(view, /^Quantity/, '4');
+    expect(submit(view).hasAttribute('disabled')).toBe(true);
+    await type(view, /^Quantity/, '0');
+    expect(submit(view).hasAttribute('disabled')).toBe(true);
+    expect(s.posts).toEqual([]);
+  });
+
+  it('shows the rule that refused the listing', async () => {
+    const s = spy();
+    s.failNext(new FinanceApiError('invalid_payload', 400, 'marketplace_price_out_of_range'));
+    const view = await openListings(s.client);
+    await click(submit(view));
+    expect(text(view)).toContain('The price is outside the allowed range for this item.');
+  });
+
+  it('is off with a reason when nothing is owned', async () => {
+    const base = createMockFinanceClient();
+    const client: FinanceClient = {
+      post: base.post,
+      get: async (route) => {
+        const data = await base.get(route);
+        if (route === FINANCE_ROUTES.listings) (data as FinanceListingsView).sellable = [];
+        return data;
+      },
+    };
+    const view = await openListings(client);
+    expect(view.container.querySelector('[data-sellable]')).toBeNull();
+    expect(submit(view).hasAttribute('disabled')).toBe(true);
+    expect(text(view)).toContain('You have nothing to sell.');
+  });
+
+  it('is off with a reason when all listing slots are used', async () => {
+    const base = createMockFinanceClient();
+    const client: FinanceClient = {
+      post: base.post,
+      get: async (route) => {
+        const data = await base.get(route);
+        if (route === FINANCE_ROUTES.listings) (data as FinanceListingsView).maxActive = 1;
+        return data;
+      },
+    };
+    const view = await openListings(client);
+    expect(submit(view).hasAttribute('disabled')).toBe(true);
+    expect(text(view)).toContain('You already have 1 listings open.');
+  });
+
+  it('speaks Japanese', async () => {
+    useSettingsStore.setState({ language: 'ja' });
+    const view = await show(<MarketScreen />, spy().client);
+    await click([...view.container.querySelectorAll('[role="tab"]')][3]!);
+    await flush();
+    expect(text(view)).toContain('アイテムを出品');
+    expect(text(view)).toContain('🥕 ニンジン ×3');
+    expect(button(view, '出品する')).toBeDefined();
+    expect(text(view)).not.toMatch(/screen\.finance/);
+  });
+});
+
 describe('Companies screen', () => {
   it('founds a company and then shows it', async () => {
     const s = spy(createMockFinanceClient({ balance: 300_000 }));

@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { Value } from 'typebox/value';
+import { Inventory } from '../../games/shop/inventory.ts';
 import {
   FINANCE_ROUTES,
   FinanceBankView,
@@ -368,6 +369,90 @@ describe('companies', () => {
     expect(stake.statusCode).toBe(200);
     const mine = (await investor.get(FINANCE_ROUTES.companies)).json<FinanceCompaniesView>();
     expect(mine.holdings[0]).toMatchObject({ name: 'Pixel Farm', amount: 1500 });
+  });
+});
+
+describe('player market listing create', () => {
+  const create = (over: object = {}) => ({
+    idempotencyKey: key(),
+    ref: 'carrot',
+    qty: 2,
+    mode: 'fixed',
+    price: 1_500,
+    ...over,
+  });
+
+  it('offers the tradable inventory with quantities and nothing else', async () => {
+    server = createTestServer();
+    const me = await login(USER);
+    const empty = (await me.get(FINANCE_ROUTES.listings)).json<FinanceListingsView>();
+    expect(empty.sellable).toEqual([]);
+    expect(empty).toMatchObject({ maxActive: 5, fixedDays: 7, auctionHours: [1, 6, 24, 72] });
+
+    const inventory = new Inventory(server.store);
+    inventory.add(GUILD, USER, 'carrot', 3);
+    inventory.add(GUILD, USER, 'title_rookie', 1); // titles are not tradable
+    const view = (await me.get(FINANCE_ROUTES.listings)).json<FinanceListingsView>();
+    expect(Value.Check(FinanceListingsView, view)).toBe(true);
+    expect(view.sellable.map((i) => [i.ref, i.qty, i.unitValue])).toEqual([['carrot', 3, 1_000]]);
+  });
+
+  it('escrows the quantity, shows the listing once per key and refuses what the rules refuse', async () => {
+    server = createTestServer();
+    const me = await login(USER);
+    const inventory = new Inventory(server.store);
+    inventory.add(GUILD, USER, 'carrot', 3);
+
+    const body = create();
+    const first = await me.post(FINANCE_ROUTES.listingCreate, body);
+    expect(first.statusCode).toBe(200);
+    expect(Value.Check(FinanceWriteResult, first.json())).toBe(true);
+    const again = await me.post(FINANCE_ROUTES.listingCreate, body);
+    expect(again.json()).toMatchObject({ replayed: true });
+    expect(inventory.qty(GUILD, USER, 'carrot')).toBe(1);
+
+    const view = (await me.get(FINANCE_ROUTES.listings)).json<FinanceListingsView>();
+    expect(view.listings).toHaveLength(1);
+    expect(view.listings[0]).toMatchObject({
+      ref: 'carrot',
+      qty: 2,
+      mode: 'fixed',
+      price: 1_500,
+      mine: true,
+    });
+    expect(view.sellable[0]).toMatchObject({ ref: 'carrot', qty: 1 });
+
+    const tooMany = await me.post(FINANCE_ROUTES.listingCreate, create({ qty: 5 }));
+    expect(tooMany.json()).toEqual({ error: 'conflict', reason: 'marketplace_asset_not_owned' });
+    const cheap = await me.post(FINANCE_ROUTES.listingCreate, create({ qty: 1, price: 1 }));
+    expect(cheap.json()).toMatchObject({ reason: 'marketplace_price_out_of_range' });
+    inventory.add(GUILD, USER, 'title_rookie', 1);
+    const title = await me.post(
+      FINANCE_ROUTES.listingCreate,
+      create({ ref: 'title_rookie', qty: 1 }),
+    );
+    expect(title.json()).toMatchObject({ reason: 'marketplace_item_not_tradable' });
+    const hours = await me.post(
+      FINANCE_ROUTES.listingCreate,
+      create({ qty: 1, mode: 'auction', hours: 5 }),
+    );
+    expect(hours.json()).toMatchObject({ reason: 'marketplace_invalid_duration' });
+    expect(inventory.qty(GUILD, USER, 'carrot')).toBe(1);
+  });
+
+  it('lists an auction and rejects a body with unknown fields', async () => {
+    server = createTestServer();
+    const me = await login(USER);
+    new Inventory(server.store).add(GUILD, USER, 'carrot', 1);
+    const bad = await me.post(FINANCE_ROUTES.listingCreate, create({ extra: true }));
+    expect(bad.statusCode).toBe(400);
+    const ok = await me.post(
+      FINANCE_ROUTES.listingCreate,
+      create({ qty: 1, mode: 'auction', hours: 6, price: 800 }),
+    );
+    expect(ok.statusCode).toBe(200);
+    const view = (await me.get(FINANCE_ROUTES.listings)).json<FinanceListingsView>();
+    expect(view.listings[0]).toMatchObject({ mode: 'auction', minNextBid: 800 });
   });
 });
 

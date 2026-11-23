@@ -14,6 +14,7 @@ import {
   FinanceKyosaiProposeRequest,
   FinanceKyosaiVoteRequest,
   FinanceListingBidRequest,
+  FinanceListingCreateRequest,
   FinanceListingRefRequest,
   FinanceLoanAskRequest,
   FinanceLoanOfferRequest,
@@ -48,8 +49,11 @@ import {
   PLAYER_MARKET_CONSTANTS,
   TEIAI_CONSTANTS,
   companyStakeCap,
+  isTradableItem,
+  MARKET_ITEM_CATALOG,
   minNextBid,
   rateToNano,
+  relicReferenceValue,
   type SymbolKey,
 } from '@casino/domain/finance';
 import type { IdentityRepo } from '../../db/identity.ts';
@@ -59,6 +63,7 @@ import type { FinanceServices } from '../../finance/index.ts';
 import type { ServiceResult } from '../../finance/teiai-service.ts';
 import { ITEM_LABELS } from '../../bot/shop-items.ts';
 import { IdempotencyStore } from '../../games/casino/idempotency.ts';
+import { Inventory } from '../../games/shop/inventory.ts';
 import { AppError } from '../../runtime/errors.ts';
 import { RateLimiter } from '../../runtime/rate-limit.ts';
 
@@ -116,6 +121,7 @@ export function registerFinanceRoutes(authed: FastifyInstance, ctx: FinanceRoute
   const { finance, economy, identity, store, clock } = ctx;
   const { teiai, loans, kyosai, stocks, companies, playerMarket } = finance;
   const idem = new IdempotencyStore(store, clock);
+  const inventory = new Inventory(store);
   const writeLimiter = new RateLimiter({
     limit: ctx.writesPerMinute ?? 60,
     windowMs: 60_000,
@@ -601,6 +607,33 @@ export function registerFinanceRoutes(authed: FastifyInstance, ctx: FinanceRoute
       minNextBid: l.mode === 'auction' ? minNextBid(l.price, l.bid) : l.price,
     })),
     feeBps: PLAYER_MARKET_CONSTANTS.feeRateBps,
+    sellable: [...inventory.all(g, u)]
+      .filter(([ref]) => isTradableItem(ref))
+      .map(([ref, qty]) => ({
+        ref,
+        name: itemName('item', ref),
+        qty,
+        unitValue: relicReferenceValue(ref) ?? MARKET_ITEM_CATALOG.get(ref)?.price ?? 0,
+      }))
+      .sort((a, b) => a.ref.localeCompare(b.ref)),
+    maxActive: PLAYER_MARKET_CONSTANTS.maxActiveListings,
+    auctionHours: [...PLAYER_MARKET_CONSTANTS.auctionHours],
+    fixedDays: PLAYER_MARKET_CONSTANTS.fixedDays,
+  }));
+
+  write(FINANCE_ROUTES.listingCreate, FinanceListingCreateRequest, ({ g, u, body }) => ({
+    id: unwrapRule(
+      playerMarket.listAsset({
+        guildId: g,
+        sellerId: u,
+        kind: 'item',
+        ref: body.ref,
+        qty: body.qty,
+        mode: body.mode,
+        price: body.price,
+        ...(body.hours !== undefined ? { hours: body.hours } : {}),
+      }),
+    ),
   }));
 
   write(FINANCE_ROUTES.listingBuy, FinanceListingRefRequest, ({ g, u, body, key }) => ({
