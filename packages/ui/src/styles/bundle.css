@@ -987,7 +987,8 @@ button.bb-card:hover,
   grid-template-columns: 24px 1fr;
   gap: var(--space-3);
   align-items: start;
-  width: 420px;
+  /* no fixed width: a banner fills its container and never pushes a narrow screen wider */
+  min-width: 0;
   max-width: 100%;
   padding: var(--space-3) var(--space-4);
   margin: 2px;
