@@ -1,6 +1,9 @@
 import type { Store } from '../../db/store.ts';
 import { AppError } from '../../runtime/errors.ts';
 
+/** `profiles` columns that hold an equipped item id (fixed names, never user input). */
+const EQUIP_COLUMNS = ['title', 'card_color', 'card_icon', 'skin_dice', 'skin_table'] as const;
+
 /** Items per player. Quantities never go below zero; the service checks before it takes. */
 export class Inventory {
   private readonly store: Store;
@@ -40,6 +43,21 @@ export class Inventory {
     this.store
       .stmt('UPDATE inventory SET qty = qty - ? WHERE guild_id = ? AND user_id = ? AND item_id = ?')
       .run(qty, guildId, userId, itemId);
+    if (this.qty(guildId, userId, itemId) <= 0) this.unequip(guildId, userId, itemId);
     return true;
+  }
+
+  /**
+   * A cosmetic the player no longer owns cannot stay worn (player-market spec §3: listing
+   * auto-unequips it when the last copy leaves). When the item returns it comes back unequipped.
+   */
+  private unequip(guildId: string, userId: string, itemId: string): void {
+    for (const column of EQUIP_COLUMNS) {
+      this.store
+        .stmt(
+          `UPDATE profiles SET ${column} = NULL WHERE guild_id = ? AND user_id = ? AND ${column} = ?`,
+        )
+        .run(guildId, userId, itemId);
+    }
   }
 }
