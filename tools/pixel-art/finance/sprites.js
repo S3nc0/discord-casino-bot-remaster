@@ -169,15 +169,17 @@ export function spinFrames() {
 }
 
 /** Company badge: frame shapes (crest, round, square, hex) and the kind glyph (farm, mine). */
+export const BADGE_RAMPS = {
+  red: ['red-20', 'red-40', 'red-60', 'red-70', 'orange-80'],
+  orange: ['red-30', 'orange-50', 'orange-60', 'orange-70', 'yellow-90'],
+  green: ['green-20', 'green-40', 'green-60', 'green-80', 'yellow-90'],
+  teal: ['teal-20', 'teal-40', 'teal-60', 'teal-80', 'green-90'],
+  blue: ['blue-20', 'blue-40', 'blue-60', 'blue-70', 'sky-90'],
+  violet: ['violet-20', 'violet-40', 'violet-60', 'violet-70', 'blue-90'],
+};
+
 export function badge(shape, kind, hue) {
-  const ramps = {
-    red: ['red-20', 'red-40', 'red-60', 'red-70', 'orange-80'],
-    orange: ['red-30', 'orange-50', 'orange-60', 'orange-70', 'yellow-90'],
-    green: ['green-20', 'green-40', 'green-60', 'green-80', 'yellow-90'],
-    teal: ['teal-20', 'teal-40', 'teal-60', 'teal-80', 'green-90'],
-    blue: ['blue-20', 'blue-40', 'blue-60', 'blue-70', 'sky-90'],
-    violet: ['violet-20', 'violet-40', 'violet-60', 'violet-70', 'blue-90'],
-  };
+  const ramps = BADGE_RAMPS;
   return hiSprite(12, 12, (hi, part) => {
     const body = part(ramp(ramps[hue]), { round: 1.6, steps: [1, 2, 3] });
     if (shape === 'round') hi.ellipse(body, 6, 6, 5.3, 5.3);
