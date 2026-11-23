@@ -30,7 +30,7 @@ export interface TokenFlowOptions {
 
 /**
  * `POST /api/token`. Nothing in the request is trusted as given: the guild must be one the
- * user is in and one the owner listed in ALLOWED_GUILD_IDS, the instance must be a live Activity instance of
+ * user is in and one the owner approved (ALLOWED_GUILD_IDS, or `approved` in the database), the instance must be a live Activity instance of
  * that guild with this user in it. Only then is anything written.
  */
 export class TokenFlow {
@@ -63,7 +63,12 @@ export class TokenFlow {
         reason: REASONS.userNotInGuild,
       });
     }
-    if (!this.o.allowedGuildIds.has(request.guildId)) {
+    // The owner's list in ALLOWED_GUILD_IDS, or a guild approved with `/admin server-allow`
+    // (the bot already honours both). A pending or denied guild outside the list never signs in.
+    if (
+      !this.o.allowedGuildIds.has(request.guildId) &&
+      identity.getGuildStatus(request.guildId) !== 'approved'
+    ) {
       throw new AppError('guild_not_allowed', { reason: REASONS.guildNotAllowed });
     }
 

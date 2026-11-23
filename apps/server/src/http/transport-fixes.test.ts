@@ -1,7 +1,15 @@
 // Regression tests for the transport review findings on the HTTP side (R-7, R-12, R-18).
+import { Writable } from 'node:stream';
 import { afterEach, describe, expect, it } from 'vitest';
+import { createLogger } from '../runtime/logger.ts';
 import { TRUSTED_PROXY_HOPS } from '../runtime/server.ts';
-import { GUILD, INSTANCE, createTestServer, type TestServer } from '../runtime/test-kit.ts';
+import {
+  GUILD,
+  INSTANCE,
+  OTHER_GUILD,
+  createTestServer,
+  type TestServer,
+} from '../runtime/test-kit.ts';
 
 let server: TestServer;
 afterEach(async () => {
@@ -76,5 +84,58 @@ describe('R-12: trusted proxy hops', () => {
       );
     }
     expect(status.filter((s) => s === 429).length).toBe(3);
+  });
+});
+
+describe('R-18: the token route and the life routes', () => {
+  const exchange = () =>
+    server.app.inject({
+      method: 'POST',
+      url: '/api/token',
+      headers: server.signed(),
+      payload: { code: 'c', guildId: GUILD, instanceId: INSTANCE },
+    });
+  // The env allowlist names another guild; GUILD is only known to the database.
+  const env = { ALLOWED_GUILD_IDS: OTHER_GUILD };
+
+  it('R-18: a guild the owner approved in the database can sign in without being in ALLOWED_GUILD_IDS', async () => {
+    server = createTestServer({ env });
+    server.identity.ensureGuild(GUILD, 'approved', 'Test Guild');
+    const res = await exchange();
+    expect(res.statusCode).toBe(200);
+    expect(res.json()).toMatchObject({ guildId: GUILD });
+  });
+
+  it('R-18: a pending, denied or unknown guild outside the list is still refused', async () => {
+    server = createTestServer({ env });
+    expect((await exchange()).json()).toMatchObject({ error: 'guild_not_allowed' });
+    server.identity.ensureGuild(GUILD, 'pending', 'Test Guild');
+    expect((await exchange()).json()).toMatchObject({ error: 'guild_not_allowed' });
+    server.identity.setGuildStatus(GUILD, 'denied', 'owner');
+    expect((await exchange()).json()).toMatchObject({ error: 'guild_not_allowed' });
+    expect(server.identity.getGuildStatus(GUILD)).toBe('denied');
+  });
+
+  it('R-18: a denied guild inside the list is still refused', async () => {
+    server = createTestServer();
+    server.identity.ensureGuild(GUILD, 'denied', 'Test Guild');
+    expect((await exchange()).json()).toMatchObject({ error: 'guild_not_allowed' });
+  });
+
+  it('R-18: /api/life/* requests are observed for the proxy signature like the other routes', async () => {
+    const lines: { msg: string; transport?: string }[] = [];
+    const stream = new Writable({
+      write(chunk: Buffer, _encoding, done) {
+        for (const line of chunk.toString().split('\n').filter(Boolean)) {
+          lines.push(JSON.parse(line) as { msg: string });
+        }
+        done();
+      },
+    });
+    server = createTestServer({ logger: createLogger({ level: 'info', stream }) });
+    const token = await login();
+    const res = await get('/api/life/work', token);
+    expect(res.statusCode).toBe(200);
+    expect(lines.filter((l) => l.msg.startsWith('proxy signature:'))).toHaveLength(1);
   });
 });

@@ -20,7 +20,6 @@ import {
 } from '../games/index.ts';
 import { Inventory } from '../games/shop/inventory.ts';
 import { createNonCasinoGames, type NonCasinoGames } from '../games/progression/index.ts';
-import { registerLifeRoutes } from '../http/activity/life.ts';
 import { buildApp, type RateLimits } from '../http/app.ts';
 import {
   attachSocketServer,
@@ -148,7 +147,11 @@ export function createServer(options: CreateServerOptions): CasinoServices {
   const utcOffsetHours = config.utcOffsetHours;
   // The finance services are built first; bankruptcy liquidation reaches the shop through here.
   // The casino Activity routes look the games up per request, so they use this too.
-  const lazy: { games?: NonCasinoGames; casino?: CasinoGames } = {};
+  const lazy: {
+    games?: NonCasinoGames;
+    casino?: CasinoGames;
+    teiai?: ReturnType<typeof createTeiaiPort>;
+  } = {};
   const finance = createFinanceServices(
     { store, economy, identity, clock, rng, bus, utcOffsetHours },
     {
@@ -180,6 +183,18 @@ export function createServer(options: CreateServerOptions): CasinoServices {
         progression: () => (lazy.games as NonCasinoGames).progression,
         core: () => (lazy.casino as CasinoGames).core,
       },
+      // Inside the authed plugin, so session auth, the user limit and the proxy-signature
+      // observation apply as on every other route. Read once the plugin loads.
+      life: () => ({
+        sessions,
+        identity,
+        economy,
+        store,
+        clock,
+        games: lazy.games as NonCasinoGames,
+        teiai: lazy.teiai as ReturnType<typeof createTeiaiPort>,
+        offsetHours: utcOffsetHours,
+      }),
       horse: {
         store,
         economy,
@@ -194,6 +209,7 @@ export function createServer(options: CreateServerOptions): CasinoServices {
   });
 
   const teiaiPort = createTeiaiPort({ store, teiai: finance.teiai, clock });
+  lazy.teiai = teiaiPort;
   const games = createNonCasinoGames({
     store,
     economy,
@@ -204,16 +220,6 @@ export function createServer(options: CreateServerOptions): CasinoServices {
     offsetHours: utcOffsetHours,
   });
   lazy.games = games;
-  registerLifeRoutes(app, {
-    sessions,
-    identity,
-    economy,
-    store,
-    clock,
-    games,
-    teiai: teiaiPort,
-    offsetHours: utcOffsetHours,
-  });
   const casino = createCasinoGames({
     store,
     economy,
