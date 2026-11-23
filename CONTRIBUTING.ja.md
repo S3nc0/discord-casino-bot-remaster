@@ -2,7 +2,7 @@
 
 # コントリビューションガイド
 
-手伝ってくださってありがとうございます。小さなメンテナーチームでやっている趣味のプロジェクトなので、短くて焦点の絞られたプルリクエストがいちばんレビューしやすいです。まず [メンテナー向けガイド](MAINTAINERS.ja.md) でリポジトリの構成と動かし方を読んでください。サーバー、台帳、取り決め（contracts）に手を入れる前には、[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)（英語のみ）も読みましょう。
+手伝ってくださってありがとうございます。小さなメンテナーチームでやっている趣味のプロジェクトなので、短くて焦点の絞られたプルリクエストがいちばんレビューしやすいです。まず [メンテナー向けガイド](MAINTAINERS.ja.md) でリポジトリの構成と動かし方を読んでください。サーバー、台帳、取り決め（contracts）に手を入れる前には、[docs/ARCHITECTURE.ja.md](docs/ARCHITECTURE.ja.md) も読みましょう。
 
 コントリビューションは [MIT ライセンス](LICENSE) で公開されることに同意したものとみなします。セキュリティ上の問題は、プルリクエストではなく [SECURITY.ja.md](SECURITY.ja.md) の手順で報告してください。
 
@@ -53,9 +53,11 @@ pnpm exec vitest run --config tests/vitest.config.ts tests/e2e
 pnpm exec vitest run --config tests/vitest.config.ts tests/invariants
 ```
 
+時間のかかるテストの一部は、ふだんは飛ばします（今は馬の配合の範囲をすべて調べるもの）。馬の配合を変えたときと、リリースの前には走らせてください：`SLOW_TESTS=1 pnpm --filter @casino/server test`。
+
 ブラウザでの一連の確認と負荷テストは [メンテナー向けガイド](MAINTAINERS.ja.md#ローカルですべて動かす) にあります。アクティビティの外枠やサーバーの重い処理を変えたときは、そちらも実行してください。変更と一緒にテストも足すか更新します。バグ修正には、修正がないと失敗するテストを付けます。
 
-プルリクエストは小さく保ち、何をなぜ変えたか、どう確かめたかを書きます。プレイヤーやオーナーが気づく変更は [CHANGELOG.md](CHANGELOG.md)（英語のみ）にも反映します。
+プルリクエストは小さく保ち、何をなぜ変えたか、どう確かめたかを書きます。プレイヤーやオーナーが気づく変更は [CHANGELOG.md](CHANGELOG.md) と [CHANGELOG.ja.md](CHANGELOG.ja.md) にも反映します。
 
 ## レビューのチェックリスト
 
@@ -68,7 +70,7 @@ pnpm exec vitest run --config tests/vitest.config.ts tests/invariants
 - **取り決め：** `packages/shared` の変更は小さく、足すだけにし、両側を更新します。
 - **秘密情報：** コード、テスト、フィクスチャ、ログ、スクリーンショット、PR の文章に秘密情報を入れません。テストデータには、明らかに偽物と分かる ID を使います。`.env` は絶対にコミットしません。
 - **文言：** 画面に出る文字列はすべて、両言語の辞書を通します（下を参照）。アクティビティに外部 URL は置きません。フォントと画像はバンドルします。
-- **UI：** `@casino/ui` とそのトークンで作ります。読みやすい文字サイズ、48 px 以上のタップ領域、色だけに頼らない表現、ライトとダークとスマホの幅で動くこと。[docs/ui-cheatsheet.md](docs/ui-cheatsheet.md)（英語のみ）を参照してください。
+- **UI：** `@casino/ui` とそのトークンで作ります。読みやすい文字サイズ、48 px 以上のタップ領域、色だけに頼らない表現、ライトとダークとスマホの幅で動くこと。[docs/ui-cheatsheet.ja.md](docs/ui-cheatsheet.ja.md) を参照してください。
 - **テストとドキュメント：** 新しい動作にはテストを付け、ドキュメントと変更履歴を更新します。
 
 ## 翻訳
@@ -77,7 +79,7 @@ pnpm exec vitest run --config tests/vitest.config.ts tests/invariants
 
 ## ドット絵
 
-アイコンと競走馬は、手で直さず、ジェネレーターで作っています。`tools/pixel-art/` のジェネレーターを変更して作り直してください（[tools/pixel-art/README.md](tools/pixel-art/README.md)（英語のみ）と [メンテナー向けガイド](MAINTAINERS.ja.md#ドット絵を作り直す) を参照）。参考にする資料（写真、スプライトシート、フォント）は、**パブリックドメインか CC0** のものに限り、題名、作者、ライセンス、出典、使い方を [CREDITS.md](CREDITS.md) に載せます。著作権のある資料やライセンス不明の資料は参考にせず、参考資料のファイルそのものもコミットしません。色は Bitbloom のパレットのものだけを使います。
+アイコン、スプライト、場面は、手で直さず、ジェネレーターで作っています。`tools/pixel-art/` のジェネレーターを変更して作り直してください（[tools/pixel-art/README.ja.md](tools/pixel-art/README.ja.md) と [メンテナー向けガイド](MAINTAINERS.ja.md#ドット絵を作り直す) を参照）。参考にする資料（写真、スプライトシート、フォント）は、**パブリックドメインか CC0** のものに限り、題名、作者、ライセンス、出典、使い方を [CREDITS.md](CREDITS.md) と [CREDITS.ja.md](CREDITS.ja.md) に載せます。著作権のある資料やライセンス不明の資料は参考にせず、参考資料のファイルそのものもコミットしません。色は Bitbloom のパレットのものだけを使います。
 
 ## コードのスタイル
 

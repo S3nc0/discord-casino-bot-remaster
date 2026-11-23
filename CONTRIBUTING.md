@@ -53,9 +53,11 @@ pnpm exec vitest run --config tests/vitest.config.ts tests/e2e
 pnpm exec vitest run --config tests/vitest.config.ts tests/invariants
 ```
 
+Some slow tests are skipped by default (today the full horse breeding range sweep). Run them when you change horse breeding, and before a release: `SLOW_TESTS=1 pnpm --filter @casino/server test`.
+
 The browser flow and the load test are described in the [Maintainer guide](MAINTAINERS.md#running-everything-locally); run them when you change the Activity shell or the server's hot paths. Add or update tests with your change: a bug fix comes with a test that fails without the fix.
 
-Keep the pull request small, say what changed and why, and say how you checked it. Update [CHANGELOG.md](CHANGELOG.md) for anything a player or an owner would notice.
+Keep the pull request small, say what changed and why, and say how you checked it. Update [CHANGELOG.md](CHANGELOG.md) and [CHANGELOG.ja.md](CHANGELOG.ja.md) for anything a player or an owner would notice.
 
 ## Review checklist
 
@@ -77,7 +79,7 @@ Every key exists in both languages. A new or changed string goes into `packages/
 
 ## Pixel art
 
-Icons and the race horse are generated, never hand-edited: change the generators in `tools/pixel-art/` and regenerate (see [tools/pixel-art/README.md](tools/pixel-art/README.md) and the [Maintainer guide](MAINTAINERS.md#regenerating-pixel-art)). Any reference material (a photograph, a sprite sheet, a font) must be **public domain or CC0**, and must be credited in [CREDITS.md](CREDITS.md) with title, author, licence, source and how it was used. Do not add copyrighted or unlicensed references, and do not commit the reference files themselves. Use only colours from the Bitbloom palette.
+Icons, sprites and scenes are generated, never hand-edited: change the generators in `tools/pixel-art/` and regenerate (see [tools/pixel-art/README.md](tools/pixel-art/README.md) and the [Maintainer guide](MAINTAINERS.md#regenerating-pixel-art)). Any reference material (a photograph, a sprite sheet, a font) must be **public domain or CC0**, and must be credited in [CREDITS.md](CREDITS.md) and [CREDITS.ja.md](CREDITS.ja.md) with title, author, licence, source and how it was used. Do not add copyrighted or unlicensed references, and do not commit the reference files themselves. Use only colours from the Bitbloom palette.
 
 ## Code style
 
