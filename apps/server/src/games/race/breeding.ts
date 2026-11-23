@@ -1,12 +1,15 @@
-import type { Rng } from '@casino/shared';
 import {
   BREED_FEE,
   breedFoal,
-  foalStats,
+  FOAL_TOTAL_MAX,
+  FOAL_TOTAL_MIN,
   foaledEvent,
   MAX_HORSES,
   parentError,
   STAT_KEYS,
+  STAT_MAX,
+  STAT_MIN,
+  STAT_TOTAL,
   statSum,
   type BreedError,
   type BreedParent,
@@ -149,57 +152,141 @@ export interface BreedPreview {
   eligible: { ok: boolean; rule?: string; at?: number; horse?: string };
 }
 
-/** An Rng that replays a script: `foalStats` asks for the total noise, then four stat offsets. */
-function scriptedRng(values: readonly number[]): Rng {
-  let i = 0;
-  return { int: () => values[i++] as number, float: () => 0 };
-}
+const NOISES = [-10, -5, 0, 5, 10] as const; // the total noise `foalStats` can draw
+const SHAPE_MIN = -7; // the per-stat offset `foalStats` draws, -7..+7
+const SHAPE_MAX = 7;
+const STEP = 5;
+const MAX_STEPS = (STAT_MAX - STAT_MIN) / STEP;
+const RANGE_CACHE_LIMIT = 128;
 
-const TOTAL_NOISE_DRAWS = [0, 1, 3, 7, 9] as const; // -10, -5, 0, +5, +10
-const SHAPE_OFFSETS = Array.from({ length: 15 }, (_, i) => i - 7);
+type Ranges = { total: StatRange; stats: Record<StatKey, StatRange> };
+const RANGE_CACHE = new Map<string, Ranges>();
 
 /**
  * Every foal the two parents can have: the minimum and maximum of each stat and of the total over
- * all 5 x 15^4 rolls of `foalStats`. The roll itself still happens once, server side, when paid.
+ * every roll of `foalStats`. The roll itself still happens once, server side, when paid. Results
+ * live in a small least-recently-used cache.
  */
-export function foalRanges(
-  a: Stats,
-  b: Stats,
-): { total: StatRange; stats: Record<StatKey, StatRange> } {
-  const cacheKey = JSON.stringify([a, b]);
+export function foalRanges(a: Stats, b: Stats): Ranges {
+  const cacheKey = STAT_KEYS.map((k) => `${a[k]},${b[k]}`).join(';');
   const cached = RANGE_CACHE.get(cacheKey);
-  if (cached) return cached;
+  if (cached) {
+    RANGE_CACHE.delete(cacheKey);
+    RANGE_CACHE.set(cacheKey, cached);
+    return cached;
+  }
   const computed = computeFoalRanges(a, b);
-  if (RANGE_CACHE.size >= 128) RANGE_CACHE.clear();
+  if (RANGE_CACHE.size >= RANGE_CACHE_LIMIT) {
+    RANGE_CACHE.delete(RANGE_CACHE.keys().next().value as string);
+  }
   RANGE_CACHE.set(cacheKey, computed);
   return computed;
 }
 
-const RANGE_CACHE = new Map<string, { total: StatRange; stats: Record<StatKey, StatRange> }>();
+/** Entries in the range cache (bounded by `RANGE_CACHE_LIMIT`). */
+export function foalRangeCacheSize(): number {
+  return RANGE_CACHE.size;
+}
 
-function computeFoalRanges(
-  a: Stats,
-  b: Stats,
-): { total: StatRange; stats: Record<StatKey, StatRange> } {
-  const stats = {} as Record<StatKey, StatRange>;
-  for (const k of STAT_KEYS) stats[k] = { min: Infinity, max: -Infinity };
-  const total: StatRange = { min: Infinity, max: -Infinity };
-  for (const draw of TOTAL_NOISE_DRAWS)
-    for (const o1 of SHAPE_OFFSETS)
-      for (const o2 of SHAPE_OFFSETS)
-        for (const o3 of SHAPE_OFFSETS)
-          for (const o4 of SHAPE_OFFSETS) {
-            const foal = foalStats(a, b, scriptedRng([draw, o1, o2, o3, o4]));
-            const sum = statSum(foal);
-            total.min = Math.min(total.min, sum);
-            total.max = Math.max(total.max, sum);
-            for (const k of STAT_KEYS) {
-              const r = stats[k];
-              r.min = Math.min(r.min, foal[k]);
-              r.max = Math.max(r.max, foal[k]);
+const toward0 = (x: number): number => (x < 0 ? -Math.floor(-x) : Math.floor(x));
+
+/**
+ * The same arithmetic as `foalStats`, step for step, without its objects: the total takes one of
+ * five values, so the shape offsets are swept once per distinct total with plain numbers.
+ * `breeding.test.ts` checks it against a sweep of `foalStats` itself.
+ */
+function computeFoalRanges(a: Stats, b: Stats): Ranges {
+  const excess = (statSum(a) + statSum(b)) / 2 - STAT_TOTAL;
+  const inherit = toward0(excess / 2 / STEP) * STEP;
+  const totals = [
+    ...new Set(
+      NOISES.map((n) =>
+        Math.max(FOAL_TOTAL_MIN, Math.min(FOAL_TOTAL_MAX, STAT_TOTAL + inherit + n)),
+      ),
+    ),
+  ];
+  const [c0, c1, c2, c3] = STAT_KEYS.map((k) => 50 + ((a[k] + b[k]) / 2 - 50) / 2) as [
+    number,
+    number,
+    number,
+    number,
+  ];
+  const lo = [MAX_STEPS, MAX_STEPS, MAX_STEPS, MAX_STEPS];
+  const hi = [0, 0, 0, 0];
+  const base = STAT_MIN * STAT_KEYS.length;
+  const alloc = [0, 0, 0, 0];
+  const rem = [0, 0, 0, 0];
+  for (const total of totals) {
+    const steps = (total - base) / STEP;
+    for (let o0 = SHAPE_MIN; o0 <= SHAPE_MAX; o0++) {
+      const w0 = Math.max(1, c0 + o0 - STAT_MIN);
+      for (let o1 = SHAPE_MIN; o1 <= SHAPE_MAX; o1++) {
+        const w1 = Math.max(1, c1 + o1 - STAT_MIN);
+        for (let o2 = SHAPE_MIN; o2 <= SHAPE_MAX; o2++) {
+          const w2 = Math.max(1, c2 + o2 - STAT_MIN);
+          for (let o3 = SHAPE_MIN; o3 <= SHAPE_MAX; o3++) {
+            const w3 = Math.max(1, c3 + o3 - STAT_MIN);
+            const sumW = 0 + w0 + w1 + w2 + w3;
+            const e0 = (steps * w0) / sumW;
+            const e1 = (steps * w1) / sumW;
+            const e2 = (steps * w2) / sumW;
+            const e3 = (steps * w3) / sumW;
+            alloc[0] = Math.floor(e0);
+            alloc[1] = Math.floor(e1);
+            alloc[2] = Math.floor(e2);
+            alloc[3] = Math.floor(e3);
+            rem[0] = e0 - alloc[0];
+            rem[1] = e1 - alloc[1];
+            rem[2] = e2 - alloc[2];
+            rem[3] = e3 - alloc[3];
+            // largest remainder first, ties in stat order (the stable sort in `foalStats`)
+            let extra = steps - alloc[0] - alloc[1] - alloc[2] - alloc[3];
+            while (extra > 0) {
+              let best = -1;
+              for (let k = 0; k < 4; k++) {
+                if (
+                  (rem[k] as number) >= 0 &&
+                  (best < 0 || (rem[k] as number) > (rem[best] as number))
+                )
+                  best = k;
+              }
+              alloc[best] = (alloc[best] as number) + 1;
+              rem[best] = -1;
+              extra--;
+            }
+            // a stat above the cap hands its extra steps to the lowest stat
+            let spill = 0;
+            for (let k = 0; k < 4; k++) {
+              if ((alloc[k] as number) > MAX_STEPS) {
+                spill += (alloc[k] as number) - MAX_STEPS;
+                alloc[k] = MAX_STEPS;
+              }
+            }
+            while (spill > 0) {
+              let low = 0;
+              for (let k = 1; k < 4; k++)
+                if ((alloc[k] as number) < (alloc[low] as number)) low = k;
+              alloc[low] = (alloc[low] as number) + 1;
+              spill--;
+            }
+            for (let k = 0; k < 4; k++) {
+              const v = alloc[k] as number;
+              if (v < (lo[k] as number)) lo[k] = v;
+              if (v > (hi[k] as number)) hi[k] = v;
             }
           }
-  return { total, stats };
+        }
+      }
+    }
+  }
+  const stats = {} as Record<StatKey, StatRange>;
+  STAT_KEYS.forEach((k, i) => {
+    stats[k] = {
+      min: STAT_MIN + (lo[i] as number) * STEP,
+      max: STAT_MIN + (hi[i] as number) * STEP,
+    };
+  });
+  return { total: { min: Math.min(...totals), max: Math.max(...totals) }, stats };
 }
 
 /**
@@ -244,7 +331,15 @@ export class BreedingService {
     const { ctx } = this;
     const a = this.horse(parentA);
     const b = this.horse(parentB);
-    if (!a || !b || a.guild_id !== guildId || b.guild_id !== guildId)
+    // Only the caller's own horses: another player's stats are not shown.
+    if (
+      !a ||
+      !b ||
+      a.guild_id !== guildId ||
+      b.guild_id !== guildId ||
+      a.owner_id !== userId ||
+      b.owner_id !== userId
+    )
       throw new GameRuleError('select_own', {}, 'not_found');
     const pa = parentOf(a);
     const pb = parentOf(b);

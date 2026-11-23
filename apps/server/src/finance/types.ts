@@ -18,6 +18,16 @@ export interface FinanceDeps {
 }
 
 /**
+ * The deps every finance service keeps. Finance writes mutate positions, debts, escrows and
+ * funds next to their ledger rows and pass the client's idempotency key into the ledger, so a
+ * key already in the ledger must be `conflict`: a silent replay would skip the money and still
+ * run the mutation (no finance write relies on a replayed ledger row).
+ */
+export function financeDeps(deps: FinanceDeps): FinanceDeps {
+  return { ...deps, economy: deps.economy.rejectingReplays() };
+}
+
+/**
  * Adapter for Player Market item/horse ownership (owned by B2-B tables `inventory` / `horses`).
  * B3 ships a clean interface + in-memory test double; B1/B2-B wires the SQLite implementation.
  */

@@ -468,3 +468,58 @@ describe('reason signs (LEDGER_REASON_SIGN)', () => {
     expect(failure(() => economy.apply({ ...ok, delta: 10 }))).toBeInstanceOf(LedgerSignError);
   });
 });
+
+describe('replay policy', () => {
+  it('R-1: a replay-rejecting view refuses a spent key with conflict and moves nothing', () => {
+    const { economy, store, updates } = setup();
+    const strict = economy.rejectingReplays();
+    const change = {
+      guildId: GUILD,
+      userId: USER,
+      amount: 100,
+      reason: 'company_invest',
+      idempotencyKey: 'spent-key',
+    } as const;
+    expect(strict.debit(change).replayed).toBe(false);
+    expect(strict.getBalance(GUILD, USER)).toBe(2900);
+    updates.length = 0;
+    const count = () =>
+      (store.db.prepare('SELECT COUNT(*) AS n FROM ledger').get() as { n: number }).n;
+    const before = count();
+
+    const error = failure(() => strict.debit(change));
+    expect(error.code).toBe('conflict');
+    expect(count()).toBe(before);
+    expect(economy.getBalance(GUILD, USER)).toBe(2900);
+    expect(updates).toEqual([]);
+
+    // the default service keeps returning the original entry (deterministic server keys)
+    expect(economy.debit(change).replayed).toBe(true);
+  });
+
+  it('R-1: a rejected replay rolls back the surrounding transaction', () => {
+    const { economy, store } = setup();
+    const strict = economy.rejectingReplays();
+    strict.credit({
+      guildId: GUILD,
+      userId: USER,
+      amount: 50,
+      reason: 'admin_grant',
+      idempotencyKey: 'k1',
+    });
+    const error = failure(() =>
+      store.transaction(() => {
+        strict.credit({ guildId: GUILD, userId: USER, amount: 70, reason: 'admin_grant' });
+        strict.credit({
+          guildId: GUILD,
+          userId: USER,
+          amount: 50,
+          reason: 'admin_grant',
+          idempotencyKey: 'k1',
+        });
+      }),
+    );
+    expect(error.code).toBe('conflict');
+    expect(economy.getBalance(GUILD, USER)).toBe(3050);
+  });
+});

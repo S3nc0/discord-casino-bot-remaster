@@ -546,7 +546,7 @@ export async function dispatchWiredCommand(
       if (!row) {
         embed.setDescription(t(locale, 'bot.label.noTournament'));
       } else {
-        const board = deps.games.arena.board(row.id);
+        const board = deps.games.arena.board(guildId, row.id);
         const lines = board.fighters
           .map((f) => `• **${f.name}** (${(f.oddsHundredths / 100).toFixed(2)}x)`)
           .join('\n');

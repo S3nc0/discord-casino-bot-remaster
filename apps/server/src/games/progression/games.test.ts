@@ -324,7 +324,7 @@ describe('arena', () => {
     expect(ids).toHaveLength(2);
     expect(games.arena.ensureToday(GUILD)).toEqual([]);
     const duel = ids[0] as number;
-    const board = games.arena.board(duel);
+    const board = games.arena.board(GUILD, duel);
     expect(board.fighters).toHaveLength(4);
     expect(teiai.bankCash(GUILD)).toBeLessThanOrEqual(100_000);
     economy.ensureMember(GUILD, USER);
@@ -355,7 +355,7 @@ describe('arena', () => {
     clock.set(1_736_121_600_000 + 4 * H); // 13:00
     const finals = games.arena.advance(GUILD);
     expect(finals).toHaveLength(2);
-    const t = games.arena.board(duel).tournament;
+    const t = games.arena.board(GUILD, duel).tournament;
     expect(t.status).toBe('done');
     expect(t.champion_id).not.toBeNull();
     // a stake is either lost or returned with a profit, never created from nothing: payout >= stake or 0

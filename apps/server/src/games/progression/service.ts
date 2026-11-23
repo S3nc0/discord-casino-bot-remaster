@@ -1,4 +1,5 @@
 import type { GameId } from '@casino/shared';
+import type { weeklyRank } from '@casino/domain/progression';
 import {
   claimDaily,
   dailySlot,
@@ -17,8 +18,6 @@ import {
   settleWeek,
   todayMissions,
   weekId,
-  weeklyRank,
-  weeklyTop,
   type DailyResult,
   type Mission,
   type MissionRow,
@@ -425,9 +424,7 @@ export class ProgressionService {
       });
       if (!plan.ok) {
         // A retry of an already executed transfer must not turn into a limit error.
-        const prior = ctx.economy
-          .history(guildId, senderId, 50)
-          .find((e) => e.idempotencyKey === `${idempotencyKey}:out`);
+        const prior = ctx.economy.entryByKey(guildId, senderId, `${idempotencyKey}:out`);
         if (prior) return this.replayed(guildId, senderId, idempotencyKey, -prior.delta);
         return plan;
       }
@@ -455,7 +452,8 @@ export class ProgressionService {
         amount: plan.amount,
         reason: 'transfer_in',
         ...ref,
-        idempotencyKey: `${idempotencyKey}:in`,
+        // in the receiver's account: scoped by sender, so two senders' keys never collide
+        idempotencyKey: `transfer:${senderId}:${idempotencyKey}:in`,
       });
       return {
         ok: true,
@@ -474,9 +472,7 @@ export class ProgressionService {
     key: string,
     amount: number,
   ): TransferOutcome {
-    const fee = this.ctx.economy
-      .history(guildId, senderId, 50)
-      .find((e) => e.idempotencyKey === `${key}:fee`);
+    const fee = this.ctx.economy.entryByKey(guildId, senderId, `${key}:fee`);
     return {
       ok: true,
       amount,
@@ -497,16 +493,47 @@ export class ProgressionService {
     ).map((r) => ({ userId: r.user_id, net: r.net, plays: r.plays }));
   }
 
+  /** Top `top` of the week, ranked in SQL (`sortStandings` order: ids compare as numbers). */
   weeklyStandings(guildId: string, week = weekId(this.day()), top = 5): WeeklyRow[] {
-    return weeklyTop(this.weeklyRows(guildId, week), top);
+    return (
+      this.ctx.store
+        .stmt(
+          `SELECT user_id, net, plays FROM weekly_stats WHERE guild_id = ? AND week = ?
+           ORDER BY net DESC, plays ASC, length(user_id) ASC, user_id ASC LIMIT ?`,
+        )
+        .all(guildId, week, top) as { user_id: string; net: number; plays: number }[]
+    ).map((r) => ({ userId: r.user_id, net: r.net, plays: r.plays }));
   }
 
+  /** The player's place in the week, counted in SQL without loading the standings. */
   weeklyRankOf(
     guildId: string,
     userId: string,
     week = weekId(this.day()),
   ): ReturnType<typeof weeklyRank> {
-    return weeklyRank(this.weeklyRows(guildId, week), userId);
+    const mine = this.ctx.store
+      .stmt('SELECT net, plays FROM weekly_stats WHERE guild_id = ? AND week = ? AND user_id = ?')
+      .get(guildId, week, userId) as { net: number; plays: number } | undefined;
+    if (!mine) return null;
+    const counts = this.ctx.store
+      .stmt(
+        `SELECT COUNT(*) AS total,
+                SUM(net > ? OR (net = ? AND (plays < ? OR (plays = ? AND (length(user_id) < ?
+                  OR (length(user_id) = ? AND user_id < ?)))))) AS ahead
+         FROM weekly_stats WHERE guild_id = ? AND week = ?`,
+      )
+      .get(
+        mine.net,
+        mine.net,
+        mine.plays,
+        mine.plays,
+        userId.length,
+        userId.length,
+        userId,
+        guildId,
+        week,
+      ) as { total: number; ahead: number };
+    return { rank: counts.ahead + 1, net: mine.net, plays: mine.plays, total: counts.total };
   }
 
   /** The latest weekly champion and how many weeks they won in total. */

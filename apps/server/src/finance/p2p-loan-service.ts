@@ -11,7 +11,7 @@ import {
   type LoanStatus,
 } from '@casino/domain/finance';
 import type { TeiaiService, ServiceResult } from './teiai-service.ts';
-import type { FinanceDeps } from './types.ts';
+import { financeDeps, type FinanceDeps } from './types.ts';
 
 export interface LoanRow {
   id: number;
@@ -43,7 +43,7 @@ export class P2pLoanService {
   private readonly teiai: TeiaiService;
 
   constructor(deps: FinanceDeps, teiai: TeiaiService) {
-    this.deps = deps;
+    this.deps = financeDeps(deps);
     this.teiai = teiai;
   }
 

@@ -41,7 +41,7 @@ describe('findings', () => {
   // not turn into a limit error"). A client that retries after more than 50 newer rows gets
   // `transfer_daily_limit` (or `debt_blocks`, `transfer_insufficient_balance`) for a transfer
   // that DID go through, and the replay answer reports fee 0.
-  it.fails('F-T2-01: a retried transfer is a replay however many rows came after it', () => {
+  it('F-T2-01: a retried transfer is a replay however many rows came after it', () => {
     w = createWorld(1);
     experienced(w, ALICE as string);
     grant(w, ALICE as string, 30_000, 0);
@@ -64,7 +64,7 @@ describe('findings', () => {
   // F-T2-02 (low): the receiver's ledger row is keyed `${key}:in` inside the RECEIVER's account,
   // so two different senders that use the same client key collide: the second transfer throws
   // `conflict` although the sender's own idempotency scope (guild, sender, key) is unused.
-  it.fails('F-T2-02: two senders may use the same idempotency key toward one receiver', () => {
+  it('F-T2-02: two senders may use the same idempotency key toward one receiver', () => {
     w = createWorld(1);
     experienced(w, ALICE as string);
     experienced(w, CAROL as string);

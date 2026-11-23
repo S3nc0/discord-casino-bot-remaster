@@ -107,11 +107,15 @@ export class ArenaService {
   }
 
   /** Fighters with their current odds for the open stage. */
-  board(tournamentId: number): {
+  board(
+    guildId: string,
+    tournamentId: number,
+  ): {
     tournament: TournamentRow;
     fighters: (FighterRow & { oddsHundredths: number })[];
   } {
     const t = this.tournament(tournamentId);
+    if (t.guild_id !== guildId) throw new GameRuleError('tournament_not_found', {}, 'not_found');
     const all = this.fighters(tournamentId);
     const stage: FighterStage = t.status === 'final_betting' ? 'final' : 'semi';
     const out: (FighterRow & { oddsHundredths: number })[] = all.map((f) => ({
@@ -144,20 +148,21 @@ export class ArenaService {
     const rows = this.ctx.store
       .stmt('SELECT id FROM arena_tournaments WHERE guild_id = ? AND day = ? ORDER BY id')
       .all(guildId, day) as { id: number }[];
-    return rows.map((r) => this.board(r.id));
+    return rows.map((r) => this.board(guildId, r.id));
   }
 
-  /** A player's bets in one tournament. */
+  /** A player's bets in one tournament of their guild. */
   betsOf(
+    guildId: string,
     tournamentId: number,
     userId: string,
   ): { fighterId: number; stage: 'semi' | 'final'; amount: number; payout: number | null }[] {
     return (
       this.ctx.store
         .stmt(
-          'SELECT fighter_id, stage, amount, payout FROM arena_bets WHERE tournament_id = ? AND user_id = ? ORDER BY id',
+          'SELECT fighter_id, stage, amount, payout FROM arena_bets WHERE tournament_id = ? AND guild_id = ? AND user_id = ? ORDER BY id',
         )
-        .all(tournamentId, userId) as {
+        .all(tournamentId, guildId, userId) as {
         fighter_id: number;
         stage: 'semi' | 'final';
         amount: number;

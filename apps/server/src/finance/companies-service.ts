@@ -24,7 +24,7 @@ import {
   type CompanyKindKey,
 } from '@casino/domain/finance';
 import type { ServiceResult, TeiaiService } from './teiai-service.ts';
-import type { FinanceDeps } from './types.ts';
+import { financeDeps, type FinanceDeps } from './types.ts';
 
 export interface CompanyRow {
   guild_id: string;
@@ -112,7 +112,7 @@ export class CompaniesService {
     teiai: TeiaiService,
     options: { readonly resolveDayState?: DayStateResolver } = {},
   ) {
-    this.deps = deps;
+    this.deps = financeDeps(deps);
     this.teiai = teiai;
     this.resolveDayState = options.resolveDayState ?? companyDayState;
   }

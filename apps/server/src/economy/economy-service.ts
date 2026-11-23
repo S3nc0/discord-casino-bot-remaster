@@ -45,6 +45,12 @@ export interface ApplyResult {
   replayed: boolean;
 }
 
+/**
+ * What a repeated idempotency key does: `return` hands back the original entry (deterministic
+ * server keys such as `race:42:prize:7`), `reject` throws `conflict`.
+ */
+export type ReplayPolicy = 'return' | 'reject';
+
 export interface EnsureMemberResult {
   /** True when this call created the account (and, unless disabled, granted the start balance). */
   created: boolean;
@@ -109,12 +115,36 @@ export class EconomyService {
   private readonly identity: IdentityRepo;
   private readonly clock: Clock;
   private readonly bus: EventBus | undefined;
+  private readonly replays: ReplayPolicy;
 
-  constructor(options: { store: Store; identity: IdentityRepo; clock: Clock; bus?: EventBus }) {
+  constructor(options: {
+    store: Store;
+    identity: IdentityRepo;
+    clock: Clock;
+    bus?: EventBus;
+    replays?: ReplayPolicy;
+  }) {
     this.store = options.store;
     this.identity = options.identity;
     this.clock = options.clock;
     this.bus = options.bus;
+    this.replays = options.replays ?? 'return';
+  }
+
+  /**
+   * The same service, except that a key already in the ledger is `conflict` instead of a silent
+   * replay. For callers that pass a client's idempotency key and mutate their own state next to
+   * the money change: a replay there would skip the money but still run the mutation.
+   */
+  rejectingReplays(): EconomyService {
+    if (this.replays === 'reject') return this;
+    return new EconomyService({
+      store: this.store,
+      identity: this.identity,
+      clock: this.clock,
+      bus: this.bus,
+      replays: 'reject',
+    });
   }
 
   /** Current balance, or 0 for an account that does not exist. */
@@ -189,6 +219,18 @@ export class EconomyService {
     return this.apply({ ...rest, delta: -amount });
   }
 
+  /** The ledger row an idempotency key posted on one account, however old, or null. */
+  entryByKey(guildId: string, userId: string, idempotencyKey: string): LedgerEntry | null {
+    const row = this.store
+      .stmt(
+        `SELECT id, guild_id, user_id, delta, balance_after, reason, ref_type, ref_id,
+                idempotency_key, created_at
+         FROM ledger WHERE guild_id = ? AND user_id = ? AND idempotency_key = ?`,
+      )
+      .get(guildId, userId, idempotencyKey) as LedgerRow | undefined;
+    return row ? toEntry(row) : null;
+  }
+
   /** Ledger history of one account, newest first. */
   history(guildId: string, userId: string, limit = 50): LedgerEntry[] {
     const rows = this.store
@@ -250,6 +292,9 @@ export class EconomyService {
           existing.ref_type === (change.refType ?? null) &&
           existing.ref_id === (change.refId ?? null);
         if (!same) throw new AppError('conflict', { message: 'idempotency key reused' });
+        if (this.replays === 'reject') {
+          throw new AppError('conflict', { message: 'idempotency key already spent' });
+        }
         return { entry: toEntry(existing), replayed: true };
       }
     }

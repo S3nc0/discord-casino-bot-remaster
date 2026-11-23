@@ -134,32 +134,41 @@ export class WorkService {
     period: 'total' | 'today',
     top = 10,
   ): { rows: WorkRankRow[]; self: (WorkRankRow & { rank: number }) | null; total: number } {
-    const today = this.dayIso();
-    const raw = this.ctx.store
+    // Ranked in SQL: only the top rows and the caller's own row reach JavaScript.
+    const earned =
+      period === 'today' ? 'CASE WHEN day = ? THEN day_earned ELSE 0 END' : 'earned_total';
+    const ranked = `SELECT user_id, clicks, ${earned} AS earned FROM work_state
+       WHERE guild_id = ? AND clicks > 0`;
+    const scope = period === 'today' ? [this.dayIso(), guildId] : [guildId];
+    const rows = (
+      this.ctx.store
+        .stmt(
+          `SELECT user_id, clicks, earned FROM (${ranked}) WHERE earned > 0
+           ORDER BY earned DESC, clicks ASC, user_id ASC LIMIT ?`,
+        )
+        .all(...scope, top) as { user_id: string; clicks: number; earned: number }[]
+    ).map((r) => ({ userId: r.user_id, clicks: r.clicks, earned: r.earned }));
+    const mine = this.ctx.store
+      .stmt(`SELECT clicks, earned FROM (${ranked} AND user_id = ?) WHERE earned > 0`)
+      .get(...scope, userId) as { clicks: number; earned: number } | undefined;
+    const counts = this.ctx.store
       .stmt(
-        'SELECT user_id, clicks, day, day_earned, earned_total FROM work_state WHERE guild_id = ? AND clicks > 0',
+        `SELECT COUNT(*) AS total,
+                COALESCE(SUM(earned > ? OR (earned = ? AND (clicks < ? OR (clicks = ? AND user_id < ?)))), 0) AS ahead
+         FROM (${ranked}) WHERE earned > 0`,
       )
-      .all(guildId) as {
-      user_id: string;
-      clicks: number;
-      day: string | null;
-      day_earned: number;
-      earned_total: number;
-    }[];
-    const all: WorkRankRow[] = raw
-      .map((r) => ({
-        userId: r.user_id,
-        clicks: r.clicks,
-        earned: period === 'today' ? (r.day === today ? r.day_earned : 0) : r.earned_total,
-      }))
-      .filter((r) => r.earned > 0)
-      .sort((a, b) => b.earned - a.earned || a.clicks - b.clicks || (a.userId < b.userId ? -1 : 1));
-    const index = all.findIndex((r) => r.userId === userId);
-    const mine = index < 0 ? undefined : all[index];
+      .get(
+        mine?.earned ?? 0,
+        mine?.earned ?? 0,
+        mine?.clicks ?? 0,
+        mine?.clicks ?? 0,
+        userId,
+        ...scope,
+      ) as { total: number; ahead: number };
     return {
-      rows: all.slice(0, top),
-      self: mine === undefined ? null : { ...mine, rank: index + 1 },
-      total: all.length,
+      rows,
+      self: mine === undefined ? null : { userId, ...mine, rank: counts.ahead + 1 },
+      total: counts.total,
     };
   }
 

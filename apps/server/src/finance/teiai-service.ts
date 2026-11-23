@@ -36,7 +36,7 @@ import {
   type BankLiquidityLevel,
   type PlayerDebtStatus,
 } from '@casino/domain/finance';
-import type { FinanceDeps, TeiaiCrossHooks } from './types.ts';
+import { financeDeps, type FinanceDeps, type TeiaiCrossHooks } from './types.ts';
 
 export interface BankAccountRow {
   guild_id: string;
@@ -133,7 +133,7 @@ export class TeiaiService {
   private hooks: TeiaiCrossHooks = {};
 
   constructor(deps: FinanceDeps) {
-    this.deps = deps;
+    this.deps = financeDeps(deps);
   }
 
   /** Wire peer finance service hooks after construction (avoids circular imports). */
