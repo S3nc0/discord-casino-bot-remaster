@@ -178,6 +178,9 @@ def build(cfg):
 
     out = json.loads(json.dumps(src))  # deep copy keeps type/spacing/radius/opacity identical
     out["name"] = cfg["name"]
+    # Every number a player reads uses the body face: Pixelify Sans draws 2 like 8 and 5 like S.
+    # The app's tokens.css points --font-numeric at --font-body (see packages/ui numerals.test.ts).
+    out["type"]["families"].setdefault("numeric", out["type"]["families"]["body"])
     out["color"]["tokens"] = tokens
     light_shadow, dark_shadow = cfg["shadow"]
     for tok in out["shadow"]["tokens"]:

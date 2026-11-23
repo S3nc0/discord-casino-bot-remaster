@@ -42,7 +42,8 @@
 }
 
 /* ---- quiz: the question on a stage panel, lettered answer plates ----
- * The plates outrank the kit's enabled-button edge rule (four classes), so the frame stays gold. */
+ * The kit's button rules sit at two classes or fewer (its edge colour is under :where()), so the
+ * screen and class here are enough to keep the frame gold. */
 .life[data-screen='quiz'] .sc-show {
   --bc: var(--yellow-70);
   background: var(--indigo-10);
@@ -57,7 +58,7 @@
   position: relative;
 }
 
-.life[data-screen='quiz'] .life__choices .bb-btn.life__choice {
+.life[data-screen='quiz'] .life__choice {
   gap: var(--space-3);
   outline: none;
   background: var(--indigo-30);
@@ -69,7 +70,7 @@
     inset 0 -4px 0 var(--indigo-20);
 }
 
-.life[data-screen='quiz'] .life__choices .bb-btn.life__choice:disabled {
+.life[data-screen='quiz'] .life__choice:disabled {
   opacity: 1;
 }
 
@@ -87,25 +88,25 @@
     inset 2px 2px 0 var(--yellow-95);
 }
 
-.life[data-screen='quiz'] .life__choices .bb-btn.life__choice[data-state='right'] {
+.life[data-screen='quiz'] .life__choice[data-state='right'] {
   background: var(--green-30);
   --bc: var(--green-80);
 }
 
-.life[data-screen='quiz'] .life__choices .bb-btn.life__choice[data-state='right'] .sc-letter {
+.life[data-screen='quiz'] .life__choice[data-state='right'] .sc-letter {
   background: var(--green-80);
 }
 
-.life[data-screen='quiz'] .life__choices .bb-btn.life__choice[data-state='wrong'] {
+.life[data-screen='quiz'] .life__choice[data-state='wrong'] {
   background: var(--red-30);
   --bc: var(--red-60);
 }
 
-.life[data-screen='quiz'] .life__choices .bb-btn.life__choice[data-state='wrong'] .sc-letter {
+.life[data-screen='quiz'] .life__choice[data-state='wrong'] .sc-letter {
   background: var(--red-80);
 }
 
-.life[data-screen='quiz'] .life__choices .bb-btn.life__choice[data-state] {
+.life[data-screen='quiz'] .life__choice[data-state] {
   padding-right: 56px;
 }
 
