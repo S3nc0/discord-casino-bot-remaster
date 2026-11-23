@@ -1,142 +1,160 @@
-# ペリカカジノ（Discord ミニゲーム Bot）
+**English** | [日本語](README.ja.md)
 
-ゲーム内の仮想通貨「**ペリカ**」で遊ぶ、友達向けのお遊びカジノです。
-**現実のお金とは一切関係なく、換金もできません。** 課金や購入の仕組みもありません。
+<p align="center">
+  <img src="docs/images/readme/banner.png" alt="Pixel banner: Discord Casino Remaster, with dice, slots, cards, a roulette wheel, a horse, a coin and a crown above a night skyline" width="100%">
+</p>
 
-**ペリカは「サーバーごと」に別々です。** 残高・デイリー・ショップの景品・成績・履歴は、サーバーごとに独立していて、別のサーバーには持ち込めません（初めて遊ぶサーバーでは、そこで3,000ペリカから始まります）。
+<p align="center">
+  <b>A play-money pixel casino for your Discord server: games, horse races, stocks and a very scary bank.</b>
+</p>
 
-## 遊び方
+<p align="center">
+  <a href="https://github.com/S3nc0/discord-casino-bot-remaster/actions/workflows/ci.yml"><img src="https://github.com/S3nc0/discord-casino-bot-remaster/actions/workflows/ci.yml/badge.svg" alt="CI status"></a>
+  <a href="LICENSE"><img src="docs/images/readme/badges/license.svg" alt="License: MIT"></a>
+  <a href="docs/OWNER_SETUP.md"><img src="docs/images/readme/badges/node.svg" alt="Node.js 24"></a>
+  <a href="docs/OWNER_SETUP.md"><img src="docs/images/readme/badges/activity.svg" alt="Discord Activity"></a>
+  <img src="docs/images/readme/badges/typescript.svg" alt="Made with TypeScript">
+</p>
 
-| コマンド | 内容 |
-|---|---|
-| `/ペリカ デイリー` | **6時間ごと**に受け取れるボーナス（日本時間の0・6・12・18時に切り替わる）。連続で受け取る**日数**が増えるほど、1回の額が増える（1,000〜3,000ペリカ。20日連続で最大）。同じ日に何回受け取っても、連続日数は1日分です。ミッションは日本時間の0時に切り替わります |
-| `/ペリカ 残高` | このサーバーでの残高・順位・成績 |
-| `/ペリカ ランキング` | このサーバーで、ペリカの多い順。ボタンで「純資産」と「総資産」（馬・持ち物・発掘品など、ペリカに換算できるもの全部。着せ替え・コレクションは買値、馬は購入価格＋引退金の見込み、発掘品は目安の価値、地下作業の工具・寮はこれまでの強化費用）を切り替え、「自分の内訳」も見られる。`内訳` に人を選ぶと、その人の資産の内訳（自分だけに表示） |
-| `/ペリカ 送金` | このサーバーの友達に送る（手数料10%（上限には数えない）・1日に送る金額は合計20,000ペリカまで。3回以上ゲームで遊んだ人だけ。ゲーム中は送れない） |
-| `/ペリカ 履歴` | 最近の増減（自分だけに見える） |
-| `/ペリカ 帝愛` | 🏦 帝愛銀行（帝愛信託・準備率のメーター・引き出し）・破産猶予の人の一覧・CDS（破綻保証）・種銭を借りる。下の[帝愛銀行・破産猶予・CDS](docs/teiai.md#帝愛銀行破産猶予cds) |
-| `/証券 注文` `保有` `市況` `決済` | 4銘柄（🪙CSトークン・🏭TEIO重工・🧪NUMAバイオ・🥇GOLD地金）と債券の売買。`注文` は種類ごとのサブコマンド（`現物`・`信用`・`コール`・`プット`・`ペア`・`裸売り`・`債券`）で、その種類に要る欄だけを選んで発注、`保有` のパネルで現物・信用取引・オプション・債券と口座の維持率をまとめて見て**持ち物を選んで割合（全部・50%・25%・カスタム）でその場で決済**、`市況` で全銘柄の価格と連動を見て、メニューでチャートを切り替え（`保有` とはボタンで行き来）、`決済` で割合（%）を決めて手放します。価格は**全サーバー共通**で1分ごとに、**銘柄どうしの相関をもって**動き（[証券の銘柄と相関](docs/stocks.md#証券の銘柄と相関)。どの銘柄も期待値は変わらない。平均への引き戻しなどの偏りは入れていない）、売買の手数料なし。小数（0.001枚）で買える。チャートは文字のグラフで、**1チャンネルに1つだけ**（新しく出すと前のものを消す）。出してから**60分間は1分ごとに自動で更新**され、そのあとは「更新は終了しました」と表示して止まる（もう一度出せば、また60分）。ゲーム内の通貨で、現実のお金とは無関係。**信用買い・空売り**（[信用取引](docs/stocks.md#信用取引信用買い空売り)）と、**コール・プット**（[オプション](docs/stocks.md#オプション爆騰コール暴落プット)）もできる |
-| 結果の下の「🔁 もう一度」 | 全ゲームの結果に出るボタン（ブラックジャックはダブルの前の賭け金）。同じ額、または倍の額でもう一度遊べる（遊んだ本人だけ・90秒間） |
-| （自動）週間ランキング | コマンドはありません。**毎週月曜0時（日本時間）に自動で発表**され、先週のゲームの稼ぎ（損益の合計）1位（5ゲーム以上遊んでプラスの人）に、買えない限定称号「👑週間王者」が持ち物に贈られる（次の発表まで。装備は本人が選ぶ）。発表は、ランキング掲示のチャンネル（無ければシステムチャンネル）に投稿される |
-| `/投票 作成` | 🗳️ 誰でも作れる賛成・反対の投票。期限は自由（30分・2時間・3日など。最長30日）。票は投稿のボタンで入れ、1人1票で締切まで変えられる。作った人だけは 500ペリカ払うと票数を好きな数に書き換えられるが、書き換えたことはチャンネルで全員に告知される（代金は帝愛銀行へ）。締切で結果を同じチャンネルに出す |
-| `/クイズ 挑戦` `出題` `取り下げ` | 📰 時事ネタ・豆知識の4択。正解でペリカがもらえる（1問1回）。自分で出題もできる。詳しくは[クイズ](docs/casino.md#クイズ時事ネタ豆知識で稼ぐ) |
-| （ショップの「🕴️ 帝愛の競売」の画面） | 🤝 プレイヤー間の市場。競走馬と品物を、定価で売ったり、競りに出したりする（コマンドはなく、競売の画面から）。詳しくは[取引](docs/shop.md#取引プレイヤー間の市場と競り帝愛の競売の画面に出ます) |
-| `/競馬 厩舎` `出馬表` | 🏇 競走馬を育てて走らせる・馬券を買う（4時間おき・1日4回）。詳しくは[競馬](docs/horse.md) |
-| `/地下 作業` `ランキング` | ⛏ ペリカが尽きた人の救済。ボタンを押して稼ぐクリッカー（元手は0）と、作業員の雇用（放置で鉱石を掘る。当たり次第）。詳しくは[地下作業](docs/labor.md) |
-| `/闘技場 大会` | 🏛️ 地下闘技場。1日1回、1on1・バトロワ両方のNPC戦士どうしの大会に賭ける。詳しくは[地下闘技場](docs/arena.md) |
-| `/共済 状況` `入札` `譲渡` `受諾` `取消` `提案` `投票` | 🏛️ 帝愛共済。総口数10,000口で、口数に応じて帝愛銀行の余剰から毎日配当を受け、信託でも払えない損失を負担する。帝愛が回収した口の競り・口の譲渡と、信託の上乗せ金利を決める動議。詳しくは[帝愛共済](docs/teiai.md#帝愛共済共済最後の砦) |
-| `/貸付 提案` `募集` `返済` `一覧` | 🤝 ユーザー同士の貸し借り（日割りの利息つき）。詳しくは[貸し借り](docs/teiai.md#貸し借りユーザー同士) |
-| `/証券 注文 債券`・`保有`・`決済` | 🏦 通常債（元本保証）とジャンク債（高利回り・倒産あり）。詳しくは[債券](docs/stocks.md#債券通常債とジャンク債) |
-| `/ペリカ ミッション` | 今日のミッション3つと進み具合。達成すると自動でペリカがもらえ、3つ全部で+500ボーナス（毎日0時に入れ替わり、全員共通）。賭け金100ペリカ以上のゲームだけが数えられ、連勝ミッションはその日の分だけで数える。ブラックジャックのダブル成功・ナチュラルなどのミッションもある（毎日、どのゲームでも進むもの1つと、ブラックジャック向け1つを含む）。遊ぶと連勝も記録され、結果に🔥が付く |
-| （ボタン）抽選 | 🎟️ 抽選は持ち主が開催します。参加は投稿の「参加する」ボタン。詳しくは[抽選](docs/casino.md#抽選持ち主が開催) |
-| `/ペリカ ランキング掲示` | ランキングを1つ投稿して、**1分ごとに自動で書き換える**（サーバー管理）。止めるのは、同じコマンドの「止める」を True にする |
-| `/カジノ チンチロ` | 🎲 地下チンチロ。親と勝負、目が出なければ3回まで振れる |
-| `/カジノ パチンコ` | 🎰 地下パチンコ（打ち出し型・還元率約97%）。賭け金は**1セット（100発）**の代金で、`回数`（1〜10）で連続して打てます。詳しくは[パチンコ](docs/casino.md#パチンコ打ち出し型) |
-| `/カジノ スロット` | 🍒 3つ揃えば大きく増える |
-| `/カジノ ブラックジャック` | 🃏 ヒット・スタンド・ダブル |
-| `/カジノ ルーレット` | 🎡 色・偶奇・範囲・数字に賭ける |
-| `/ショップ` | 🛍️ ペリカで称号・カードの色/アイコン・消耗品・名前の色を交換（[ショップ](docs/shop.md#ショップ景品の交換)参照） |
-| `/help` | 遊び方の一覧 |
+> [!NOTE]
+> **Pelica (ペリカ) is play money.** It has no cash value, cannot be cashed out and cannot be bought. Every server has its own balance, and everyone starts with 3,000 Pelica.
 
-各サーバーで初めて遊ぶとき、**3,000ペリカ** がもらえます。賭け金は **10ペリカ以上（上限なし。残高が上限）**。同時に遊べるゲームは1つだけです。
-ペリカが尽きても、`/ペリカ デイリー` で6時間ごとにもらえます。
+## A look inside
 
-## 詳しい仕様（docs/）
-各機能の、くわしい仕様（数字・決まり・計算の考え方）は、`docs/` にあります。数字は、設定ファイル（`catalogs/*.yaml`）とドメイン定義（`domain/*.py`）が正で、ここは、その説明です。
+Everything below runs inside Discord as an **Activity** (a mini app on your phone or desktop), with the same pixel look in dark and light. These screenshots use made-up mock data.
 
-| ドキュメント | 内容 |
-|---|---|
-| [docs/casino.md](docs/casino.md) | チンチロのルール・パチンコ・クイズ・抽選・突発イベント・還元率のレベル |
-| [docs/stocks.md](docs/stocks.md) | 証券の銘柄と相関・信用取引・オプション・債券・市場イベント・ストップ高・決算 |
-| [docs/teiai.md](docs/teiai.md) | ペリカのお金の流れ・借金と身分・帝愛銀行・破産猶予・CDS・貸し借り |
-| [docs/horse.md](docs/horse.md) | 競馬（開催・ステータス・申し込み・馬券・オッズ・引退） |
-| [docs/labor.md](docs/labor.md) | 地下作業（クリック・作業員・鉱石・発掘品とその効果） |
-| [docs/arena.md](docs/arena.md) | 地下闘技場（大会・形式・武器と強さ・配当） |
-| [docs/shop.md](docs/shop.md) | ショップ・称号・名前の色・プレイヤー間の取引と競り・帝愛の競売 |
-| [docs/admin.md](docs/admin.md) | サーバーの承認・ランキング掲示板・持ち主向けの管理コマンド |
+<table>
+  <tr>
+    <td align="center"><img src="docs/images/readme/home.en.webp" alt="Home screen in dark mode: balance, daily bonus streak and a grid of game icons" width="200"></td>
+    <td align="center"><img src="docs/images/readme/slots.en.webp" alt="Slots screen in dark mode: three reels, bet buttons and the pay table" width="200"></td>
+    <td align="center"><img src="docs/images/readme/horse.en.webp" alt="Horse racing screen in dark mode: today's race card with betting and entry status" width="200"></td>
+    <td align="center"><img src="docs/images/readme/stocks.en.webp" alt="Stocks screen in dark mode: four tickers with price charts" width="200"></td>
+  </tr>
+  <tr>
+    <td align="center"><b>Home</b></td>
+    <td align="center"><b>Slots</b></td>
+    <td align="center"><b>Horse racing</b></td>
+    <td align="center"><b>Stocks</b></td>
+  </tr>
+</table>
 
+<details>
+<summary>Light mode, too: the Teiai Bank screen</summary>
 
-## 導入手順
+<p align="center"><img src="docs/images/readme/bank-light.en.webp" alt="Teiai Bank screen in light mode: balance, debt, repay form and the bank's reserve ratio" width="240"></p>
 
-### 1. Discord 側の準備
-1. [Discord Developer Portal](https://discord.com/developers/applications) で **「新しいアプリケーション」** を作ります。
-2. **「Bot」** を開き、**「トークンをリセット」** でトークンをコピーします（一度しか表示されません。他人に見せないでください）。
-3. **特権インテントは不要です**（メッセージの内容もメンバー一覧も読みません）。
+</details>
 
-### 2. 設定と起動
+## What you can do
 
-**uv を使う場合（推奨）:**
-```bash
-uv sync
-cp config.example.json config.json      # Windows: copy config.example.json config.json
-uv run main.py
+<table>
+  <tr>
+    <td width="33%"><img src="docs/images/readme/icons/dice.svg" alt="" width="32"> <b>Chinchiro</b><br>Three dice against the dealer. Roll up to 3 times.</td>
+    <td width="33%"><img src="docs/images/readme/icons/slots.svg" alt="" width="32"> <b>Slots and Pachinko</b><br>Pull the lever. Chase the jackpot.</td>
+    <td width="33%"><img src="docs/images/readme/icons/cards.svg" alt="" width="32"> <b>Blackjack and Roulette</b><br>Hit, stand, double. Or bet it all on red.</td>
+  </tr>
+  <tr>
+    <td><img src="docs/images/readme/icons/horse.svg" alt="" width="32"> <b>Horse racing</b><br>Race your own horse. Buy tickets. Breed the next champion.</td>
+    <td><img src="docs/images/readme/icons/sword.svg" alt="" width="32"> <b>Underground Arena</b><br>Bet on a daily tournament of NPC fighters.</td>
+    <td><img src="docs/images/readme/icons/stocks.svg" alt="" width="32"> <b>Stocks and crypto</b><br>Four tickers that move every minute. Margin and options for the brave.</td>
+  </tr>
+  <tr>
+    <td><img src="docs/images/readme/icons/coin.svg" alt="" width="32"> <b>Teiai Bank (帝愛銀行)</b><br>Borrow, repay, and try not to go bankrupt.</td>
+    <td><img src="docs/images/readme/icons/pickaxe.svg" alt="" width="32"> <b>Underground labor</b><br>Out of Pelica? Dig for ore and relics.</td>
+    <td><img src="docs/images/readme/icons/ticket.svg" alt="" width="32"> <b>Lottery, quiz and polls</b><br>Server-wide fun that anyone can start.</td>
+  </tr>
+  <tr>
+    <td><img src="docs/images/readme/icons/crown.svg" alt="" width="32"> <b>Rankings</b><br>Weekly champion, net worth and more.</td>
+    <td><img src="docs/images/readme/icons/gem.svg" alt="" width="32"> <b>Shop and market</b><br>Titles, colors, items. Trade with other players.</td>
+    <td><img src="docs/images/readme/icons/shield.svg" alt="" width="32"> <b>Safe by design</b><br>Your bet is held first and settled in one step, so no coins vanish mid-game.</td>
+  </tr>
+</table>
+
+The interface speaks **English and Japanese** and follows your Discord language.
+
+## Quick start
+
+You need Node.js 24, pnpm 12.21.0, a Discord account and a free Cloudflare account. The first run takes about 20 to 30 minutes.
+
+1. **Get the code.** `git clone` the repo, then `pnpm i` and `pnpm -r build`.
+2. **Create a Discord app** in the Developer Portal and note its Application ID, public key and bot token.
+3. **Host the web app** on Cloudflare Pages.
+4. **Create your `.env`** from `.env.example` and start a tunnel (`cloudflared`) so Discord can reach your server.
+5. **Start everything:** `pnpm dev:server`, then `pnpm commands:deploy:guild`, then open the Activity from the rocket icon in your server.
+
+```sh
+git clone https://github.com/S3nc0/discord-casino-bot-remaster.git
+cd discord-casino-bot-remaster
+pnpm i && pnpm -r build
 ```
 
-**pip / venv を使う場合:**
-```bash
-python3 -m venv .venv
-.venv/bin/pip install -r requirements.txt
-cp config.example.json config.json      # Windows: copy config.example.json config.json
-.venv/bin/python main.py                # Windows: .venv\Scripts\python main.py
-```
-`config.json` を編集します。
+> [!IMPORTANT]
+> Never share your bot token, client secret or `SESSION_SECRET`. `.env` is git-ignored: keep it that way.
 
-| 項目 | 説明 |
-|---|---|
-| `token` | Bot トークン（必須） |
-| `allowed_guild_ids` | あらかじめ許可するサーバーのID一覧。`require_approval` が false のときは、空 `[]` ならどのサーバーでも遊べ、空でなければこの中だけ遊べます |
-| `require_approval` | `true` にすると**承認制**になります。許可リスト以外のサーバーは、持ち主が承認するまで使えません（[サーバーの承認](docs/admin.md#サーバーの承認友達のサーバーだけで遊ぶ)参照）。初期は `false` |
-| `legacy_guild_id` | サーバーごとに分ける前の古い記録がある場合に、それを引き継ぐサーバーのID。省略すると `allowed_guild_ids` の先頭を使います。古い記録がないとき（新規）は不要です |
-| `owner_ids` | Bot の持ち主のユーザーID。サーバーの承認の通知（DM）が届き、`/運営` のコマンドを使える人です（複数可） |
-| `test_guild_id` | 開発用。指定するとそのサーバーだけにコマンドが即時反映されます。**本番では `null`**（別の場所の Bot が登録したコマンドと重複して、同じコマンドが2つ表示されます） |
-| `utc_offset_hours` | デイリーの切り替わる時刻とミッションの日付の境目の時差。日本は `9`（日本時間の0・6・12・18時にデイリーが、0時にミッションが切り替わります） |
+The full, click-by-click walkthrough is the **[Owner Setup Guide](docs/OWNER_SETUP.md)** ([日本語](docs/OWNER_SETUP.ja.md)). To check your install afterwards, see the [Owner Testing Guide](docs/OWNER_TESTING.md).
 
-サーバーID・ユーザーIDは、Discord の「設定 → 詳細設定 → 開発者モード」をオンにして、右クリックの「IDをコピー」で取れます。
+## Play in chat or in the Activity
 
-### 3. サーバーへ招待
-`CLIENT_ID` を、Developer Portal の「一般情報」にあるアプリケーションIDに置き換えて開きます。
+Both use the same balance and the same rules, so mix them freely. Chat commands are quick. The Activity is the full-screen experience, with live tables and race cards.
 
-```
-https://discord.com/oauth2/authorize?client_id=CLIENT_ID&scope=bot+applications.commands&permissions=402738176
-```
-必要な権限は「チャンネルを見る」「メッセージを送信」「埋め込みリンク」と、ショップ用の「ロールの管理」（名前の色）・「ニックネームの管理」（称号の表示）、`/運営 発言削除` 用の「メッセージ履歴を読む」です。ショップと発言削除を使わないなら `permissions=19456` で足ります。
+Discord shows command names in your own language, so a Japanese client sees the Japanese names.
 
-## 仕組みと安全
-- **賭け金は開始時に預かり**、結果が決まったら精算します（スロット・パチンコなどは、演出の前に精算するので、演出の途中でメッセージを消しても結果は変わりません）。残高の増減は1回の処理で行い、台帳（履歴）に記録します。
-- 連打や同時操作でペリカが増減しないよう、同じ人は同時に1つのゲームしか始められません。
-- **Bot が途中で止まった場合、預かっていた賭け金は次の起動時に全額返ります。**
-- ボタンは賭けた本人だけが押せます。放置すると、チンチロは「目なし」、ブラックジャックは「スタンド」として自動で精算します。
-- 保存するデータ: サーバーごとの、ユーザーID・残高・成績・増減の履歴・持ち物。メッセージの内容は読みません。保存先は `data/casino.db` です。
+| What you want | English | 日本語 |
+| --- | --- | --- |
+| Claim your daily bonus | `/pelica daily` | `/ペリカ デイリー` |
+| Check your balance | `/pelica balance` | `/ペリカ 残高` |
+| Roll the dice | `/casino chinchiro` | `/カジノ チンチロ` |
+| Spin the reels | `/casino slots` | `/カジノ スロット` |
+| Play blackjack | `/casino blackjack` | `/カジノ ブラックジャック` |
+| Visit your stable | `/horse stable` | `/競馬 厩舎` |
+| Bet on the arena | `/arena tournament` | `/闘技場 大会` |
+| Check the market | `/market board` | `/証券 市況` |
+| Visit Teiai Bank | `/pelica bank` | `/ペリカ 帝愛` |
+| Dig for ore | `/labor work` | `/地下 作業` |
+| Open the shop | `/shop` | `/ショップ` |
+| Ask for help | `/help` | `/help` |
 
-## 運用
-- 常時動かす場合は、`systemd` などで自動起動・自動再起動にします（管理補助bot と同じ要領）。**同じトークンで2か所から起動しないでください。**
-- データのバックアップは、Bot を止めてから `data/` をコピーします。
-- トークンを漏らしたら、すぐ Developer Portal で再発行して `config.json` を差し替えてください。`config.json` と `data/` は `.gitignore` 済みです。
+## Admin
 
-## テスト
-```bash
-uv run pytest
-```
-※ 従来の pip / venv 環境の場合は `.venv/bin/pip install pytest` 後に `.venv/bin/python -m pytest tests` で実行できます。
+Owners can approve servers, hand out or fix balances, start events, tune payout levels and manage quizzes with `/admin` (`/運営`). The **[Owner Admin Guide](docs/OWNER_ADMIN.md)** ([日本語](docs/OWNER_ADMIN.ja.md)) shows how to copy your IDs, become an admin and use every command, with a first-five-minutes walkthrough.
 
-## ディレクトリ構成
-各ファイルの役割は、[STRUCTURE.md](STRUCTURE.md) にあります。
+## Run it on a Raspberry Pi
+
+One Node process and one SQLite file: no Redis, no database server. A 64-bit Pi runs it happily, and a one-command installer sets up the service and the tunnel. See the **[Raspberry Pi guide](docs/PI_SETUP.md)** ([日本語](docs/PI_SETUP.ja.md)).
+
+## Tech stack
+
+| Part | What we use |
+| --- | --- |
+| Language and tools | TypeScript, Node.js 24, pnpm workspaces, Vitest, ESLint, Prettier |
+| Server | Fastify, Socket.io, discord.js (Guilds intent only), SQLite via better-sqlite3, croner |
+| Activity | React 19, Vite, Zustand, Discord Embedded App SDK |
+| Look and sound | Bitbloom pixel UI kit, Pixelify Sans, Atkinson Hyperlegible, ZzFX synth sounds |
+| Hosting | Cloudflare Pages and Tunnel, or a Raspberry Pi |
+
+## Project layout
+
 ```text
-casino-bot/
-├── main.py              # Composition Root（Bot 起動点）
-├── manage.py            # Composition Root（持ち主向け CLI 管理ツール）
-├── domain/              # 純粋ドメインルール・値型・水平ポート契約（ports/）とゲーム計算（games/）
-├── services/            # アプリケーションサービス（session.py ほか）
-├── infra/               # 永続化・外部I/O（db/ 配下の SQLite/Economy/schema、catalogs.py、clock.py、paths.py）
-├── cogs/                # Discord UI・コマンド群（loader.py、shared/、casino/、機能別サブパッケージ）
-├── catalogs/            # 静的定義（YAML）
-├── docs/                # 機能ごとの、くわしい仕様（README から、リンクしています）
-├── tests/               # domain/ ・ infra/ ・ cogs/ ・ flows/
-├── pyproject.toml / uv.lock             # 依存関係・ruff・pyright・pytest 設定（uv）
-├── requirements.txt / requirements-dev.txt  # pip 環境向け依存一覧
-└── data/                # 実行時データ（自動生成・gitignore済）
+apps/server/     chat bot, HTTP and socket API, scheduler, SQLite
+apps/web/        the Discord Activity (React + Vite)
+packages/shared/ contracts, ids and the EN/JA text
+packages/domain/ pure game rules, no I/O
+packages/ui/     Bitbloom pixel components, icons and sounds
+catalogs/        tunable numbers (YAML)
+docs/            guides, specs and architecture notes
+design/          Bitbloom design tokens
+ops/             Raspberry Pi kit and tunnel templates
+legacy/          the original Python bot, kept for reference
 ```
 
-## ライセンス
-[MIT License](LICENSE)。自由に使えて、改変・再配布もできます（著作権表示を残してください）。
-このソフトウェアは現状のまま提供され、利用による損害について作者は責任を負いません。
+New here? Start with [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md), then the [behaviour specs](docs/spec/INDEX.md). Project progress lives in [docs/STATUS.md](docs/STATUS.md).
+
+## Credits
+
+- **Upstream bot:** [fatcorn753/discord-casino-bot](https://github.com/fatcorn753/discord-casino-bot), the original Discord casino bot and the source of the game rules. This is a hard fork, rewritten in TypeScript as an Activity plus chat bot.
+- **Authors:** fatcorn753 (original) and S3nc0 (remaster), as in the [LICENSE](LICENSE).
+- **Assets:** ZzFX sound synth, Pixelify Sans and Atkinson Hyperlegible. Authors and licenses are listed in [CREDITS.md](CREDITS.md).
+
+## License
+
+[MIT](LICENSE). Use it, change it, share it, and keep the copyright notice. It is provided as is, without warranty.
