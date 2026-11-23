@@ -121,13 +121,16 @@ The live server uses `/opt/discord-casino/data/casino.sqlite` (`DATABASE_PATH`, 
 
 ## 5. Restoring a Backup
 
-1. Stop the server, copy the backup snapshot over `casino.sqlite`, and start the server again:
+1. Stop the server, delete the stale `casino.sqlite-wal` and `casino.sqlite-shm` files, copy the backup snapshot over `casino.sqlite`, and start the server again:
 
    ```sh
    sudo systemctl stop discord-casino.service
+   sudo -u casino rm -f /opt/discord-casino/data/casino.sqlite-wal /opt/discord-casino/data/casino.sqlite-shm
    sudo -u casino cp /var/backups/discord-casino/casino-YYYYMMDD-HHMMSS.sqlite /opt/discord-casino/data/casino.sqlite
    sudo systemctl start discord-casino.service
    ```
+
+   The `-wal` and `-shm` files belong to the database you are replacing. If they stay, SQLite may try to apply them to the restored copy. Everything since the backup is gone after a restore, so tell your players.
 
 ✅ **Check:** `sudo systemctl status discord-casino.service` shows `active (running)` with no database errors in `journalctl`.
 

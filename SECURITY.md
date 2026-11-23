@@ -12,8 +12,8 @@ Only the latest release and the current `main` branch get fixes.
 
 **Do not open a public issue, pull request or Discord message with the details.**
 
-1. If the repository's **Security** tab shows **Report a vulnerability**, use it: it is private to the maintainer.
-2. Otherwise contact the maintainer, [S3nc0](https://github.com/S3nc0), privately through the contact options on their GitHub profile, and say only that you have a security report. Details follow once you have a private channel.
+1. Open the repository's **Security** tab and choose **Report a vulnerability** ([direct link](https://github.com/S3nc0/discord-casino-bot-remaster/security/advisories/new)). Private vulnerability reporting is on: the report is visible only to the maintainer and you, and the fix can be discussed there.
+2. Only if that does not work for you: contact the maintainer, [S3nc0](https://github.com/S3nc0), privately through the contact options on their GitHub profile, and say only that you have a security report. Details follow once you have a private channel.
 
 Please include what you found, where (file, route or command), the steps to reproduce it, what an attacker could do with it, and the version or commit. Do not include real tokens, secrets or other people's data; describe them instead.
 

@@ -72,6 +72,8 @@ Everything below runs inside Discord as an **Activity** (a mini app on your phon
   </tr>
 </table>
 
+Every screen opens on its own detailed pixel scene, drawn for day (light) and night (dark): a slot cabinet with chasing bulbs, a blackjack table, a grandstand and starting gate, the arena pit, the mine, the bank hall, the trading floor and more. They play short animations, and stay still when you ask for reduced motion.
+
 The interface speaks **English and Japanese** and follows your Discord language.
 
 ## Quick start
@@ -145,19 +147,22 @@ packages/ui/     Bitbloom pixel components, icons and sounds
 catalogs/        tunable numbers (YAML)
 docs/            guides, specs and architecture notes
 design/          Bitbloom design tokens
+tools/pixel-art/ generators for every icon, sprite and scene
+tests/           multi-client socket suites and ledger property tests
 ops/             Raspberry Pi kit and tunnel templates
-legacy/          the original Python bot, kept for reference
 ```
+
+The original Python bot is not in the tree any more; it lives in git history before v1.0.0.
 
 New here? Start with [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md), then the [behaviour specs](docs/spec/INDEX.md). Project progress lives in [docs/STATUS.md](docs/STATUS.md).
 
-**For maintainers:** [Maintainer guide](MAINTAINERS.md) · [Contributing](CONTRIBUTING.md) · [Security](SECURITY.md) · [Changelog](CHANGELOG.md) · [Architecture](docs/ARCHITECTURE.md)
+**For maintainers:** [Maintainer guide](MAINTAINERS.md) · [Contributing](CONTRIBUTING.md) · [Security](SECURITY.md) · [Changelog](CHANGELOG.md) · [Architecture](docs/ARCHITECTURE.md) · [Credits](CREDITS.md)
 
 ## Credits
 
 - **Upstream bot:** [fatcorn753/discord-casino-bot](https://github.com/fatcorn753/discord-casino-bot), the original Discord casino bot and the source of the game rules. This is a hard fork, rewritten in TypeScript as an Activity plus chat bot.
 - **Authors:** fatcorn753 (original) and S3nc0 (remaster), as in the [LICENSE](LICENSE).
-- **Assets:** ZzFX sound synth, Pixelify Sans and Atkinson Hyperlegible. Authors and licenses are listed in [CREDITS.md](CREDITS.md).
+- **Assets:** ZzFX sound synth, Pixelify Sans, Atkinson Hyperlegible, the codixel pixel art kit and the public-domain and CC0 references behind the horse, the fighters and the miner. Authors and licenses are listed in [CREDITS.md](CREDITS.md).
 
 ## License
 

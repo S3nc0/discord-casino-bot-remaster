@@ -121,13 +121,16 @@
 
 ## 5. バックアップから復元する
 
-1. サーバーを止め、バックアップファイルを `casino.sqlite` へ上書きコピーしてから起動し直します。
+1. サーバーを止め、古い `casino.sqlite-wal` と `casino.sqlite-shm` を削除し、バックアップファイルを `casino.sqlite` へ上書きコピーしてから起動し直します。
 
    ```sh
    sudo systemctl stop discord-casino.service
+   sudo -u casino rm -f /opt/discord-casino/data/casino.sqlite-wal /opt/discord-casino/data/casino.sqlite-shm
    sudo -u casino cp /var/backups/discord-casino/casino-YYYYMMDD-HHMMSS.sqlite /opt/discord-casino/data/casino.sqlite
    sudo systemctl start discord-casino.service
    ```
+
+   `-wal` と `-shm` は、置き換える前のデータベースのファイルです。残っていると、SQLite が復元したファイルにそれを適用しようとすることがあります。復元すると、バックアップより後の変更はすべて消えるので、プレイヤーに知らせてください。
 
 ✅ **確認:** `sudo systemctl status discord-casino.service` が `active (running)` になり、`journalctl` にデータベースエラーが出ていません。
 
