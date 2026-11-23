@@ -36,6 +36,8 @@ export interface TournamentRow {
   format: ArenaFormat;
   status: TournamentStatus;
   champion_id: number | null;
+  /** Second place of the final; null until it is settled and for tournaments finished before 0011. */
+  runner_up_id: number | null;
 }
 
 export interface MatchReport {
@@ -45,6 +47,8 @@ export interface MatchReport {
   winnerIds: number[];
   /** Cosmetic HP frames per match, same order as `winnerIds`. */
   frames: number[][][];
+  /** Fighter id of the final's runner-up; set for the final only. */
+  runnerUpId?: number;
 }
 
 /** Daily NPC tournaments (1on1 and battle royale) with spectator betting. */
@@ -265,6 +269,7 @@ export class ArenaService {
             );
       const winnerIds: number[] = [];
       const frames: number[][][] = [];
+      let runnerUpId: number | undefined;
       const perUser = new Map<string, { stake: number; payout: number }>();
       for (const group of groups) {
         const power = group.map((f) => ({ basePower: f.base_power, betTotal: f.bet_total }));
@@ -272,6 +277,18 @@ export class ArenaService {
         const winner = group[winnerIdx] as FighterRow;
         winnerIds.push(winner.id);
         frames.push(battleFrames(group.length, winnerIdx, ctx.rng));
+        if (stage === 'final') {
+          // Second place: the same weighted match again among the fighters the winner beat.
+          const rest = group.filter((f) => f.id !== winner.id);
+          const second =
+            rest[
+              simulateMatch(
+                rest.map((f) => ({ basePower: f.base_power, betTotal: f.bet_total })),
+                ctx.rng,
+              )
+            ];
+          runnerUpId = second?.id;
+        }
         const odds = matchOdds(power, stage === 'final');
         const ids = group.map((f) => f.id);
         const bets = (
@@ -350,9 +367,17 @@ export class ArenaService {
           .run(t.id);
       else
         ctx.store
-          .stmt(`UPDATE arena_tournaments SET status = 'done', champion_id = ? WHERE id = ?`)
-          .run(winnerIds[0], t.id);
-      return { tournamentId: t.id, stage, winnerIds, frames };
+          .stmt(
+            `UPDATE arena_tournaments SET status = 'done', champion_id = ?, runner_up_id = ? WHERE id = ?`,
+          )
+          .run(winnerIds[0], runnerUpId ?? null, t.id);
+      return {
+        tournamentId: t.id,
+        stage,
+        winnerIds,
+        frames,
+        ...(runnerUpId !== undefined ? { runnerUpId } : {}),
+      };
     });
   }
 }

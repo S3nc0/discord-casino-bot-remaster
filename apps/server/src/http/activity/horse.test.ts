@@ -431,12 +431,20 @@ describe('arena', () => {
     const duel = mid.tournaments.find((t: { format: string }) => t.format === 'duel');
     expect(duel.status).toBe('final_betting');
     expect(duel.fighters.filter((f: { stage: string }) => f.stage === 'final')).toHaveLength(2);
+    expect(duel.runnerUpId).toBeNull();
     server.clock.set(jst(13, 5));
     server.games.arena.advance(GUILD);
     const end = (await me.get(ARENA_ROUTES.today)).json();
     const done = end.tournaments.find((t: { format: string }) => t.format === 'duel');
     expect(done.status).toBe('done');
     expect(done.championId).not.toBeNull();
+    // The runner-up is the other finalist, and the result is part of the contract.
+    expect(Value.Check(ArenaToday, end)).toBe(true);
+    const finalists = done.fighters
+      .filter((f: { result: string | null }) => f.result !== null)
+      .map((f: { id: number }) => f.id);
+    expect(finalists).toContain(done.runnerUpId);
+    expect(done.runnerUpId).not.toBe(done.championId);
   });
 });
 

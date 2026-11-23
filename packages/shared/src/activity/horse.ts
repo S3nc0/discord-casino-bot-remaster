@@ -490,6 +490,8 @@ export const ArenaTournament = Type.Object({
   day: Type.String(),
   status: Type.Enum(ARENA_STATUSES),
   championId: Type.Union([Type.Integer(), Type.Null()]),
+  /** Second place of the final; null until it is settled (and for days finished before it was stored). */
+  runnerUpId: Type.Union([Type.Integer(), Type.Null()]),
   fighters: Type.Array(ArenaFighter),
   myBets: Type.Array(ArenaMyBet),
   /** When the semifinals and the final resolve (epoch ms). */
