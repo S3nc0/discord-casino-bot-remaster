@@ -160,7 +160,41 @@ const MAX_STEPS = (STAT_MAX - STAT_MIN) / STEP;
 const RANGE_CACHE_LIMIT = 128;
 
 type Ranges = { total: StatRange; stats: Record<StatKey, StatRange> };
-const RANGE_CACHE = new Map<string, Ranges>();
+
+export interface RangeCache {
+  get(a: Stats, b: Stats): Ranges;
+  /** Entries held now (never more than the limit). */
+  size(): number;
+}
+
+/**
+ * A least-recently-used cache of foal ranges. The limit and the compute function are parameters
+ * so the bound can be tested with a small limit and a stub; production uses the defaults below.
+ */
+export function createRangeCache(
+  limit: number = RANGE_CACHE_LIMIT,
+  compute: (a: Stats, b: Stats) => Ranges = computeFoalRanges,
+): RangeCache {
+  const entries = new Map<string, Ranges>();
+  return {
+    get(a, b) {
+      const key = STAT_KEYS.map((k) => `${a[k]},${b[k]}`).join(';');
+      const cached = entries.get(key);
+      if (cached) {
+        entries.delete(key);
+        entries.set(key, cached);
+        return cached;
+      }
+      const computed = compute(a, b);
+      if (entries.size >= limit) entries.delete(entries.keys().next().value as string);
+      entries.set(key, computed);
+      return computed;
+    },
+    size: () => entries.size,
+  };
+}
+
+const RANGES = createRangeCache();
 
 /**
  * Every foal the two parents can have: the minimum and maximum of each stat and of the total over
@@ -168,24 +202,12 @@ const RANGE_CACHE = new Map<string, Ranges>();
  * live in a small least-recently-used cache.
  */
 export function foalRanges(a: Stats, b: Stats): Ranges {
-  const cacheKey = STAT_KEYS.map((k) => `${a[k]},${b[k]}`).join(';');
-  const cached = RANGE_CACHE.get(cacheKey);
-  if (cached) {
-    RANGE_CACHE.delete(cacheKey);
-    RANGE_CACHE.set(cacheKey, cached);
-    return cached;
-  }
-  const computed = computeFoalRanges(a, b);
-  if (RANGE_CACHE.size >= RANGE_CACHE_LIMIT) {
-    RANGE_CACHE.delete(RANGE_CACHE.keys().next().value as string);
-  }
-  RANGE_CACHE.set(cacheKey, computed);
-  return computed;
+  return RANGES.get(a, b);
 }
 
 /** Entries in the range cache (bounded by `RANGE_CACHE_LIMIT`). */
 export function foalRangeCacheSize(): number {
-  return RANGE_CACHE.size;
+  return RANGES.size();
 }
 
 const toward0 = (x: number): number => (x < 0 ? -Math.floor(-x) : Math.floor(x));

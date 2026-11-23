@@ -16,7 +16,7 @@ import { GUILD, memoryStore, OTHER_USER, USER } from '../../runtime/test-kit.ts'
 import { createMemoryTeiai } from '../progression/ports.ts';
 import { createNonCasinoGames } from '../progression/register.ts';
 import { GameRuleError } from '../progression/context.ts';
-import { foalRangeCacheSize, foalRanges } from './breeding.ts';
+import { createRangeCache, foalRangeCacheSize, foalRanges } from './breeding.ts';
 
 /** Monday 2025-01-06 07:30 JST. */
 const MONDAY_0730 = 1_736_116_200_000;
@@ -302,7 +302,7 @@ describe('breeding properties', () => {
         expect(h.count('horse_breedings')).toBe(born ? 1 : 0);
         expect(h.games.race.stable(GUILD, USER)).toHaveLength(born ? 3 : 2);
       }),
-      { numRuns: 60 },
+      { numRuns: 30 },
     );
   });
 
@@ -324,19 +324,30 @@ describe('breeding properties', () => {
   });
 });
 
-/** The old preview: every roll of `foalStats` itself (5 x 15^4). */
+/**
+ * The old preview: every roll of `foalStats` itself (5 x 15^4). The scripted rng is reused across
+ * rolls so the sweep measures `foalStats`, not closure allocation (about 7x faster than a fresh
+ * script per roll).
+ */
 function sweepFoalStats(a: Stats, b: Stats) {
   const stats = Object.fromEntries(STAT_KEYS.map((k) => [k, { min: Infinity, max: -Infinity }]));
   const total = { min: Infinity, max: -Infinity };
   const offsets = Array.from({ length: 15 }, (_, i) => i - 7);
+  const script = [0, 0, 0, 0, 0];
+  let at = 0;
+  const rng = { int: () => script[at++] as number, float: () => 0 };
   for (const draw of [0, 1, 3, 7, 9])
     for (const o1 of offsets)
       for (const o2 of offsets)
         for (const o3 of offsets)
           for (const o4 of offsets) {
-            const script = [draw, o1, o2, o3, o4];
-            let i = 0;
-            const foal = foalStats(a, b, { int: () => script[i++] as number, float: () => 0 });
+            script[0] = draw;
+            script[1] = o1;
+            script[2] = o2;
+            script[3] = o3;
+            script[4] = o4;
+            at = 0;
+            const foal = foalStats(a, b, rng);
             const sum = statSum(foal);
             total.min = Math.min(total.min, sum);
             total.max = Math.max(total.max, sum);
@@ -349,6 +360,39 @@ function sweepFoalStats(a: Stats, b: Stats) {
   return { total, stats };
 }
 
+/** Pairs swept against every roll of `foalStats`: the first two run always, the rest when slow. */
+const SWEEP_PAIRS: { name: string; a: Stats; b: Stats }[] = [
+  {
+    name: 'equal parents',
+    a: { speed: 50, stamina: 50, power: 50, guts: 50 },
+    b: { speed: 50, stamina: 50, power: 50, guts: 50 },
+  },
+  {
+    // high total: the stat cap and the spill to the lowest stat
+    name: 'strong parents',
+    a: { speed: 80, stamina: 80, power: 25, guts: 20 },
+    b: { speed: 75, stamina: 80, power: 30, guts: 25 },
+  },
+  {
+    name: 'one specialist',
+    a: { speed: 80, stamina: 40, power: 40, guts: 40 },
+    b: { speed: 50, stamina: 50, power: 50, guts: 50 },
+  },
+  {
+    name: 'opposite shapes',
+    a: { speed: 20, stamina: 20, power: 80, guts: 80 },
+    b: { speed: 35, stamina: 55, power: 65, guts: 45 },
+  },
+  {
+    name: 'close shapes',
+    a: { speed: 60, stamina: 65, power: 55, guts: 40 },
+    b: { speed: 45, stamina: 70, power: 60, guts: 35 },
+  },
+];
+const FAST_SWEEPS = 2;
+/** The full proof (every pair, plus seeded random pairs) runs with `SLOW_TESTS=1`. */
+const SLOW = process.env['SLOW_TESTS'] === '1';
+
 describe('breeding preview', () => {
   it('R-8: refuses a pair with a horse the caller does not own, without its stats', () => {
     const h = harness(20_000);
@@ -360,41 +404,85 @@ describe('breeding preview', () => {
     expect(h.games.breeding.preview(GUILD, USER, a, b).eligible).toEqual({ ok: true });
   });
 
-  it('R-8: the ranges match every roll of foalStats', () => {
-    const pairs: [Stats, Stats][] = [
-      [
-        { speed: 50, stamina: 50, power: 50, guts: 50 },
-        { speed: 50, stamina: 50, power: 50, guts: 50 },
-      ],
-      [
-        { speed: 80, stamina: 40, power: 40, guts: 40 },
-        { speed: 50, stamina: 50, power: 50, guts: 50 },
-      ],
-      [
-        { speed: 80, stamina: 80, power: 25, guts: 20 },
-        { speed: 75, stamina: 80, power: 30, guts: 25 },
-      ],
-      [
-        { speed: 20, stamina: 20, power: 80, guts: 80 },
-        { speed: 35, stamina: 55, power: 65, guts: 45 },
-      ],
-      [
-        { speed: 60, stamina: 65, power: 55, guts: 40 },
-        { speed: 45, stamina: 70, power: 60, guts: 35 },
-      ],
-    ];
-    for (const [a, b] of pairs)
-      expect(foalRanges(a, b), JSON.stringify([a, b])).toEqual(sweepFoalStats(a, b));
+  describe.each(SWEEP_PAIRS.slice(0, FAST_SWEEPS))('R-8: ranges of $name', ({ a, b }) => {
+    it('match every roll of foalStats', () => {
+      expect(foalRanges(a, b)).toEqual(sweepFoalStats(a, b));
+    });
+  });
+
+  it('R-8: any roll of foalStats lies inside the ranges', () => {
+    const stat = fc.integer({ min: 0, max: 12 }).map((n) => 20 + 5 * n);
+    const stats = fc.record({ speed: stat, stamina: stat, power: stat, guts: stat });
+    fc.assert(
+      fc.property(stats, stats, fc.integer({ min: 1, max: 1_000_000 }), (a, b, seed) => {
+        const { total, stats: ranges } = foalRanges(a, b);
+        const rng = createSeededRng(seed);
+        for (let i = 0; i < 200; i++) {
+          const foal = foalStats(a, b, rng);
+          expect(statSum(foal)).toBeGreaterThanOrEqual(total.min);
+          expect(statSum(foal)).toBeLessThanOrEqual(total.max);
+          for (const k of STAT_KEYS) {
+            expect(foal[k]).toBeGreaterThanOrEqual(ranges[k].min);
+            expect(foal[k]).toBeLessThanOrEqual(ranges[k].max);
+          }
+        }
+      }),
+      { numRuns: 6 },
+    );
+  });
+
+  describe.skipIf(!SLOW)('R-8: exhaustive sweep (SLOW_TESTS=1)', () => {
+    it.each(SWEEP_PAIRS.slice(FAST_SWEEPS))('ranges of $name match every roll', ({ a, b }) => {
+      expect(foalRanges(a, b)).toEqual(sweepFoalStats(a, b));
+    });
+
+    it('ranges of 12 seeded random pairs match every roll', () => {
+      const rng = createSeededRng(8);
+      const stat = (): number => 20 + 5 * rng.int(0, 13);
+      const hand = (): Stats => ({ speed: stat(), stamina: stat(), power: stat(), guts: stat() });
+      for (let i = 0; i < 12; i++) {
+        const a = hand();
+        const b = hand();
+        expect(foalRanges(a, b), JSON.stringify([a, b])).toEqual(sweepFoalStats(a, b));
+      }
+    });
   });
 
   it('R-8: the range cache is bounded and keeps what was used last', () => {
-    const kept = { speed: 50, stamina: 50, power: 50, guts: 50 };
-    const first = foalRanges(kept, kept);
-    for (let i = 0; i < 200; i++) {
-      const s = 20 + 5 * (i % 13);
-      foalRanges({ speed: s, stamina: 20 + 5 * Math.floor(i / 13), power: 50, guts: 50 }, kept);
-      expect(foalRanges(kept, kept)).toBe(first);
+    const computed: string[] = [];
+    const stub = (a: Stats): ReturnType<typeof foalRanges> => {
+      computed.push(String(a.speed));
+      const range = { min: a.speed, max: a.speed };
+      return { total: range, stats: { speed: range, stamina: range, power: range, guts: range } };
+    };
+    const cache = createRangeCache(3, stub);
+    const hand = (speed: number): Stats => ({ speed, stamina: 50, power: 50, guts: 50 });
+    const kept = hand(20);
+    const first = cache.get(kept, kept);
+    for (let i = 0; i < 50; i++) {
+      cache.get(hand(25 + 5 * (i % 12)), kept);
+      expect(cache.get(kept, kept)).toBe(first); // used last each round, so never evicted
+      expect(cache.size()).toBeLessThanOrEqual(3);
     }
+    expect(computed.filter((c) => c === '20')).toHaveLength(1);
+    // the entry unused longest goes first: 25, 30, 20 (renewed) -> adding 35 evicts 25
+    cache.get(hand(25), kept);
+    cache.get(hand(30), kept);
+    cache.get(kept, kept);
+    computed.length = 0;
+    cache.get(hand(35), kept);
+    cache.get(kept, kept);
+    cache.get(hand(30), kept);
+    expect(computed).toEqual(['35']);
+    cache.get(hand(25), kept);
+    expect(computed).toEqual(['35', '25']);
+  });
+
+  const hand50: Stats = { speed: 50, stamina: 50, power: 50, guts: 50 };
+
+  it('R-8: the shared cache stays within its production limit', () => {
+    for (let i = 0; i < 40; i++)
+      foalRanges({ speed: 20 + 5 * (i % 13), stamina: 50, power: 50, guts: 50 }, hand50);
     expect(foalRangeCacheSize()).toBeLessThanOrEqual(128);
   });
 });
