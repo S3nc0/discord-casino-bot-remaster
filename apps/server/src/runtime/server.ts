@@ -42,6 +42,12 @@ import { createLogger } from './logger.ts';
 import { cryptoRng } from './rng.ts';
 import { Scheduler, type CronDriver } from './scheduler.ts';
 
+/**
+ * Proxies between the client and this server: the tunnel, which appends the client address to
+ * `X-Forwarded-For`. Only that last entry is believed, so a client cannot choose its own address.
+ */
+export const TRUSTED_PROXY_HOPS = 1;
+
 export interface CreateServerOptions {
   config: Config;
   /** Defaults to the real clock. */

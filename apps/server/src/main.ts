@@ -3,7 +3,7 @@ import { dirname } from 'node:path';
 import { ConfigError, loadConfig } from './runtime/config.ts';
 import { startRuntime } from './runtime/lifecycle.ts';
 import { installProcessGuards } from './runtime/process-guard.ts';
-import { createServer } from './runtime/server.ts';
+import { createServer, TRUSTED_PROXY_HOPS } from './runtime/server.ts';
 
 // Entry point of the single server process. `createServer` builds every service and registers
 // the scheduler's jobs; `startRuntime` starts the bot, HTTP, sockets and jobs. This file only
@@ -22,9 +22,9 @@ async function main(): Promise<void> {
 
   if (config.databasePath !== ':memory:')
     mkdirSync(dirname(config.databasePath), { recursive: true });
-  // Bound to loopback by default and reached through the tunnel, so forwarded headers are
-  // trusted for the client address (rate limits).
-  const server = createServer({ config, trustProxy: true });
+  // Bound to loopback by default and reached through the tunnel: one proxy hop is believed for the
+  // client address (rate limits), never a chain a client wrote itself.
+  const server = createServer({ config, trustProxy: TRUSTED_PROXY_HOPS });
   installProcessGuards(server.logger);
   const runtime = await startRuntime(server, config);
   server.logger.info({ address: runtime.address, env: config.nodeEnv }, 'casino server listening');
