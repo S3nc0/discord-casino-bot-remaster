@@ -103,6 +103,7 @@ export function createServer(options: CreateServerOptions): CasinoServices {
   const sessions = new SessionService({
     secret: config.sessionSecret,
     clock,
+    isGuildDenied: (guildId) => identity.getGuildStatus(guildId) === 'denied',
     ...(options.sessionTtlSeconds === undefined ? {} : { ttlSeconds: options.sessionTtlSeconds }),
   });
   const launchIntents = new SqliteLaunchIntentService(store, clock);

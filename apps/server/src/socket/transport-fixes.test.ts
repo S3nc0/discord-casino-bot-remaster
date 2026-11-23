@@ -226,3 +226,50 @@ describe('R-4: private domain events go to their user, not the guild', () => {
     expect(seen).toEqual([]);
   });
 });
+
+const failedWith = (c: Client): Promise<{ message: string; data?: unknown }> =>
+  new Promise((resolve, reject) => {
+    c.once('connect', () => reject(new Error('connected unexpectedly')));
+    c.once('connect_error', (e) => resolve(e as { message: string; data?: unknown }));
+  });
+
+describe('R-7: a denied guild loses its sockets', () => {
+  it('R-7: the handshake of a denied guild is refused', async () => {
+    const url = await start();
+    const token = await loginAs(USER);
+    server.identity.setGuildStatus(GUILD, 'denied', 'owner');
+    const err = await failedWith(open(url, token));
+    expect(err.data).toEqual({ error: 'guild_not_allowed' });
+  });
+
+  it('R-7: revokeGuild disconnects every live socket of that guild at once', async () => {
+    const url = await start();
+    const a = open(url, await loginAs(USER));
+    const b = open(url, await loginAs(OTHER_USER));
+    await Promise.all([connected(a), connected(b)]);
+    const closed = Promise.all([a, b].map((c) => new Promise((r) => c.once('disconnect', r))));
+    server.identity.setGuildStatus(GUILD, 'denied', 'owner');
+    server.sessions.revokeGuild(GUILD);
+    await closed;
+    expect(server.io.sockets.sockets.size).toBe(0);
+  });
+
+  it('R-7: even without the hook, the next event of a denied guild ends the socket', async () => {
+    const url = await start({ socketHandlers: { bet: () => ACK_OK } });
+    const client = open(url, await loginAs(USER));
+    await connected(client);
+    const closed = new Promise((r) => client.once('disconnect', r));
+    server.identity.setGuildStatus(GUILD, 'denied', 'owner');
+    client.emit('time:ping', () => {});
+    await closed;
+  });
+
+  it('R-7: revokeGuild leaves other guilds alone', async () => {
+    const url = await start();
+    const client = open(url, await loginAs(USER));
+    await connected(client);
+    server.sessions.revokeGuild('234567890123456780');
+    await settle(150);
+    expect(client.connected).toBe(true);
+  });
+});

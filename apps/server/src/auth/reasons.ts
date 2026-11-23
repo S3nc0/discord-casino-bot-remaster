@@ -1,4 +1,5 @@
 import type { ProxyRejection } from '@casino/shared';
+import { AppError } from '../runtime/errors.ts';
 
 /**
  * Stable reason codes for every 401/403 on the auth path. One warn log line carries one of
@@ -16,6 +17,7 @@ export const REASONS = {
   sessionExpired: 'session_expired',
   guildNotAllowed: 'guild_not_allowed',
   guildPending: 'guild_pending',
+  guildDenied: 'guild_denied',
   scopeMissing: 'scope_missing',
   userNotInGuild: 'user_not_in_guild',
   instanceMismatch: 'instance_mismatch',
@@ -49,4 +51,20 @@ export function missingProxyHeaders(request: {
 /** The step of the Discord round trip that failed, with Discord's HTTP status when it said no. */
 export function discordStepReason(step: string, status: number | undefined): string {
   return `${step}_failed:${status ?? 'network'}`;
+}
+
+/** Why `SessionService.verify` said no, as the stable reason code. */
+export const SESSION_FAILURE_REASON = {
+  expired: REASONS.sessionExpired,
+  revoked: REASONS.sessionRevoked,
+  invalid: REASONS.sessionInvalid,
+  guild_denied: REASONS.guildDenied,
+} as const;
+
+/** The refusal for a session that did not verify. */
+export function sessionError(reason: keyof typeof SESSION_FAILURE_REASON): AppError {
+  const options = { reason: SESSION_FAILURE_REASON[reason] };
+  if (reason === 'expired') return new AppError('expired', options);
+  if (reason === 'guild_denied') return new AppError('guild_not_allowed', options);
+  return new AppError('unauthorized', options);
 }

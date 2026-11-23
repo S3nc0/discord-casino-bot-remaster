@@ -37,7 +37,7 @@ import {
   decisionReason,
   type ProxySignatureState,
 } from '../auth/proxy-policy.ts';
-import { REASONS } from '../auth/reasons.ts';
+import { REASONS, sessionError } from '../auth/reasons.ts';
 import type { FinanceServices } from '../finance/index.ts';
 import { GameRuleError } from '../games/progression/context.ts';
 import { AppError } from '../runtime/errors.ts';
@@ -257,14 +257,7 @@ export function buildApp(deps: AppDeps): FastifyInstance {
       }
       const check = deps.sessions.verify(match[1]);
       if (!check.ok) {
-        const reason = {
-          expired: REASONS.sessionExpired,
-          revoked: REASONS.sessionRevoked,
-          invalid: REASONS.sessionInvalid,
-        }[check.reason];
-        return hookDone(
-          new AppError(check.reason === 'expired' ? 'expired' : 'unauthorized', { reason }),
-        );
+        return hookDone(sessionError(check.reason));
       }
       request.session = check.claims;
       if (request.proxySignature !== null) {

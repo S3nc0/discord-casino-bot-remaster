@@ -12,7 +12,8 @@ export interface IssuedSession {
 }
 
 export type SessionCheck =
-  { ok: true; claims: SessionClaims } | { ok: false; reason: 'invalid' | 'expired' | 'revoked' };
+  | { ok: true; claims: SessionClaims }
+  | { ok: false; reason: 'invalid' | 'expired' | 'revoked' | 'guild_denied' };
 
 /** Issues and verifies our own session tokens; remembers revoked token ids until they expire. */
 export class SessionService {
@@ -22,8 +23,20 @@ export class SessionService {
   /** jti → exp (seconds). Entries are dropped once the token could not verify anyway. */
   private readonly revoked = new Map<string, number>();
   private readonly revokeListeners = new Set<(jti: string) => void>();
+  private readonly guildRevokeListeners = new Set<(guildId: string) => void>();
+  private readonly isGuildDenied: (guildId: string) => boolean;
 
-  constructor(options: { secret: string; clock: Clock; ttlSeconds?: number }) {
+  constructor(options: {
+    secret: string;
+    clock: Clock;
+    ttlSeconds?: number;
+    /**
+     * Whether the owner denied this guild (`guilds.status = 'denied'`, persisted). Asked on every
+     * `verify`, so a revoked guild loses its sessions at once and keeps losing them after a restart.
+     */
+    isGuildDenied?: (guildId: string) => boolean;
+  }) {
+    this.isGuildDenied = options.isGuildDenied ?? (() => false);
     this.secret = options.secret;
     this.clock = options.clock;
     this.ttlSeconds = options.ttlSeconds ?? SESSION_TTL_SECONDS;
@@ -59,7 +72,29 @@ export class SessionService {
     if (!result.ok)
       return { ok: false, reason: result.reason === 'expired' ? 'expired' : 'invalid' };
     if (this.isRevoked(result.claims.jti)) return { ok: false, reason: 'revoked' };
+    if (this.guildDenied(result.claims.gid)) return { ok: false, reason: 'guild_denied' };
     return { ok: true, claims: result.claims };
+  }
+
+  /** True while the owner has denied this guild. */
+  guildDenied(guildId: string): boolean {
+    return this.isGuildDenied(guildId);
+  }
+
+  /**
+   * The bot calls this after it marks a guild `denied` (`/admin server-revoke`): every live socket
+   * of the guild is dropped now. HTTP and new handshakes are refused by `verify` from then on, as
+   * the denied status itself is what they read.
+   */
+  revokeGuild(guildId: string): void {
+    for (const listener of this.guildRevokeListeners) listener(guildId);
+  }
+
+  onRevokeGuild(listener: (guildId: string) => void): () => void {
+    this.guildRevokeListeners.add(listener);
+    return () => {
+      this.guildRevokeListeners.delete(listener);
+    };
   }
 
   /** Revoke one session. Live sockets of that session are told through `onRevoke`. */

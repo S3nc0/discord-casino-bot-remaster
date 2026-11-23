@@ -83,7 +83,8 @@ export class TokenFlow {
     identity.ensureGuild(request.guildId, 'approved', guild.name);
     if (guild.name) identity.setGuildName(request.guildId, guild.name);
     const status = identity.getGuildStatus(request.guildId);
-    if (status === 'denied') throw new AppError('guild_not_allowed', { reason: 'guild_denied' });
+    if (status === 'denied')
+      throw new AppError('guild_not_allowed', { reason: REASONS.guildDenied });
     if (status !== 'approved') identity.setGuildStatus(request.guildId, 'approved');
 
     // Everything below commits together: the member and its start balance, and the intent.

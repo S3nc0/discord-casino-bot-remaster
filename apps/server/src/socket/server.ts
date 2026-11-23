@@ -32,7 +32,7 @@ import {
   decisionReason,
   type ProxySignatureState,
 } from '../auth/proxy-policy.ts';
-import { REASONS } from '../auth/reasons.ts';
+import { REASONS, SESSION_FAILURE_REASON } from '../auth/reasons.ts';
 import type { SessionService } from '../auth/sessions.ts';
 import type { IdentityRepo } from '../db/identity.ts';
 import type { InboxService } from '../db/inbox.ts';
@@ -234,16 +234,20 @@ export function attachSocketServer(options: SocketServerOptions): SocketServer {
     }
     const check = sessions.verify(token);
     if (!check.ok) {
-      const detail = {
-        expired: REASONS.sessionExpired,
-        revoked: REASONS.sessionRevoked,
-        invalid: REASONS.sessionInvalid,
-      }[check.reason];
+      const detail = SESSION_FAILURE_REASON[check.reason];
       logger.warn(
         { reason: REASONS.socketAuthFailed, detail, transport: 'socket' },
         `auth rejected: ${REASONS.socketAuthFailed}`,
       );
-      return next(rejection(check.reason === 'expired' ? 'expired' : 'unauthorized'));
+      return next(
+        rejection(
+          check.reason === 'expired'
+            ? 'expired'
+            : check.reason === 'guild_denied'
+              ? 'guild_not_allowed'
+              : 'unauthorized',
+        ),
+      );
     }
     const claims = check.claims;
     socket.data.userId = claims.sub;
@@ -262,6 +266,15 @@ export function attachSocketServer(options: SocketServerOptions): SocketServer {
       `auth rejected: ${REASONS.sessionExpired}`,
     );
     socket.emit('session:error', { error: 'expired' });
+    socket.disconnect(true);
+  };
+
+  const denyGuild = (socket: CasinoSocket): void => {
+    logger.warn(
+      { reason: REASONS.guildDenied, transport: 'socket' },
+      `auth rejected: ${REASONS.guildDenied}`,
+    );
+    socket.emit('session:error', { error: 'guild_not_allowed' });
     socket.disconnect(true);
   };
 
@@ -299,6 +312,11 @@ export function attachSocketServer(options: SocketServerOptions): SocketServer {
     socket.use((packet, next) => {
       if (isSessionExpired(socket.data, clock.now())) {
         expire(socket);
+        return;
+      }
+      // The owner may have denied the guild since the handshake.
+      if (sessions.guildDenied(socket.data.guildId)) {
+        denyGuild(socket);
         return;
       }
       const [event, ...args] = packet as [string, ...unknown[]];
@@ -397,6 +415,13 @@ export function attachSocketServer(options: SocketServerOptions): SocketServer {
     }
   });
 
+  // A revoked guild loses its sockets at once.
+  const offRevokeGuild = sessions.onRevokeGuild((guildId) => {
+    for (const socket of io.sockets.sockets.values()) {
+      if (socket.data.guildId === guildId) denyGuild(socket);
+    }
+  });
+
   // Fan-out of committed events to rooms.
   // Guild-public events go to the guild room; everything else only to the sockets of the users
   // it names, and only the ones signed in to that guild (a user room spans guilds).
@@ -424,6 +449,7 @@ export function attachSocketServer(options: SocketServerOptions): SocketServer {
     io,
     async close() {
       offRevoke();
+      offRevokeGuild();
       offDomain();
       offBalance();
       offUnread();
