@@ -4,6 +4,8 @@
 
 Master index mapping every legacy module to its behaviour specification, deterministic parity fixture directory, and planned porting owner.
 
+> **Where the original code lives.** The original Python bot was removed from the tree for v1.0.0; it stays in git history. Every `.py` path in these specs (`domain/…`, `infra/…`, `services/…`, `cogs/…`, `manage.py`) is relative to that bot's folder, with line numbers as of then. To read one: `git show "$(git log --diff-filter=D --format=%H -1 -- legacy/python)^:legacy/python/domain/horse.py"`. The rules and numbers here are what the remaster implements; where the remaster differs, the spec says so.
+
 - **B2-A**: Casino games (`chinchiro`, `pachinko`, `slots`, `blackjack`, `roulette`, plus shared `casino-common` mechanics).
 - **B2-B**: Non-casino games, progression, social games, shop, and core economy (`horse`, `arena`, `labor`, `relics`, `quiz`, `lottery`, `polls`, `shop`, `missions`, `weekly-ranking`, `daily`, `transfer`, `economy-core`, `admin`).
 - **B3**: Finance, securities, banking, credit, mutual fund, companies, and player market (`stocks`, `crypto`, `teiai`, `p2p-loans`, `kyosai`, `player-market`, `companies`).
@@ -50,6 +52,6 @@ Master index mapping every legacy module to its behaviour specification, determi
 
 - **Per-guild economy** and **3,000 start** are merged into [economy-core.md](economy-core.md) because they share the same `AccountCore` / `WalletRepo` initialization path and `users` table schema.
 - **Teiai Bank** sub-systems **P2P Loans** ([p2p-loans.md](p2p-loans.md)) and **Teiai Kyosai** ([kyosai.md](kyosai.md)) are given dedicated spec files and fixture directories alongside [teiai.md](teiai.md) because each has an independent domain module, database schema, and state machine.
-- **Horse breeding** is listed in the task prompt but does not exist anywhere in `legacy/python/`; [horse.md](horse.md) explicitly documents its absence.
+- **Horse breeding** does not exist anywhere in the original Python bot; [horse.md](horse.md) documents its absence, and the remaster's own design is [horse-breeding.md](horse-breeding.md).
 - **Crypto** (`/暗号`) was merged into `/証券` (`cs` = `CSトークン`) in legacy; [crypto.md](crypto.md) documents the `CryptoRepo` spot ledger and cross-references [stocks.md](stocks.md) for market ticks and margin.
 - **Casino Common** ([casino-common.md](casino-common.md)) extracts shared RTP-level, jackpot, bonus-event, and escrow rules once so the 5 individual casino specs avoid duplication.

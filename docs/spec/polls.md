@@ -7,12 +7,13 @@
 ## 1. Source Files
 
 - `catalogs/economy.yaml` (L94–L101): `poll` constants
-- `legacy/python/domain/poll.py` (L1–L17): constants and `shown(real, adj)` clamping
-- `legacy/python/infra/db/poll.py` (L1–L140): `PollRepo` create, vote, rig, close_due
-- `legacy/python/services/poll.py` (L1–L45): `PollService` facade
-- `legacy/python/cogs/poll/cog.py` (L1–L177): `/投票 作成`, persistent button handler, rig announcement, 1-minute closer loop
-- `legacy/python/cogs/poll/views.py` (L1–L105): `PollButton`, `RigModal`, `poll_embed`, `verdict`
-- `legacy/python/cogs/shared/messages/economy.py` (L78–L83): failure messages
+- The original Python bot (see git history before v1.0.0), paths relative to its folder:
+  - `domain/poll.py` (L1–L17): constants and `shown(real, adj)` clamping
+  - `infra/db/poll.py` (L1–L140): `PollRepo` create, vote, rig, close_due
+  - `services/poll.py` (L1–L45): `PollService` facade
+  - `cogs/poll/cog.py` (L1–L177): `/投票 作成`, persistent button handler, rig announcement, 1-minute closer loop
+  - `cogs/poll/views.py` (L1–L105): `PollButton`, `RigModal`, `poll_embed`, `verdict`
+  - `cogs/shared/messages/economy.py` (L78–L83): failure messages
 
 ---
 

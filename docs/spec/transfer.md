@@ -6,12 +6,13 @@ Planned owner: `B2-B` | Screen ID: `transfer` (`packages/shared/src/ids.ts`) | F
 
 ## Source Files
 - `catalogs/economy.yaml:13-17`
-- `legacy/python/domain/types.py:84-90`
-- `legacy/python/infra/db/wallet.py:305-356`
-- `legacy/python/services/economy.py:132-148`
-- `legacy/python/cogs/economy/cog.py:35-40,256-317`
-- `legacy/python/cogs/shared/confirm.py:13-87`
-- `legacy/python/cogs/shared/messages/economy.py:20,84,88-97`
+- The original Python bot (see git history before v1.0.0), paths relative to its folder:
+  - `domain/types.py:84-90`
+  - `infra/db/wallet.py:305-356`
+  - `services/economy.py:132-148`
+  - `cogs/economy/cog.py:35-40,256-317`
+  - `cogs/shared/confirm.py:13-87`
+  - `cogs/shared/messages/economy.py:20,84,88-97`
 
 ## Rules & Exact Numbers
 

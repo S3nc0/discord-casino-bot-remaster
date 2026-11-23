@@ -7,12 +7,13 @@
 ## 1. Source Files
 
 - `catalogs/economy.yaml` (L54–L59): `raffle` constants
-- `legacy/python/infra/db/raffle.py` (L1–L109): `RaffleRepo` open, join, close/draw/refund
-- `legacy/python/services/raffle.py` (L1–L45): `RaffleService` facade
-- `legacy/python/cogs/raffle/cog.py` (L1–L230): `RaffleCog` admin host/repost/cancel, persistent join handler, 20-second deadline loop
-- `legacy/python/cogs/raffle/embeds.py` (L1–L51): recruitment, result, and cancellation embeds
-- `legacy/python/cogs/raffle/views.py` (L1–L23): persistent `JoinView` (`custom_id="raffle:join"`)
-- `legacy/python/cogs/shared/messages/games.py` (L84–L90): failure messages
+- The original Python bot (see git history before v1.0.0), paths relative to its folder:
+  - `infra/db/raffle.py` (L1–L109): `RaffleRepo` open, join, close/draw/refund
+  - `services/raffle.py` (L1–L45): `RaffleService` facade
+  - `cogs/raffle/cog.py` (L1–L230): `RaffleCog` admin host/repost/cancel, persistent join handler, 20-second deadline loop
+  - `cogs/raffle/embeds.py` (L1–L51): recruitment, result, and cancellation embeds
+  - `cogs/raffle/views.py` (L1–L23): persistent `JoinView` (`custom_id="raffle:join"`)
+  - `cogs/shared/messages/games.py` (L84–L90): failure messages
 
 ---
 

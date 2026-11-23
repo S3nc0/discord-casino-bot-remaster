@@ -8,13 +8,14 @@
 
 - `catalogs/labor.yaml` (L1–L178): tools, click cap, fatigue, crits, terrain, workers, ores, relics, dorm, anti-macro thresholds
 - `catalogs/teiai.yaml` (L3): `labor_skim_rate: 0.03` (3% Teiai skim on collect)
-- `legacy/python/domain/labor.py` (L1–L421): pure clicker math, terrain, crits, worker settlement, ore/relic rolls, anti-macro CV detection
-- `legacy/python/infra/db/labor.py` (L1–L590): `LaborRepo` persistence, click, collect, drink, upgrade, hire/dismiss, dorm, renew, rankings, click hour logging
-- `legacy/python/services/labor.py` (L1–L67): `LaborService` facade
-- `legacy/python/cogs/labor/cog.py` (L1–L80): `/地下 作業` and `/地下 ランキング`
-- `legacy/python/cogs/labor/embeds.py` (L1–L168): work panel, hire panel, mining ranking embeds
-- `legacy/python/cogs/labor/views.py` (L1–L253): `LaborView` interactive tabs/buttons
-- `legacy/python/cogs/shared/messages/games.py` (L62–L71): failure messages
+- The original Python bot (see git history before v1.0.0), paths relative to its folder:
+  - `domain/labor.py` (L1–L421): pure clicker math, terrain, crits, worker settlement, ore/relic rolls, anti-macro CV detection
+  - `infra/db/labor.py` (L1–L590): `LaborRepo` persistence, click, collect, drink, upgrade, hire/dismiss, dorm, renew, rankings, click hour logging
+  - `services/labor.py` (L1–L67): `LaborService` facade
+  - `cogs/labor/cog.py` (L1–L80): `/地下 作業` and `/地下 ランキング`
+  - `cogs/labor/embeds.py` (L1–L168): work panel, hire panel, mining ranking embeds
+  - `cogs/labor/views.py` (L1–L253): `LaborView` interactive tabs/buttons
+  - `cogs/shared/messages/games.py` (L62–L71): failure messages
 - `docs/labor.md` (L1–L118): original design doc
 
 > **Doc Discrepancy Note**: `docs/teiai.md:46` mentions 1% labor skim, while `catalogs/teiai.yaml:3` and `docs/labor.md:18` use **`labor_skim_rate = 0.03` (3%)**. Follow `catalogs/teiai.yaml:3` (3%).

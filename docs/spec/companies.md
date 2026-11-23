@@ -7,15 +7,16 @@ Planned owner: `B3` | Screen IDs: `company`, `company-invest` (`packages/shared/
 ## Source Files
 - `catalogs/company.yaml:1-35`
 - `docs/company.md:1-46`
-- `legacy/python/domain/company.py:1-170`
-- `legacy/python/infra/db/company.py:1-459`
-- `legacy/python/services/company.py:1-76`
-- `legacy/python/cogs/company/cog.py:1-165`
-- `legacy/python/cogs/company/embeds.py:1-112`
-- `legacy/python/cogs/company/texts.py:1-25`
-- `legacy/python/cogs/company/views.py:1-151`
-- `legacy/python/cogs/shared/messages/economy.py:23-53`
-- `legacy/python/cogs/shared/messages/notices.py:21-24`
+- The original Python bot (see git history before v1.0.0), paths relative to its folder:
+  - `domain/company.py:1-170`
+  - `infra/db/company.py:1-459`
+  - `services/company.py:1-76`
+  - `cogs/company/cog.py:1-165`
+  - `cogs/company/embeds.py:1-112`
+  - `cogs/company/texts.py:1-25`
+  - `cogs/company/views.py:1-151`
+  - `cogs/shared/messages/economy.py:23-53`
+  - `cogs/shared/messages/notices.py:21-24`
 
 ## Rules & Exact Numbers
 

@@ -112,7 +112,6 @@ if [ "$SRC_DIR" != "$APP_DIR" ]; then
     --exclude '.env.*' \
     --exclude 'data/' \
     --exclude 'node_modules/' \
-    --exclude 'legacy/' \
     "$SRC_DIR/" "$APP_DIR/"
 fi
 

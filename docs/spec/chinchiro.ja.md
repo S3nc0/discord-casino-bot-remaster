@@ -10,12 +10,13 @@
 - `catalogs/games.yaml:74-96,151-157`
 - `catalogs/skins.yaml:8-53,81-96`
 - `docs/casino.md:5-22,138-144`
-- `legacy/python/domain/games/chinchiro.py:1-139`
-- `legacy/python/domain/games/rtplevel.py:27,86`
-- `legacy/python/cogs/casino/cog.py:51-63`
-- `legacy/python/cogs/casino/chinchiro.py:1-229`
-- `legacy/python/cogs/casino/chinchiro_table.py:1-209`
-- `legacy/python/cogs/casino/texts.py:42-76`
+- 元の Python ボット（v1.0.0 より前の git 履歴を参照）。パスはそのフォルダからの相対パスです：
+  - `domain/games/chinchiro.py:1-139`
+  - `domain/games/rtplevel.py:27,86`
+  - `cogs/casino/cog.py:51-63`
+  - `cogs/casino/chinchiro.py:1-229`
+  - `cogs/casino/chinchiro_table.py:1-209`
+  - `cogs/casino/texts.py:42-76`
 
 ## ルールと正確な数値
 

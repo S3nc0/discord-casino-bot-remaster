@@ -6,11 +6,12 @@ Planned owner: `B2-B` | Screen ID: `missions` (`packages/shared/src/ids.ts`) | F
 
 ## Source Files
 - `catalogs/missions.yaml:1-97`
-- `legacy/python/domain/missions.py:1-97`
-- `legacy/python/infra/db/records.py:27-116,220-236`
-- `legacy/python/services/economy.py:38-45,113-122`
-- `legacy/python/cogs/economy/cog.py:43-50,194-200`
-- `legacy/python/cogs/economy/embeds.py:154-168`
+- The original Python bot (see git history before v1.0.0), paths relative to its folder:
+  - `domain/missions.py:1-97`
+  - `infra/db/records.py:27-116,220-236`
+  - `services/economy.py:38-45,113-122`
+  - `cogs/economy/cog.py:43-50,194-200`
+  - `cogs/economy/embeds.py:154-168`
 
 ## Rules & Exact Numbers
 

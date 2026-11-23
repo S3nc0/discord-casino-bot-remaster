@@ -10,19 +10,20 @@ Shared contract alignment: `GameId` (`packages/shared/src/ids.ts:48-58`), `LEDGE
 - `catalogs/games.yaml:1-12,151-161`
 - `catalogs/events.yaml:1-13`
 - `catalogs/skins.yaml:1-126`
-- `legacy/python/domain/games/rtplevel.py:1-181`
-- `legacy/python/domain/games/jackpot.py:1-35`
-- `legacy/python/domain/events.py:1-66`
-- `legacy/python/domain/skins.py:1-123`
-- `legacy/python/services/casino.py:1-220`
-- `legacy/python/services/session.py:1-35`
-- `legacy/python/services/event.py:1-40`
-- `legacy/python/infra/db/escrow.py:1-206`
-- `legacy/python/infra/db/rtp.py:1-55`
-- `legacy/python/cogs/casino/common.py:1-308`
-- `legacy/python/cogs/casino/texts.py:78-117`
-- `legacy/python/cogs/event/cog.py:1-163`
-- `legacy/python/cogs/event/texts.py:1-15`
+- The original Python bot (see git history before v1.0.0), paths relative to its folder:
+  - `domain/games/rtplevel.py:1-181`
+  - `domain/games/jackpot.py:1-35`
+  - `domain/events.py:1-66`
+  - `domain/skins.py:1-123`
+  - `services/casino.py:1-220`
+  - `services/session.py:1-35`
+  - `services/event.py:1-40`
+  - `infra/db/escrow.py:1-206`
+  - `infra/db/rtp.py:1-55`
+  - `cogs/casino/common.py:1-308`
+  - `cogs/casino/texts.py:78-117`
+  - `cogs/event/cog.py:1-163`
+  - `cogs/event/texts.py:1-15`
 
 ## Rules & Exact Numbers
 

@@ -7,13 +7,14 @@
 ## 1. 元ファイル
 
 - `catalogs/arena.yaml`（L1–L36）：スケジュール、戦士プール、基礎パワー、武器の係数、オッズ、上限、観客の賭け、補填
-- `legacy/python/domain/arena.py`（L1–L158）：戦士の生成、武器ボーナス、オッズ、試合のシミュレーション、HP バトルのフレーム、インフレ防止の配当精算を行う純粋なロジック
-- `legacy/python/infra/db/arena.py`（L1–L275）：毎日のトーナメントの流れ、観客の初期ベット、賭け、準決勝と決勝の精算
-- `legacy/python/services/arena.py`（L1–L64）：`ArenaService` のファサード
-- `legacy/python/cogs/arena/cog.py`（L1–L248）：`/闘技場 大会`、30 秒間隔のスケジューラーループ、バトルのアニメーション、管理者用の `host_now`
-- `legacy/python/cogs/arena/embeds.py`（L1–L117）：トーナメント表、HP バー、準決勝・決勝の結果の埋め込み
-- `legacy/python/cogs/arena/views.py`（L1–L108）：`BetPanel`、`FighterSelect`、`StakeModal`
-- `legacy/python/cogs/shared/messages/games.py`（L91–L95）：失敗メッセージ
+- 元の Python ボット（v1.0.0 より前の git 履歴を参照）。パスはそのフォルダからの相対パスです：
+  - `domain/arena.py`（L1–L158）：戦士の生成、武器ボーナス、オッズ、試合のシミュレーション、HP バトルのフレーム、インフレ防止の配当精算を行う純粋なロジック
+  - `infra/db/arena.py`（L1–L275）：毎日のトーナメントの流れ、観客の初期ベット、賭け、準決勝と決勝の精算
+  - `services/arena.py`（L1–L64）：`ArenaService` のファサード
+  - `cogs/arena/cog.py`（L1–L248）：`/闘技場 大会`、30 秒間隔のスケジューラーループ、バトルのアニメーション、管理者用の `host_now`
+  - `cogs/arena/embeds.py`（L1–L117）：トーナメント表、HP バー、準決勝・決勝の結果の埋め込み
+  - `cogs/arena/views.py`（L1–L108）：`BetPanel`、`FighterSelect`、`StakeModal`
+  - `cogs/shared/messages/games.py`（L91–L95）：失敗メッセージ
 - `docs/arena.md`（L1–L70）：元の設計ドキュメント
 
 ---

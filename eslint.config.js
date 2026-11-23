@@ -30,7 +30,6 @@ export default defineConfig([
     '**/dist/**',
     '**/node_modules/**',
     '**/coverage/**',
-    'legacy/**',
     'design/**',
     'catalogs/**',
     'tools/pixel-art/vendor/pixel.js',

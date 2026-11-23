@@ -7,16 +7,17 @@
 ## 1. Source Files
 
 - `catalogs/horse.yaml` (L1–L175): stats, coats, silks, tracks, goings, forms, styles, odds, stakes, prizes, schedule, retirement, NPC names, banned chars
-- `legacy/python/domain/horse.py` (L1–L523): pure domain rules, stat validation/mutation, simulation engine, odds calculation, payout, schedule, retirement
-- `legacy/python/infra/db/horse.py` (L1–L253): stable CRUD, carrot/gold-carrot, style, retire, bankruptcy seizure & auction
-- `legacy/python/infra/db/race.py` (L1–L532): race scheduling, entry/withdraw, entry close + NPC fill, odds persistence, betting, settlement
-- `legacy/python/services/horse.py` (L1–L165): `HorseDesk` / `HorseService` facade
-- `legacy/python/cogs/horse/cog.py` (L1–L423): `/競馬` slash commands, 5-second background loop, race animation, commentary, result embed
-- `legacy/python/cogs/horse/cards.py` (L1–L163): race card embed & persistent `RaceButton`
-- `legacy/python/cogs/horse/betting.py` (L1–L269): `BetPanel` & `StakeModal`
-- `legacy/python/cogs/horse/stable.py` (L1–L449): `Stable`, `NameModal`, `AppearanceView`, `StyleView`, `GoldCarrotView`, `RetireView`
-- `legacy/python/cogs/shared/horse_display.py` (L1–L13): stat bar formatting
-- `legacy/python/cogs/shared/messages/games.py` (L11–L57, L105–L107): failure messages
+- The original Python bot (see git history before v1.0.0), paths relative to its folder:
+  - `domain/horse.py` (L1–L523): pure domain rules, stat validation/mutation, simulation engine, odds calculation, payout, schedule, retirement
+  - `infra/db/horse.py` (L1–L253): stable CRUD, carrot/gold-carrot, style, retire, bankruptcy seizure & auction
+  - `infra/db/race.py` (L1–L532): race scheduling, entry/withdraw, entry close + NPC fill, odds persistence, betting, settlement
+  - `services/horse.py` (L1–L165): `HorseDesk` / `HorseService` facade
+  - `cogs/horse/cog.py` (L1–L423): `/競馬` slash commands, 5-second background loop, race animation, commentary, result embed
+  - `cogs/horse/cards.py` (L1–L163): race card embed & persistent `RaceButton`
+  - `cogs/horse/betting.py` (L1–L269): `BetPanel` & `StakeModal`
+  - `cogs/horse/stable.py` (L1–L449): `Stable`, `NameModal`, `AppearanceView`, `StyleView`, `GoldCarrotView`, `RetireView`
+  - `cogs/shared/horse_display.py` (L1–L13): stat bar formatting
+  - `cogs/shared/messages/games.py` (L11–L57, L105–L107): failure messages
 - `docs/horse.md` (L1–L104): original design doc
 
 > **Note on Breeding**: Legacy Python has **no breeding mechanic**. Horses are obtained only by consuming a `horse_voucher` shop item (or buying seized horses at Teiai auction / P2P player market), tuned via `carrot` and `gold_carrot`, and retired manually or automatically at 32 races.

@@ -8,11 +8,12 @@
 
 - `catalogs/relics.yaml` (L1–L25): buff rate, merge count, max star tier, 6 relic buff bindings
 - `catalogs/labor.yaml` (L135–L167): 6 relic definitions, drop probabilities, reference values, big-find list
-- `legacy/python/domain/relics.py` (L1–L65): ID parsing/formatting, buff aggregation, `chance_round`
-- `legacy/python/infra/db/relics.py` (L1–L70): `RelicRepo` inventory lookup, buff query, merging
-- `legacy/python/domain/shop.py` (relic catalog generation — see `docs/spec/shop.md`)
-- `legacy/python/cogs/labor/views.py` (L124–L143, L235–L240): relic merge UI inside `/地下 作業`
-- `legacy/python/cogs/shared/messages/games.py` (L59–L61): failure messages
+- The original Python bot (see git history before v1.0.0), paths relative to its folder:
+  - `domain/relics.py` (L1–L65): ID parsing/formatting, buff aggregation, `chance_round`
+  - `infra/db/relics.py` (L1–L70): `RelicRepo` inventory lookup, buff query, merging
+  - `domain/shop.py` (relic catalog generation — see `docs/spec/shop.md`)
+  - `cogs/labor/views.py` (L124–L143, L235–L240): relic merge UI inside `/地下 作業`
+  - `cogs/shared/messages/games.py` (L59–L61): failure messages
 
 ---
 

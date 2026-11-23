@@ -2,22 +2,24 @@
 
 # Legacy Parity Fixtures
 
-This document describes how deterministic parity fixtures are generated from `legacy/python/`, their JSON layout, how to verify byte-for-byte reproducibility, and which legacy features cannot be driven with fixed inputs.
+This document describes how deterministic parity fixtures are generated from the original Python bot (see git history before v1.0.0), their JSON layout, how to verify byte-for-byte reproducibility, and which legacy features cannot be driven with fixed inputs.
 
 ## Regeneration Command
 
-Run from the repository root using the synced `uv` environment in `legacy/python`:
+The fixtures are committed data; the remaster's tests read them and never need the generator. To regenerate them, restore the original bot from git history into `legacy/python/` for the run, from the repository root, with its synced `uv` environment, then delete it again:
 
 ```sh
+git restore --source="$(git log --diff-filter=D --format=%H -1 -- legacy/python)^" -- legacy/python
 uv --directory legacy/python run python ../../tests/fixtures/legacy/generate/generate.py
+rm -rf legacy/python   # never commit it back
 ```
 
 The generator writes 26 JSON files into `tests/fixtures/legacy/<module>/<file>.json`.
 
 ## Bootstrap & Determinism Rules
 
-1. **Zero edits to `legacy/python/`**:
-   `legacy/python/infra/paths.py` defaults to `legacy/python/catalogs`, while the live YAML catalogs reside at `<repo_root>/catalogs`. Before importing `domain.*` or `infra.db.*`, `generate.py` patches `infra.paths.CATALOGS_DIR`, `infra.catalogs.loader.CATALOG_DIR`, and `infra.catalogs.CATALOG_DIR` in memory and calls `infra.catalogs.bind_catalogs()`.
+1. **Zero edits to the original bot**:
+   its `infra/paths.py` defaults to its own `catalogs/` folder, while the live YAML catalogs reside at `<repo_root>/catalogs`. Before importing `domain.*` or `infra.db.*`, `generate.py` patches `infra.paths.CATALOGS_DIR`, `infra.catalogs.loader.CATALOG_DIR`, and `infra.catalogs.CATALOG_DIR` in memory and calls `infra.catalogs.bind_catalogs()`.
 2. **Fixed clock (`FrozenClock`)**:
    Every repository test uses `open_repositories(":memory:", strict=True, clock=FrozenClock(BASE_DT))` anchored at `2025-01-06 09:00:00+09:00` (`BASE_TS = 1736121600.0`, Monday, JST `UTC+9`). Time advances explicitly via `clock.set_ts(...)` and explicit `now` arguments.
 3. **Fixed PRNG seeds**:
@@ -40,7 +42,7 @@ Verified result: **26/26 JSON files byte-for-byte identical** across consecutive
 
 ## Legacy Baseline Test Count
 
-Running the existing legacy Python test suite (with the same in-memory catalog-path patch and zero edits to `legacy/python/`):
+Running the original bot's Python test suite (with the same in-memory catalog-path patch and zero edits to the bot):
 
 - **Result**: `1354 passed, 1 skipped, 8 warnings in 27.00s`
 

@@ -7,12 +7,13 @@
 ## 1. 元ファイル
 
 - `catalogs/economy.yaml`（L54–L59）：`raffle` の定数
-- `legacy/python/infra/db/raffle.py`（L1–L109）：`RaffleRepo` の開催、参加、締め切り・抽選・返金
-- `legacy/python/services/raffle.py`（L1–L45）：`RaffleService` のファサード
-- `legacy/python/cogs/raffle/cog.py`（L1–L230）：`RaffleCog` の管理者による開催・再掲示・中止、永続の参加ハンドラー、20 秒間隔の締め切りループ
-- `legacy/python/cogs/raffle/embeds.py`（L1–L51）：募集、結果、中止の埋め込み
-- `legacy/python/cogs/raffle/views.py`（L1–L23）：永続の `JoinView`（`custom_id="raffle:join"`）
-- `legacy/python/cogs/shared/messages/games.py`（L84–L90）：失敗メッセージ
+- 元の Python ボット（v1.0.0 より前の git 履歴を参照）。パスはそのフォルダからの相対パスです：
+  - `infra/db/raffle.py`（L1–L109）：`RaffleRepo` の開催、参加、締め切り・抽選・返金
+  - `services/raffle.py`（L1–L45）：`RaffleService` のファサード
+  - `cogs/raffle/cog.py`（L1–L230）：`RaffleCog` の管理者による開催・再掲示・中止、永続の参加ハンドラー、20 秒間隔の締め切りループ
+  - `cogs/raffle/embeds.py`（L1–L51）：募集、結果、中止の埋め込み
+  - `cogs/raffle/views.py`（L1–L23）：永続の `JoinView`（`custom_id="raffle:join"`）
+  - `cogs/shared/messages/games.py`（L84–L90）：失敗メッセージ
 
 ---
 

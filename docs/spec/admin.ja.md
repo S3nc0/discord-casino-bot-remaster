@@ -6,18 +6,19 @@
 
 ## 元ファイル
 - `docs/admin.md:1-57`
-- `legacy/python/services/admin.py:1-33`
-- `legacy/python/cogs/admin/cog.py:1-590`
-- `legacy/python/cogs/admin/approval_ops.py:1-139`
-- `legacy/python/cogs/admin/economy_ops.py:1-155`
-- `legacy/python/cogs/admin/feature_ops.py:1-53`
-- `legacy/python/cogs/admin/content_ops.py:1-298`
-- `legacy/python/cogs/admin/embeds.py:1-193`
-- `legacy/python/cogs/admin/views.py:1-236`
-- `legacy/python/cogs/admin/purge.py:1-51`
-- `legacy/python/cogs/admin/targets.py:1-133`
-- `legacy/python/cogs/admin/texts.py:1-27`
-- `legacy/python/manage.py:1-71`
+- 元の Python ボット（v1.0.0 より前の git 履歴を参照）。パスはそのフォルダからの相対パスです：
+  - `services/admin.py:1-33`
+  - `cogs/admin/cog.py:1-590`
+  - `cogs/admin/approval_ops.py:1-139`
+  - `cogs/admin/economy_ops.py:1-155`
+  - `cogs/admin/feature_ops.py:1-53`
+  - `cogs/admin/content_ops.py:1-298`
+  - `cogs/admin/embeds.py:1-193`
+  - `cogs/admin/views.py:1-236`
+  - `cogs/admin/purge.py:1-51`
+  - `cogs/admin/targets.py:1-133`
+  - `cogs/admin/texts.py:1-27`
+  - `manage.py:1-71`
 
 ## ルールと正確な数値
 
@@ -63,7 +64,7 @@
 - 動的アイテム `guild-approve:(allow|deny):<guild_id>`（`ApprovalButton`、`cogs/admin/views.py:19-45`）。`bot.add_dynamic_items(ApprovalButton)` により Bot を再起動しても有効です。
 - 次のときに通知します。`on_guild_join`（`reset_denied=True`。以前に断ったサーバーを招待し直すと、改めて承認を求めます）、`on_ready`（オフライン中の参加を拾う）、そしてブロックされたコマンドの実行時で `now - notified_at > 3600s` の場合（`RENOTIFY_AFTER`、`cogs/admin/cog.py:45`、`approval_ops.py:40-81`）。
 
-### CLI ツール（`legacy/python/manage.py`）
+### CLI ツール（元のボットの `manage.py`）
 - `manage.py grant <guild_id> <user_id> <amount> [reason]`：`guild_id > 0`、`user_id > 0`、`1 <= amount <= 10_000_000` を確認し、`f"付与（管理）{reason}".strip()` で付与します。入力が不正、または DB がなければ終了コード `2`。
 - `manage.py servers`：`guild_status` の行を `{label:6s} {guild_id}  {name}` の形式で表示します。
 

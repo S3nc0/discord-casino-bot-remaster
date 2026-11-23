@@ -10,12 +10,13 @@ Shared contract alignment: `GameId = 'blackjack'`, `ScreenId = 'blackjack'`, `LE
 - `catalogs/games.yaml:70-73,151-159`
 - `catalogs/skins.yaml:54-61,106-112`
 - `docs/teiai.md:15`
-- `legacy/python/domain/games/blackjack.py:1-98`
-- `legacy/python/domain/games/rtplevel.py:28,87`
-- `legacy/python/infra/db/escrow.py:51-76`
-- `legacy/python/cogs/casino/cog.py:87-92`
-- `legacy/python/cogs/casino/blackjack.py:1-219`
-- `legacy/python/cogs/casino/texts.py:24-36`
+- The original Python bot (see git history before v1.0.0), paths relative to its folder:
+  - `domain/games/blackjack.py:1-98`
+  - `domain/games/rtplevel.py:28,87`
+  - `infra/db/escrow.py:51-76`
+  - `cogs/casino/cog.py:87-92`
+  - `cogs/casino/blackjack.py:1-219`
+  - `cogs/casino/texts.py:24-36`
 
 ## Rules & Exact Numbers
 

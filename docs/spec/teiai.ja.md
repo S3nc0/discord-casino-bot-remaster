@@ -9,18 +9,19 @@
 ## 元ファイル
 - `catalogs/teiai.yaml:1-112`
 - `docs/teiai.md:1-110`
-- `legacy/python/domain/teiai.py:1-115`
-- `legacy/python/domain/thermostat.py:1-89`
-- `legacy/python/domain/rates.py:1-68`
-- `legacy/python/infra/db/bank.py:1-755`
-- `legacy/python/infra/db/debt.py:1-669`
-- `legacy/python/infra/db/repositories.py:202-276`
-- `legacy/python/services/teiai.py:1-135`
-- `legacy/python/cogs/teiai/panel.py:1-308`
-- `legacy/python/cogs/teiai/escape.py:1-100`
-- `legacy/python/cogs/teiai/texts.py:1-64`
-- `legacy/python/cogs/shared/messages/economy.py:109-142`
-- `legacy/python/cogs/shared/messages/notices.py:10-20,25-30,39-41`
+- 元の Python ボット（v1.0.0 より前の git 履歴を参照）。パスはそのフォルダからの相対パスです：
+  - `domain/teiai.py:1-115`
+  - `domain/thermostat.py:1-89`
+  - `domain/rates.py:1-68`
+  - `infra/db/bank.py:1-755`
+  - `infra/db/debt.py:1-669`
+  - `infra/db/repositories.py:202-276`
+  - `services/teiai.py:1-135`
+  - `cogs/teiai/panel.py:1-308`
+  - `cogs/teiai/escape.py:1-100`
+  - `cogs/teiai/texts.py:1-64`
+  - `cogs/shared/messages/economy.py:109-142`
+  - `cogs/shared/messages/notices.py:10-20,25-30,39-41`
 
 ## ルールと正確な数値
 

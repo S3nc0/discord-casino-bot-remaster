@@ -7,16 +7,17 @@
 ## 1. 元ファイル
 
 - `catalogs/horse.yaml`（L1–L175）：能力、毛色、勝負服、コース、馬場状態、調子、脚質、オッズ、重賞、賞金、スケジュール、引退、NPC の名前、使えない文字
-- `legacy/python/domain/horse.py`（L1–L523）：純粋なドメインルール、能力の検証と変更、シミュレーションエンジン、オッズの計算、配当、スケジュール、引退
-- `legacy/python/infra/db/horse.py`（L1–L253）：厩舎の CRUD、にんじんと黄金のにんじん、脚質、引退、破産時の差し押さえとオークション
-- `legacy/python/infra/db/race.py`（L1–L532）：レースのスケジュール、出走登録と取り消し、登録の締め切りと NPC の補充、オッズの保存、賭け、精算
-- `legacy/python/services/horse.py`（L1–L165）：`HorseDesk` / `HorseService` のファサード
-- `legacy/python/cogs/horse/cog.py`（L1–L423）：`/競馬` のスラッシュコマンド、5 秒間隔のバックグラウンドループ、レースのアニメーション、実況、結果の埋め込み
-- `legacy/python/cogs/horse/cards.py`（L1–L163）：出馬表の埋め込みと、永続の `RaceButton`
-- `legacy/python/cogs/horse/betting.py`（L1–L269）：`BetPanel` と `StakeModal`
-- `legacy/python/cogs/horse/stable.py`（L1–L449）：`Stable`、`NameModal`、`AppearanceView`、`StyleView`、`GoldCarrotView`、`RetireView`
-- `legacy/python/cogs/shared/horse_display.py`（L1–L13）：能力バーの整形
-- `legacy/python/cogs/shared/messages/games.py`（L11–L57、L105–L107）：失敗メッセージ
+- 元の Python ボット（v1.0.0 より前の git 履歴を参照）。パスはそのフォルダからの相対パスです：
+  - `domain/horse.py`（L1–L523）：純粋なドメインルール、能力の検証と変更、シミュレーションエンジン、オッズの計算、配当、スケジュール、引退
+  - `infra/db/horse.py`（L1–L253）：厩舎の CRUD、にんじんと黄金のにんじん、脚質、引退、破産時の差し押さえとオークション
+  - `infra/db/race.py`（L1–L532）：レースのスケジュール、出走登録と取り消し、登録の締め切りと NPC の補充、オッズの保存、賭け、精算
+  - `services/horse.py`（L1–L165）：`HorseDesk` / `HorseService` のファサード
+  - `cogs/horse/cog.py`（L1–L423）：`/競馬` のスラッシュコマンド、5 秒間隔のバックグラウンドループ、レースのアニメーション、実況、結果の埋め込み
+  - `cogs/horse/cards.py`（L1–L163）：出馬表の埋め込みと、永続の `RaceButton`
+  - `cogs/horse/betting.py`（L1–L269）：`BetPanel` と `StakeModal`
+  - `cogs/horse/stable.py`（L1–L449）：`Stable`、`NameModal`、`AppearanceView`、`StyleView`、`GoldCarrotView`、`RetireView`
+  - `cogs/shared/horse_display.py`（L1–L13）：能力バーの整形
+  - `cogs/shared/messages/games.py`（L11–L57、L105–L107）：失敗メッセージ
 - `docs/horse.md`（L1–L104）：元の設計ドキュメント
 
 > **配合について**：旧 Python には**配合の仕組みがありません**。馬を手に入れる方法は、ショップの `horse_voucher` を使うか（または帝愛オークションやプレイヤーマーケットで、差し押さえられた馬を買うか）だけです。育成は `carrot` と `gold_carrot` で行い、手動で、または 32 戦で自動で引退します。

@@ -9,14 +9,15 @@
 - `catalogs/shop.yaml` (L1–L366): complete item catalog (60 static items + 24 dynamically generated relic items = 84 total), kind labels, stock rules, confirmation threshold
 - `catalogs/skins.yaml` (L1–L170): cosmetic skin rendering texts & seasonal house horse icons
 - `catalogs/teiai.yaml` (L49–L61): Teiai seized auction & Teiai timed market / black market parameters
-- `legacy/python/domain/shop.py` (L1–L160): `Item`, `CATALOG`, `RELIC_VALUE`, lookup helpers, `STOCK_RULES`, `stock_now`, `next_refill_at`
-- `legacy/python/domain/nick.py` (L1–L68): pure UTF-16 nickname title affixing/stripping (`NICK_LIMIT = 32`)
-- `legacy/python/domain/teiai_market.py` (L1–L110): daily timed market planner, Dutch auction pricing, black-market reveal logic
-- `legacy/python/infra/db/shop.py` (L1–L211): `ShopRepo` stock, purchase, inventory, profile/equip, consumable arming, bankruptcy seizure
-- `legacy/python/infra/db/auction.py` (L1–L263): `AuctionRepo` seized item auction & Teiai timed/black market
-- `legacy/python/services/shop.py` (L1–L170): `ShopService` facade
-- `legacy/python/cogs/shop/{cog,actions,discord_ops,embeds,views,texts}.py`: `/ショップ` panel, Discord role/nick sync, 2-minute status-nick background task
-- `legacy/python/cogs/shared/messages/economy.py` (L11–L14, L98–L107): failure messages
+- The original Python bot (see git history before v1.0.0), paths relative to its folder:
+  - `domain/shop.py` (L1–L160): `Item`, `CATALOG`, `RELIC_VALUE`, lookup helpers, `STOCK_RULES`, `stock_now`, `next_refill_at`
+  - `domain/nick.py` (L1–L68): pure UTF-16 nickname title affixing/stripping (`NICK_LIMIT = 32`)
+  - `domain/teiai_market.py` (L1–L110): daily timed market planner, Dutch auction pricing, black-market reveal logic
+  - `infra/db/shop.py` (L1–L211): `ShopRepo` stock, purchase, inventory, profile/equip, consumable arming, bankruptcy seizure
+  - `infra/db/auction.py` (L1–L263): `AuctionRepo` seized item auction & Teiai timed/black market
+  - `services/shop.py` (L1–L170): `ShopService` facade
+  - `cogs/shop/{cog,actions,discord_ops,embeds,views,texts}.py`: `/ショップ` panel, Discord role/nick sync, 2-minute status-nick background task
+  - `cogs/shared/messages/economy.py` (L11–L14, L98–L107): failure messages
 - `docs/shop.md` (L1–L129): original design doc
 
 ---

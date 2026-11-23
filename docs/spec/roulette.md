@@ -9,11 +9,12 @@ Shared contract alignment: `GameId = 'roulette'`, `ScreenId = 'roulette'`, `LEDG
 
 - `catalogs/games.yaml:36-69,151-160`
 - `catalogs/skins.yaml:120-126`
-- `legacy/python/domain/games/roulette.py:1-53`
-- `legacy/python/domain/games/rtplevel.py:66-74,84`
-- `legacy/python/cogs/casino/cog.py:94-124`
-- `legacy/python/cogs/casino/simple.py:92-142`
-- `legacy/python/cogs/casino/texts.py:8-18`
+- The original Python bot (see git history before v1.0.0), paths relative to its folder:
+  - `domain/games/roulette.py:1-53`
+  - `domain/games/rtplevel.py:66-74,84`
+  - `cogs/casino/cog.py:94-124`
+  - `cogs/casino/simple.py:92-142`
+  - `cogs/casino/texts.py:8-18`
 
 ## Rules & Exact Numbers
 

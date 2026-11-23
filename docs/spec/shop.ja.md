@@ -9,14 +9,15 @@
 - `catalogs/shop.yaml`（L1–L366）：アイテムのカタログ全体（静的 60 件 ＋ 動的に生成する発掘品 24 件 ＝ 計 84 件）、種類のラベル、在庫のルール、確認の閾値
 - `catalogs/skins.yaml`（L1–L170）：着せ替えスキンの表示文言と、季節の帝愛の馬のアイコン
 - `catalogs/teiai.yaml`（L49–L61）：帝愛の押収オークション、帝愛の期間限定市場、闇市のパラメーター
-- `legacy/python/domain/shop.py`（L1–L160）：`Item`、`CATALOG`、`RELIC_VALUE`、検索の補助関数、`STOCK_RULES`、`stock_now`、`next_refill_at`
-- `legacy/python/domain/nick.py`（L1–L68）：UTF-16 でのニックネームの称号の付け外しの純粋な処理（`NICK_LIMIT = 32`）
-- `legacy/python/domain/teiai_market.py`（L1–L110）：毎日の期間限定市場の計画、ダッチオークションの価格、闇市の鑑定のロジック
-- `legacy/python/infra/db/shop.py`（L1–L211）：`ShopRepo` の在庫、購入、持ち物、プロフィールと装備、消耗品の準備、破産時の差し押さえ
-- `legacy/python/infra/db/auction.py`（L1–L263）：`AuctionRepo` の押収アイテムのオークションと、帝愛の期間限定市場・闇市
-- `legacy/python/services/shop.py`（L1–L170）：`ShopService` のファサード
-- `legacy/python/cogs/shop/{cog,actions,discord_ops,embeds,views,texts}.py`：`/ショップ` のパネル、Discord のロールとニックネームの同期、2 分間隔のステータス・ニックネームのバックグラウンドタスク
-- `legacy/python/cogs/shared/messages/economy.py`（L11–L14、L98–L107）：失敗メッセージ
+- 元の Python ボット（v1.0.0 より前の git 履歴を参照）。パスはそのフォルダからの相対パスです：
+  - `domain/shop.py`（L1–L160）：`Item`、`CATALOG`、`RELIC_VALUE`、検索の補助関数、`STOCK_RULES`、`stock_now`、`next_refill_at`
+  - `domain/nick.py`（L1–L68）：UTF-16 でのニックネームの称号の付け外しの純粋な処理（`NICK_LIMIT = 32`）
+  - `domain/teiai_market.py`（L1–L110）：毎日の期間限定市場の計画、ダッチオークションの価格、闇市の鑑定のロジック
+  - `infra/db/shop.py`（L1–L211）：`ShopRepo` の在庫、購入、持ち物、プロフィールと装備、消耗品の準備、破産時の差し押さえ
+  - `infra/db/auction.py`（L1–L263）：`AuctionRepo` の押収アイテムのオークションと、帝愛の期間限定市場・闇市
+  - `services/shop.py`（L1–L170）：`ShopService` のファサード
+  - `cogs/shop/{cog,actions,discord_ops,embeds,views,texts}.py`：`/ショップ` のパネル、Discord のロールとニックネームの同期、2 分間隔のステータス・ニックネームのバックグラウンドタスク
+  - `cogs/shared/messages/economy.py`（L11–L14、L98–L107）：失敗メッセージ
 - `docs/shop.md`（L1–L129）：元の設計ドキュメント
 
 ---

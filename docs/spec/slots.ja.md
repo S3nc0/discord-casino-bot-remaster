@@ -9,11 +9,12 @@
 
 - `catalogs/games.yaml:13-35,151-155`
 - `catalogs/skins.yaml:113-119`
-- `legacy/python/domain/games/slot.py:1-55`
-- `legacy/python/domain/games/rtplevel.py:32-45,83`
-- `legacy/python/cogs/casino/cog.py:80-85`
-- `legacy/python/cogs/casino/simple.py:30-88`
-- `legacy/python/cogs/casino/texts.py:8`
+- 元の Python ボット（v1.0.0 より前の git 履歴を参照）。パスはそのフォルダからの相対パスです：
+  - `domain/games/slot.py:1-55`
+  - `domain/games/rtplevel.py:32-45,83`
+  - `cogs/casino/cog.py:80-85`
+  - `cogs/casino/simple.py:30-88`
+  - `cogs/casino/texts.py:8`
 
 ## ルールと正確な数値
 

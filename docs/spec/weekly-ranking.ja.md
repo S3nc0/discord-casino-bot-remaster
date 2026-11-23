@@ -7,13 +7,14 @@
 ## 元ファイル
 - `catalogs/economy.yaml:61-64`
 - `catalogs/shop.yaml:42-48`（`title_weekly_king`）
-- `legacy/python/domain/weekly.py:1-33`
-- `legacy/python/domain/history.py:95-97`
-- `legacy/python/infra/db/records.py:68-72,117-218`
-- `legacy/python/services/economy.py:149-160`
-- `legacy/python/cogs/weekly/cog.py:1-125`
-- `legacy/python/cogs/weekly/embeds.py:1-31`
-- `legacy/python/cogs/shared/messages/base.py:102-110`
+- 元の Python ボット（v1.0.0 より前の git 履歴を参照）。パスはそのフォルダからの相対パスです：
+  - `domain/weekly.py:1-33`
+  - `domain/history.py:95-97`
+  - `infra/db/records.py:68-72,117-218`
+  - `services/economy.py:149-160`
+  - `cogs/weekly/cog.py:1-125`
+  - `cogs/weekly/embeds.py:1-31`
+  - `cogs/shared/messages/base.py:102-110`
 
 ## ルールと正確な数値
 

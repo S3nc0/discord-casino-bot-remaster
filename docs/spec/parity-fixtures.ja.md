@@ -2,22 +2,24 @@
 
 # 旧版との一致確認用フィクスチャ
 
-この文書は、`legacy/python/` から決定論的な一致確認用フィクスチャを生成する方法、JSON の構成、バイト単位で再現できることの確認方法、そして固定の入力では再現できない旧版の機能を説明します。
+この文書は、元の Python ボット（v1.0.0 より前の git 履歴を参照）から決定論的な一致確認用フィクスチャを生成する方法、JSON の構成、バイト単位で再現できることの確認方法、そして固定の入力では再現できない旧版の機能を説明します。
 
 ## 再生成のコマンド
 
-リポジトリのルートから、`legacy/python` で同期した `uv` 環境を使って実行します。
+フィクスチャはコミット済みのデータで、リマスターのテストはそれを読むだけなので、生成スクリプトは要りません。作り直すときは、実行のあいだだけ元のボットを git 履歴から `legacy/python/` に戻し、リポジトリのルートから、同期した `uv` 環境で実行し、そのあと削除します。
 
 ```sh
+git restore --source="$(git log --diff-filter=D --format=%H -1 -- legacy/python)^" -- legacy/python
 uv --directory legacy/python run python ../../tests/fixtures/legacy/generate/generate.py
+rm -rf legacy/python   # コミットし直さないこと
 ```
 
 生成スクリプトは、`tests/fixtures/legacy/<module>/<file>.json` に 26 個の JSON ファイルを書き出します。
 
 ## 起動と決定論のルール
 
-1. **`legacy/python/` には一切手を入れません**：
-   `legacy/python/infra/paths.py` の既定は `legacy/python/catalogs` ですが、実際の YAML のカタログは `<repo_root>/catalogs` にあります。`generate.py` は、`domain.*` や `infra.db.*` を import する前に、`infra.paths.CATALOGS_DIR`、`infra.catalogs.loader.CATALOG_DIR`、`infra.catalogs.CATALOG_DIR` をメモリ上でパッチし、`infra.catalogs.bind_catalogs()` を呼びます。
+1. **元のボットには一切手を入れません**：
+   その `infra/paths.py` の既定はボット自身の `catalogs/` フォルダですが、実際の YAML のカタログは `<repo_root>/catalogs` にあります。`generate.py` は、`domain.*` や `infra.db.*` を import する前に、`infra.paths.CATALOGS_DIR`、`infra.catalogs.loader.CATALOG_DIR`、`infra.catalogs.CATALOG_DIR` をメモリ上でパッチし、`infra.catalogs.bind_catalogs()` を呼びます。
 2. **固定の時計（`FrozenClock`）**：
    リポジトリのテストはすべて、`open_repositories(":memory:", strict=True, clock=FrozenClock(BASE_DT))` を使い、`2025-01-06 09:00:00+09:00`（`BASE_TS = 1736121600.0`、月曜日、JST の `UTC+9`）を基準にします。時間は、`clock.set_ts(...)` と、明示的な `now` 引数でだけ進めます。
 3. **固定の PRNG のシード**：
@@ -40,7 +42,7 @@ test "$H1" = "$H2" && echo "BYTE-FOR-BYTE IDENTICAL"
 
 ## 旧版のテスト件数の基準
 
-既存の旧 Python のテストスイートを（同じメモリ上のカタログのパスのパッチで、`legacy/python/` には手を入れずに）走らせた結果：
+元のボットの Python のテストスイートを（同じメモリ上のカタログのパスのパッチで、ボットには手を入れずに）走らせた結果：
 
 - **結果**：`1354 passed, 1 skipped, 8 warnings in 27.00s`
 

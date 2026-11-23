@@ -6,11 +6,12 @@
 
 ## 元ファイル
 - `catalogs/missions.yaml:1-97`
-- `legacy/python/domain/missions.py:1-97`
-- `legacy/python/infra/db/records.py:27-116,220-236`
-- `legacy/python/services/economy.py:38-45,113-122`
-- `legacy/python/cogs/economy/cog.py:43-50,194-200`
-- `legacy/python/cogs/economy/embeds.py:154-168`
+- 元の Python ボット（v1.0.0 より前の git 履歴を参照）。パスはそのフォルダからの相対パスです：
+  - `domain/missions.py:1-97`
+  - `infra/db/records.py:27-116,220-236`
+  - `services/economy.py:38-45,113-122`
+  - `cogs/economy/cog.py:43-50,194-200`
+  - `cogs/economy/embeds.py:154-168`
 
 ## ルールと正確な数値
 

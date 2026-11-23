@@ -7,12 +7,13 @@ Planned owner: `B3` | Screen ID: `kyosai` (`packages/shared/src/ids.ts`) | Featu
 ## Source Files
 - `catalogs/teiai.yaml:76-95`
 - `docs/teiai.md:64-80`
-- `legacy/python/domain/kyosai.py:1-77`
-- `legacy/python/infra/db/kyosai.py:1-560`
-- `legacy/python/services/kyosai.py:1-95`
-- `legacy/python/cogs/kyosai/cog.py:1-410`
-- `legacy/python/cogs/shared/messages/economy.py:57-77`
-- `legacy/python/cogs/shared/messages/notices.py:31-38`
+- The original Python bot (see git history before v1.0.0), paths relative to its folder:
+  - `domain/kyosai.py:1-77`
+  - `infra/db/kyosai.py:1-560`
+  - `services/kyosai.py:1-95`
+  - `cogs/kyosai/cog.py:1-410`
+  - `cogs/shared/messages/economy.py:57-77`
+  - `cogs/shared/messages/notices.py:31-38`
 
 ## Rules & Exact Numbers
 

@@ -6,18 +6,19 @@ Planned owner: `B2-B` | Feature toggle: none (owner-only DM commands + guild adm
 
 ## Source Files
 - `docs/admin.md:1-57`
-- `legacy/python/services/admin.py:1-33`
-- `legacy/python/cogs/admin/cog.py:1-590`
-- `legacy/python/cogs/admin/approval_ops.py:1-139`
-- `legacy/python/cogs/admin/economy_ops.py:1-155`
-- `legacy/python/cogs/admin/feature_ops.py:1-53`
-- `legacy/python/cogs/admin/content_ops.py:1-298`
-- `legacy/python/cogs/admin/embeds.py:1-193`
-- `legacy/python/cogs/admin/views.py:1-236`
-- `legacy/python/cogs/admin/purge.py:1-51`
-- `legacy/python/cogs/admin/targets.py:1-133`
-- `legacy/python/cogs/admin/texts.py:1-27`
-- `legacy/python/manage.py:1-71`
+- The original Python bot (see git history before v1.0.0), paths relative to its folder:
+  - `services/admin.py:1-33`
+  - `cogs/admin/cog.py:1-590`
+  - `cogs/admin/approval_ops.py:1-139`
+  - `cogs/admin/economy_ops.py:1-155`
+  - `cogs/admin/feature_ops.py:1-53`
+  - `cogs/admin/content_ops.py:1-298`
+  - `cogs/admin/embeds.py:1-193`
+  - `cogs/admin/views.py:1-236`
+  - `cogs/admin/purge.py:1-51`
+  - `cogs/admin/targets.py:1-133`
+  - `cogs/admin/texts.py:1-27`
+  - `manage.py:1-71`
 
 ## Rules & Exact Numbers
 
@@ -63,7 +64,7 @@ Planned owner: `B2-B` | Feature toggle: none (owner-only DM commands + guild adm
 - Dynamic item `guild-approve:(allow|deny):<guild_id>` (`ApprovalButton`, `cogs/admin/views.py:19-45`), survives bot restarts via `bot.add_dynamic_items(ApprovalButton)`.
 - Triggered on `on_guild_join` (`reset_denied=True` so re-inviting a previously denied guild re-requests approval), `on_ready` (catches offline joins), and blocked command attempts if `now - notified_at > 3600s` (`RENOTIFY_AFTER`, `cogs/admin/cog.py:45`, `approval_ops.py:40-81`).
 
-### CLI Tool (`legacy/python/manage.py`)
+### CLI Tool (`manage.py` in the original bot)
 - `manage.py grant <guild_id> <user_id> <amount> [reason]`: validates `guild_id > 0`, `user_id > 0`, `1 <= amount <= 10_000_000`; credits with `f"付与（管理）{reason}".strip()`; exit `2` on invalid input or missing DB.
 - `manage.py servers`: prints `guild_status` rows formatted as `{label:6s} {guild_id}  {name}`.
 

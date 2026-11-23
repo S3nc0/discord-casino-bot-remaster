@@ -8,13 +8,14 @@
 
 - `catalogs/labor.yaml`（L1–L178）：工具、クリックの上限、疲労、クリティカル、地形、ワーカー、鉱石、発掘品、寮、マクロ対策の閾値
 - `catalogs/teiai.yaml`（L3）：`labor_skim_rate: 0.03`（受け取り時の帝愛のピンハネ 3%）
-- `legacy/python/domain/labor.py`（L1–L421）：純粋なクリッカーの計算、地形、クリティカル、ワーカーの精算、鉱石と発掘品の抽選、マクロ対策の CV の検出
-- `legacy/python/infra/db/labor.py`（L1–L590）：`LaborRepo` の永続化、クリック、受け取り、ドリンク、強化、雇用と解雇、寮、更新、ランキング、クリックの時間別ログ
-- `legacy/python/services/labor.py`（L1–L67）：`LaborService` のファサード
-- `legacy/python/cogs/labor/cog.py`（L1–L80）：`/地下 作業` と `/地下 ランキング`
-- `legacy/python/cogs/labor/embeds.py`（L1–L168）：作業パネル、雇用パネル、採掘ランキングの埋め込み
-- `legacy/python/cogs/labor/views.py`（L1–L253）：`LaborView` の対話型のタブとボタン
-- `legacy/python/cogs/shared/messages/games.py`（L62–L71）：失敗メッセージ
+- 元の Python ボット（v1.0.0 より前の git 履歴を参照）。パスはそのフォルダからの相対パスです：
+  - `domain/labor.py`（L1–L421）：純粋なクリッカーの計算、地形、クリティカル、ワーカーの精算、鉱石と発掘品の抽選、マクロ対策の CV の検出
+  - `infra/db/labor.py`（L1–L590）：`LaborRepo` の永続化、クリック、受け取り、ドリンク、強化、雇用と解雇、寮、更新、ランキング、クリックの時間別ログ
+  - `services/labor.py`（L1–L67）：`LaborService` のファサード
+  - `cogs/labor/cog.py`（L1–L80）：`/地下 作業` と `/地下 ランキング`
+  - `cogs/labor/embeds.py`（L1–L168）：作業パネル、雇用パネル、採掘ランキングの埋め込み
+  - `cogs/labor/views.py`（L1–L253）：`LaborView` の対話型のタブとボタン
+  - `cogs/shared/messages/games.py`（L62–L71）：失敗メッセージ
 - `docs/labor.md`（L1–L118）：元の設計ドキュメント
 
 > **ドキュメントのずれ**：`docs/teiai.md:46` は労働のピンハネを 1% としていますが、`catalogs/teiai.yaml:3` と `docs/labor.md:18` は **`labor_skim_rate = 0.03`（3%）** です。`catalogs/teiai.yaml:3`（3%）に従います。
