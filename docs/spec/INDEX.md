@@ -1,3 +1,5 @@
+**English** | [日本語](INDEX.ja.md)
+
 # Legacy Behaviour Spec Index
 
 Master index mapping every legacy module to its behaviour specification, deterministic parity fixture directory, and planned porting owner.

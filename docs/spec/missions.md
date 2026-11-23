@@ -1,3 +1,5 @@
+**English** | [日本語](missions.ja.md)
+
 # Missions & Win Streaks Specification
 
 Planned owner: `B2-B` | Screen ID: `missions` (`packages/shared/src/ids.ts`) | Feature toggle: none (always active alongside casino games)

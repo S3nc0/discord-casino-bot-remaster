@@ -1,3 +1,5 @@
+**English** | [日本語](p2p-loans.ja.md)
+
 # P2P Loans (`/貸付`) Specification
 
 Planned owner: `B3` | Screen ID: `loans` (`packages/shared/src/ids.ts`) | Feature toggle: `loan` (always allowed even when OFF: `貸付 返済`, `貸付 一覧`, and declining/cancelling existing offers)

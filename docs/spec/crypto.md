@@ -1,3 +1,5 @@
+**English** | [日本語](crypto.ja.md)
+
 # Crypto (CS Token & Spot Ledger) Specification
 
 Planned owner: `B3` | Screen IDs: `stocks`, `stocks-detail` (`packages/shared/src/ids.ts`) | Feature toggle: `market`

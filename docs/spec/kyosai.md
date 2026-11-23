@@ -1,3 +1,5 @@
+**English** | [日本語](kyosai.ja.md)
+
 # Teiai Kyosai (`/共済`) Specification
 
 Planned owner: `B3` | Screen ID: `kyosai` (`packages/shared/src/ids.ts`) | Feature toggle: `kyosai` (always allowed even when OFF: `共済 状況`, `共済 取消`)

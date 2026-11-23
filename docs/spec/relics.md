@@ -1,3 +1,5 @@
+**English** | [日本語](relics.ja.md)
+
 # Relics Specification (`relics`)
 
 > Planned Owner: **B2-B** · Screen ID: `inventory` / `work` (merged inside Underground Labor UI) · Ledger Reasons: none (relies on inventory items, tradeable on `market`)

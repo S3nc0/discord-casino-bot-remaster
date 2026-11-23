@@ -1,3 +1,5 @@
+**English** | [日本語](labor.ja.md)
+
 # Underground Labor Specification (`labor`)
 
 > Planned Owner: **B2-B** · Screen ID: `work` · Ledger Reasons: `work_collect`, `work_upgrade`, `work_hire`, `work_dorm`

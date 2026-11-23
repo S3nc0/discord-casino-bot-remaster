@@ -1,3 +1,5 @@
+**English** | [日本語](horse-breeding.ja.md)
+
 # Horse Breeding Design (`horse`, new feature)
 
 > Status: **approved by the owner on 2026-11-21** (§9). Planned owner: **B2-B** · Game ID: `horse` · Screen ID: `horse` (stable tab) · Feature toggle: `horse` · New ledger reason: `horse_breeding_fee`.

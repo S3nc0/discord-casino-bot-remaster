@@ -1,3 +1,5 @@
+**English** | [日本語](companies.ja.md)
+
 # Companies (`/会社`) Specification
 
 Planned owner: `B3` | Screen IDs: `company`, `company-invest` (`packages/shared/src/ids.ts`) | Feature toggle: `company` (always allowed even when OFF: `会社 状況`, `会社 持分`)

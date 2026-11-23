@@ -1,3 +1,5 @@
+**English** | [日本語](economy-core.ja.md)
+
 # Economy Core, Per-Guild Isolation, 3,000 Start, Net Worth, History & Ranking Specification
 
 Planned owner: `B2-B` | Screen IDs: `home`, `ranking`, `history`, `inbox`, `profile` (`packages/shared/src/ids.ts`)

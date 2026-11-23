@@ -1,3 +1,5 @@
+**English** | [日本語](player-market.ja.md)
+
 # Player Market, Auctions & Escrow (P2P) Specification
 
 Planned owner: `B3` | Screen IDs: `market`, `market-create`, `market-mine` (`packages/shared/src/ids.ts`) | Feature toggle: `p2p`

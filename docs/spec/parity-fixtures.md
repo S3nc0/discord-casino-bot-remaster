@@ -1,3 +1,5 @@
+**English** | [日本語](parity-fixtures.ja.md)
+
 # Legacy Parity Fixtures
 
 This document describes how deterministic parity fixtures are generated from `legacy/python/`, their JSON layout, how to verify byte-for-byte reproducibility, and which legacy features cannot be driven with fixed inputs.

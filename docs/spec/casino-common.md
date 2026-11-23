@@ -1,3 +1,5 @@
+**English** | [日本語](casino-common.ja.md)
+
 # Casino Common Mechanics (RTP, Jackpot, Events, Escrow, Sessions, Skins)
 
 Shared infrastructure across all 5 casino games (`chinchiro`, `pachinko`, `slots`, `blackjack`, `roulette`).

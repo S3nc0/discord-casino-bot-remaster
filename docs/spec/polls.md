@@ -1,3 +1,5 @@
+**English** | [日本語](polls.ja.md)
+
 # Polls Specification (`polls`)
 
 > Planned Owner: **B2-B** · Screen ID: `poll` · Ledger Reasons: `poll_rig`

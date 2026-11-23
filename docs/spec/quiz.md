@@ -1,3 +1,5 @@
+**English** | [日本語](quiz.ja.md)
+
 # Quiz Specification (`quiz`)
 
 > Planned Owner: **B2-B** · Screen ID: `quiz` · Ledger Reasons: `quiz_reward`, `quiz_author_pay`, `quiz_author_reward`

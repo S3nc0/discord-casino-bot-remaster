@@ -1,3 +1,5 @@
+**English** | [日本語](pachinko.ja.md)
+
 # Pachinko (`pachinko`)
 
 Ball-firing pachinko machine (`/カジノ パチンコ`). 1 set = 100 balls; supports 1–10 consecutive sets.
