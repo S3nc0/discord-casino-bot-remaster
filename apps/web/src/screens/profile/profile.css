@@ -1,4 +1,8 @@
-/* Profile: one card and a grid of shortcut buttons. Colours come from the @casino/ui tokens. */
+/*
+ * Profile: the player card (pixel art at 2 CSS px per art pixel, with the avatar, the name, the
+ * plaques and the owned items placed over its slots), the owned list and the shortcut buttons.
+ * Numbers use the reading face: the display face draws 2 and 5 like 8 at this size.
+ */
 .profile {
   display: grid;
   gap: var(--space-4);
@@ -13,24 +17,100 @@
   margin: 0;
 }
 
-.profile__who {
-  display: flex;
-  align-items: center;
-  gap: var(--space-4);
+.profile-card {
+  position: relative;
+  width: 352px;
+  max-width: 100%;
+  height: 196px;
+  margin-inline: auto;
 }
 
-.profile__name,
-.profile__balance {
+.profile-card__art {
+  position: absolute;
+  inset: 0;
+}
+
+.profile-card__portrait,
+.profile-card__name,
+.profile-card__plaque,
+.profile-card__socket {
+  position: absolute;
+  box-sizing: border-box;
+  margin: 0;
+}
+
+.profile-card__portrait {
+  overflow: hidden;
+  background: var(--indigo-20);
+}
+
+.profile-card__portrait > img,
+.profile-card__portrait > svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.profile-card__name {
+  display: grid;
+  place-items: center;
+  padding-inline: var(--space-3);
+  overflow: hidden;
+  color: var(--paper-99);
+  font: 700 16px / 1 var(--font-body);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-shadow: 2px 2px 0 var(--red-20);
+}
+
+.profile-card__plaques,
+.profile-card__sockets {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.profile-card__plaque {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 0 18px;
+  color: var(--neutral-4);
+  font: 700 13px / 1 var(--font-body);
+  white-space: nowrap;
+}
+
+.profile-card__plaque dt,
+.profile-card__plaque dd {
+  margin: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.profile-card__plaque dd {
+  flex: none;
+  font-size: 14px;
+  font-variant-numeric: tabular-nums;
+}
+
+.profile-card__socket {
+  display: grid;
+  place-items: center;
+}
+
+.profile__owned {
   margin: 0;
   overflow-wrap: anywhere;
-}
-
-.profile__name {
-  font-weight: 700;
 }
 
 .profile__links {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: var(--space-3);
+}
+
+.profile__links .bb-btn {
+  min-height: 48px;
 }

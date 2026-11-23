@@ -76,7 +76,10 @@ write(
     QUIZ_RIGHT: encode(fx.right()),
     QUIZ_WRONG: encode(fx.wrong()),
   },
-  at('QUIZ_BULBS_AT', 'Where the bulbs layer goes on the stage (art pixels).', { x: BULBS.x, y: BULBS.y }),
+  at('QUIZ_BULBS_AT', 'Where the bulbs layer goes on the stage (art pixels).', {
+    x: BULBS.x,
+    y: BULBS.y,
+  }),
 );
 
 // ---- lottery ----
@@ -94,25 +97,32 @@ write(
     LOTTERY_GLOBE: encode(crop(lf, GLOBE)),
     LOTTERY_TICKET: one(lottery.ticket()),
   },
-  at('LOTTERY_GLOBE_AT', 'Where the globe layer goes on the counter (art pixels).', { x: GLOBE.x, y: GLOBE.y }),
+  at('LOTTERY_GLOBE_AT', 'Where the globe layer goes on the counter (art pixels).', {
+    x: GLOBE.x,
+    y: GLOBE.y,
+  }),
 );
 
 // ---- poll ----
 const pb = poll.pollBase();
-const pf = Array.from({ length: 8 }, (_, t) => poll.pollFrame(pb, t, 8));
-const SLOT = changed(pf[7], pf);
+// frame 0 is the still one (no ballot): reduced motion and the loop's rest
+const pf = [7, 0, 1, 2, 3, 4, 5, 6].map((t) => poll.pollFrame(pb, t, 8));
+const SLOT = changed(pf[0], pf);
 write(
   'apps/web/src/screens/life/poll-art.ts',
   [
     'Poll: a town hall corner (voting booth, a voter, the ballot box on a table, a tally easel), the',
-    'ballot dropping into the slot in eight frames, and the small ballot for the poll titles.',
+    'ballot dropping into the slot in eight frames (0 is the rest), and the small ballot for the poll titles.',
   ],
   {
-    POLL_HALL: one(pf[7]),
+    POLL_HALL: one(pf[0]),
     POLL_DROP: encode(crop(pf, SLOT)),
     POLL_BALLOT: one(poll.ballot()),
   },
-  at('POLL_DROP_AT', 'Where the dropping ballot layer goes on the hall (art pixels).', { x: SLOT.x, y: SLOT.y }),
+  at('POLL_DROP_AT', 'Where the dropping ballot layer goes on the hall (art pixels).', {
+    x: SLOT.x,
+    y: SLOT.y,
+  }),
 );
 
 // ---- missions ----
@@ -142,46 +152,71 @@ write(
   {
     RANKING_PODIUM: one(rf[0]),
     RANKING_CUP: encode(crop(rf, CUP)),
-    RANKING_MEDALS: encode([ranking.medal('gold', 1), ranking.medal('silver', 2), ranking.medal('bronze', 3)]),
+    RANKING_MEDALS: encode([
+      ranking.medal('gold', 1),
+      ranking.medal('silver', 2),
+      ranking.medal('bronze', 3),
+    ]),
   },
-  at('RANKING_CUP_AT', 'Where the trophy layer goes on the podium (art pixels).', { x: CUP.x, y: CUP.y }),
+  at('RANKING_CUP_AT', 'Where the trophy layer goes on the podium (art pixels).', {
+    x: CUP.x,
+    y: CUP.y,
+  }),
 );
 
 // ---- relics ----
+// Each case is an overlay around its relic: frame 0 not found yet (a dark silhouette), frames 1 to
+// 4 found, with the glow of its best star level (none, one, two, three or more).
 const hall = relics.museumBase();
+const PAD = 4;
+const cases = {};
+const spots = relics.KINDS.map((kind, i) => {
+  const [x, y] = relics.relicAt(i);
+  const box = { x: x - PAD, y: y - PAD, w: 16 + PAD * 2, h: 16 + PAD * 2 };
+  const states = [undefined, 0, 1, 2, 3].map((star) =>
+    relics.museum(star === undefined ? {} : { [kind]: star }),
+  );
+  cases[`RELIC_${kind.toUpperCase()}`] = encode(crop(states, box));
+  return [box.x, box.y];
+});
 write(
   'apps/web/src/screens/life/relics-art.ts',
   [
-    'Relics: a museum hall with six glass display cases on plinths under ceiling lamps. The relic',
-    'sprites themselves are the finds of the mine (mine-art.ts); the glow is drawn from them.',
+    'Relics: a museum hall with six glass display cases on plinths under ceiling lamps, and each',
+    'case as an overlay: frame 0 not found yet (a dark silhouette), frames 1 to 4 found, glowing by',
+    'the best star level (none, one, two, three or more). The relics are the finds of the mine.',
   ],
-  { RELICS_HALL: one(hall) },
-  at(
-    'RELIC_SPOTS',
-    'Top left of the 16 by 16 relic in each case, in the order of RELIC_KINDS.',
-    relics.KINDS.map((_, i) => relics.relicAt(i)),
-  ).concat(
-    at('RELIC_KINDS', 'Relic kinds, left to right.', relics.KINDS.map((k) => `relic_${k}`)),
-    at('RELIC_GLOW', 'Glow tokens by tier (inner, outer): plain, one star, two stars, three or more.', relics.GLOW),
-    at('RELIC_CASE_BACK', 'Back panel token of a case (the glow only paints over it).', 'neutral-12'),
-  ),
+  { RELICS_HALL: one(hall), ...cases },
+  [
+    '/** Relic kind, its case overlay and where it goes on the hall (art pixels), left to right. */',
+    'export const RELIC_CASES = [',
+    ...relics.KINDS.map(
+      (kind, i) =>
+        `  { kind: 'relic_${kind}', art: RELIC_${kind.toUpperCase()}, x: ${spots[i][0]}, y: ${spots[i][1]} },`,
+    ),
+    '] as const;',
+  ],
 );
 
 // ---- transfer ----
 const tb = transfer.transferBase();
-const tf = Array.from({ length: 8 }, (_, t) => transfer.transferFrame(tb, t, 8));
-const FLIGHT = changed(tf[7], tf);
+// frame 0 is the still one (the letter caught), so reduced motion shows the end of the story
+const tf = [7, 0, 1, 2, 3, 4, 5, 6].map((t) => transfer.transferFrame(tb, t, 8));
+const FLIGHT = changed(tf[0], tf);
 write(
   'apps/web/src/screens/life/transfer-art.ts',
   [
     'Transfer: two players on a street at dusk; the envelope with a wax seal flying between them with',
-    'coins trailing (eight frames, the last one is the letter in the receiver\'s hand).',
+    "coins trailing (eight frames; 0 is the rest, the letter in the receiver's hand).",
   ],
   {
-    TRANSFER_STREET: one(tf[7]),
+    TRANSFER_STREET: one(tf[0]),
     TRANSFER_FLIGHT: encode(crop(tf, FLIGHT)),
   },
-  at('TRANSFER_FLIGHT_AT', 'Where the flight layer goes on the street (art pixels).', { x: FLIGHT.x, y: FLIGHT.y }),
+  at('TRANSFER_FLIGHT_AT', 'Where the flight layer goes on the street (art pixels).', {
+    x: FLIGHT.x,
+    y: FLIGHT.y,
+  }),
 );
 
 // ---- daily ----
@@ -198,15 +233,19 @@ write(
     DAILY_STAMP: one(daily.dayStamp()),
     DAILY_GIFT: encode([0, 1, 2, 3, 4, 5].map(daily.gift)),
   },
-  at('DAILY_CELLS', 'Top left of the stamp in each day cell, Monday to Sunday (art pixels).', daily.DAY_CELLS.map(([x, y]) => [x + 1, y + 1])).concat(
-    at('DAILY_GIFT_AT', 'Where the gift box goes (art pixels).', daily.GIFT),
-  ),
+  at(
+    'DAILY_CELLS',
+    'Top left of the stamp in each day cell, Monday to Sunday (art pixels).',
+    daily.DAY_CELLS.map(([x, y]) => [x + 1, y + 1]),
+  ).concat(at('DAILY_GIFT_AT', 'Where the gift box goes (art pixels).', daily.GIFT)),
 );
 
 // ---- history ----
 write(
   'apps/web/src/screens/casino/history-art.ts',
-  ['History: an open ledger on a desk in front of a bookshelf, a quill in an inkwell, a coin stack.'],
+  [
+    'History: an open ledger on a desk in front of a bookshelf, a quill in an inkwell, a coin stack.',
+  ],
   { HISTORY_LEDGER: one(history.historyScene()) },
 );
 
@@ -224,7 +263,12 @@ function placeholder() {
     const head = part(R, { round: 4, steps: [1, 2, 3] });
     hi.ellipse(head, 18, 15, 7.2, 7.6);
     const q = part('paper', { fixed: 3, outline: false });
-    hi.cells(16, 10, ['###', '#.#', '..#', '.#.', '...', '.#.'].map((r) => r), { '#': q });
+    hi.cells(
+      16,
+      10,
+      ['###', '#.#', '..#', '.#.', '...', '.#.'].map((r) => r),
+      { '#': q },
+    );
   });
   for (let i = 0; i < b.px.length; i++) if (bust.px[i] >>> 24) b.px[i] = bust.px[i];
   return b;
@@ -237,9 +281,14 @@ write(
     'without an avatar. The app puts the avatar, the text and the icons over PROFILE_SLOTS.',
   ],
   { PROFILE_CARD: one(profile.profileCard()), PROFILE_PLACEHOLDER: one(placeholder()) },
-  at('PROFILE_SLOTS', 'Areas on the card for the avatar, name, plaques and sockets (art pixels).', profile.SLOTS),
+  at(
+    'PROFILE_SLOTS',
+    'Areas on the card for the avatar, name, plaques and sockets (art pixels).',
+    profile.SLOTS,
+  ),
 );
 
 // keep generated files in the repository's prettier style
 execFileSync('pnpm', ['exec', 'prettier', '--write', ...written], { cwd: ROOT, stdio: 'ignore' });
-for (const f of written) console.log(path.relative(ROOT, f), `${(fs.statSync(f).size / 1024).toFixed(1)} KB`);
+for (const f of written)
+  console.log(path.relative(ROOT, f), `${(fs.statSync(f).size / 1024).toFixed(1)} KB`);

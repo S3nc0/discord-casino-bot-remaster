@@ -112,3 +112,16 @@ describe('History', () => {
 
 const buttonsText = (root: ParentNode) =>
   [...root.querySelectorAll('button')].map((b) => b.textContent).join('|');
+
+describe('History scene', () => {
+  beforeEach(() => prepare());
+
+  it('draws the ledger desk above the list and keeps the list a ruled light page', async () => {
+    const { view } = await show(() =>
+      Promise.resolve({ items: [entry(1, 'daily', 1_300)], nextBefore: null }),
+    );
+    const scene = view.container.querySelector('.cc-head + .sc-scene svg.bb-scene');
+    expect(scene?.getAttribute('aria-hidden')).toBe('true');
+    expect(view.container.querySelector('.cc-ledger')?.getAttribute('data-theme')).toBe('light');
+  });
+});

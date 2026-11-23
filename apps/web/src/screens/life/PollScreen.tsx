@@ -1,11 +1,36 @@
 import { useState } from 'react';
-import { Button, Card, Chip, ChipGroup, Progress, Tag, TextField } from '@casino/ui';
+import {
+  Button,
+  Card,
+  Chip,
+  ChipGroup,
+  PixelScene,
+  Progress,
+  SceneLayer,
+  Tag,
+  TextField,
+  useSceneOnce,
+} from '@casino/ui';
 import type { PollItem, PollsView } from '@casino/shared';
 import { useLocale, useT } from '../../shell/i18n.ts';
 import { useLifeApi } from './api.tsx';
 import { formatDuration } from './format.ts';
 import { pushToast, useIntent, useLoad, useNow } from './hooks.ts';
 import { Await, LifeFrame } from './ui.tsx';
+import { POLL_BALLOT, POLL_DROP, POLL_DROP_AT, POLL_HALL } from './poll-art.ts';
+import './social.css';
+
+/** The voting corner: a ballot drops into the box each time you vote (not under reduced motion). */
+function Hall({ votes }: { votes: number }) {
+  const drop = useSceneOnce({ frames: [1, 2, 3, 4, 5, 6, 7], ms: 90, trigger: votes });
+  return (
+    <div className="sc-scene">
+      <PixelScene art={POLL_HALL} scale={2}>
+        <SceneLayer art={POLL_DROP} frame={drop} x={POLL_DROP_AT.x} y={POLL_DROP_AT.y} />
+      </PixelScene>
+    </div>
+  );
+}
 
 const DURATIONS = [60, 1440, 4320] as const;
 
@@ -29,7 +54,12 @@ function PollCard({
     <Card
       variant="filled"
       className="life-poll"
-      title={poll.title}
+      title={
+        <>
+          <PixelScene art={POLL_BALLOT} scale={2} className="sc-ballot" />
+          {poll.title}
+        </>
+      }
       meta={t('screen.life.poll.by', { name: poll.creatorName })}
     >
       <Progress
@@ -144,16 +174,19 @@ export default function PollScreen() {
   const state = useLoad(() => api.polls(), 20_000);
   const intent = useIntent();
   const now = useNow(1000);
+  const [votes, setVotes] = useState(0);
   const vote = (poll: PollItem, yes: boolean) =>
     void intent
       .run(`vote:${poll.id}:${yes}`, (key) => api.pollVote(poll.id, yes, key))
       .then(async (r) => {
         if (!r) return;
+        setVotes((n) => n + 1);
         pushToast('success', 'screen.life.poll.voted');
         await state.reload();
       });
   return (
     <LifeFrame screen="poll" icon="poll">
+      <Hall votes={votes} />
       <Await state={state}>
         {(v) => (
           <>

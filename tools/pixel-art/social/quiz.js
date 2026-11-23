@@ -181,7 +181,7 @@ function quizScene() {
   // curtains and the valance
   const red = CR(['red-10', 'red-20', 'red-30', 'red-40', 'red-50', 'red-60']);
   const drape = (x0, x1, flip) =>
-    field(b, x0, 2, x1 - x0, H - 6, red, (x, y) => {
+    field(b, x0, 2, x1 - x0, H - 6, red, (x, _y) => {
       const u = (x - x0) / 6;
       const ph = (u - Math.floor(u)) * Math.PI * 2;
       const fold = 0.5 + 0.38 * Math.cos(ph + 0.9);

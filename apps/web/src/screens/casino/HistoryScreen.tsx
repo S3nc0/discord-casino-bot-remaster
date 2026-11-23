@@ -1,11 +1,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Banner, Button, List, ListItem, Surface, Tag } from '@casino/ui';
+import { Banner, Button, List, ListItem, PixelScene, Surface, Tag } from '@casino/ui';
 import type { HistoryEntry } from '@casino/shared';
 import { useLocale, useT } from '../../shell/i18n.ts';
 import { formatNumber, formatSigned } from './format.ts';
 import { errorKeyOf } from './hooks.ts';
 import { useCasino } from './services.tsx';
+import { HISTORY_LEDGER } from './history-art.ts';
 import './games.css';
+import './history.css';
 
 const PAGE = 20;
 
@@ -61,6 +63,9 @@ export default function HistoryScreen() {
         <header className="cc-head">
           <h1 className="cc-head__title">{title}</h1>
         </header>
+        <div className="sc-scene">
+          <PixelScene art={HISTORY_LEDGER} scale={2} />
+        </div>
         {errorKey ? (
           <Banner variant="error" title={t('screen.casino.history.loadError')} role="alert">
             <Button variant="tonal" onClick={() => load()} disabled={busy}>
@@ -70,7 +75,7 @@ export default function HistoryScreen() {
         ) : null}
         {loaded && items.length === 0 ? <p>{t('screen.casino.history.empty')}</p> : null}
         {items.length > 0 ? (
-          <List label={t('screen.casino.history.list')} className="cc-ledger">
+          <List label={t('screen.casino.history.list')} className="cc-ledger" data-theme="light">
             {items.map((entry) => (
               <ListItem
                 key={entry.id}

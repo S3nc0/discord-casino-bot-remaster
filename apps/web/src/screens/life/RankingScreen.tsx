@@ -1,11 +1,43 @@
-import { Avatar, Banner, List, ListItem, Tag } from '@casino/ui';
+import {
+  Avatar,
+  Banner,
+  List,
+  ListItem,
+  PixelScene,
+  SceneLayer,
+  Tag,
+  useSceneFrame,
+} from '@casino/ui';
 import { useLocale, useT } from '../../shell/i18n.ts';
 import { useLifeApi } from './api.tsx';
 import { formatDuration, monthDay, signed } from './format.ts';
 import { useLoad, useNow } from './hooks.ts';
 import { Await, LifeFrame } from './ui.tsx';
+import { RANKING_CUP, RANKING_CUP_AT, RANKING_MEDALS, RANKING_PODIUM } from './ranking-art.ts';
+import './social.css';
 
-const MEDALS = ['🥇', '🥈', '🥉'];
+/** The podium under a sunburst; a glint sweeps over the trophy (still under reduced motion). */
+function Podium() {
+  const glint = useSceneFrame(RANKING_CUP.frames.length, 160);
+  return (
+    <div className="sc-scene">
+      <PixelScene art={RANKING_PODIUM} scale={2}>
+        <SceneLayer art={RANKING_CUP} frame={glint} x={RANKING_CUP_AT.x} y={RANKING_CUP_AT.y} />
+      </PixelScene>
+    </div>
+  );
+}
+
+/** Gold, silver and bronze medals for places 1 to 3, the number otherwise. */
+function Place({ rank }: { rank: number }) {
+  if (rank >= 1 && rank <= RANKING_MEDALS.frames.length)
+    return (
+      <Avatar className="sc-medal">
+        <PixelScene art={RANKING_MEDALS} frame={rank - 1} scale={2} label={String(rank)} />
+      </Avatar>
+    );
+  return <Avatar>{String(rank)}</Avatar>;
+}
 
 export default function RankingScreen() {
   const t = useT();
@@ -30,6 +62,7 @@ export default function RankingScreen() {
                 {t('screen.life.ranking.endsIn', { time: formatDuration(t, v.endsAt - now) })}
               </Tag>
             </div>
+            <Podium />
             {v.champion ? (
               <Banner
                 variant="info"
@@ -76,7 +109,7 @@ export default function RankingScreen() {
                         ) : null}
                       </>
                     }
-                    leading={<Avatar>{MEDALS[r.rank - 1] ?? String(r.rank)}</Avatar>}
+                    leading={<Place rank={r.rank} />}
                     trailing={
                       <span className={r.net >= 0 ? 'life__plus' : 'life__minus'}>
                         {signed(locale, r.net)}

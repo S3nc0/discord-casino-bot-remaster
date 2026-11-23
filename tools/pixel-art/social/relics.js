@@ -2,7 +2,8 @@
 // kind. A relic the player owns stands in its case with a rarity glow (by its best star level);
 // one not found yet shows as a dark silhouette. The relic sprites are the ones from the labor
 // screen's finds (loaded from `$ART_REF/relics/find_relic_<kind>.png` for the preview).
-import { P, C, CR, prop, paste, set, rect, vbands, field, frame, clone } from './kit.js';
+import { P, C, CR, prop, paste, set, rect, vbands, field, frame } from './kit.js';
+import { find } from '../scenes/finds.js';
 
 const W = 176,
   H = 72;
@@ -49,15 +50,25 @@ function museumBase() {
     set(b, x, FLOOR - 14, C('orange-40'));
     set(b, x, FLOOR - 13, C('yellow-70'));
   }
-  for (let y = FLOOR - 12; y < FLOOR; y++) for (let x = 2; x < W - 2; x++) set(b, x, y, C('red-10'));
+  for (let y = FLOOR - 12; y < FLOOR; y++)
+    for (let x = 2; x < W - 2; x++) set(b, x, y, C('red-10'));
   // ceiling: dark band with lamps
   rect(b, 2, 2, W - 4, 7, C('neutral-10'));
   for (let x = 2; x < W - 2; x++) set(b, x, 8, C('neutral-24'));
   // floor: marble checker, lighter tiles near the front
-  field(b, 2, FLOOR, W - 4, H - 2 - FLOOR, CR(['neutral-24', 'neutral-30', 'neutral-50', 'neutral-60']), (x, y) => {
-    const chk = (Math.floor((x - 2) / 10) + Math.floor((y - FLOOR) / 5)) % 2;
-    return chk ? 0.15 + ((y - FLOOR) / 12) * 0.2 : 0.6 + ((y - FLOOR) / 12) * 0.3;
-  }, 0.01);
+  field(
+    b,
+    2,
+    FLOOR,
+    W - 4,
+    H - 2 - FLOOR,
+    CR(['neutral-24', 'neutral-30', 'neutral-50', 'neutral-60']),
+    (x, y) => {
+      const chk = (Math.floor((x - 2) / 10) + Math.floor((y - FLOOR) / 5)) % 2;
+      return chk ? 0.15 + ((y - FLOOR) / 12) * 0.2 : 0.6 + ((y - FLOOR) / 12) * 0.3;
+    },
+    0.01,
+  );
   for (let x = 2; x < W - 2; x++) set(b, x, FLOOR, C('neutral-17'));
   // cases
   for (let i = 0; i < KINDS.length; i++) {
@@ -108,7 +119,8 @@ function glow(b, x0, y0, sprite, tier) {
     x >= 0 && y >= 0 && x < sprite.w && y < sprite.h && sprite.px[y * sprite.w + x] >>> 24;
   const near = (x, y, r) => {
     for (let j = -r; j <= r; j++)
-      for (let i = -r; i <= r; i++) if (i * i + j * j <= r * r + 1 && solid(x + i, y + j)) return true;
+      for (let i = -r; i <= r; i++)
+        if (i * i + j * j <= r * r + 1 && solid(x + i, y + j)) return true;
     return false;
   };
   for (let y = -4; y < sprite.h + 4; y++)
@@ -120,10 +132,8 @@ function glow(b, x0, y0, sprite, tier) {
     }
 }
 
-/** Load a relic sprite (preview only). */
-function relicSprite(dir, kind) {
-  return P.load(`${dir}/find_relic_${kind}.png`);
-}
+/** The relic sprite dug up in the mine (scenes/finds.js), so both screens show the same relic. */
+const relicSprite = (kind) => find(`relic_${kind}`);
 /** Dark silhouette of a sprite: every opaque pixel in one wall-dark tone with a lit top edge. */
 function silhouette(s) {
   const o = new P.Buf(s.w, s.h);
@@ -138,11 +148,11 @@ function silhouette(s) {
  * The hall with relics: `owned` maps kind → best star level (0..3) or is missing when not found.
  * `t` of `T` twinkles a star over three-star relics.
  */
-function museum(dir, owned, t = 0, T = 1) {
+function museum(owned, t = 0, T = 1) {
   const b = museumBase();
   KINDS.forEach((kind, i) => {
     const [x, y] = relicAt(i);
-    const s = relicSprite(dir, kind);
+    const s = relicSprite(kind);
     if (owned[kind] === undefined) {
       paste(b, silhouette(s), x, y);
       return;
@@ -163,12 +173,10 @@ function museum(dir, owned, t = 0, T = 1) {
   return b;
 }
 
-const REF = process.env.ART_RELICS ?? '';
 export function preview(T = 2) {
-  const dir = REF;
   return Array.from({ length: T }, (_, t) =>
-    museum(dir, { fossil: 0, bone: 1, vase: 2, crown: 3 }, t, T),
+    museum({ fossil: 0, bone: 1, vase: 2, crown: 3 }, t, T),
   );
 }
 
-export { museumBase, museum, glow, silhouette, relicAt, KINDS, GLOW, W, H };
+export { museumBase, museum, glow, silhouette, relicAt, relicSprite, KINDS, GLOW, W, H };

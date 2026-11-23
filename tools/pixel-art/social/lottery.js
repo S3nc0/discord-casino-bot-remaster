@@ -1,7 +1,7 @@
 // Lottery: a festival counter with a glass drawing machine. Numbered balls tumble inside the globe
 // (frames of the globe only), the crank turns, and the drawn ball waits in the tray. A ticket
 // sprite sits next to the buy button.
-import { P, C, CR, prop, paste, set, rect, vbands, field, line, frame, clone } from './kit.js';
+import { P, C, CR, prop, paste, set, rect, vbands, line, frame, clone } from './kit.js';
 
 const W = 176,
   H = 72;

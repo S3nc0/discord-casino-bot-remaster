@@ -1,6 +1,6 @@
 // Previews for review: every scene on navy and on cream, the sprite sheets at 4x and the
 // animations as GIFs. Writes into $ART_OUT (never the repository):
-//   ART_OUT=/some/folder ART_RELICS=/folder/with/find_relic_pngs node tools/pixel-art/social/preview.js
+//   ART_OUT=/some/folder node tools/pixel-art/social/preview.js
 import fs from 'node:fs';
 import path from 'node:path';
 import { P, OUT } from '../lib/env.js';
@@ -32,7 +32,10 @@ function sheet(name, sprites) {
       scale: 4,
     })),
   );
-  P.save(P.sheet(items, { cols: items.length > 3 ? 3 : items.length }), path.join(sheets, `${name}_sheet_4x.png`));
+  P.save(
+    P.sheet(items, { cols: items.length > 3 ? 3 : items.length }),
+    path.join(sheets, `${name}_sheet_4x.png`),
+  );
 }
 /** Animation on navy and on cream side by side, 2x, as a GIF. */
 function gif(name, frames, delay) {
@@ -49,26 +52,46 @@ function gif(name, frames, delay) {
 
 const q = quiz.quizScene();
 const qf = [0, 1].map((g) => quiz.bulbs(clone(q.buf), q, g));
-sheet('quiz', { stage: qf[0], host: quiz.host(), podium: quiz.podium(), buzzer: [quiz.buzzer('red'), quiz.buzzer('sky')], right: fx.right(), wrong: fx.wrong() });
+sheet('quiz', {
+  stage: qf[0],
+  host: quiz.host(),
+  podium: quiz.podium(),
+  buzzer: [quiz.buzzer('red'), quiz.buzzer('sky')],
+  right: fx.right(),
+  wrong: fx.wrong(),
+});
 gif('quiz_bulbs', qf, 400);
 gif('quiz_right', fx.right(), [90, 90, 90, 900]);
 gif('quiz_wrong', fx.wrong(), [90, 70, 70, 900]);
 
 const lf = lottery.preview(6);
-sheet('lottery', { counter: lf[0], ticket: lottery.ticket(), drawn: lottery.bigBall(7, 'red'), balls: ['red', 'sky', 'gold', 'green', 'violet', 'orange'].map(lottery.ball) });
+sheet('lottery', {
+  counter: lf[0],
+  ticket: lottery.ticket(),
+  drawn: lottery.bigBall(7, 'red'),
+  balls: ['red', 'sky', 'gold', 'green', 'violet', 'orange'].map(lottery.ball),
+});
 gif('lottery_tumble', lf, 120);
 
 const pf = poll.preview(8);
 sheet('poll', { hall: pf[0], ballot: poll.ballot() });
 gif('poll_ballot', pf, 140);
 
-sheet('missions', { board: missions.missionsBase(), pins: ['red', 'sky', 'green', 'gold'].map((h) => missions.pin(h)), stamp: missions.stamp() });
+sheet('missions', {
+  board: missions.missionsBase(),
+  pins: ['red', 'sky', 'green', 'gold'].map((h) => missions.pin(h)),
+  stamp: missions.stamp(),
+});
 
 const rf = ranking.preview(8);
-sheet('ranking', { podium: rf[0], trophy: ranking.trophy(), medals: [ranking.medal('gold', 1), ranking.medal('silver', 2), ranking.medal('bronze', 3)] });
+sheet('ranking', {
+  podium: rf[0],
+  trophy: ranking.trophy(),
+  medals: [ranking.medal('gold', 1), ranking.medal('silver', 2), ranking.medal('bronze', 3)],
+});
 gif('ranking_shine', rf, 110);
 
-if (process.env.ART_RELICS) {
+{
   const mf = relics.preview(2);
   sheet('relics', { hall: mf[0], empty: relics.museumBase() });
   gif('relics_twinkle', mf, 500);

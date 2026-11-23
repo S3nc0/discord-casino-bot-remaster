@@ -9,8 +9,11 @@ import {
   Dialog,
   List,
   ListItem,
+  PixelScene,
   Progress,
+  SceneLayer,
   TextField,
+  useSceneOnce,
 } from '@casino/ui';
 import type { TransferMember, TransferPreview, TransferView } from '@casino/shared';
 import { formatPelica, useLocale, useT } from '../../shell/i18n.ts';
@@ -18,6 +21,8 @@ import { useLifeApi } from './api.tsx';
 import { errorMessage, pushToast, useIntent, useLoad, usePlay } from './hooks.ts';
 import { LifeApiError } from './client.ts';
 import { Await, LifeFrame } from './ui.tsx';
+import { TRANSFER_FLIGHT, TRANSFER_FLIGHT_AT, TRANSFER_STREET } from './transfer-art.ts';
+import './social.css';
 
 const QUICK = [100, 500, 1000, 5000] as const;
 
@@ -239,12 +244,40 @@ function Form({ view, onSent }: { view: TransferView; onSent: () => Promise<void
   );
 }
 
+/** Two players on a street: the letter flies over with coins on arrival and after each send. */
+function Street({ sent }: { sent: number }) {
+  const flight = useSceneOnce({
+    frames: [1, 2, 3, 4, 5, 6, 7],
+    ms: 110,
+    trigger: sent,
+    onMount: true,
+  });
+  return (
+    <div className="sc-scene">
+      <PixelScene art={TRANSFER_STREET} scale={2}>
+        <SceneLayer
+          art={TRANSFER_FLIGHT}
+          frame={flight}
+          x={TRANSFER_FLIGHT_AT.x}
+          y={TRANSFER_FLIGHT_AT.y}
+        />
+      </PixelScene>
+    </div>
+  );
+}
+
 export default function TransferScreen() {
   const api = useLifeApi();
   const state = useLoad(() => api.transfer());
+  const [sent, setSent] = useState(0);
+  const onSent = async () => {
+    setSent((n) => n + 1);
+    await state.reload();
+  };
   return (
     <LifeFrame screen="transfer" icon="transfer">
-      <Await state={state}>{(v) => <Form view={v} onSent={state.reload} />}</Await>
+      <Street sent={sent} />
+      <Await state={state}>{(v) => <Form view={v} onSent={onSent} />}</Await>
     </LifeFrame>
   );
 }

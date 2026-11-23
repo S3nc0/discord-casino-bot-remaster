@@ -1,10 +1,29 @@
-import { Banner, Button, Card, Tag } from '@casino/ui';
+import { Banner, Button, Card, PixelScene, SceneLayer, Tag, useSceneFrame } from '@casino/ui';
 import type { LotteryView } from '@casino/shared';
 import { formatPelica, useLocale, useT } from '../../shell/i18n.ts';
 import { useLifeApi } from './api.tsx';
 import { formatDuration } from './format.ts';
 import { pushToast, useIntent, useLoad, useNow, usePlay } from './hooks.ts';
 import { Await, LifeFrame, Stat } from './ui.tsx';
+import { LOTTERY_COUNTER, LOTTERY_GLOBE, LOTTERY_GLOBE_AT, LOTTERY_TICKET } from './lottery-art.ts';
+import './social.css';
+
+/** The festival counter: the globe tumbles while a raffle is open (still under reduced motion). */
+function Counter({ open }: { open: boolean }) {
+  const spin = useSceneFrame(LOTTERY_GLOBE.frames.length, 140, open);
+  return (
+    <div className="sc-scene">
+      <PixelScene art={LOTTERY_COUNTER} scale={2}>
+        <SceneLayer
+          art={LOTTERY_GLOBE}
+          frame={spin}
+          x={LOTTERY_GLOBE_AT.x}
+          y={LOTTERY_GLOBE_AT.y}
+        />
+      </PixelScene>
+    </div>
+  );
+}
 
 function Result({ last }: { last: NonNullable<LotteryView['last']> }) {
   const t = useT();
@@ -66,9 +85,11 @@ export default function LotteryScreen() {
       <Await state={state}>
         {(v) => (
           <>
+            <Counter open={v.current !== null} />
             {v.current ? (
               <Card
                 variant="elevated"
+                className="sc-booth"
                 title={t('screen.life.lottery.title')}
                 meta={t('screen.life.lottery.host', { name: v.current.hostName })}
               >
@@ -110,6 +131,7 @@ export default function LotteryScreen() {
                       disabled={intent.busy || v.balance < v.current.fee}
                       onClick={() => join((v.current as NonNullable<typeof v.current>).id)}
                     >
+                      <PixelScene art={LOTTERY_TICKET} className="sc-ticket" />
                       {t('screen.life.lottery.buy', { fee: formatPelica(locale, v.current.fee) })}
                     </Button>
                   )}

@@ -1,7 +1,7 @@
 // Missions: a quest board on a tavern wall. A wooden frame round a cork board, notes held by pins,
 // a done stamp on the finished one, a lantern beside it. The pin and the stamp ship on their own
 // for the mission cards.
-import { P, C, CR, prop, paste, set, rect, vbands, field, line, frame } from './kit.js';
+import { P, C, CR, prop, paste, set, vbands, field, line, frame } from './kit.js';
 
 const W = 176,
   H = 72;

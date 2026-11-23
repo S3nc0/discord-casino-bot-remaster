@@ -1,7 +1,7 @@
 // Ranking: a three-step podium under a sunburst, the trophy on the top step with a glint that
 // sweeps across it, silver and bronze medals on the lower steps. Medals 1 to 3 ship on their own
 // for the ranking rows.
-import { P, C, CR, prop, paste, set, rect, frame, clone } from './kit.js';
+import { P, C, prop, paste, set, rect, frame, clone } from './kit.js';
 
 const W = 176,
   H = 72;

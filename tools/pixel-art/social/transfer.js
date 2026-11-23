@@ -1,7 +1,7 @@
 // Transfer: two players on a street at dusk, the sender on the left, the receiver on the right.
 // An envelope with a wax seal flies between them on an arc with coins trailing, and lands in the
 // receiver's hand.
-import { P, C, CR, prop, paste, set, rect, vbands, field, frame, clone } from './kit.js';
+import { P, C, CR, prop, paste, set, vbands, field, frame, clone } from './kit.js';
 import { person } from './person.js';
 
 const W = 176,

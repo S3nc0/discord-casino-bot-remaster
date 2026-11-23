@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, type ReactNode } from 'react';
 import {
   Avatar,
   Button,
@@ -524,15 +524,19 @@ function Ranking() {
 export function LaborView({
   screen = 'work',
   initialTab = 'dig',
+  hero,
 }: {
   screen?: 'work' | 'relics';
   initialTab?: 'dig' | 'crew' | 'relics' | 'ranking';
+  /** A picture above the tabs, drawn from the loaded view (nothing while loading or on error). */
+  hero?: (view: WorkView) => ReactNode;
 }) {
   const t = useT();
   const api = useLifeApi();
   const state = useLoad(() => api.work(), 30_000);
   return (
     <LifeFrame screen={screen} icon={screen === 'relics' ? 'relic' : 'pickaxe'}>
+      {hero && state.data !== null ? hero(state.data) : null}
       <Await state={state}>
         {(v) => (
           <Tabs

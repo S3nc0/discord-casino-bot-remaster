@@ -1,11 +1,47 @@
 import { useState } from 'react';
-import { Banner, Button, Card, Dialog, Tabs, Tag, TextField } from '@casino/ui';
+import {
+  Banner,
+  Button,
+  Card,
+  Dialog,
+  PixelScene,
+  SceneLayer,
+  Tabs,
+  Tag,
+  TextField,
+  useSceneFrame,
+  useSceneOnce,
+} from '@casino/ui';
 import type { QuizAnswerResponse, QuizItem, QuizView } from '@casino/shared';
 import { formatPelica, useLocale, useT } from '../../shell/i18n.ts';
 import { useLifeApi } from './api.tsx';
 import { formatDuration } from './format.ts';
 import { pushToast, useIntent, useLoad, useNow, usePlay } from './hooks.ts';
 import { Await, LifeFrame } from './ui.tsx';
+import { QUIZ_BULBS, QUIZ_BULBS_AT, QUIZ_RIGHT, QUIZ_STAGE, QUIZ_WRONG } from './quiz-art.ts';
+import './social.css';
+
+const LETTERS = 'ABCDEFGH';
+
+/** The game-show stage above the quiz: the sign's bulbs chase (still under reduced motion). */
+function Stage() {
+  const bulbs = useSceneFrame(2, 600);
+  return (
+    <div className="sc-scene">
+      <PixelScene art={QUIZ_STAGE} scale={2}>
+        <SceneLayer art={QUIZ_BULBS} frame={bulbs} x={QUIZ_BULBS_AT.x} y={QUIZ_BULBS_AT.y} />
+      </PixelScene>
+    </div>
+  );
+}
+
+/** A ring on the right answer, a cross on a wrong pick: plays once, then rests on its last frame. */
+function AnswerFx({ right }: { right: boolean }) {
+  const frame = useSceneOnce({ frames: [0, 1, 2], ms: 90, rest: 3, onMount: true });
+  return (
+    <PixelScene art={right ? QUIZ_RIGHT : QUIZ_WRONG} frame={frame} scale={2} className="sc-fx" />
+  );
+}
 
 function Answer({ view, onNext }: { view: QuizView; onNext: () => Promise<void> }) {
   const t = useT();
@@ -40,6 +76,8 @@ function Answer({ view, onNext }: { view: QuizView; onNext: () => Promise<void> 
   return (
     <Card
       variant="elevated"
+      className="sc-show"
+      data-theme="dark"
       title={quiz.question}
       meta={
         quiz.authorName === null
@@ -78,8 +116,12 @@ function Answer({ view, onNext }: { view: QuizView; onNext: () => Promise<void> 
                 disabled={intent.busy || !!result}
                 onClick={() => answer(i)}
               >
+                <span className="sc-letter" aria-hidden="true">
+                  {LETTERS[i]}
+                </span>
                 {text}
               </Button>
+              {state ? <AnswerFx right={state === 'right'} /> : null}
             </li>
           );
         })}
@@ -306,6 +348,7 @@ export default function QuizScreen() {
   const state = useLoad(() => api.quiz(), 30_000);
   return (
     <LifeFrame screen="quiz" icon="quiz">
+      <Stage />
       <Await state={state}>
         {(v) => (
           <Tabs
