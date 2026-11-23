@@ -7,6 +7,17 @@ ENV_FILE="${ENV_FILE:-$APP_DIR/.env}"
 BACKUP_DIR="${BACKUP_DIR:-/var/backups/discord-casino}"
 RETENTION_DAYS="${RETENTION_DAYS:-7}"
 
+# BACKUP_DIR is embedded in a single-quoted sqlite3 dot-command below, so it must be an absolute
+# path without quotes or control characters (a newline would start a second dot-command).
+if [[ "$BACKUP_DIR" != /* ]] || [[ "$BACKUP_DIR" == *"'"* ]] || [[ "$BACKUP_DIR" =~ [[:cntrl:]] ]]; then
+  echo "Error: BACKUP_DIR must be an absolute path without quotes or control characters." >&2
+  exit 1
+fi
+if [[ ! "$RETENTION_DAYS" =~ ^[0-9]+$ ]]; then
+  echo "Error: RETENTION_DAYS must be a non-negative integer (got: $RETENTION_DAYS)." >&2
+  exit 1
+fi
+
 if ! command -v sqlite3 >/dev/null 2>&1; then
   echo "Error: sqlite3 CLI is required for backups." >&2
   exit 1
