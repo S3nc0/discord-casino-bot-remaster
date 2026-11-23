@@ -12,6 +12,7 @@ Wrap the app root in `<ThemeProvider>` (`theme?: 'light' | 'dark' | 'discord'` �
 
 - **Readable first:** Body copy in Atkinson Hyperlegible (`--font-body`, Japanese system fallbacks included) at **≥16px** (`body-medium`). `label-small` (12px) is for badges only. Sentence case everywhere.
 - **Pixelify for headings only:** Use Pixelify Sans (`--font-display`) solely for Display, Headline, and Title styles (56 → 16px).
+- **Numbers in Atkinson, never Pixelify:** Pixelify Sans draws 2 like 8 and 5 like S at every size (12,400 reads as 18,400). Money, odds, ranks, timers and counts use the `.num` class (`--font-numeric` = Atkinson Hyperlegible, `tabular-nums`). Digits that land inside a display-font title ("Race 12") are covered by the `Bitbloom Numerals` face already first in `--font-display`, so titles need no override.
 - **Pixel borders, no rounding:** 2px (`--pixel`) four-shadow notched edges (`--pb`), `border-radius: 0` everywhere.
 - **Hard-offset elevation:** `--elevation-1`..`3` (2px/4px/6px solid offsets, never blur). Filled buttons and FABs have a 4px `--pixel-lip` and drop 1 art pixel when pressed.
 - **Stepped motion:** Animations use `steps(n)` timing (`steps(3)`, `steps(12)`); automatically disabled under `prefers-reduced-motion` or `ThemeProvider` `reducedMotion`.

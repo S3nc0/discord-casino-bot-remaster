@@ -438,11 +438,14 @@
   --state-pressed: 0.12;
   --state-dragged: 0.16;
   --font-display:
-    'Pixelify Sans', ui-rounded, system-ui, 'Hiragino Sans', 'Hiragino Kaku Gothic ProN',
-    'Yu Gothic UI', 'Yu Gothic', 'Meiryo', 'Noto Sans JP', sans-serif;
+    'Bitbloom Numerals', 'Pixelify Sans', ui-rounded, system-ui, 'Hiragino Sans',
+    'Hiragino Kaku Gothic ProN', 'Yu Gothic UI', 'Yu Gothic', 'Meiryo', 'Noto Sans JP', sans-serif;
   --font-body:
     'Atkinson Hyperlegible', system-ui, -apple-system, 'Segoe UI', 'Hiragino Sans',
     'Hiragino Kaku Gothic ProN', 'Yu Gothic UI', 'Yu Gothic', 'Meiryo', 'Noto Sans JP', sans-serif;
+  /* Every number a player reads (money, odds, ranks, timers, counts). Pixelify Sans draws 2 like 8
+     and 5 like S, so numbers use Atkinson Hyperlegible digits. Apply with the .num utility. */
+  --font-numeric: var(--font-body);
 }
 [data-theme='dark'] {
   --primary: var(--green-70);
