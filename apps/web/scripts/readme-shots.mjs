@@ -24,8 +24,9 @@ const SHOTS = [
   { id: 'home', screen: 'home', scheme: 'dark' },
   { id: 'slots', screen: 'slots', scheme: 'dark' },
   { id: 'horse', screen: 'horse', scheme: 'dark', race: true },
-  { id: 'stocks', screen: 'stocks', scheme: 'dark', firstTab: true },
-  { id: 'bank-light', screen: 'bank', scheme: 'light' },
+  // still: the finance scenes rest on their still frame, so the ticker text is not cut mid-scroll
+  { id: 'stocks', screen: 'stocks', scheme: 'dark', firstTab: true, still: true },
+  { id: 'bank-light', screen: 'bank', scheme: 'light', still: true },
 ];
 const only = process.env.README_SHOTS?.split(',');
 const LOCALES = [
@@ -65,6 +66,7 @@ try {
         locale: locale.param,
         isMobile: true,
         hasTouch: true,
+        ...(shot.still ? { reducedMotion: 'reduce' } : {}),
       });
       const page = await context.newPage();
       page.on('pageerror', (e) => problems.push(`${label}: page error: ${e.message}`));
