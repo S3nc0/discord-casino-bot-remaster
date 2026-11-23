@@ -102,7 +102,7 @@ Canonical English and Japanese terms used across the legacy bot, YAML catalogs, 
 - **Reserve Ratio / 準備率 (`θ`)**: Ratio of liquid bank cash to liabilities governing bank-run freezes, risk-free rates, and Kyosai gates.
 - **Thermostat / サーモスタット**: Split-invariant liquidity shock absorber that buffers bank inflows/outflows with daily load decay.
 - **Seed Money / 種銭**: Emergency Teiai loan (`3,000` Pelica) available to zero-balance players without exceeding the borrowing ceiling.
-- **Toichi / トイチ**: Teiai debt interest rate (`10%` per day, capped at 10 days accrual per tick, ceiling `14,999` voluntary borrow).
+- **Toichi / トイチ**: Teiai debt interest rate: `1%` per day simple interest, so 10% over ten days, which gives the name (`DEBT_RATE_PER_DAY = 0.01`; `debtRatePerDayBps: 100` in the remaster). At most 10 days count per accrual, and interest alone never pushes debt past `14,999` (`DEBT_INTEREST_CEILING`).
 - **Teiai Skim / ピンハネ**: Automatic Teiai cut (`20%` on debtor daily claims; `3%` on underground labor earnings).
 - **Debt Withholding / 天引き**: Automatic `30%` garnishment on debtor incoming payouts and transfers applied directly to debt repayment.
 - **Overseas Escape / 海外逃亡**: High-risk debt-evasion attempt (`1%` full wipe success, `99%` fine added to debt).

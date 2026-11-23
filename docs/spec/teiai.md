@@ -30,7 +30,7 @@ Planned owner: `B3` | Screen IDs: `teiai-bank`, `teiai-bank-cds`, `teiai-bank-de
   - `SEED = 3_000` (seed loan cap & Blackjack Teiai credit double cap)
   - `REPAY_RATE = 0.30` (30% of eligible `income` withheld toward debt: `int(income * 0.30)`; senior Teiai first, remaining budget to overdue P2P loans oldest-first)
   - `SKIM_RATE = 0.20` (20% daily bonus skim while in debt: `int(amount * 0.20)`, credited to Teiai House Account `teiai_house`, does NOT reduce debt)
-  - `LABOR_SKIM_RATE = 0.03` (3% labor pot claim skim credited to `teiai_house`; note `docs/teiai.md:46` stale-says 1%)
+  - `LABOR_SKIM_RATE = 0.03` (3% labor pot claim skim credited to `teiai_house`; note `docs/teiai.md:46` stale-says 1%. The remaster uses 3%: `LABOR_SKIM_RATE_BPS = 300` in `packages/domain/src/progression/economy-core.ts`)
   - `HORSE_PRIZE_SKIM_RATE = 0.0` (0%)
   - `DEBT_RATE_PER_DAY = 0.01` (1%/day simple interest = トイチ, whole completed days only)
   - `DEBT_INTEREST_MAX_DAYS = 10` (caps single accrual at 10 days; excess elapsed days reset `debt_interest_at = now`)

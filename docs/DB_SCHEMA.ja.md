@@ -95,7 +95,7 @@ SQLite のファイルは 1 つで、サーバーのプロセス 1 つが `bette
 | --- | --- | --- |
 | `runner_up_id` | `INTEGER REFERENCES arena_fighters (id)` | 決勝の 2 位。同じトーナメントの闘士で、決勝の決着時に `champion_id` と一緒に入ります。トーナメントが開催中のときと、マイグレーションより前に終わったトーナメント（2 位は保存されていませんでした）では `NULL` です。 |
 
-過去のデータは埋め直さず、お金の列も関係しません。[arena.md](spec/arena.md) の §4.5 を見てください。
+過去のデータは埋め直さず、お金の列も関係しません。[arena.ja.md](spec/arena.ja.md#45-準優勝リマスターでの追加マイグレーション-0011) の §4.5 を見てください。
 
 ## 予定のテーブル（Wave 2）
 
@@ -109,7 +109,7 @@ SQLite のファイルは 1 つで、サーバーのプロセス 1 つが `bette
 | カジノゲーム | `game_rounds`（進行中のラウンド、保留中の賭け金）、`jackpots`、`rtp_levels`、`pachinko_spins`、`pachinko_sets` | B2-A |
 | デイリー、ミッション、ランキング | `daily_claims`、`missions`、`weekly_stats`、`weekly_champions`、`weekly_state`、`titles`、`nick_prefs` | B2-B |
 | イベント | `event_state`、`manual_events` | B2-B |
-| レース、闘技場 | `horses`（＋繁殖の列。[horse-breeding.md](spec/horse-breeding.md) §5）、`horse_breedings`（`horse_breeding_fee` の台帳の `ref_id`）、`horse_races`、`horse_entries`、`horse_bets`、`horse_odds`、`arena_tournaments`、`arena_fighters`、`arena_bets` | B2-B |
+| レース、闘技場 | `horses`（＋繁殖の列。[horse-breeding.ja.md](spec/horse-breeding.ja.md) §5）、`horse_breedings`（`horse_breeding_fee` の台帳の `ref_id`）、`horse_races`、`horse_entries`、`horse_bets`、`horse_odds`、`arena_tournaments`、`arena_fighters`、`arena_bets` | B2-B |
 | 労働、クイズ、抽選会、投票 | `work_state`、`work_finds`、`work_click_hours`、`work_workers`、`quiz_answers`、`raffles`、`raffle_entries`、`polls`、`poll_votes` | B2-B |
 | ショップとアイテム | `inventory`、`shop_stock`、`profiles`、`seized_items`、`teiai_market`、`teiai_market_days` | B2-B |
 | プレイヤーマーケット | `marketplace_listings` | B3 |

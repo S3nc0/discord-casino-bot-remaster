@@ -18,7 +18,7 @@
   - `cogs/shared/messages/games.py`（L62–L71）：失敗メッセージ
 - `docs/labor.md`（L1–L118）：元の設計ドキュメント
 
-> **ドキュメントのずれ**：`docs/teiai.md:46` は労働のピンハネを 1% としていますが、`catalogs/teiai.yaml:3` と `docs/labor.md:18` は **`labor_skim_rate = 0.03`（3%）** です。`catalogs/teiai.yaml:3`（3%）に従います。
+> **ドキュメントのずれ**：`docs/teiai.md:46` は労働のピンハネを 1% としていますが、`catalogs/teiai.yaml:3` と `docs/labor.md:18` は **`labor_skim_rate = 0.03`（3%）** です。`catalogs/teiai.yaml:3`（3%）に従います。リマスターも 3% です（`packages/domain/src/progression/economy-core.ts` の `LABOR_SKIM_RATE_BPS = 300`）。`docs/teiai.md` は元のボット自身の文書なので、書き換えずに残しています。
 
 ---
 
@@ -81,6 +81,8 @@
 | `miner` | `坑夫` | `👷` | `10.05` | `520` | `0.415` | `0.8` | — |
 | `craftsman` | `職人` | `🧑‍🔧` | `23.55` | `1,160` | `0.95` | `1.0` | — |
 | `foreman` | `監督` | `🕴️` | `0` | `640` | `0.0` | `0.0` | 監督 1 人につき運 `+25%`（`FOREMAN_LUCK = 0.25`） |
+
+> **リマスターでの名前**：上の名前は元のボットのものです。アプリでは `craftsman` を **熟練工**（職人ではなく）、`foreman` を **現場監督**（監督ではなく）と表示します。英語は Craftsman と Foreman です（`packages/shared/i18n/ja.ts` と `en.ts` の `screen.life.work.worker.*`）。キーと数値は同じです。
 
 - ワーカーを解雇すると、その `kind` のうち `expires_at` が最も早い 1 人が外れます。契約料は返金**されません**（`infra/db/labor.py:549-561`）。
 
