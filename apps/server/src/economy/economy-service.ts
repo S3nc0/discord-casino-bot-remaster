@@ -219,6 +219,18 @@ export class EconomyService {
     return this.apply({ ...rest, delta: -amount });
   }
 
+  /** The ledger row an idempotency key posted on one account, however old, or null. */
+  entryByKey(guildId: string, userId: string, idempotencyKey: string): LedgerEntry | null {
+    const row = this.store
+      .stmt(
+        `SELECT id, guild_id, user_id, delta, balance_after, reason, ref_type, ref_id,
+                idempotency_key, created_at
+         FROM ledger WHERE guild_id = ? AND user_id = ? AND idempotency_key = ?`,
+      )
+      .get(guildId, userId, idempotencyKey) as LedgerRow | undefined;
+    return row ? toEntry(row) : null;
+  }
+
   /** Ledger history of one account, newest first. */
   history(guildId: string, userId: string, limit = 50): LedgerEntry[] {
     const rows = this.store

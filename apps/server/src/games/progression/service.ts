@@ -424,9 +424,7 @@ export class ProgressionService {
       });
       if (!plan.ok) {
         // A retry of an already executed transfer must not turn into a limit error.
-        const prior = ctx.economy
-          .history(guildId, senderId, 50)
-          .find((e) => e.idempotencyKey === `${idempotencyKey}:out`);
+        const prior = ctx.economy.entryByKey(guildId, senderId, `${idempotencyKey}:out`);
         if (prior) return this.replayed(guildId, senderId, idempotencyKey, -prior.delta);
         return plan;
       }
@@ -473,9 +471,7 @@ export class ProgressionService {
     key: string,
     amount: number,
   ): TransferOutcome {
-    const fee = this.ctx.economy
-      .history(guildId, senderId, 50)
-      .find((e) => e.idempotencyKey === `${key}:fee`);
+    const fee = this.ctx.economy.entryByKey(guildId, senderId, `${key}:fee`);
     return {
       ok: true,
       amount,
