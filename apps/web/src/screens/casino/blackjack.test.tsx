@@ -246,6 +246,77 @@ describe('Blackjack', () => {
     expect(text(v.container)).toContain('Win');
   });
 
+  it('keeps every hand and its cards on one table in the result state', async () => {
+    const { view: v, client } = await show();
+    act(() =>
+      client.push(
+        snap(
+          view({
+            phase: 'settled',
+            dealer: [c('8', '♣'), c('K', '♥')],
+            dealerValue: 18,
+            turn: -1,
+            deadline: null,
+            seats: [
+              seat({
+                userId: USER_ID,
+                index: 0,
+                cards: [c('K', '♣'), c('J', '♣')],
+                value: 20,
+                status: 'done',
+                result: 'win',
+                payout: 200,
+                settlement: settlement(100, 100, 'blackjack'),
+              }),
+              seat({
+                userId: OTHER,
+                index: 1,
+                cards: [c('8', '♦'), c('5', '♦'), c('7', '♣')],
+                value: 20,
+                status: 'done',
+                result: 'win',
+              }),
+            ],
+          }),
+        ),
+      ),
+    );
+    const felt = v.container.querySelector('.cc-felt') as HTMLElement;
+    const hands = [...felt.querySelectorAll('.cc-hand')].map((hand) =>
+      [...hand.querySelectorAll('.cc-card')].map((card) => ({
+        label: card.getAttribute('aria-label'),
+        drawn: card.querySelector('svg.cc-art path') !== null,
+      })),
+    );
+    expect(hands).toEqual([
+      [
+        { label: '8 of ♣', drawn: true },
+        { label: 'K of ♥', drawn: true },
+      ],
+      [
+        { label: 'K of ♣', drawn: true },
+        { label: 'J of ♣', drawn: true },
+      ],
+      [
+        { label: '8 of ♦', drawn: true },
+        { label: '5 of ♦', drawn: true },
+        { label: '7 of ♣', drawn: true },
+      ],
+    ]);
+    // one table: one dealer's strip, one printed arc, one rail, in that order round the hands
+    for (const part of ['.cc-felt__dealer', '.cc-felt__arc', '.cc-felt__rail'])
+      expect(v.container.querySelectorAll(part)).toHaveLength(1);
+    const order = [...felt.children].map((el) => el.getAttribute('class')?.split(' ').pop());
+    expect(order).toEqual([
+      'cc-felt__dealer',
+      'cc-hand',
+      'cc-felt__arc',
+      'cc-hand',
+      'cc-hand',
+      'cc-felt__rail',
+    ]);
+  });
+
   it('names a refused action', async () => {
     const { view: v, client } = await show();
     act(() => client.push(snap(view({ seats: myHand, turn: 0 }))));

@@ -45,3 +45,17 @@ node tools/pixel-art/scenes/readme-gallop.js
 - `race.js` grandstand and crowd, turf tiles with mowing stripes, inner rail, starting gate, dust (4 frames). `stable.js` stall and paddock. `portrait.js` the horse head in the roles of the race sprite (`.hr-px-<char>`), so the coat and silks classes colour it. `arena.js` the pit (3 torch frames). `fighters.js` 16 fighters, idle and attack, both directions. `mine.js` and `miner.js` the mine and the 4-frame swing. `finds.js` 6 ores and 6 relics as 16 by 16 icons. `shop.js` shop shelves, storeroom and the tiles behind item icons.
 - References (see `CREDITS.md`; save them as PNG in `$ART_REF`, never in the repository): `head_tb.png`, "Head of a thoroughbred racehorse.jpg" (CC0) at 900 px wide, for `portrait.js`. The fighter and miner poses are measured joint coordinates from Muybridge plates 336 and 385 (public domain), written in `fighters.js` and `miner.js`, so those need no file.
 
+## Casino scenes
+
+```sh
+# writes apps/web/src/screens/casino/art/*-art.ts (prettier runs on them)
+node tools/pixel-art/casino/ship.js
+
+# previews: 4x sheets, gifs and numbered frame sheets of every scene
+ART_OUT=/some/folder node tools/pixel-art/casino/preview.js
+```
+
+- `casino/kit.js` holds the casino ramps (felt, porcelain, tatami, lacquer, chrome, brass and the fruit), a 3 by 5 font and the sphere and outline helpers; `shared.js` the chips, the Pelica coin and the win burst; `symbols.js` the six reel symbols.
+- One file per game draws its scene: `slots.js` (cabinet, reels, spin blur), `chinchiro.js` (tatami, donburi bowl, dice and their tumble), `cards.js` and `table.js` (52 faces with J/Q/K portraits, the back, the dealer's strip, arc and rail), `roulette.js` (wheel, ball, betting board), `pachinko.js` (machine face, pins, tulips, lamp, ball paths).
+- `ship.js` stores each sprite as row strings with its own legend of palette tokens. Parts that change (bulbs, lever, lamp, tulips, a lit pocket) ship as a base with holes plus one small overlay per state. The screens draw them as SVG paths filled from the token variables, at a whole number of device pixels per art pixel.
+- Drawn from scratch: no reference images.

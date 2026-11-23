@@ -1,8 +1,10 @@
 import { useEffect, useState } from 'react';
 import { Banner, Button } from '@casino/ui';
-import { SLOT_SYMBOLS, type SlotsResultView } from '@casino/shared';
+import type { SlotsResultView } from '@casino/shared';
 import { useT } from '../../shell/i18n.ts';
-import { useCycle, useReveal } from './anim.ts';
+import { useReveal } from './anim.ts';
+import { CasinoScene, Pixels } from './art/PixelArt.tsx';
+import { SYMBOL_ART } from './art/slots-art.ts';
 import { BetBar } from './BetBar.tsx';
 import { ErrorLine } from './ErrorLine.tsx';
 import { GameFrame } from './GameFrame.tsx';
@@ -10,26 +12,39 @@ import { useBetAmount, useCall, useCasinoSfx, useOverview } from './hooks.ts';
 import { RecentRounds } from './RecentRounds.tsx';
 import { ResultBanner } from './Result.tsx';
 import { useCasino } from './services.tsx';
+import { SlotMachine } from './SlotMachine.tsx';
 
 /** Milliseconds between one reel stopping and the next. */
 const REEL_GAP_MS = 600;
 
-interface ReelProps {
-  final: string | null;
-  stopped: boolean;
-  index: number;
+/** Reels that pay: all three in a triple, otherwise the cherries. */
+function winningReels(result: SlotsResultView): number[] {
+  if (result.multiplier <= 0) return [];
+  if (result.label.kind === 'triple') return [0, 1, 2];
+  return result.reels.flatMap((s, i) => (s === '🍒' ? [i] : []));
 }
 
-function Reel({ final, stopped, index }: ReelProps) {
-  const spinning = final !== null && !stopped;
-  const cycle = useCycle(SLOT_SYMBOLS.length, spinning);
-  const symbol = final === null ? '❔' : stopped ? final : (SLOT_SYMBOLS[cycle] ?? '❔');
+/** The pay table: symbols drawn as on the reels, and the multiplier. */
+const PAYS: readonly (readonly [readonly string[], string])[] = [
+  [['🍒', '🍒', '🍒'], '×5'],
+  [['🍋', '🍋', '🍋'], '×8'],
+  [['🍇', '🍇', '🍇'], '×15'],
+  [['🔔', '🔔', '🔔'], '×30'],
+  [['💎', '💎', '💎'], '×100'],
+  [['7️⃣', '7️⃣', '7️⃣'], '×500'],
+  [['🍒', '🍒'], '×1.5'],
+  [['🍒'], '×0.3'],
+];
+
+function PaySymbols({ symbols }: { symbols: readonly string[] }) {
+  const size = 32;
   return (
-    <span className="cc-reel" data-spinning={spinning} data-index={index}>
-      <span className="cc-reel__symbol" aria-hidden="true">
-        {symbol}
-      </span>
-    </span>
+    <CasinoScene w={size * symbols.length} h={size} className="cc-paytable__art">
+      {symbols.map((s, i) => {
+        const art = SYMBOL_ART[s];
+        return art ? <Pixels key={i} sprite={art} x={i * size} y={0} /> : null;
+      })}
+    </CasinoScene>
   );
 }
 
@@ -88,14 +103,12 @@ export default function SlotsScreen() {
             : t('screen.casino.working')
         }
       >
-        {[0, 1, 2].map((i) => (
-          <Reel
-            key={i}
-            index={i}
-            final={result ? (result.reels[i] ?? null) : null}
-            stopped={stoppedCount > i}
-          />
-        ))}
+        <SlotMachine
+          reels={result ? result.reels : null}
+          stopped={result ? stoppedCount : 0}
+          spinKey={spinKey}
+          winning={result && done ? winningReels(result) : []}
+        />
       </div>
       {done && result ? (
         <ResultBanner
@@ -128,18 +141,10 @@ export default function SlotsScreen() {
           {t('screen.casino.slots.paytable')}
         </h2>
         <ul className="cc-paytable__list">
-          {[
-            ['🍒🍒🍒', '×5'],
-            ['🍋🍋🍋', '×8'],
-            ['🍇🍇🍇', '×15'],
-            ['🔔🔔🔔', '×30'],
-            ['💎💎💎', '×100'],
-            ['7️⃣7️⃣7️⃣', '×500'],
-            ['🍒🍒', '×1.5'],
-            ['🍒', '×0.3'],
-          ].map(([symbols, mult]) => (
-            <li key={symbols}>
-              <span aria-hidden="true">{symbols}</span> <b>{mult}</b>
+          {PAYS.map(([symbols, mult]) => (
+            <li key={symbols.join('')}>
+              <PaySymbols symbols={symbols} />
+              <span className="cc-sr">{symbols.join('')}</span> <b>{mult}</b>
             </li>
           ))}
         </ul>

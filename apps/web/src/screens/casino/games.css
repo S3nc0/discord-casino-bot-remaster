@@ -1,5 +1,6 @@
-/* Casino screens. Colours, type and focus come from @casino/ui tokens; motion is stepped
-   (`steps()`), never eased, and every animation is off under reduced motion. */
+/* Casino screens. Colours, type and focus come from @casino/ui tokens. The game scenes are pixel
+   art (art/); their motion is stepped frames played from script, which shows one still frame
+   under reduced motion, so nothing here animates. */
 
 .cc-screen {
   display: grid;
@@ -14,6 +15,47 @@
 
 .cc-screen > * {
   min-width: 0;
+}
+
+/* ---- pixel scenes ----
+   Art pixels are drawn at a whole number of device pixels: 2 CSS px from 384 px wide, 3 on wide
+   screens; on narrower phones 1.5 (2x screens) or 4/3 (3x screens) still land on 3 and 4 device
+   pixels, and 1 otherwise. */
+.cc-screen {
+  --cc-px: 1;
+}
+
+@media (max-width: 383.98px) and (min-resolution: 2dppx) {
+  .cc-screen {
+    --cc-px: 1.5;
+  }
+}
+
+@media (max-width: 383.98px) and (min-resolution: 3dppx) {
+  .cc-screen {
+    --cc-px: calc(4 / 3);
+  }
+}
+
+@media (min-width: 384px) {
+  .cc-screen {
+    --cc-px: 2;
+  }
+}
+
+@media (min-width: 720px) {
+  .cc-screen {
+    --cc-px: 3;
+  }
+}
+
+.cc-art,
+.cc-digits {
+  display: block;
+  flex: none;
+  width: calc(var(--art-w) * var(--cc-px) * 1px);
+  height: calc(var(--art-h) * var(--cc-px) * 1px);
+  shape-rendering: crispEdges;
 }
 
 .cc-head {
@@ -154,11 +196,18 @@
 /* ---- dice (chinchiro) ---- */
 .cc-table {
   display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  gap: var(--space-4);
-  padding: var(--space-4);
-  background: var(--surface-container-low);
-  box-shadow: 0 0 0 2px var(--outline-variant);
+  grid-template-columns: repeat(auto-fit, minmax(calc(88px * var(--cc-px)), 1fr));
+  justify-items: center;
+  gap: var(--space-3) 4px;
+}
+
+.cc-table > .cc-status:empty {
+  display: none;
+}
+
+.cc-table > :not(.cc-dice, .cc-seatroll) {
+  grid-column: 1 / -1;
+  justify-self: stretch;
 }
 
 .cc-dice {
@@ -169,7 +218,6 @@
 
 .cc-dice__row {
   display: flex;
-  gap: var(--space-3);
 }
 
 .cc-dice__hand {
@@ -183,38 +231,8 @@
   color: var(--on-surface-variant);
 }
 
-.cc-die {
-  display: block;
-  width: 64px;
-  height: 64px;
-  image-rendering: pixelated;
-  shape-rendering: crispEdges;
-}
-
-.cc-die__edge {
-  fill: var(--outline);
-}
-
-.cc-die__face {
-  fill: var(--surface-container-highest);
-}
-
-.cc-die__shade {
-  fill: var(--outline-variant);
-}
-
-.cc-die__pip {
-  fill: var(--on-surface);
-}
-
-.cc-die--rolling {
-  animation: cc-hop 0.36s steps(2) infinite;
-}
-
-@keyframes cc-hop {
-  50% {
-    transform: translateY(-6px);
-  }
+rect.cc-die__pip {
+  fill: var(--neutral-10);
 }
 
 .cc-seats {
@@ -250,7 +268,6 @@
 }
 
 .cc-seatroll[data-me='true'] {
-  padding: var(--space-2);
   box-shadow: 0 0 0 2px var(--primary);
 }
 
@@ -258,36 +275,6 @@
 .cc-machine {
   display: flex;
   justify-content: center;
-  gap: var(--space-2);
-  padding: var(--space-4);
-  background: var(--error-container);
-  box-shadow:
-    0 0 0 3px var(--outline),
-    0 4px 0 3px var(--pixel-shadow, var(--outline-variant));
-}
-
-.cc-reel {
-  display: grid;
-  place-items: center;
-  width: 80px;
-  height: 96px;
-  background: var(--surface-container-highest);
-  box-shadow: inset 0 0 0 2px var(--outline);
-}
-
-.cc-reel__symbol {
-  font-size: 44px;
-  line-height: 1;
-}
-
-.cc-reel[data-spinning='true'] .cc-reel__symbol {
-  animation: cc-reel 0.18s steps(2) infinite;
-}
-
-@keyframes cc-reel {
-  50% {
-    transform: translateY(6px);
-  }
 }
 
 .cc-paytable h2 {
@@ -296,11 +283,22 @@
 
 .cc-paytable__list {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: var(--space-1) var(--space-4);
+  grid-template-columns: repeat(auto-fill, minmax(10rem, 1fr));
+  gap: var(--space-2) var(--space-4);
   margin: 0;
   padding: 0;
   list-style: none;
+}
+
+.cc-paytable__list li {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: 32px;
+}
+
+.cc-paytable__art {
+  --cc-px: 1;
 }
 
 /* ---- roulette ---- */
@@ -308,40 +306,30 @@
   position: relative;
   display: grid;
   place-items: center;
-  min-height: 136px;
-  padding: var(--space-4);
-  background: var(--surface-container-low);
-  box-shadow: 0 0 0 2px var(--outline-variant);
-}
-
-.cc-wheel__icon {
-  width: 96px;
-  height: 96px;
-}
-
-.cc-wheel[data-moving='true'] .cc-wheel__icon {
-  animation: cc-spin 0.8s steps(8) infinite;
-}
-
-@keyframes cc-spin {
-  to {
-    transform: rotate(360deg);
-  }
 }
 
 .cc-wheel__ball {
   position: absolute;
-  right: var(--space-4);
-  bottom: var(--space-3);
+  right: 0;
+  bottom: 0;
   display: grid;
   place-items: center;
   min-width: 56px;
   height: 56px;
   padding-inline: var(--space-2);
+  box-sizing: border-box;
+  box-shadow:
+    0 0 0 2px var(--outline),
+    0 3px 0 2px var(--outline-variant);
+}
+
+.cc-wheel__ball .cc-digits {
+  --cc-px: 4;
+}
+
+.cc-wheel__ball[data-color='none'] {
   background: var(--surface-container-highest);
-  box-shadow: 0 0 0 3px var(--outline);
-  font: 600 28px / 1 var(--font-display);
-  font-variant-numeric: tabular-nums;
+  color: var(--on-surface);
 }
 
 .cc-wheel__ball[data-color='red'] {
@@ -359,6 +347,10 @@
   color: var(--inverse-on-surface);
 }
 
+.cc-rboard {
+  justify-self: center;
+}
+
 .cc-numbers {
   display: flex;
   flex-wrap: wrap;
@@ -373,9 +365,11 @@
   place-items: center;
   min-width: 36px;
   height: 36px;
+  padding-inline: var(--space-1);
+  box-sizing: border-box;
   background: var(--surface-container-highest);
+  color: var(--on-surface);
   box-shadow: inset 0 0 0 2px var(--outline-variant);
-  font: 600 16px / 1 var(--font-display);
 }
 
 .cc-numbers li[data-color='red'] {
@@ -433,38 +427,8 @@
 
 /* ---- pachinko ---- */
 .cc-board {
-  position: relative;
-  height: 128px;
-  overflow: hidden;
-  background:
-    radial-gradient(circle at 8px 8px, var(--outline) 2px, transparent 2px) 0 0 / 32px 32px,
-    var(--surface-container-low);
-  box-shadow: 0 0 0 2px var(--outline-variant);
-  image-rendering: pixelated;
-}
-
-.cc-ball {
-  position: absolute;
-  top: 0;
-  left: calc(8% + var(--i) * 13%);
-  width: 12px;
-  height: 12px;
-  background: var(--tertiary);
-  box-shadow: inset -3px -3px 0 0 var(--yellow-accent, var(--tertiary-container));
-}
-
-.cc-board[data-falling='true'] .cc-ball {
-  animation: cc-fall 0.9s steps(8) infinite;
-  animation-delay: calc(var(--i) * 0.11s);
-}
-
-@keyframes cc-fall {
-  from {
-    transform: translateY(-12px);
-  }
-  to {
-    transform: translateY(128px);
-  }
+  display: flex;
+  justify-content: center;
 }
 
 .cc-sets {
@@ -520,104 +484,67 @@
 }
 
 /* ---- blackjack ---- */
+/* The felt is the table's green; the rails, the arc and the props are pixel strips on it, and the
+   table is exactly as wide as they are. Text on it is paper on emerald (well over 4.5:1). */
 .cc-felt {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
-  gap: var(--space-3);
-  padding: var(--space-4);
-  background: var(--success-container);
-  color: var(--on-success-container);
-  box-shadow: 0 0 0 2px var(--outline);
+  justify-self: center;
+  gap: var(--space-2);
+  width: calc(176px * var(--cc-px));
+  max-width: 100%;
+  background: var(--emerald-30);
+  color: var(--paper-99);
+}
+
+.cc-felt > .cc-art {
+  justify-self: center;
 }
 
 .cc-hand {
   display: grid;
+  justify-items: center;
   gap: var(--space-1);
+  padding-inline: var(--space-2);
 }
 
 .cc-hand__label {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
+  justify-content: center;
   gap: var(--space-2);
   margin: 0;
 }
 
 .cc-cards {
   display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-1);
-  min-height: 72px;
+  align-items: flex-end;
+  min-height: calc(43px * var(--cc-px));
+}
+
+.cc-betspot {
+  margin-right: var(--space-2);
 }
 
 .cc-card {
-  display: grid;
-  place-items: center;
-  align-content: center;
-  width: 52px;
-  height: 72px;
-  background: var(--surface-container-highest);
-  color: var(--on-surface);
-  box-shadow:
-    0 0 0 2px var(--outline),
-    2px 3px 0 2px var(--outline-variant);
-  font: 600 20px / 1 var(--font-display);
+  display: block;
+  flex: none;
 }
 
-.cc-card--red {
-  color: var(--red-accent, var(--error));
-}
-
-.cc-card__suit {
-  font-size: 24px;
-}
-
-.cc-card--down {
-  background: repeating-linear-gradient(
-    45deg,
-    var(--secondary-container) 0 4px,
-    var(--secondary) 4px 8px
-  );
+/* cards overlap a little, as they are dealt on a table */
+.cc-card + .cc-card {
+  margin-left: calc(-9px * var(--cc-px));
 }
 
 .cc-card--empty {
-  background: transparent;
-  box-shadow: 0 0 0 2px var(--outline-variant);
-}
-
-.cc-card--fresh {
-  animation: cc-flip 0.24s steps(3) 1;
-}
-
-@keyframes cc-flip {
-  from {
-    transform: scaleX(0.2) translateY(-8px);
-  }
-  to {
-    transform: none;
-  }
+  width: calc(31px * var(--cc-px));
+  height: calc(43px * var(--cc-px));
+  box-sizing: border-box;
+  border: 2px dashed var(--emerald-60, var(--paper-99));
 }
 
 /* ---- history ---- */
 .cc-ledger {
   max-width: none;
-}
-
-/* ---- reduced motion ---- */
-@media (prefers-reduced-motion: reduce) {
-  .cc-die--rolling,
-  .cc-reel[data-spinning='true'] .cc-reel__symbol,
-  .cc-wheel[data-moving='true'] .cc-wheel__icon,
-  .cc-board[data-falling='true'] .cc-ball,
-  .cc-card--fresh {
-    animation: none;
-  }
-}
-
-[data-reduced-motion='true'] .cc-die--rolling,
-[data-reduced-motion='true'] .cc-reel[data-spinning='true'] .cc-reel__symbol,
-[data-reduced-motion='true'] .cc-wheel[data-moving='true'] .cc-wheel__icon,
-[data-reduced-motion='true'] .cc-board[data-falling='true'] .cc-ball,
-[data-reduced-motion='true'] .cc-card--fresh {
-  animation: none;
 }

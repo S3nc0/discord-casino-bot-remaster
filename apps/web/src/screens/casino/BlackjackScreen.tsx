@@ -16,6 +16,9 @@ import {
   useTable,
   useUserId,
 } from './hooks.ts';
+import { CasinoScene, Pixels } from './art/PixelArt.tsx';
+import { ARC_ART, BET_RING_ART, DEALER_STRIP_ART, RAIL_ART } from './art/blackjack-art.ts';
+import { ChipStack, chipsFor } from './art/ChipStack.tsx';
 import { PlayingCard } from './PlayingCard.tsx';
 import { RecentRounds } from './RecentRounds.tsx';
 import { ResultBanner } from './Result.tsx';
@@ -26,12 +29,35 @@ const SEATS = 5;
 /** Teiai's seed cap: the most it lends to cover a double (docs/spec/blackjack.md, Double). */
 export const TEIAI_CREDIT_CAP = 3_000;
 
+/** A printed betting ring with the seat's chips on it. */
+function BetSpot({ stake }: { stake: number }) {
+  const { colour, count } = chipsFor(stake);
+  return (
+    <CasinoScene w={BET_RING_ART.w} h={BET_RING_ART.h} className="cc-betspot">
+      <Pixels sprite={BET_RING_ART} />
+      {stake > 0 ? (
+        <ChipStack colour={colour} count={count} x={5} bottom={BET_RING_ART.h - 3} />
+      ) : null}
+    </CasinoScene>
+  );
+}
+
+/** A full-width strip of the table (176 art pixels wide). */
+function TableStrip({ art, className }: { art: typeof RAIL_ART; className: string }) {
+  return (
+    <CasinoScene w={art.w} h={art.h} className={className}>
+      <Pixels sprite={art} />
+    </CasinoScene>
+  );
+}
+
 function Hand({
   label,
   cards,
   value,
   seenBefore,
   tag,
+  stake,
 }: {
   label: string;
   cards: readonly (CardView | null)[];
@@ -39,6 +65,8 @@ function Hand({
   /** Cards already on the table before this render: only newer ones flip in. */
   seenBefore: number;
   tag?: string | undefined;
+  /** The seat's bet, drawn as chips on its betting ring; omitted for the dealer. */
+  stake?: number | undefined;
 }) {
   const t = useT();
   return (
@@ -55,6 +83,7 @@ function Hand({
         ) : null}
       </p>
       <div className="cc-cards">
+        {stake !== undefined ? <BetSpot stake={stake} /> : null}
         {cards.length === 0 ? <span className="cc-card cc-card--empty" aria-hidden="true" /> : null}
         {cards.map((card, i) => (
           <PlayingCard key={i} card={card} fresh={i >= seenBefore} />
@@ -167,12 +196,14 @@ export default function BlackjackScreen() {
       ) : (
         <>
           <div className="cc-felt" data-phase={phase}>
+            <TableStrip art={DEALER_STRIP_ART} className="cc-felt__dealer" />
             <Hand
               label={t('screen.casino.blackjack.dealer')}
               cards={view?.dealer ?? []}
               value={view?.dealerValue ?? null}
               seenBefore={dealerSeen}
             />
+            <TableStrip art={ARC_ART} className="cc-felt__arc" />
             {seats.map((seat, i) => (
               <Hand
                 key={seat.userId}
@@ -180,6 +211,7 @@ export default function BlackjackScreen() {
                 cards={seat.cards}
                 value={seat.value}
                 seenBefore={seatSeen[i] ?? 0}
+                stake={seat.stake * (seat.doubled ? 2 : 1)}
                 tag={
                   seat.doubled
                     ? t('screen.casino.blackjack.doubled')
@@ -189,6 +221,7 @@ export default function BlackjackScreen() {
                 }
               />
             ))}
+            <TableStrip art={RAIL_ART} className="cc-felt__rail" />
           </div>
           <p className="cc-status" aria-live="polite">
             {phase === 'idle' ? t('screen.casino.blackjack.idle') : null}

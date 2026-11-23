@@ -52,7 +52,7 @@ describe('Roulette', () => {
       li.getAttribute('data-color'),
     );
     expect(recent).toEqual(['black', 'black', 'green']);
-    expect(view.container.querySelector('.bb-px')).not.toBeNull();
+    expect(view.container.querySelector('.cc-wheel .cc-wheel__art')).not.toBeNull();
   });
 
   it('builds a slip of lines, totals it and sends one bet with every line', async () => {

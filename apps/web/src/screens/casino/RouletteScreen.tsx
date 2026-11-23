@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Banner, Button, GameIcon, isReducedMotionActive, Tag, TextField } from '@casino/ui';
+import { Banner, Button, isReducedMotionActive, Tag, TextField } from '@casino/ui';
 import type {
   RouletteBetAccepted,
   RouletteKindView,
@@ -23,6 +23,8 @@ import {
 } from './hooks.ts';
 import { RecentRounds } from './RecentRounds.tsx';
 import { ResultBanner } from './Result.tsx';
+import { PixelDigits } from './art/PixelDigits.tsx';
+import { RouletteBoard, RouletteWheel } from './RouletteWheel.tsx';
 import { useCasino } from './services.tsx';
 
 const RED = new Set([1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25, 27, 30, 32, 34, 36]);
@@ -180,7 +182,11 @@ export default function RouletteScreen() {
       ) : (
         <>
           <div className="cc-wheel" data-phase={phase} data-moving={moving}>
-            <GameIcon name="roulette" className="cc-wheel__icon" />
+            <RouletteWheel
+              pocket={shown}
+              moving={moving}
+              highlight={phase === 'result' ? result : null}
+            />
             <div
               className="cc-wheel__ball"
               data-color={shown === null ? 'none' : colorOf(shown)}
@@ -191,9 +197,15 @@ export default function RouletteScreen() {
                   : t('screen.casino.roulette.wheel', { number: shown })
               }
             >
-              <span aria-hidden="true">{shown ?? '–'}</span>
+              <PixelDigits text={shown === null ? '-' : String(shown)} />
             </div>
           </div>
+          <RouletteBoard
+            chips={[
+              ...myLines.map((l) => ({ kind: l.kind, number: l.number, placed: true })),
+              ...(open ? slip.map((l) => ({ kind: l.kind, number: l.number, placed: false })) : []),
+            ]}
+          />
           <p className="cc-status" aria-live="polite">
             {phase === 'idle' ? t('screen.casino.roulette.idle') : null}
             {phase === 'betting' && seconds !== null
@@ -218,7 +230,8 @@ export default function RouletteScreen() {
               <ul className="cc-numbers">
                 {history.map((n, i) => (
                   <li key={`${i}-${n}`} data-color={colorOf(n)}>
-                    <span className="cc-num">{n}</span>
+                    <PixelDigits text={String(n)} />
+                    <span className="cc-num cc-sr">{n}</span>
                     <span className="cc-sr">{t(`screen.casino.roulette.color.${colorOf(n)}`)}</span>
                   </li>
                 ))}
