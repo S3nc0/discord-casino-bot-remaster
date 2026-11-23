@@ -1,5 +1,12 @@
 import { createSeededRng, manualClock, type DomainEvent } from '@casino/shared';
-import { BREED_COOLDOWN_MS, BREED_FEE, statSum } from '@casino/domain/race';
+import {
+  BREED_COOLDOWN_MS,
+  BREED_FEE,
+  STAT_KEYS,
+  foalStats,
+  statSum,
+  type Stats,
+} from '@casino/domain/race';
 import fc from 'fast-check';
 import { describe, expect, it } from 'vitest';
 import { IdentityRepo } from '../../db/identity.ts';
@@ -9,6 +16,7 @@ import { GUILD, memoryStore, OTHER_USER, USER } from '../../runtime/test-kit.ts'
 import { createMemoryTeiai } from '../progression/ports.ts';
 import { createNonCasinoGames } from '../progression/register.ts';
 import { GameRuleError } from '../progression/context.ts';
+import { foalRangeCacheSize, foalRanges } from './breeding.ts';
 
 /** Monday 2025-01-06 07:30 JST. */
 const MONDAY_0730 = 1_736_116_200_000;
@@ -313,5 +321,80 @@ describe('breeding properties', () => {
       }),
       { numRuns: 30 },
     );
+  });
+});
+
+/** The old preview: every roll of `foalStats` itself (5 x 15^4). */
+function sweepFoalStats(a: Stats, b: Stats) {
+  const stats = Object.fromEntries(STAT_KEYS.map((k) => [k, { min: Infinity, max: -Infinity }]));
+  const total = { min: Infinity, max: -Infinity };
+  const offsets = Array.from({ length: 15 }, (_, i) => i - 7);
+  for (const draw of [0, 1, 3, 7, 9])
+    for (const o1 of offsets)
+      for (const o2 of offsets)
+        for (const o3 of offsets)
+          for (const o4 of offsets) {
+            const script = [draw, o1, o2, o3, o4];
+            let i = 0;
+            const foal = foalStats(a, b, { int: () => script[i++] as number, float: () => 0 });
+            const sum = statSum(foal);
+            total.min = Math.min(total.min, sum);
+            total.max = Math.max(total.max, sum);
+            for (const k of STAT_KEYS) {
+              const r = stats[k] as { min: number; max: number };
+              r.min = Math.min(r.min, foal[k]);
+              r.max = Math.max(r.max, foal[k]);
+            }
+          }
+  return { total, stats };
+}
+
+describe('breeding preview', () => {
+  it('R-8: refuses a pair with a horse the caller does not own, without its stats', () => {
+    const h = harness(20_000);
+    const a = h.horse(USER, 'A');
+    const b = h.horse(USER, 'B');
+    const other = h.horse(OTHER_USER, 'C');
+    expect(h.rule(() => h.games.breeding.preview(GUILD, USER, a, other))).toBe('select_own');
+    expect(h.rule(() => h.games.breeding.preview(GUILD, USER, other, a))).toBe('select_own');
+    expect(h.games.breeding.preview(GUILD, USER, a, b).eligible).toEqual({ ok: true });
+  });
+
+  it('R-8: the ranges match every roll of foalStats', () => {
+    const pairs: [Stats, Stats][] = [
+      [
+        { speed: 50, stamina: 50, power: 50, guts: 50 },
+        { speed: 50, stamina: 50, power: 50, guts: 50 },
+      ],
+      [
+        { speed: 80, stamina: 40, power: 40, guts: 40 },
+        { speed: 50, stamina: 50, power: 50, guts: 50 },
+      ],
+      [
+        { speed: 80, stamina: 80, power: 25, guts: 20 },
+        { speed: 75, stamina: 80, power: 30, guts: 25 },
+      ],
+      [
+        { speed: 20, stamina: 20, power: 80, guts: 80 },
+        { speed: 35, stamina: 55, power: 65, guts: 45 },
+      ],
+      [
+        { speed: 60, stamina: 65, power: 55, guts: 40 },
+        { speed: 45, stamina: 70, power: 60, guts: 35 },
+      ],
+    ];
+    for (const [a, b] of pairs)
+      expect(foalRanges(a, b), JSON.stringify([a, b])).toEqual(sweepFoalStats(a, b));
+  });
+
+  it('R-8: the range cache is bounded and keeps what was used last', () => {
+    const kept = { speed: 50, stamina: 50, power: 50, guts: 50 };
+    const first = foalRanges(kept, kept);
+    for (let i = 0; i < 200; i++) {
+      const s = 20 + 5 * (i % 13);
+      foalRanges({ speed: s, stamina: 20 + 5 * Math.floor(i / 13), power: 50, guts: 50 }, kept);
+      expect(foalRanges(kept, kept)).toBe(first);
+    }
+    expect(foalRangeCacheSize()).toBeLessThanOrEqual(128);
   });
 });
