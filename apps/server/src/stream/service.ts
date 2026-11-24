@@ -286,6 +286,7 @@ export class StreamService {
   previewTip(actor: StreamActor, streamId: number, amount: number): TipPreview {
     try {
       const s = this.liveStream(actor.guildId, streamId);
+      if (!this.isEnabled(actor.guildId)) throw new AppError('feature_disabled');
       this.tipChecks(actor, s, amount);
       const plan = this.planTip(actor, s, amount);
       if (!plan.ok) {
