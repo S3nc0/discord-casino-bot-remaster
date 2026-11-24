@@ -43,7 +43,7 @@ Related: [CONTRIBUTING.md](CONTRIBUTING.md), [SECURITY.md](SECURITY.md), [CHANGE
 | `packages/ui/` | Bitbloom: components, design tokens, fonts, pixel icons and sprites, sound and effects. |
 | `catalogs/` | The tunable numbers (payouts, prices, rates) as YAML. |
 | `design/` | Bitbloom design tokens and the scripts that build them. |
-| `tools/pixel-art/` | Generators for every icon, sprite and scene: `icons/`, `horse/`, `scenes/`, `casino/`, `social/`, `finance/` (see [Regenerating pixel art](#regenerating-pixel-art)). |
+| `tools/pixel-art/` | Generators for every icon, sprite and scene: `icons/`, `app-icon/`, `horse/`, `scenes/`, `casino/`, `social/`, `finance/` (see [Regenerating pixel art](#regenerating-pixel-art)). |
 | `tests/` | `e2e/` (multi-client socket suites), `invariants/` (property tests on the ledger) and `fixtures/legacy/` (parity data recorded from the original bot). Unit tests sit next to the code. |
 | `ops/` | `pi/` installer and systemd units, `cloudflared/` tunnel template, `pi-sim/` arm64 container and load test. |
 | `docs/` | Owner guides (EN/JA), `ARCHITECTURE.md`, `DB_SCHEMA.md`, `STATUS.md`, `spec/` behaviour specs, `ui-cheatsheet.md`, game notes. |
@@ -259,6 +259,7 @@ Every icon, sprite and scene is generated, never hand-edited. The commands, inpu
 | Folder | Draws | Writes (`apps/web/src/screens/` unless noted) |
 | --- | --- | --- |
 | `icons/` | The 35 game icons | `packages/ui/src/pixel/icon-art.ts` and the icon fills in `packages/ui/src/styles/bundle.css` |
+| `app-icon/` | App icon (`512x512`) and Activity favicons (`32x32`, `16x16`) | `docs/images/app-icon-512.png`, `apps/web/public/favicon-32.png`, `apps/web/public/favicon-16.png` |
 | `horse/` | The eight-frame race horse (needs a reference) | `horse/horse-art.ts` and the coat and silks colours in `horse/horse.css` |
 | `scenes/` | Race, stable, breeding, arena (16 fighters), mine (miner, ores, relics), shop, inventory | `horse/race-art.ts`, `stable-art.ts`, `arena-art.ts`; `life/mine-art.ts`, `shop-art.ts`, `inventory-art.ts` |
 | `casino/` | Slots, chinchiro, blackjack, roulette, pachinko, chips | `casino/art/*-art.ts` |
@@ -271,6 +272,7 @@ To regenerate, from the repository root (each `ship.js` formats what it writes; 
 
 ```sh
 node tools/pixel-art/icons/build.js
+node tools/pixel-art/app-icon/build.js
 ART_OUT=/some/folder ART_REF=/some/folder/ref node tools/pixel-art/horse/ship.js
 ART_REF=/some/folder/ref node tools/pixel-art/scenes/ship.js
 node tools/pixel-art/casino/ship.js

@@ -12,6 +12,7 @@
 | `casino/` | スロット、チンチロ、ブラックジャック、ルーレット、パチンコ | [カジノの場面](#カジノの場面) |
 | `social/` | クイズ、抽選、投票、ミッション、ランキング、発掘品、送金、デイリー、履歴、プロフィール | [ソーシャルとプレイヤーの場面](#ソーシャルとプレイヤーの場面) |
 | `finance/` | 銀行、融資、共済、株、暗号資産、会社、マーケット | [金融の場面](#金融の場面) |
+| `app-icon/` | アプリアイコン（`512x512`）と Activity 用ファビコン（`32x32`、`16x16`） | [アイコンと競走馬](#アイコンと競走馬) |
 | `lib/` | 共通のパレットの名前、8 倍で描く補助、出力先 | |
 | `vendor/` | codixel の中核 | |
 
@@ -23,6 +24,9 @@ node tools/pixel-art/icons/build.js
 
 # アイコンの確認用シート（ART_OUT に絵の出力先のフォルダが必要）
 ART_OUT=/some/folder node tools/pixel-art/icons/sheet.js
+
+# アプリアイコン：docs/images/app-icon-512.png と apps/web/public/favicon-{32,16}.png を書き出す
+node tools/pixel-art/app-icon/build.js
 
 # 競走馬：apps/web/src/screens/horse/horse-art.ts と horse.css の毛色と勝負服の色を書き出す
 ART_OUT=/some/folder ART_REF=/some/folder/ref node tools/pixel-art/horse/ship.js
