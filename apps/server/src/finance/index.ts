@@ -1,6 +1,7 @@
 import { CompaniesService, type DayStateResolver } from './companies-service.ts';
 import type { FinanceServices } from './jobs.ts';
 import { KyosaiService } from './kyosai-service.ts';
+import { NetWorthService } from './net-worth-service.ts';
 import { P2pLoanService } from './p2p-loan-service.ts';
 import { InMemoryMarketplaceAssetAdapter, PlayerMarketService } from './player-market-service.ts';
 import { StocksService } from './stocks-service.ts';
@@ -15,6 +16,7 @@ export * from './stocks-service.ts';
 export * from './companies-service.ts';
 export * from './player-market-service.ts';
 export * from './jobs.ts';
+export * from './net-worth-service.ts';
 
 export interface CreateFinanceServicesOptions {
   /** Player market item/horse ownership adapter (defaults to an in-memory adapter for standalone/tests). */
@@ -77,6 +79,14 @@ export function createFinanceServices(
       loans.applyJuniorLoanSettlements(guildId, settlements, nowMs),
   });
 
+  const netWorth = new NetWorthService({
+    store: deps.store,
+    clock: deps.clock,
+    prices: (nowMs) => stocks.getPricesMicros(nowMs),
+    optionValues: (guildId, nowMs) => stocks.optionValuesByUser(guildId, nowMs),
+    accrueDebtInterest: (guildId, nowMs) => teiai.accrueGuildDebtInterest(guildId, nowMs),
+  });
+
   return {
     store: deps.store,
     teiai,
@@ -85,5 +95,6 @@ export function createFinanceServices(
     stocks,
     companies,
     playerMarket,
+    netWorth,
   };
 }

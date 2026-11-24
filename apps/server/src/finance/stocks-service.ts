@@ -1534,8 +1534,14 @@ export class StocksService {
     });
   }
 
-  private evaluateLongOptionValueInTx(opt: OptionRow, nowMs: number, atExpiry: boolean): number {
-    const prices = this.getPricesMicros(nowMs);
+  private evaluateLongOptionValueInTx(
+    opt: OptionRow,
+    nowMs: number,
+    atExpiry: boolean,
+    pricesIn?: Record<SymbolKey, number>,
+    eventsIn?: MarketPricingEvent[],
+  ): number {
+    const prices = pricesIn ?? this.getPricesMicros(nowMs);
     if (atExpiry) {
       if (opt.kind === 'pair' && opt.symbol_b) {
         const raw = pairIntrinsic(
@@ -1560,7 +1566,7 @@ export class StocksService {
     }
 
     const remSec = Math.max(0, (opt.expires_at - nowMs) / 1_000);
-    const events = this.getPricingEvents(nowMs);
+    const events = eventsIn ?? this.getPricingEvents(nowMs);
     if (opt.kind === 'pair' && opt.symbol_b) {
       const relA = microsToPrice(prices[opt.symbol]) / microsToPrice(opt.entry_a_micros);
       const relB = microsToPrice(prices[opt.symbol_b]) / microsToPrice(opt.entry_b_micros);
@@ -1580,6 +1586,49 @@ export class StocksService {
       return optionBuyerPayout(truncInt(bid * opt.units_milli), opt.premium);
     }
     return 0;
+  }
+
+  /**
+   * What every open option of the guild is worth to its holder right now (balance sheet
+   * "options"). A bought option counts its resale value (its payout once past expiry); a written
+   * one counts its posted margin minus the cost of buying it back (minus what it owes once past
+   * expiry), which can be negative. Prices and pricing events are read once for the whole guild.
+   */
+  optionValuesByUser(guildId: string, nowMs = this.deps.clock.now()): Map<string, number> {
+    const out = new Map<string, number>();
+    const rows = this.deps.store
+      .stmt("SELECT * FROM options WHERE guild_id = ? AND status = 'open'")
+      .all(guildId) as OptionRow[];
+    if (rows.length === 0) return out;
+    const prices = this.getPricesMicros(nowMs);
+    const events = this.getPricingEvents(nowMs);
+    for (const opt of rows) {
+      const expired = opt.expires_at <= nowMs;
+      let value: number;
+      if (opt.side === 'long') {
+        value = this.evaluateLongOptionValueInTx(opt, nowMs, expired, prices, events);
+      } else if (opt.kind !== 'call' && opt.kind !== 'put') {
+        value = opt.margin;
+      } else if (expired) {
+        value =
+          opt.margin -
+          optionIntrinsic(opt.kind, opt.units_milli, prices[opt.symbol], opt.strike_micros);
+      } else {
+        const remSec = Math.max(0, (opt.expires_at - nowMs) / 1_000);
+        const ask = optionAskPerUnit(
+          opt.kind,
+          opt.symbol,
+          prices[opt.symbol],
+          opt.strike_micros,
+          remSec,
+          nowMs,
+          events,
+        );
+        value = opt.margin - Math.ceil(ask * opt.units_milli);
+      }
+      out.set(opt.user_id, (out.get(opt.user_id) ?? 0) + value);
+    }
+    return out;
   }
 
   /** Settle all expired open options in `guildId`. */

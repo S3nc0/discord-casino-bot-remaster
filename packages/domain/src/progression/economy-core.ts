@@ -85,7 +85,54 @@ export function assetGroups(parts: AssetParts): {
   return { liquid, fixed, gross, liabilities, net: gross - liabilities };
 }
 
-/** Ranking key "net worth" (純資産): cash - debt + valuations of securities, bank and companies. */
+/** Every balance-sheet line, in display order: current assets, fixed assets, then liabilities. */
+export const PART_KEYS: readonly AssetKey[] = [...LIQUID_KEYS, ...FIXED_KEYS, ...LIABILITY_KEYS];
+
+export type AssetGroups = ReturnType<typeof assetGroups>;
+
+/**
+ * Sort keys of the net-worth ranking: `net` (純資産, the default), `liquid` (流動資産) and `gross`
+ * (総資産). The board, the balance-card rank and `/pelica ranking view:net` use `net`.
+ */
+export const BALANCE_SHEET_VIEWS = ['net', 'liquid', 'gross'] as const;
+export type BalanceSheetView = (typeof BALANCE_SHEET_VIEWS)[number];
+
+export interface BalanceSheet {
+  userId: string;
+  parts: AssetParts;
+  groups: AssetGroups;
+}
+
+export function balanceSheet(userId: string, parts: AssetParts): BalanceSheet {
+  return { userId, parts, groups: assetGroups(parts) };
+}
+
+export function balanceSheetValue(groups: AssetGroups, view: BalanceSheetView): number {
+  return groups[view];
+}
+
+/** Snowflakes compare as numbers (shorter is smaller); anything else falls back to text order. */
+function compareUserId(a: string, b: string): number {
+  if (/^\d+$/.test(a) && /^\d+$/.test(b) && a.length !== b.length) return a.length - b.length;
+  return a < b ? -1 : a > b ? 1 : 0;
+}
+
+/** `ORDER BY value DESC, user_id ASC` for one view. Returns a new array. */
+export function rankBalanceSheets(
+  sheets: readonly BalanceSheet[],
+  view: BalanceSheetView = 'net',
+): BalanceSheet[] {
+  return [...sheets].sort(
+    (x, y) =>
+      balanceSheetValue(y.groups, view) - balanceSheetValue(x.groups, view) ||
+      compareUserId(x.userId, y.userId),
+  );
+}
+
+/**
+ * Financial net worth (金融純資産): cash - Teiai debt + valuations of trust deposits, securities
+ * and companies. Not a ranking any more; it only decides the 🟡 wealthy badge.
+ */
 export function netWorth(input: { cash: number; debt: number; valuations: number }): number {
   return input.cash - input.debt + input.valuations;
 }
