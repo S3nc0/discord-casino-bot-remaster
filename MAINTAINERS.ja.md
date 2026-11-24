@@ -89,7 +89,7 @@ pnpm -r build
 | アクティビティの開発サーバー（ポート 5173、`/api` を `localhost:3001` へ中継） | `pnpm --filter @casino/web dev` |
 | Discord なしでアクティビティを動かす（モック SDK とメモリ上の API） | `pnpm --filter @casino/web dev:mock`。URL に `?screen=blackjack` や `?locale=ja` を足せます |
 | Discord からサーバーに届くようにするトンネル | `pnpm dev:tunnel`（名前付きトンネル）または `pnpm dev:tunnel:quick` |
-| スラッシュコマンドの登録 | `pnpm commands:deploy:guild`（`TEST_GUILD_ID` のサーバーへ）、`pnpm commands:deploy:global`、先に中身を見るなら `pnpm commands:dry-run` |
+| スラッシュコマンドの登録 | `pnpm commands:deploy:guild`（`TEST_GUILD_ID` のサーバーへ。ただし `/admin` など DM で使うコマンドはグローバルに 1 件ずつ作成・更新し、すでにグローバルにあるコマンドは飛ばす）、`pnpm commands:deploy:global`（すべて。Activity のエントリーポイントコマンドは残す）、先に中身を見るなら `pnpm commands:dry-run` |
 | チャットボットなしでサーバーを動かす | `.env` に `BOT_DISABLED=1` |
 
 push の前に、CI と同じチェックをすべて通します。
@@ -322,7 +322,7 @@ node tools/pixel-art/finance/ship.js
 
 **SQLite が busy / locked。** サーバーはファイルを 1 回だけ開き、busy のタイムアウトは 5 秒です。`SQLITE_BUSY` のほとんどは、別のプロセスが書き込みのためにそのファイルを開いている状態です。別のサーバー（たとえば Mac と Pi の両方）、トランザクションを開きっぱなしの `sqlite3` シェル、取り込みツールのようなスクリプトなどです。もう一方を止めてください。`.backup` のバックアップは安全です。サーバーの動作中にファイルを `cp` でコピーしないでください。
 
-**スラッシュコマンドが出ない、ボットが 2 回答える。** 出ないとき：`pnpm commands:deploy:guild` をもう一度実行し、`TEST_GUILD_ID` を確かめます。2 回答えるとき：同じ `DISCORD_TOKEN` で別のプロセスがログインしています。それを止めます。
+**スラッシュコマンドが出ない、ボットが 2 回答える。** 出ないとき：`pnpm commands:deploy:guild` をもう一度実行し、`TEST_GUILD_ID` を確かめます。DM の `/admin` なら Discord を再読み込み（`Ctrl+R` / `Cmd+R`）します。グローバル登録のあとテストサーバーで 2 つずつ出るとき：`pnpm commands:deploy:guild` をもう一度実行します（グローバルにあるコマンドのサーバー側コピーが消えます）。2 回答えるとき：同じ `DISCORD_TOKEN` で別のプロセスがログインしています。それを止めます。
 
 **サーバーが起動しない。** `invalid environment: <KEY> is invalid` はそのキーが不正です。`.env` を直します（引用符なし、行末のコメントなし）。`migration N … was edited` や `database has migration N, which this build does not know` は、コードとデータベースファイルの版が合っていないという意味です。どちらかを、対応する版に戻します。
 

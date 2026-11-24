@@ -89,7 +89,7 @@ pnpm -r build
 | Activity dev server (port 5173, proxies `/api` to `localhost:3001`) | `pnpm --filter @casino/web dev` |
 | Activity without Discord (mock SDK and in-memory API) | `pnpm --filter @casino/web dev:mock`, then add `?screen=blackjack` or `?locale=ja` to the URL |
 | Tunnel so Discord can reach your server | `pnpm dev:tunnel` (named tunnel) or `pnpm dev:tunnel:quick` |
-| Register slash commands | `pnpm commands:deploy:guild` (to `TEST_GUILD_ID`), `pnpm commands:deploy:global`, or `pnpm commands:dry-run` to look first |
+| Register slash commands | `pnpm commands:deploy:guild` (to `TEST_GUILD_ID`, except DM commands such as `/admin`, which it creates or updates globally one by one; commands already global are skipped), `pnpm commands:deploy:global` (everything, keeps the Activity Entry Point command), or `pnpm commands:dry-run` to look first |
 | Server without the chat bot | `BOT_DISABLED=1` in `.env` |
 
 Before you push, everything CI runs:
@@ -322,7 +322,7 @@ Start with the server log (`journalctl -u discord-casino.service -f` on the Pi, 
 
 **SQLite busy or locked.** The server opens the file once, with a 5-second busy timeout. `SQLITE_BUSY` almost always means a second process has the file open for writing: another copy of the server (for example the Mac and the Pi), a `sqlite3` shell with an open transaction, or a script such as the importer. Stop the other process. Backups with `.backup` are safe. Do not copy the file with `cp` while the server runs.
 
-**Slash commands missing, or the bot answers twice.** Missing: run `pnpm commands:deploy:guild` again and check `TEST_GUILD_ID`. Twice: another process is logged in on the same `DISCORD_TOKEN`; stop it.
+**Slash commands missing, or the bot answers twice.** Missing: run `pnpm commands:deploy:guild` again and check `TEST_GUILD_ID`; for `/admin` in a DM, restart Discord (`Ctrl+R` / `Cmd+R`). Shown twice in the test server after a global deploy: run `pnpm commands:deploy:guild` once more (it drops guild copies of global commands). Twice: another process is logged in on the same `DISCORD_TOKEN`; stop it.
 
 **Server will not start.** `invalid environment: <KEY> is invalid` names the key; fix `.env` (no quotes, no trailing comments). `migration N … was edited` or `database has migration N, which this build does not know` means the code and the database file do not match; restore the matching version of one of them.
 

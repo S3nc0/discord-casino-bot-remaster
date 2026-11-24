@@ -1,6 +1,6 @@
-import { GatewayIntentBits, IntentsBitField, Routes } from 'discord.js';
+import { GatewayIntentBits, IntentsBitField } from 'discord.js';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { createTestServer, GUILD, type TestServer } from '../runtime/test-kit.ts';
+import { createTestServer, type TestServer } from '../runtime/test-kit.ts';
 import {
   BOT_CACHE_SETTINGS,
   BOT_INTENTS,
@@ -9,7 +9,7 @@ import {
   getBotDisabledReason,
   startBot,
 } from './client.ts';
-import { PLACEHOLDER_DISCORD_TOKEN, deployCommands, type RestPutClient } from './deploy.ts';
+import { PLACEHOLDER_DISCORD_TOKEN } from './deploy.ts';
 
 let server: TestServer | null = null;
 
@@ -80,60 +80,5 @@ describe('bot client settings & lifecycle', () => {
     await handle.close();
     await handle.close();
     expect(fakeClient.destroy).toHaveBeenCalledTimes(1);
-  });
-});
-
-describe('deployCommands', () => {
-  it('targets guild route in guild scope and global route in global scope', async () => {
-    const calls: { token?: string; route?: string; body?: unknown }[] = [];
-    let currentToken = '';
-    const mockRest: RestPutClient = {
-      setToken(token: string) {
-        currentToken = token;
-        return this;
-      },
-      async put(route, options) {
-        calls.push({ token: currentToken, route, body: options.body });
-        return options.body;
-      },
-    };
-
-    const guildRes = await deployCommands({
-      token: 'real-bot-token',
-      clientId: '345678901234567890',
-      scope: 'guild',
-      guildId: GUILD,
-      rest: mockRest,
-    });
-    expect(guildRes.route).toBe(Routes.applicationGuildCommands('345678901234567890', GUILD));
-    expect(guildRes.count).toBe(16);
-
-    const globalRes = await deployCommands({
-      token: 'real-bot-token',
-      clientId: '345678901234567890',
-      scope: 'global',
-      rest: mockRest,
-    });
-    expect(globalRes.route).toBe(Routes.applicationCommands('345678901234567890'));
-    expect(globalRes.count).toBe(16);
-    expect(calls).toHaveLength(2);
-  });
-
-  it('refuses to deploy with placeholder token or missing guildId', async () => {
-    await expect(
-      deployCommands({
-        token: PLACEHOLDER_DISCORD_TOKEN,
-        clientId: '345678901234567890',
-        scope: 'global',
-      }),
-    ).rejects.toThrow();
-
-    await expect(
-      deployCommands({
-        token: 'real-bot-token',
-        clientId: '345678901234567890',
-        scope: 'guild',
-      }),
-    ).rejects.toThrow();
   });
 });

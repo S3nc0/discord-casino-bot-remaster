@@ -65,7 +65,7 @@ Bot admins (owners) are configured in the `.env` file on your server machine usi
 3. Save `.env` and **restart the server** (`Ctrl+C` in Terminal 1, then run `pnpm dev:server` again). `.env` is only read at startup.
 
 > [!NOTE]
-> Make sure slash commands have been registered at least once with `pnpm commands:deploy:guild` (see [Owner Setup Guide — Step 8](OWNER_SETUP.md#8-turn-the-chat-bot-on)). Editing `OWNER_IDS` does **not** require re-deploying commands.
+> Make sure slash commands have been registered at least once with `pnpm commands:deploy:guild` (see [Owner Setup Guide — Step 8](OWNER_SETUP.md#8-turn-the-chat-bot-on)). It registers `/admin` globally so it appears in your DM with the bot. Editing `OWNER_IDS` does **not** require re-deploying commands.
 
 ---
 
@@ -78,6 +78,7 @@ Bot admins (owners) are configured in the `.env` file on your server machine usi
 
 - **26 of the 27 commands work only in a Direct Message (DM) with the bot.** If you type `/admin` inside a server channel, Discord only shows `/admin notifications`. To use the rest, click the bot in your server's member list and open a DM with it, then type `/admin` there.
 - **`/admin notifications` (`/運営 通知設定`)** works **both in a server channel and in a DM with the bot**. When you run it inside a server, `guild_id` defaults to the current server.
+- **`/admin` missing in the DM?** Run `pnpm commands:deploy:guild` (it registers `/admin` globally so it can appear in DMs), wait a few seconds, then restart Discord with `Ctrl+R` (Windows / Linux) or `Cmd+R` (Mac) and type `/admin` in the DM again. Global commands can take up to an hour to reach every device.
 
 ### Tips for filling in options
 
