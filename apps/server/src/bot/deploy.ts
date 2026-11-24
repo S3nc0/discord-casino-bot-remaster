@@ -118,6 +118,7 @@ async function fetchGlobalCommands(
   } catch (error) {
     throw new Error(
       `Could not read the current global commands, so nothing was changed: ${errorText(error)}`,
+      { cause: error },
     );
   }
   if (!Array.isArray(response)) {
