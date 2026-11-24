@@ -7,6 +7,7 @@ import {
   type EmbedBuilder,
   type User,
 } from 'discord.js';
+import type { PlayerDisplayStatus } from '@casino/domain/finance';
 import {
   FIXED_KEYS,
   LIABILITY_KEYS,
@@ -14,7 +15,6 @@ import {
   type AssetGroups,
   type AssetKey,
   type BalanceSheet,
-  type DisplayPlayerStatus,
 } from '@casino/domain/progression';
 import { formatPelica, t, type Locale } from '@casino/shared/i18n';
 import type { NetWorthService, NetWorthStanding } from '../finance/net-worth-service.ts';
@@ -41,7 +41,7 @@ const MEDALS = ['🥇', '🥈', '🥉'];
 /**
  * Ranking-row status emoji (`docs/teiai.md`: 🟡 / 🟤 / 🔴 next to names; Clean has none).
  */
-export function statusEmoji(status: DisplayPlayerStatus): string {
+export function statusEmoji(status: PlayerDisplayStatus): string {
   switch (status) {
     case 'wealthy':
       return '🟡';

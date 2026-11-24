@@ -151,22 +151,6 @@ export function financialNetWorth(parts: AssetParts): number {
   return parts.cash + parts.debt + parts.deposit + parts.crypto + parts.bonds + parts.options;
 }
 
-export type RawPlayerStatus = 'katagi' | 'underground' | 'bankrupt';
-export type DisplayPlayerStatus = 'katagi' | 'wealthy' | 'underground' | 'bankrupt';
-
-/**
- * True when a `katagi` member has financial net worth at or above `WEALTHY_ASSETS` (1,000,000).
- * Display only: never used to gate `katagi_only` rules.
- */
-export function isWealthy(status: RawPlayerStatus, fnw: number): boolean {
-  return status === 'katagi' && fnw >= WEALTHY_ASSETS;
-}
-
-/** Display status badge: upgrades `katagi` to `wealthy` when `isWealthy` holds. */
-export function displayPlayerStatus(status: RawPlayerStatus, fnw: number): DisplayPlayerStatus {
-  return isWealthy(status, fnw) ? 'wealthy' : status;
-}
-
 /**
  * Financial net worth (金融純資産): cash - Teiai debt + valuations of trust deposits, stocks,
  * bonds and options. Not a ranking any more; it only decides the 🟡 wealthy badge.

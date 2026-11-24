@@ -41,9 +41,6 @@ export function isWealthy(status: PlayerDebtStatus, financialNetWorth: number): 
   return status === 'katagi' && financialNetWorth >= WEALTHY_ASSETS;
 }
 
-/** Alias of `isWealthy` kept for existing callers. */
-export const isWealthyStatus = isWealthy;
-
 /** Display-only status badge: upgrades `katagi` to `wealthy` when financial net worth qualifies. */
 export function resolveDisplayStatus(
   status: PlayerDebtStatus,

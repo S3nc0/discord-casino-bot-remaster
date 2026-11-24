@@ -3,14 +3,15 @@ import {
   companyInvested,
   loanRemaining,
   marginPnl,
+  resolveDisplayStatus,
   resolvePlayerStatus,
   spotSellQuote,
+  type PlayerDisplayStatus,
   type SymbolKey,
 } from '@casino/domain/finance';
 import {
   balanceSheet,
   balanceSheetValue,
-  displayPlayerStatus,
   emptyParts,
   financialNetWorth,
   rankBalanceSheets,
@@ -18,7 +19,6 @@ import {
   type AssetParts,
   type BalanceSheet,
   type BalanceSheetView,
-  type DisplayPlayerStatus,
 } from '@casino/domain/progression';
 import { horseWorth } from '@casino/domain/race';
 import { itemById } from '@casino/domain/shop';
@@ -42,7 +42,7 @@ export interface NetWorthStanding {
   readonly rank: number;
   readonly sheet: BalanceSheet;
   readonly value: number;
-  readonly status: DisplayPlayerStatus;
+  readonly status: PlayerDisplayStatus;
 }
 
 export interface NetWorthStandings {
@@ -98,7 +98,7 @@ export class NetWorthService {
   displayStatuses(
     guildId: string,
     nowMs = this.deps.clock.now(),
-  ): Map<string, DisplayPlayerStatus> {
+  ): Map<string, PlayerDisplayStatus> {
     this.deps.accrueDebtInterest(guildId, nowMs);
     const collected = this.collect(guildId, nowMs);
     return this.resolveStatuses(collected);
@@ -109,7 +109,7 @@ export class NetWorthService {
     guildId: string,
     userId: string,
     nowMs = this.deps.clock.now(),
-  ): DisplayPlayerStatus {
+  ): PlayerDisplayStatus {
     return this.displayStatuses(guildId, nowMs).get(userId) ?? 'katagi';
   }
 
@@ -171,15 +171,15 @@ export class NetWorthService {
 
   // ---------------------------------------------------------------------------------------------
 
-  private resolveStatuses(collected: CollectedGuild): Map<string, DisplayPlayerStatus> {
-    const out = new Map<string, DisplayPlayerStatus>();
+  private resolveStatuses(collected: CollectedGuild): Map<string, PlayerDisplayStatus> {
+    const out = new Map<string, PlayerDisplayStatus>();
     for (const [userId, p] of collected.parts) {
       const raw = resolvePlayerStatus({
         debt: -p.debt,
         bankruptAtMs: collected.bankruptAt.get(userId) ?? null,
         hasOverdueLoan: collected.overdueBorrowers.has(userId),
       });
-      out.set(userId, displayPlayerStatus(raw, financialNetWorth(p)));
+      out.set(userId, resolveDisplayStatus(raw, financialNetWorth(p)));
     }
     return out;
   }

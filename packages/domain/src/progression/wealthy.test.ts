@@ -1,37 +1,29 @@
 import { describe, expect, it } from 'vitest';
 import {
-  WEALTHY_ASSETS as TEIAI_WEALTHY_ASSETS,
-  isWealthy as teiaiIsWealthy,
-  resolveDisplayStatus,
-} from '../finance/teiai/index.ts';
-import {
   WEALTHY_ASSETS,
-  displayPlayerStatus,
-  emptyParts,
-  financialNetWorth,
   isWealthy,
-  type AssetParts,
-  type DisplayPlayerStatus,
-  type RawPlayerStatus,
-} from './economy-core.ts';
+  resolveDisplayStatus,
+  type PlayerDebtStatus,
+  type PlayerDisplayStatus,
+} from '../finance/teiai/index.ts';
+import { emptyParts, financialNetWorth, type AssetParts } from './economy-core.ts';
 
 function partsWith(overrides: Partial<AssetParts>): AssetParts {
   return { ...emptyParts(), ...overrides };
 }
 
 describe('isWealthy & financialNetWorth (🟡 wealthy badge)', () => {
-  it('uses WEALTHY_ASSETS = 1,000,000 consistently across progression and teiai', () => {
+  it('defines WEALTHY_ASSETS = 1,000,000', () => {
     expect(WEALTHY_ASSETS).toBe(1_000_000);
-    expect(TEIAI_WEALTHY_ASSETS).toBe(1_000_000);
   });
 
   const cases: readonly {
     readonly name: string;
-    readonly status: RawPlayerStatus;
+    readonly status: PlayerDebtStatus;
     readonly parts: Partial<AssetParts>;
     readonly expectedFnw: number;
     readonly expectedWealthy: boolean;
-    readonly expectedDisplay: DisplayPlayerStatus;
+    readonly expectedDisplay: PlayerDisplayStatus;
   }[] = [
     {
       name: 'katagi at 999,999 cash is not wealthy',
@@ -148,8 +140,6 @@ describe('isWealthy & financialNetWorth (🟡 wealthy badge)', () => {
     const fnw = financialNetWorth(partsWith(parts));
     expect(fnw).toBe(expectedFnw);
     expect(isWealthy(status, fnw)).toBe(expectedWealthy);
-    expect(teiaiIsWealthy(status, fnw)).toBe(expectedWealthy);
-    expect(displayPlayerStatus(status, fnw)).toBe(expectedDisplay);
     expect(resolveDisplayStatus(status, fnw)).toBe(expectedDisplay);
   });
 });
