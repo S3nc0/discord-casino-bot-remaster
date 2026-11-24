@@ -116,6 +116,7 @@ Discord shows command names in your own language, so a Japanese client sees the 
 | Visit Teiai Bank | `/pelica bank` | `/ペリカ 帝愛` |
 | Dig for ore | `/labor work` | `/地下 作業` |
 | Open the shop | `/shop` | `/ショップ` |
+| Run a stream panel ([guide](docs/stream.md)) | `/stream start` | `/配信 開始` |
 | Ask for help | `/help` | `/help` |
 
 ## Admin

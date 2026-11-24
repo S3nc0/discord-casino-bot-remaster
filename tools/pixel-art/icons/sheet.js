@@ -4,6 +4,7 @@ import { onBg, NAVY, CREAM } from '../lib/show.js';
 import './games.js';
 import './more.js';
 import './life.js';
+import './stream.js';
 const names = process.argv.slice(2).length ? process.argv.slice(2) : Object.keys(REG);
 const items = [];
 for (const n of names) {

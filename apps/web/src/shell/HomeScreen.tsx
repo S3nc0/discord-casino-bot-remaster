@@ -38,6 +38,7 @@ export const HOME_SECTIONS: ReadonlyArray<{
       { screen: 'quiz', icon: 'quiz' },
       { screen: 'lottery', icon: 'lottery' },
       { screen: 'poll', icon: 'poll' },
+      { screen: 'stream', icon: 'stream' },
     ],
   },
   {

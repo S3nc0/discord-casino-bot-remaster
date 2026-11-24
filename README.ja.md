@@ -116,6 +116,7 @@ pnpm i && pnpm -r build
 | 帝愛銀行へ行く | `/ペリカ 帝愛` | `/pelica bank` |
 | 地下で働く | `/地下 作業` | `/labor work` |
 | ショップを開く | `/ショップ` | `/shop` |
+| 配信パネルを開く（[ガイド](docs/stream.ja.md)） | `/配信 開始` | `/stream start` |
 | 使い方を聞く | `/help` | `/help` |
 
 ## 管理者向け

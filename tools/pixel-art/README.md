@@ -6,7 +6,7 @@ Every icon, sprite and scene in the app is generated, not hand-edited. Run every
 
 | Folder | What it draws | Section |
 | --- | --- | --- |
-| `icons/` | The 35 game icons | [Icons and the race horse](#icons-and-the-race-horse) |
+| `icons/` | The 36 game icons (including `stream.js`) | [Icons and the race horse](#icons-and-the-race-horse) |
 | `horse/` | The eight-frame race horse | [Icons and the race horse](#icons-and-the-race-horse) |
 | `scenes/` | Race, stable, breeding, arena, mine, shop, inventory | [Scenes](#scenes) |
 | `casino/` | Slots, chinchiro, blackjack, roulette, pachinko | [Casino scenes](#casino-scenes) |

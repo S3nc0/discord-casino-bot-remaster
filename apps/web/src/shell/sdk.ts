@@ -24,6 +24,18 @@ export interface ActivitySdk {
   /** Returns an unsubscribe function. */
   onParticipantsUpdate(listener: (users: PublicUser[]) => void): Promise<() => void>;
   setActivity(activity: PresenceActivity): Promise<void>;
+  /** Open an `http://` or `https://` link through Discord (never a raw `window.open`). */
+  openExternalLink(url: string): Promise<void>;
+}
+
+/** True only for an absolute `http://` or `https://` web address. */
+export function isHttpUrl(url: string): boolean {
+  try {
+    const parsed = new URL(url);
+    return parsed.protocol === 'http:' || parsed.protocol === 'https:';
+  } catch {
+    return false;
+  }
 }
 
 interface Participant {
@@ -85,6 +97,10 @@ function wrap(sdk: DiscordSDK | DiscordSDKMock, mode: 'discord' | 'mock'): Activ
       await sdk.commands.setActivity({
         activity: { type: ACTIVITY_TYPE_PLAYING, details, timestamps: { start: startedAt } },
       });
+    },
+    openExternalLink: async (url) => {
+      if (!isHttpUrl(url)) throw new Error('invalid_url');
+      await sdk.commands.openExternalLink({ url });
     },
   };
 }

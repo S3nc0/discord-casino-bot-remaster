@@ -40,6 +40,7 @@ export const GAME_ICON_NAMES = [
   'relic',
   'history',
   'profile',
+  'stream',
 ] as const;
 export type GameIconName = (typeof GAME_ICON_NAMES)[number];
 
@@ -674,6 +675,24 @@ export const GAME_ICON_ROWS: Readonly<Record<GameIconName, readonly string[]>> =
     '.qqrssssssssssq.',
     'qrssssssssssssss',
   ],
+  stream: [
+    '...fgl....fgf...',
+    '..fggL....fggl..',
+    '...lLLL..LLpl...',
+    '.xxxxLLxLLxxxxx.',
+    'x33xxxxxxxxxx3xm',
+    'x3eOOOOOOOONN3em',
+    'xxONNNAANNAffxem',
+    'xxONNAbbNANOONxm',
+    'xxONNAbbbbONNAxm',
+    'xxONNAbbOONNNAxm',
+    'xxONNNOONNNNNAxm',
+    'xxNAAAAAAAAAAAxm',
+    'xxxxxxxxxxxxxxem',
+    '.mLDDDpmmLDDDpm.',
+    '..LDDDp..LDDDp..',
+    '...ppp....ppp...',
+  ],
 };
 
 /** Character to palette token, the same table the stylesheet is built from. */
@@ -681,6 +700,7 @@ export const ICON_LEGEND: Readonly<Record<string, string>> = {
   '0': 'teal-20',
   '1': 'teal-40',
   '2': 'orange-80',
+  '3': 'neutral-25',
   a: 'neutral-87',
   b: 'paper-99',
   c: 'neutral-50',

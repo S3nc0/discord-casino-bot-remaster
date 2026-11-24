@@ -11,6 +11,7 @@ import { make } from './kit.js';
 import './games.js';
 import './more.js';
 import './life.js';
+import './stream.js';
 import NAMES from './names.js';
 
 const root = path.join(path.dirname(fileURLToPath(import.meta.url)), '../../..');

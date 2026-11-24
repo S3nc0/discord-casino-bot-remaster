@@ -1,0 +1,264 @@
+/* Stream panel screen: Bitbloom tokens only, phone-width first (390px), tabular numbers via .num. */
+
+.st {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-3);
+  max-width: 720px;
+  margin: 0 auto;
+}
+
+.st__head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.st__icon {
+  width: 28px;
+  height: 28px;
+  flex: none;
+}
+
+.st__title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: var(--text-headline);
+  line-height: 1.2;
+}
+
+.st__row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+
+.st__stack {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.st__note {
+  margin: 0;
+  font-size: var(--text-body-sm);
+  color: var(--on-surface-variant);
+}
+
+.st__error {
+  margin: 0;
+  font-size: var(--text-body-sm);
+  color: var(--error);
+}
+
+.st__loading {
+  margin: var(--space-4) 0;
+  text-align: center;
+  color: var(--on-surface-variant);
+}
+
+/* Stream room header */
+.st-room__head {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.st-room__status {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+
+.st-room__onair {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.st-room__streamer {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.st-room__heading {
+  margin: 0;
+  font-size: var(--text-title);
+  line-height: 1.25;
+  overflow-wrap: anywhere;
+}
+
+.st-room__meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  font-size: var(--text-body-sm);
+  color: var(--on-surface-variant);
+}
+
+.st-room__stats {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-2);
+}
+
+.st-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: var(--space-2);
+  background: var(--surface-container-low);
+  border: var(--border-width) solid var(--outline-variant);
+}
+
+.st-stat__label {
+  font-size: var(--text-label);
+  color: var(--on-surface-variant);
+}
+
+.st-stat__fig {
+  font-size: var(--text-title);
+  font-weight: 700;
+  color: var(--on-surface);
+}
+
+.st-stat__fig--coin {
+  color: var(--gold);
+}
+
+/* Round card: pools & bet controls */
+.st-pools {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-2);
+}
+
+.st-pool {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding: var(--space-2);
+  background: var(--surface-container-low);
+  border: var(--border-width) solid var(--outline-variant);
+}
+
+.st-pool--win {
+  border-inline-start: 4px solid var(--success);
+}
+
+.st-pool--lose {
+  border-inline-start: 4px solid var(--error);
+}
+
+.st-pool__name {
+  font-size: var(--text-label);
+  font-weight: 700;
+}
+
+.st-pool__fig {
+  font-size: var(--text-title);
+  font-weight: 700;
+  color: var(--on-surface);
+}
+
+.st-pool__hint {
+  font-size: var(--text-body-sm);
+  color: var(--on-surface-variant);
+}
+
+.st-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-2);
+}
+
+.st-actions--single {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+/* Fee / total summary list */
+.st-sum {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: var(--space-1) var(--space-3);
+  margin: 0;
+  padding: var(--space-2);
+  background: var(--surface-container-low);
+  border: var(--border-width) solid var(--outline-variant);
+  font-size: var(--text-body-sm);
+}
+
+.st-sum dt {
+  color: var(--on-surface-variant);
+}
+
+.st-sum dd {
+  margin: 0;
+  text-align: end;
+}
+
+.st-sum__total {
+  font-weight: 700;
+  color: var(--on-surface);
+}
+
+/* Super-chat recent tips feed: tier accent bar from STREAM_TIP_TIERS, readable surface text */
+.st-tips {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.st-tip {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding: var(--space-2) var(--space-3);
+  background: var(--surface-container-low);
+  border: var(--border-width) solid var(--outline-variant);
+  border-inline-start: 4px solid var(--st-tip-accent, var(--primary));
+}
+
+.st-tip__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+
+.st-tip__author {
+  font-weight: 700;
+  color: var(--on-surface);
+  overflow-wrap: anywhere;
+}
+
+.st-tip__msg {
+  margin: 0;
+  font-size: var(--text-body-sm);
+  color: var(--on-surface);
+  overflow-wrap: anywhere;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .st,
+  .st * {
+    animation: none !important;
+    transition: none !important;
+  }
+}
+
+:root[data-reduced-motion='true'] .st,
+:root[data-reduced-motion='true'] .st * {
+  animation: none !important;
+  transition: none !important;
+}

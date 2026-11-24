@@ -1420,6 +1420,9 @@ button.bb-card:hover {
 .bb-px-2 {
   fill: var(--orange-80);
 }
+.bb-px-3 {
+  fill: var(--neutral-25);
+}
 /* pixel-icons:end */
 
 /* Skyline strip: 14 art pixels tall at 4px, as wide as its container. Day tones in light, night in dark. */
