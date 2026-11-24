@@ -124,3 +124,9 @@
 | `shop.ledger.purchase` | `購入:{label}[×{qty}]` | `infra/db/shop.py:130` |
 | `shop.ledger.auction` | `競売:{label}[×{qty}]` | `infra/db/auction.py:133` |
 | `shop.ledger.teiai_market` | `帝愛の出品:{label}[×{qty}]` | `infra/db/auction.py:245` |
+
+---
+
+## 6. 持ち込まないもの
+
+- **リマスターでは未実装：** Discord のニックネームへの称号付与・同期（`domain/nick.py`、§3、ニックネームの管理権限）と、`color_role` のサーバーロール作成・付与（ロールの管理権限）は移植していません。`color_role` は購入・プロフィールカード表示・プレイヤー間取引の見た目アイテムとして残り、称号は残高カードとアクティビティのプロフィールに表示されます。

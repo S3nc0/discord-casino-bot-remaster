@@ -83,3 +83,7 @@
 | `weekly.champion_line2` | `今週の稼ぎ **{net:+,}ペリカ**（{plays}戦）。\`/ショップ\` の「持ち物」の画面で身につけられます（次の発表まで）。` | `cogs/weekly/embeds.py:19` |
 | `weekly.no_champion` | `今週は、{min_plays}ゲーム以上遊んでプラスだった人がいませんでした。王者はお休みです。` | `cogs/weekly/embeds.py:24` |
 | `weekly.previous_revoked` | `前の王者 {mentions_joined_by_nakaguro} の称号は外れました。` | `cogs/weekly/embeds.py:27` |
+
+## 持ち込まないもの
+
+- **リマスターでは未実装：** 週間王者称号の付与・剥奪に伴う Discord ニックネーム同期（`sync_title_nick`）は移植していません。称号は残高カードとアクティビティのプロフィールに表示されます。

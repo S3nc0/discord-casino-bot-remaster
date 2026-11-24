@@ -189,3 +189,7 @@ Planned owner: `B3` | Screen IDs: `teiai-bank`, `teiai-bank-cds`, `teiai-bank-de
 | `teiai.ledger_repay` | `帝愛への返済` / `帝愛への返済（収入から天引き）` | `infra/db/debt.py:403,527` |
 | `teiai.ledger_seed` | `帝愛の種銭貸付` | `infra/db/debt.py:434` |
 | `teiai.ledger_interest` | `帝愛の利息（トイチ・日利{rate:.0%}・{days}日分）+{add:,}` | `infra/db/debt.py:372` |
+
+## Not ported
+
+- **Not in the remaster:** The 2-minute nickname suffix sync (`【地下労働者】`, `【破産者】`, `【富豪】`, Manage Nicknames) and Discord role stripping on bankruptcy (Manage Roles) are not ported; the 🟢🟤🔴🟡 status display shows on the balance card, Activity profile, and rankings.
