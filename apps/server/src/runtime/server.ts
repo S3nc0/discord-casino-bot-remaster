@@ -1,5 +1,6 @@
 import type { FastifyInstance } from 'fastify';
 import type { Logger } from 'pino';
+import { RELIC_AUCTION_PER_DAY } from '@casino/domain/shop';
 import type { Clock, LaunchIntentService, Rng } from '@casino/shared';
 import { createFetchClient, DiscordApi, type HttpClient } from '../auth/discord.ts';
 import { SqliteLaunchIntentService } from '../auth/launch-intents.ts';
@@ -34,6 +35,7 @@ import {
   createTeiaiPort,
 } from './adapters/index.ts';
 import { EventBus } from './bus.ts';
+import { PostPinService } from '../notify/post-pins.ts';
 import { systemClock } from './clock.ts';
 import type { Config } from './config.ts';
 import { buildJobManifest } from './jobs.ts';
@@ -68,6 +70,11 @@ export interface CreateServerOptions {
   cronDriver?: CronDriver;
   /** Timers of the casino rounds (betting windows, turn timeouts). Defaults to real timers. */
   casinoTimers?: CasinoTimers;
+  /**
+   * Relics Teiai puts on the player market per guild per UTC day. Defaults to
+   * `RELIC_AUCTION_PER_DAY` (1); test worlds pass 0 unless a test turns it on.
+   */
+  relicAuctionPerDay?: number;
 }
 
 /** Everything one process shares. The bot and the scheduler plug into the same instances. */
@@ -86,6 +93,8 @@ export interface CasinoServices {
   finance: FinanceServices;
   games: NonCasinoGames;
   casino: CasinoGames;
+  /** Pins the poll, kyosai motion and raffle posts and unpins them when they end. */
+  postPins: PostPinService;
   scheduler: Scheduler;
   /** Start HTTP and sockets, then the scheduler. */
   listen(): Promise<string>;
@@ -156,6 +165,7 @@ export function createServer(options: CreateServerOptions): CasinoServices {
     { store, economy, identity, clock, rng, bus, utcOffsetHours },
     {
       marketplaceAssets: createMarketplaceAssets(store, new Inventory(store)),
+      relicAuctionPerDay: options.relicAuctionPerDay ?? RELIC_AUCTION_PER_DAY,
       liquidateExternalAssets: createExternalLiquidation(() => (lazy.games as NonCasinoGames).shop),
     },
   );
@@ -252,6 +262,8 @@ export function createServer(options: CreateServerOptions): CasinoServices {
   const refunded = casino.recover();
   if (refunded > 0) logger.warn({ refunded }, 'refunded casino rounds left open by a crash');
 
+  const postPins = new PostPinService({ store, clock, logger });
+
   const scheduler = new Scheduler({
     clock,
     logger,
@@ -261,6 +273,7 @@ export function createServer(options: CreateServerOptions): CasinoServices {
       logger,
       finance,
       games,
+      postPins,
       purgeLaunchIntents: () => (launchIntents as SqliteLaunchIntentService).purge(),
     }),
     ...(options.cronDriver === undefined ? {} : { driver: options.cronDriver }),
@@ -286,6 +299,7 @@ export function createServer(options: CreateServerOptions): CasinoServices {
     finance,
     games,
     casino,
+    postPins,
     scheduler,
     async listen() {
       const address = await app.listen({ port: config.port, host: config.host });

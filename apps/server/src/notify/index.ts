@@ -30,6 +30,7 @@ export * from './dm-queue.ts';
 export * from './inbox-writer.ts';
 export * from './messages.ts';
 export * from './personas.ts';
+export * from './post-pins.ts';
 export * from './ports.ts';
 export * from './runtime.ts';
 export * from './theme.ts';
@@ -96,7 +97,7 @@ export function notificationRecipients(event: SubscribedDomainEvent): string[] {
 
 /**
  * Wire the notify module onto the in-process `EventBus`:
- * - Subscribes to all 18 domain events.
+ * - Subscribes to all 19 domain events.
  * - Routes guild announcements through `Announcer` + optional `WebhookPersonaManager`.
  * - Routes personal notifications through `InboxWriter` (DB + live Socket.io) and opt-in `DmQueue`.
  */

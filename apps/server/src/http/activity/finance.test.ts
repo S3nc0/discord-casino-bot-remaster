@@ -10,6 +10,7 @@ import {
   FinanceLoansView,
   FinanceMarketView,
   FinanceWriteResult,
+  TEIAI_SELLER_ID,
   type TokenResponse,
 } from '@casino/shared';
 import {
@@ -488,6 +489,39 @@ describe('player market listing create', () => {
     expect(ok.statusCode).toBe(200);
     const view = (await me.get(FINANCE_ROUTES.listings)).json<FinanceListingsView>();
     expect(view.listings[0]).toMatchObject({ mode: 'auction', minNextBid: 800 });
+  });
+
+  it("shows Teiai's daily relic as a seller 0 auction anyone can bid on, with no seller credit", async () => {
+    server = createTestServer({ relicAuctionPerDay: 1 });
+    const me = await login(USER);
+    grant(USER, 200_000);
+    const [listingId] = server.finance.playerMarket.teiaiDaily(GUILD);
+    const view = (await me.get(FINANCE_ROUTES.listings)).json<FinanceListingsView>();
+    expect(Value.Check(FinanceListingsView, view)).toBe(true);
+    const row = view.listings.find((l) => l.id === listingId);
+    expect(row).toMatchObject({
+      seller: { id: TEIAI_SELLER_ID },
+      mode: 'auction',
+      mine: false,
+      qty: 1,
+      bid: 0,
+    });
+    expect(row?.ref).toMatch(/^relic_/);
+
+    // A bid above the 100,000 pair limit goes through: Teiai is not a player to pair with.
+    const amount = Math.max(row?.minNextBid ?? 0, 120_000);
+    const res = await me.post(FINANCE_ROUTES.listingBid, {
+      idempotencyKey: key(),
+      listingId,
+      amount,
+    });
+    expect(res.statusCode).toBe(200);
+    const taken = await me.post(FINANCE_ROUTES.listingCancel, {
+      idempotencyKey: key(),
+      listingId,
+    });
+    expect(taken.json()).toMatchObject({ reason: 'marketplace_not_seller' });
+    expect(ledger(USER).at(-1)).toEqual({ reason: 'marketplace_hold', delta: -amount });
   });
 });
 

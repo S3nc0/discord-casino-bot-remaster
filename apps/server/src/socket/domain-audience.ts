@@ -13,6 +13,7 @@ const GUILD_PUBLIC = new Set<DomainEventType>([
   'MarketMove',
   'TitleAwarded',
   'LotteryDrawn',
+  'TeiaiRelicListed',
 ]);
 
 export type Audience = { scope: 'guild' } | { scope: 'users'; userIds: string[] };

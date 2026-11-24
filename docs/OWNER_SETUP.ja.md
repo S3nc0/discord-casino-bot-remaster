@@ -160,7 +160,8 @@ Discord Activity（デスクトップ / モバイル）
 2. **Installation Contexts**（インストールコンテキスト）で **Guild Install**（サーバーへのインストール）にチェックを入れ、**Save Changes**（変更を保存）を押します。
 3. **Default Install Settings**（既定のインストール設定）→ **Guild Install** で以下を設定します。
    - **Scopes**（スコープ）: `applications.commands` と `bot` を追加します。
-   - **Permissions**（権限）: **Send Messages**（メッセージを送信）、**Embed Links**（埋め込みリンク）、**Use Slash Commands**（アプリコマンドを使う）にチェックを入れます（将来 Webhook ペルソナを使う場合は **Manage Webhooks**（ウェブフックの管理）にもチェック）。
+   - **Permissions**（権限）: **Send Messages**（メッセージを送信）、**Embed Links**（埋め込みリンク）、**Use Slash Commands**（アプリコマンドを使う）、**Pin Messages**（メッセージをピン留め）にチェックを入れます（将来 Webhook ペルソナを使う場合は **Manage Webhooks**（ウェブフックの管理）にもチェック）。ボットは、新しい投票・共済の動議・抽選の投稿を、開いている間ピン留めし、終わったらピン留めを外します。**Pin Messages** はそのための権限です。なくてもすべて動きますが、ピン留めだけされません。この組み合わせの権限の整数は `2251801961187328`、**Manage Webhooks** を足すと `2251802498058240` です。
+   - **v1.1.0 より前にインストール済みの場合:** ここで **Pin Messages** にもチェックを入れてから、インストールリンクをもう一度開いて **Authorize**（認証）し直す（Discord がボットのロールを更新します）か、*サーバー設定 → ロール* でボットのロールに **メッセージをピン留め** を付けてください。
    - **Save Changes**（変更を保存）を押します。
 4. **Install Link**（インストールリンク）が **Discord Provided Link** になっていることを確認し、リンクを **Copy**（コピー）してブラウザで開きます。
 5. **テスト用サーバー** を選んで **Authorize**（認証）を押します。

@@ -4,6 +4,7 @@ import {
   type FinanceListingBidRequest,
   type FinanceListingRefRequest,
   type FinanceListingView,
+  TEIAI_SELLER_ID,
 } from '@casino/shared';
 import { Banner, Button, Card, GameIcon, Tag } from '@casino/ui';
 import { useT } from '../../shell/i18n.ts';
@@ -84,6 +85,7 @@ function ListingCard({
   const assetName = useAssetName();
   const [text, setText, amount] = useInt(String(listing.minNextBid));
   const auction = listing.mode === 'auction';
+  const fromTeiai = listing.seller.id === TEIAI_SELLER_ID;
   const ref = (key: string): FinanceListingRefRequest => ({
     idempotencyKey: key,
     listingId: listing.id,
@@ -100,14 +102,21 @@ function ListingCard({
             {listing.qty > 1 ? ` ×${listing.qty}` : ''}
           </span>
         </strong>
-        <Tag hue={auction ? 'violet' : 'teal'}>
-          {auction ? <Gavel size={1} /> : null}
-          {t(`screen.finance.listings.mode.${listing.mode}`)}
-        </Tag>
+        <span className="fin-row__tags">
+          {fromTeiai ? <Tag hue="amber">{t('screen.finance.listings.teiaiTag')}</Tag> : null}
+          <Tag hue={auction ? 'violet' : 'teal'}>
+            {auction ? <Gavel size={1} /> : null}
+            {t(`screen.finance.listings.mode.${listing.mode}`)}
+          </Tag>
+        </span>
       </div>
       <p className="fin-row__meta">
         {t('screen.finance.listings.seller', {
-          name: listing.mine ? t('screen.finance.you') : listing.seller.name,
+          name: fromTeiai
+            ? t('screen.finance.listings.sellerTeiai')
+            : listing.mine
+              ? t('screen.finance.you')
+              : listing.seller.name,
         })}{' '}
         · {t(`screen.finance.listings.kind.${listing.kind}`)} · {timeLeft(listing.endAt)}
       </p>
@@ -221,7 +230,7 @@ export function ListingsPanel({ view }: { view?: View<typeof FINANCE_ROUTES.list
       <SellPanel view={data} reload={reload} />
       <Panel
         title={t('screen.finance.listings.title')}
-        hint={t('screen.finance.listings.hint', { fee: String(data.feeBps / 100) })}
+        hint={`${t('screen.finance.listings.hint', { fee: String(data.feeBps / 100) })} ${t('screen.finance.listings.teiaiHint')}`}
       >
         {outbid.size > 0 && data.listings.every((l) => !outbid.has(l.id)) ? (
           <Banner variant="warning" title={t('screen.finance.listings.outbidGone')} />

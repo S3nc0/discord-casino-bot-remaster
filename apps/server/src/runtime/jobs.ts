@@ -2,6 +2,7 @@ import type { Logger } from 'pino';
 import type { Store } from '../db/store.ts';
 import { FINANCE_JOBS, type FinanceServices } from '../finance/jobs.ts';
 import type { NonCasinoGames } from '../games/progression/register.ts';
+import type { PostPinService } from '../notify/post-pins.ts';
 import type { JobSpec } from './scheduler.ts';
 
 export interface JobManifestDeps {
@@ -9,6 +10,8 @@ export interface JobManifestDeps {
   logger: Logger;
   finance: FinanceServices;
   games: Pick<NonCasinoGames, 'jobs'>;
+  /** Pinned poll, motion and raffle posts; the sweep unpins the ones that ended. */
+  postPins?: Pick<PostPinService, 'sweep'>;
   /** Housekeeping hooks owned by the auth and casino layers. */
   purgeLaunchIntents(): unknown;
 }
@@ -68,5 +71,16 @@ export function buildJobManifest(deps: JobManifestDeps): JobSpec[] {
     },
   ];
 
-  return [...financeJobs, ...gameJobs, ...housekeeping];
+  const pinJobs: JobSpec[] = deps.postPins
+    ? [
+        {
+          id: 'notify:pin-sweep',
+          cron: '*/30 * * * * *',
+          description: 'Unpin the poll, kyosai motion and raffle posts whose thing has ended.',
+          run: () => deps.postPins?.sweep(),
+        },
+      ]
+    : [];
+
+  return [...financeJobs, ...gameJobs, ...pinJobs, ...housekeeping];
 }

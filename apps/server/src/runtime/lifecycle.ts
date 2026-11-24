@@ -1,4 +1,5 @@
 import { startBot, type BotHandle, type StartBotOptions } from '../bot/index.ts';
+import { createDiscordPinPort } from '../notify/post-pins.ts';
 import { startNotifyRuntime, type NotifyRuntimeHandle } from '../notify/runtime.ts';
 import { systemClock } from './clock.ts';
 import type { Config } from './config.ts';
@@ -31,6 +32,7 @@ export async function startRuntime(
 ): Promise<RuntimeHandle> {
   const env = options.env ?? process.env;
   const bot = await startBot(server, config, { env, ...options.bot });
+  if (bot.client) server.postPins.attach(createDiscordPinPort(bot.client));
   const notify = startNotifyRuntime({
     db: server.store,
     bus: server.bus,
@@ -46,6 +48,7 @@ export async function startRuntime(
     stopping ??= (async () => {
       const steps: [string, () => Promise<void>][] = [
         ['scheduler', () => server.stopJobs()],
+        ['pins', async () => server.postPins.attach(null)],
         ['notify', async () => notify.stop()],
         ['bot', () => bot.close()],
         ['server', () => server.close()],

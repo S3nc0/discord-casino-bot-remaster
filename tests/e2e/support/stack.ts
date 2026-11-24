@@ -136,6 +136,8 @@ export interface StackOptions {
   rng?: Rng;
   /** Session lifetime; the default of one hour is plenty for a test. */
   sessionTtlSeconds?: number;
+  /** Teiai's daily relic auction is off in the e2e world unless a test turns it on. */
+  relicAuctionPerDay?: number;
 }
 
 /** Start a server on 127.0.0.1. Call `stack.close()` when done. */
@@ -156,6 +158,7 @@ export async function startStack(options: StackOptions = {}): Promise<Stack> {
   const server = createServer({
     config,
     clock,
+    relicAuctionPerDay: options.relicAuctionPerDay ?? 0,
     http: worldDiscord(world),
     logger: createLogger({ level: 'silent' }),
     store: memoryStore(),

@@ -927,6 +927,9 @@ export const ja: Messages = {
     '出品 #{listingId} でより高い入札（{newBid}）がありました。',
   'notify.event.DailyReady.title': 'デイリーボーナス受け取り可能',
   'notify.event.DailyReady.body': 'デイリーボーナスを受け取れるようになりました！',
+  'notify.event.TeiaiRelicListed.title': '🕴️ 帝愛の出品: {item}',
+  'notify.event.TeiaiRelicListed.body':
+    '帝愛が **{item}** を競りに出しました（出品 #{listingId}）。開始価格は {startPrice}、締切は <t:{endAtSec}:R>。代金はすべて帝愛銀行の収入になります。',
 
   'notify.dm_disabled.title': 'DM通知を自動オフにしました',
   'notify.dm_disabled.body':
@@ -1177,6 +1180,10 @@ export const ja: Messages = {
   'screen.finance.listings.kind.item': 'アイテム',
   'screen.finance.listings.kind.horse': '競走馬',
   'screen.finance.listings.seller': '出品者：{name}',
+  'screen.finance.listings.sellerTeiai': '🕴️ 帝愛',
+  'screen.finance.listings.teiaiTag': '帝愛の発掘品',
+  'screen.finance.listings.teiaiHint':
+    '🕴️ 帝愛も1日（UTC）に1回、発掘品を1つ競りで出す（開始は目安の価値、24時間。掘れる確率どおりに選ぶので、竜の涙はまれ）。代金は帝愛銀行へ',
   'screen.finance.listings.topBid': '{amount}・最高入札：{name}',
   'screen.finance.listings.youLead': 'あなたが最高入札者',
   'screen.finance.listings.outbid': '高値で入札されました。最高入札は{amount}です。',
@@ -1872,4 +1879,7 @@ export const ja: Messages = {
   'screen.casino.blackjack.credit.tooShort':
     '{need} ペリカ足りません。帝愛がダブルのために貸せるのは最大 {cap} ペリカまでです。',
   'screen.casino.blackjack.credit.failed': '帝愛から借りられませんでした。',
+  // Auto-pin: owner-facing hint when a raffle post could not be pinned.
+  'bot.admin.pinFailed':
+    '投稿をピン留めできませんでした。そのチャンネルでボットに「メッセージをピン留め」権限を付けてください。',
 };

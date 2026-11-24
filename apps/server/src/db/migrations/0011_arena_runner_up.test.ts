@@ -38,10 +38,12 @@ function fighter(db: Database.Database, tournamentId: number, name: string) {
 
 describe('0011_arena_runner_up', () => {
   it('is the next migration after 10 and applies on its own', () => {
-    expect(migrations.map((m) => m.version)).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]);
+    // Later migrations may follow: this one only has to be the 11th and apply right after 10.
+    const upTo11 = migrations.filter((m) => m.version <= 11);
+    expect(upTo11.map((m) => m.version)).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]);
     const db = upTo(10);
-    expect(runMigrations(db, migrations)).toEqual([11]);
-    expect(runMigrations(db, migrations)).toEqual([]);
+    expect(runMigrations(db, upTo11)).toEqual([11]);
+    expect(runMigrations(db, upTo11)).toEqual([]);
   });
 
   it('keeps finished tournaments and leaves their runner-up empty', () => {

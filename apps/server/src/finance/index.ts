@@ -23,6 +23,8 @@ export interface CreateFinanceServicesOptions {
   readonly companyDayStateResolver?: DayStateResolver;
   /** Optional external liquidation hook for shop items / horses owned by B2-B. */
   readonly liquidateExternalAssets?: TeiaiCrossHooks['liquidateExternalAssets'];
+  /** Relics Teiai lists per guild per UTC day on the player market (0 = off, the default). */
+  readonly relicAuctionPerDay?: number;
 }
 
 /**
@@ -41,7 +43,9 @@ export function createFinanceServices(
     resolveDayState: options.companyDayStateResolver,
   });
   const assets = options.marketplaceAssets ?? new InMemoryMarketplaceAssetAdapter();
-  const playerMarket = new PlayerMarketService(deps, teiai, assets);
+  const playerMarket = new PlayerMarketService(deps, teiai, assets, {
+    relicAuctionPerDay: options.relicAuctionPerDay ?? 0,
+  });
 
   teiai.registerHooks({
     getActiveBondPrincipal: (guildId) => stocks.getActiveBondPrincipal(guildId),

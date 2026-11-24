@@ -457,9 +457,19 @@ export type FinanceCompanyDividendRequest = Static<typeof FinanceCompanyDividend
 
 // ---- player market ----
 
+/**
+ * Seller of a listing: a player, or Teiai (`id` is `TEIAI_SELLER_ID`, which is not a snowflake;
+ * screens show their own "Teiai" label for it).
+ */
+export const FinanceListingSeller = Type.Object({
+  id: Type.String({ pattern: '^[0-9]{1,20}$' }),
+  name: Type.String(),
+});
+export type FinanceListingSeller = Static<typeof FinanceListingSeller>;
+
 export const FinanceListingView = Type.Object({
   id: RecordId,
-  seller: FinancePerson,
+  seller: FinanceListingSeller,
   kind: Type.Enum(['item', 'horse'] as const),
   ref: Type.String(),
   /** Catalog name of an item in both languages; null for horses and ids without a catalog entry. */

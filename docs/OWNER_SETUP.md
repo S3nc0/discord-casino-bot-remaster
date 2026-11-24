@@ -160,7 +160,8 @@ You will gather these values during Steps 2–6. Keep a private note (such as a 
 2. Under **Installation Contexts**, tick **Guild Install** (guild = Discord server) and click **Save Changes**.
 3. Under **Default Install Settings → Guild Install**:
    - **Scopes:** add `applications.commands` and `bot`.
-   - **Permissions:** tick **Send Messages**, **Embed Links**, and **Use Slash Commands** (also tick **Manage Webhooks** if you want webhook personas later).
+   - **Permissions:** tick **Send Messages**, **Embed Links**, **Use Slash Commands** and **Pin Messages** (also tick **Manage Webhooks** if you want webhook personas later). The bot pins new polls, kyosai motions and raffle posts while they are open, and unpins them when they end. **Pin Messages** is what allows that. Without it everything still works, only nothing is pinned. The permission integer of this set is `2251801961187328`, or `2251802498058240` with **Manage Webhooks**.
+   - **Already installed before v1.1.0?** Tick **Pin Messages** here, then either open the install link again and **Authorize** again (Discord updates the bot's role), or give the bot's role **Pin Messages** in *Server Settings → Roles*.
    - Click **Save Changes**.
 4. Under **Install Link**, keep **Discord Provided Link**, click **Copy**, and open the link in your browser.
 5. Choose your **test server** and click **Authorize**.

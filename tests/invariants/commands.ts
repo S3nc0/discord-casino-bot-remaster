@@ -1,7 +1,8 @@
 // Random intents for the economy: what players and the chat bot can do, as plain data that
 // fast-check can generate and shrink, plus the interpreter that runs one against the services.
 import fc from 'fast-check';
-import { GUILDS, INSTANCE, USERS, attempt, dayOf, type World } from './world.ts';
+import { minNextBid } from '../../packages/domain/src/finance/index.ts';
+import { GUILDS, INSTANCE, USERS, attempt, dayOf, relicCount, type World } from './world.ts';
 
 export type Cmd =
   | { t: 'daily'; g: number; u: number }
@@ -28,6 +29,12 @@ export type Cmd =
   | { t: 'revoke'; g: number; u: number; amount: number }
   | { t: 'debt'; g: number; u: number; amount: number }
   | { t: 'advance'; ms: number }
+  /** Teiai's daily job: lists today's relic once, a second call must list nothing. */
+  | { t: 'teiaiRelic'; g: number }
+  /** A player bids the minimum next bid (plus `extra`) on the guild's Teiai relic. */
+  | { t: 'relicBid'; g: number; u: number; extra: number }
+  /** Run the clock to the Teiai relic's end and settle the market. */
+  | { t: 'relicSettle'; g: number }
   | { t: 'replay' };
 
 const g = fc.nat(GUILDS.length - 1);
@@ -153,6 +160,17 @@ export const command: fc.Arbitrary<Cmd> = fc.oneof(
     }),
   },
   { weight: 3, arbitrary: fc.constant({ t: 'replay' as const }) },
+  { weight: 3, arbitrary: fc.record({ t: fc.constant('teiaiRelic' as const), g }) },
+  {
+    weight: 4,
+    arbitrary: fc.record({
+      t: fc.constant('relicBid' as const),
+      g,
+      u,
+      extra: fc.oneof(fc.constant(0), fc.integer({ min: 0, max: 5000 })),
+    }),
+  },
+  { weight: 2, arbitrary: fc.record({ t: fc.constant('relicSettle' as const), g }) },
 );
 
 export const commands = (max = 60): fc.Arbitrary<Cmd[]> =>
@@ -321,6 +339,70 @@ export function step(w: World, c: Cmd, last: Replayable | undefined): StepResult
     case 'advance':
       w.timers.advance(c.ms);
       return {};
+    case 'teiaiRelic': {
+      const gId = guild(c.g);
+      const market = s.finance.playerMarket;
+      const before = teiaiListings(w, gId).length;
+      const first = market.teiaiDaily(gId);
+      const again = market.teiaiDaily(gId);
+      if (again.length !== 0) throw new Error(`a second daily tick listed ${again.length} more`);
+      if (before + first.length !== teiaiListings(w, gId).length) {
+        throw new Error('the daily job returned ids that do not match the new listings');
+      }
+      return {};
+    }
+    case 'relicBid': {
+      const gId = guild(c.g);
+      const bidder = user(c.u);
+      const listing = teiaiListings(w, gId).find((l) => l.status === 'active');
+      if (!listing) return {};
+      s.economy.ensureMember(gId, bidder);
+      const amount = minNextBid(listing.price, listing.bid) + c.extra;
+      const balance = s.economy.getBalance(gId, bidder);
+      const res = s.finance.playerMarket.placeBid(gId, bidder, listing.id, amount);
+      if (!res.ok) {
+        // Teiai is not a player: the pair limit and the self-bid rule never apply.
+        const allowed = [
+          'insufficient_funds',
+          'marketplace_debtor_blocked',
+          'marketplace_listing_expired',
+        ];
+        if (!allowed.includes(res.reason)) throw new Error(`Teiai bid refused with ${res.reason}`);
+        if (res.reason === 'insufficient_funds') {
+          const own = listing.bidder_id === bidder ? listing.bid : 0;
+          if (balance + own >= amount) throw new Error('refused for funds though they were enough');
+        }
+      }
+      return {};
+    }
+    case 'relicSettle': {
+      const gId = guild(c.g);
+      const market = s.finance.playerMarket;
+      const listing = teiaiListings(w, gId).find((l) => l.status === 'active');
+      if (!listing) return {};
+      w.timers.advance(Math.max(0, listing.end_at - w.clock.now()));
+      const relicsBefore = relicCount(w);
+      const winnerBefore =
+        listing.bidder_id === null ? 0 : inventoryQty(w, gId, listing.bidder_id, listing.ref);
+      const heldBefore = listing.bid;
+      const entries = market.settleExpired(gId).filter((e) => e.listing.id === listing.id);
+      const done = entries[0];
+      if (!done) throw new Error('the Teiai listing was not settled at its end');
+      const after = market.getListing(listing.id);
+      if (heldBefore > 0 && listing.bidder_id !== null) {
+        if (done.outcome !== 'sold' || after?.status !== 'sold')
+          throw new Error('bid but not sold');
+        if (inventoryQty(w, gId, listing.bidder_id, listing.ref) !== winnerBefore + 1) {
+          throw new Error('the winner did not get the relic');
+        }
+        if (relicCount(w) !== relicsBefore + 1) throw new Error('a sale must deliver one relic');
+      } else {
+        if (done.outcome !== 'expired' || after?.status !== 'expired')
+          throw new Error('not expired');
+        if (relicCount(w) !== relicsBefore) throw new Error('an unsold relic was delivered');
+      }
+      return {};
+    }
     case 'replay': {
       if (!last) return {};
       const before = JSON.stringify(
@@ -415,4 +497,28 @@ export function step(w: World, c: Cmd, last: Replayable | undefined): StepResult
       return {};
     }
   }
+}
+
+interface TeiaiListing {
+  id: number;
+  ref: string;
+  price: number;
+  bid: number;
+  bidder_id: string | null;
+  status: string;
+  end_at: number;
+}
+
+/** Teiai's relic listings in a guild, oldest first. */
+function teiaiListings(w: World, guildId: string): TeiaiListing[] {
+  return w.server.store
+    .stmt("SELECT * FROM marketplace_listings WHERE guild_id = ? AND seller_id = '0' ORDER BY id")
+    .all(guildId) as TeiaiListing[];
+}
+
+function inventoryQty(w: World, guildId: string, userId: string, itemId: string): number {
+  const row = w.server.store
+    .stmt('SELECT qty FROM inventory WHERE guild_id = ? AND user_id = ? AND item_id = ?')
+    .get(guildId, userId, itemId) as { qty: number } | undefined;
+  return row?.qty ?? 0;
 }
