@@ -5,7 +5,7 @@ import {
   type ButtonInteraction,
   type ChatInputCommandInteraction,
 } from 'discord.js';
-import { formatPelica, t, type Locale } from '@casino/shared/i18n';
+import { formatPelica, t, type Locale, type MessageKey } from '@casino/shared/i18n';
 import type { TableSnapshot } from '@casino/shared';
 import type { blackjack as bj, chinchiro as chin } from '@casino/domain/casino';
 import type { BlackjackView } from '../games/casino/blackjack.ts';
@@ -338,6 +338,8 @@ interface TableMessage {
   guildId: string;
   edit(options: ReturnType<typeof tableMessage>): Promise<unknown>;
   locale: Locale;
+  /** The phase last written to the message. */
+  lastPhase?: string;
 }
 
 /** Live chat tables: the Discord message to rewrite whenever the table's snapshot changes. */
@@ -350,7 +352,10 @@ class ChatTables {
       const key = `${snapshot.guildId}:${snapshot.instanceId}`;
       const target = this.messages.get(key);
       if (!target) return;
-      void target.edit(tableMessage(target.locale, snapshot)).catch(onError);
+      // The result stays on the message; the reset to idle after it changes nothing there.
+      const afterResult = snapshot.phase === 'idle' && target.lastPhase === 'result';
+      target.lastPhase = snapshot.phase;
+      if (!afterResult) void target.edit(tableMessage(target.locale, snapshot)).catch(onError);
       if (snapshot.phase === 'idle') this.messages.delete(key);
     });
   }
@@ -377,79 +382,128 @@ function tablesOf(ctx: ChatCtx): ChatTables {
 interface TableData {
   bet?: number;
   hostId?: string;
+  minSeats: number;
+  rakeBps: number;
   deadline: number | null;
-  closedEmpty: boolean;
-  dealerRolls?: chin.ChinchiroRoll[];
-  hands?: { userId: string; rolls: chin.ChinchiroRoll[] }[];
-  verdicts?: {
-    userId: string;
-    result: chin.ChinchiroResult;
-    multiplier: number;
-    payout: number;
-    net: number;
-    settled: boolean;
-  }[];
+  folded: boolean;
+  hands?: { userId: string; rolled: boolean; rolls: chin.ChinchiroRoll[] }[];
+  results?: { userId: string; isWinner: boolean; payout: number; net: number; settled: boolean }[];
+  rake?: number;
+  refunded?: boolean;
 }
+
+const ROLL_SECONDS = 45;
 
 function tableMessage(locale: Locale, snapshot: TableSnapshot) {
   const data = snapshot.data as TableData;
-  const e = embed('primary', t(locale, 'bot.casino.table.title'));
   const seated = snapshot.seats.filter((s) => s.userId !== null);
-  const components: ActionRowBuilder<ButtonBuilder>[] = [];
-  const lines: string[] = [];
+  const roundId = snapshot.roundId ?? '';
+  const mention = (userId: string) => `<@${userId}>`;
+  const pot = t(locale, 'bot.casino.table.pot', {
+    bet: formatPelica(locale, data.bet ?? 0),
+    rake: Math.round(data.rakeBps / 100),
+  });
+  const players = t(locale, 'bot.casino.table.players', { n: seated.length });
+  const button = (action: string, label: MessageKey, style: ButtonStyle) =>
+    new ButtonBuilder()
+      .setCustomId(cid('cht', action, roundId))
+      .setLabel(t(locale, label))
+      .setStyle(style);
+
   if (snapshot.phase === 'lobby') {
-    lines.push(
-      t(locale, 'bot.casino.table.lobby', {
-        bet: formatPelica(locale, data.bet ?? 0),
-        host: `<@${data.hostId ?? ''}>`,
-        closes: data.deadline === null ? '' : `<t:${Math.floor(data.deadline / 1000)}:R>`,
-      }),
+    const e = embed('primary', t(locale, 'bot.casino.table.title'));
+    e.setDescription(
+      [
+        pot,
+        t(locale, 'bot.casino.table.lobby', {
+          host: mention(data.hostId ?? ''),
+          taken: seated.length,
+          max: snapshot.seats.length,
+          closes: data.deadline === null ? '' : `<t:${Math.floor(data.deadline / 1000)}:R>`,
+        }),
+        seated.map((s) => `🪑 ${mention(s.userId as string)}`).join('\n'),
+        '',
+        t(locale, 'bot.casino.table.rule', { min: data.minSeats }),
+      ].join('\n'),
     );
-    lines.push(seated.map((s, i) => `${i + 1}. <@${s.userId}>`).join('\n'));
-    const roundId = snapshot.roundId ?? '';
-    components.push(
-      new ActionRowBuilder<ButtonBuilder>().addComponents(
-        new ButtonBuilder()
-          .setCustomId(cid('cht', 'sit', roundId))
-          .setLabel(t(locale, 'bot.casino.table.btnSit'))
-          .setStyle(ButtonStyle.Primary),
-        new ButtonBuilder()
-          .setCustomId(cid('cht', 'stand', roundId))
-          .setLabel(t(locale, 'bot.casino.table.btnStand'))
-          .setStyle(ButtonStyle.Secondary),
-        new ButtonBuilder()
-          .setCustomId(cid('cht', 'begin', roundId))
-          .setLabel(t(locale, 'bot.casino.table.btnBegin'))
-          .setStyle(ButtonStyle.Success),
-      ),
+    const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
+      button('sit', 'bot.casino.table.btnSit', ButtonStyle.Primary),
+      button('stand', 'bot.casino.table.btnStand', ButtonStyle.Secondary),
+      button('begin', 'bot.casino.table.btnBegin', ButtonStyle.Success),
     );
-  } else if (snapshot.phase === 'playing' || snapshot.phase === 'result') {
-    lines.push(t(locale, 'bot.casino.table.rolling'));
-    if (data.dealerRolls) {
-      lines.push(
-        `\n**${t(locale, 'bot.casino.table.dealer')}**\n${rollLine(locale, data.dealerRolls)}`,
-      );
-    }
-    const verdicts = new Map((data.verdicts ?? []).map((v) => [v.userId, v] as const));
-    for (const hand of data.hands ?? []) {
-      const verdict = verdicts.get(hand.userId);
-      const tag = verdict
-        ? ` ${t(locale, `bot.casino.table.verdict.${verdict.result}`)} ${
-            verdict.net > 0 ? '+' : ''
-          }${formatPelica(locale, verdict.net)}`
-        : '';
-      lines.push(`\n<@${hand.userId}>${tag}\n${rollLine(locale, hand.rolls)}`);
-    }
-  } else if (data.closedEmpty) {
-    lines.push(t(locale, 'bot.casino.table.empty'));
-  } else {
-    lines.push(t(locale, 'bot.casino.table.closed'));
+    return { embeds: [e], components: [row] };
   }
-  e.setDescription(lines.join('\n'));
-  return {
-    embeds: [e],
-    components: snapshot.phase === 'idle' ? [activityRow(locale, 'chinchiro')] : components,
-  };
+
+  if (snapshot.phase === 'rolling') {
+    const e = embed('primary', t(locale, 'bot.casino.table.title'));
+    const lines = (data.hands ?? []).map(
+      (h) =>
+        `**${mention(h.userId)}**\u3000${
+          h.rolled ? rollLine(locale, h.rolls) : t(locale, 'bot.casino.table.notRolled')
+        }`,
+    );
+    e.setDescription(
+      [
+        `${pot}\u3000${players}`,
+        '',
+        ...lines,
+        '',
+        t(locale, 'bot.casino.table.rollPrompt', { seconds: ROLL_SECONDS }),
+      ].join('\n'),
+    );
+    const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
+      button('roll', 'bot.casino.table.btnRoll', ButtonStyle.Success),
+    );
+    return { embeds: [e], components: [row] };
+  }
+
+  if (snapshot.phase === 'result') {
+    if (data.refunded === true) {
+      const e = embed(
+        'error',
+        t(locale, 'bot.casino.table.failed.title'),
+        t(locale, 'bot.casino.table.failed.body'),
+      );
+      return { embeds: [e], components: [] };
+    }
+    const results = data.results ?? [];
+    const hands = new Map((data.hands ?? []).map((h) => [h.userId, h] as const));
+    const winners = results.filter((r) => r.isWinner).map((r) => mention(r.userId));
+    const head =
+      winners.length === results.length
+        ? t(locale, 'bot.casino.table.head.draw')
+        : winners.length === 1
+          ? t(locale, 'bot.casino.table.head.single', { name: winners[0] as string })
+          : t(locale, 'bot.casino.table.head.split', {
+              names: winners.map((w) => `**${w}**`).join(locale === 'ja' ? '・' : ', '),
+            });
+    const lines = results.map((r) => {
+      const mark = r.isWinner ? '👑' : '\u3000';
+      const rolls = hands.get(r.userId)?.rolls ?? [];
+      return `${mark} **${mention(r.userId)}**\u3000**${signedPelica(locale, r.net)}**\n\u3000${rollLine(locale, rolls).replaceAll('\n', '\n\u3000')}`;
+    });
+    const e = embed('gold', t(locale, 'bot.casino.table.resultTitle'));
+    e.setDescription(
+      [
+        `${pot}\u3000${players}`,
+        '',
+        head,
+        '',
+        lines.join('\n\n'),
+        '',
+        t(locale, 'bot.casino.table.rake', { rake: formatPelica(locale, data.rake ?? 0) }),
+      ].join('\n'),
+    );
+    return { embeds: [e], components: [] };
+  }
+
+  const e = embed(data.folded ? 'info' : 'primary', t(locale, 'bot.casino.table.title'));
+  e.setDescription(
+    data.folded
+      ? t(locale, 'bot.casino.table.folded', { min: data.minSeats })
+      : t(locale, 'bot.casino.table.closed'),
+  );
+  return { embeds: [e], components: [activityRow(locale, 'chinchiro')] };
 }
 
 function tableInstance(interaction: { channelId: string | null }): string {
@@ -499,6 +553,9 @@ async function tableButton(
       break;
     case 'begin':
       casino.chinchiroTable.begin(caller, { roundId, idempotencyKey: key });
+      break;
+    case 'roll':
+      casino.chinchiroTable.roll(caller, { roundId, idempotencyKey: key });
       break;
     default:
       throw new AppError('invalid_payload');

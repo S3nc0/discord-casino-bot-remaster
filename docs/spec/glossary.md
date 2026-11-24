@@ -51,6 +51,7 @@ count wealth as a balance sheet (B/S). Lines and groups: `LIQUID_KEYS`, `FIXED_K
 - **Me / 目**: Pair plus point die `(a, a, p)` scored by `p` (`1`–`6`, `1x` payout).
 - **Menashi / 目なし**: No matching dice after 3 rolls; loses to any scored hand.
 - **Hifumi / ヒフミ**: Straight `(1, 2, 3)`, automatic Chinchiro loss (`-2x` penalty).
+- **Table pot / 総取り**: The Chinchiro table (`/カジノ チンチロ卓`, 2–6 players): every seat rolls, the strongest hand takes the losers' stakes minus the `10%` table fee (場代); ties split, all equal returns every bet. No `hifumi` double payment at the table.
 - **Pachinko / パチンコ**: Multi-spin set machine with omen/tier hit probabilities, round multipliers, and payout sets.
 - **Omen / 予兆**: Visual pre-spin tier indicator correlated with Pachinko hit probability.
 - **Slots / スロット**: Three-reel slot machine with weighted symbol draws and fixed line multipliers.

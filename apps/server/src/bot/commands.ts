@@ -417,8 +417,10 @@ export const COMMAND_SPECS: readonly TopLevelCommandSpec[] = [
         kind: 'subcommand',
         name: 'chinchiro-table',
         jaName: 'チンチロ卓',
-        description: 'Open a multiplayer Chinchiro table',
-        jaDescription: '🎲 みんなで遊べるチンチロ卓を開く',
+        description:
+          'Open a Chinchiro table: everyone rolls, the strongest hand takes the pot (60 s to join)',
+        jaDescription:
+          '🎲 チンチロの卓を立てる。みんなで振って、いちばん強い役が総取り（60秒で締切）',
         module: 'casino',
         ephemeral: false,
         options: [

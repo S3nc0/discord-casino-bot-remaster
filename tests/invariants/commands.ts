@@ -15,6 +15,11 @@ export type Cmd =
   | { t: 'bjDeal'; g: number; u: number }
   | { t: 'bjAct'; g: number; u: number; act: 'hit' | 'stand' | 'double' }
   | { t: 'bjSolo'; g: number; u: number; stake: number; k: number }
+  /** Sit at the guild's chinchiro table: open a lobby at `stake`, or (`join`) take the lobby's bet. */
+  | { t: 'tableSit'; g: number; u: number; stake: number; join: boolean; k: number }
+  | { t: 'tableStand'; g: number; u: number }
+  | { t: 'tableBegin'; g: number; u: number }
+  | { t: 'tableRoll'; g: number; u: number; k: number }
   | {
       t: 'transfer';
       g: number;
@@ -40,6 +45,7 @@ export type Cmd =
 const g = fc.nat(GUILDS.length - 1);
 const u = fc.nat(USERS.length - 1);
 const k = fc.nat(2); // a tiny key pool, so keys collide and repeat
+const tableGuild = fc.oneof({ weight: 4, arbitrary: fc.constant(0) }, g);
 const stake = fc.oneof(
   { weight: 6, arbitrary: fc.integer({ min: 10, max: 400 }) },
   { weight: 1, arbitrary: fc.integer({ min: 1, max: 9 }) },
@@ -90,6 +96,25 @@ export const command: fc.Arbitrary<Cmd> = fc.oneof(
     }),
   },
   { weight: 2, arbitrary: fc.record({ t: fc.constant('bjSolo' as const), g, u, stake, k }) },
+  // The table needs two players of one guild at one bet, so it mostly plays in the first guild
+  // and mostly joins the lobby that is open.
+  {
+    weight: 10,
+    arbitrary: fc.record({
+      t: fc.constant('tableSit' as const),
+      g: tableGuild,
+      u,
+      stake,
+      join: fc.oneof({ weight: 4, arbitrary: fc.constant(true) }, fc.constant(false)),
+      k,
+    }),
+  },
+  { weight: 1, arbitrary: fc.record({ t: fc.constant('tableStand' as const), g: tableGuild, u }) },
+  { weight: 2, arbitrary: fc.record({ t: fc.constant('tableBegin' as const), g: tableGuild, u }) },
+  {
+    weight: 6,
+    arbitrary: fc.record({ t: fc.constant('tableRoll' as const), g: tableGuild, u, k }),
+  },
   {
     weight: 8,
     arbitrary: fc.record({
@@ -313,6 +338,37 @@ export function step(w: World, c: Cmd, last: Replayable | undefined): StepResult
       return keyed(`blackjack solo ${c.stake}`, c, key(c), () =>
         s.casino.blackjack.startSolo(chat(c.g, c.u), { stake: c.stake, idempotencyKey: key(c) }),
       );
+    case 'tableSit': {
+      const table = s.casino.chinchiroTable;
+      const lobby = table.snapshot(guild(c.g), room(c.g, c.u).instanceId);
+      const lobbyBet = (lobby.data as { bet?: number }).bet;
+      const stake =
+        c.join && lobby.phase === 'lobby' && lobbyBet !== undefined ? lobbyBet : c.stake;
+      return keyed(`chinchiro table sit ${stake}`, c, key(c), () =>
+        table.sit(room(c.g, c.u), { stake, idempotencyKey: key(c) }),
+      );
+    }
+    case 'tableStand':
+    case 'tableBegin': {
+      const table = s.casino.chinchiroTable;
+      const roundId = table.snapshot(guild(c.g), room(c.g, c.u).instanceId).roundId;
+      if (roundId !== null) {
+        attempt(() =>
+          c.t === 'tableStand'
+            ? table.stand(room(c.g, c.u), { roundId })
+            : table.begin(room(c.g, c.u), { roundId }),
+        );
+      }
+      return {};
+    }
+    case 'tableRoll': {
+      const table = s.casino.chinchiroTable;
+      const roundId = table.snapshot(guild(c.g), room(c.g, c.u).instanceId).roundId;
+      if (roundId === null) return {};
+      return keyed(`chinchiro table roll ${roundId}`, c, key(c), () =>
+        table.roll(room(c.g, c.u), { roundId, idempotencyKey: key(c) }),
+      );
+    }
     case 'grant':
       attempt(() =>
         s.economy.credit({

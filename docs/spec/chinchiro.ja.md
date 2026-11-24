@@ -2,7 +2,7 @@
 
 # チンチロ（`chinchiro`）
 
-親と手を比べるサイコロゲームです（ひとり用の `/カジノ チンチロ` と、複数人の卓 `/カジノ チンチロ卓`）。
+サイコロの手を比べるゲームです。ひとり用は親と勝負します（`/カジノ チンチロ`）。複数人の卓では参加者どうしで振り合い、いちばん強い役の人が総取りします（`/カジノ チンチロ卓`）。
 共通契約との整合：`GameId = 'chinchiro'`、`ScreenId = 'chinchiro'`、`LEDGER_REASONS`（`game_stake`、`game_payout`、`game_refund`、`jackpot_payout`、`debt_withholding`）。エスクロー、RTP、イベント、保険、スキン、ジャックポットは [casino-common.ja.md](./casino-common.ja.md) を参照してください。
 
 ## 元ファイル
@@ -64,13 +64,21 @@
   - アニメーションのステップの間隔：`CHINCHIRO_STEP_SECONDS = 0.9s`。
   - プレイヤーが振るビューのタイムアウト：`60s`（`ChinchiroView`、`chinchiro.py:121`）。タイムアウトすると、まだ振っていなければ `menashi`、振っていれば最後の目で精算します。
   - リプレイのビューのタイムアウト：`90s`。
-- 複数人の卓（`/カジノ チンチロ卓`、`chinchiro_table.py:26-27`）：
-  - `JOIN_SECONDS = 60`（60 秒で自動的に始まります。主催者は `▶️ 始める` で早めに始められます）。
-  - `MAX_SEATS = 6`。
-  - `TableView` のタイムアウト：`JOIN_SECONDS + 30 = 90s`。
-  - 座った人全員が、それぞれの `GameContext` で同じ `bet` を賭けます（それぞれのカジノセッションをロックします）。
-  - 開始前に立つ（`🚪 立つ`）と中止になり、`bet` の全額が返ります。
-  - 親は 1 回だけ振ります。座った人の手は `play_hand` で順番に自動で振られ、`0.9s` ごとにメッセージを更新して、1 人ずつ精算します。
+- 複数人の卓（`/カジノ チンチロ卓`。upstream cc6dc77 から総取り式。remaster は `packages/domain/src/casino/chinchiro/table.ts`）：
+  - 席：`TABLE_MIN_SEATS = 2` から `TABLE_MAX_SEATS = 6`。卓を立てた人が最初に座ります。全員が同じ `bet` を賭けます（席ごとに別のラウンドで預かり、その人のカジノセッションをロックします）。
+  - 座る時間：`TABLE_JOIN_MS = 60 000`（60 秒で自動的に始まります。立てた人は `▶️ 始める` で早めに始められます）。始まる前に立つ（`🚪 立つ`）と、`bet` の全額が返ります。
+  - 始まるときに 2 人未満なら、卓をたたんで賭け金を全額返します。
+  - 振る：座った人がそれぞれ `🎲 振る` を 1 回押します。1 回押すと手が最後まで決まります（役が出るまで最大 3 回。ひとり用と同じ `play_hand`）。`TABLE_ROLL_MS = 45 000`：時間が来たら、まだ振っていない人は自動で振ります。最後の人が振ったら、その場で精算します。
+  - 精算は `potPayouts(hands, bet)`（upstream の `pot_payouts`）：
+    - `best = max(strength)`、`winners = strength == best の席`、`losers = 席数 - winners`。
+    - `share = floor(floor(bet × losers × 9 / 10) / winners)`（`TABLE_RAKE_BPS = 1000`、負けた人の賭け金の 10 %）。勝った人は `bet + share`、負けた人は 0。全員が同じ強さなら、全員に `bet` を返します。
+    - 卓は `rake = bet × 席数 − 払い戻しの合計` を取ります（場代と割り算の端数）。これはシンクです（負けた人の `game_stake` が戻らないだけ）。
+    - 卓では倍払いはありません。`hifumi` はいちばん弱い役として扱い、`penalty` も取りません。還元率の補正もしません（`rtpDone: true`）。
+    - 計算例：bet 1000・3 人・勝ち 1 人 → 2800 / 0 / 0、場代 200。bet 1000・4 人・2 人が並ぶ → 1900 ずつ、場代 200。bet 333・3 人・2 人が並ぶ → `floor(299.7) // 2 = 149`、482 ずつ、場代 35。bet 500・3 人・全員同じ → 500 ずつ、場代 0。
+    - イベントのボーナス、保険、ジャックポットは、精算のときに席ごとに今まで通りかかります（共通の精算処理）。ボーナスのイベント中は、卓でもペリカが増えることがあります。
+  - 卓の精算は 1 つのトランザクションで行います（全員に払うか、誰にも払わないか）。どこかの席で失敗したら何も払わず、代わりに全員の賭け金を返します（これも 1 つのトランザクション）。upstream は勝った人から順に精算し、失敗したら残りを返金していたので、あとで返金される賭け金から勝った人に払ってしまうことがありました。
+  - 結果は `CHINCHIRO_TABLE_RESULT_MS = 10 000` のあいだ表示し、そのあと次の卓を立てられます。
+  - チャット：座る時間のメッセージには `🪑 座る` / `🚪 立つ` / `▶️ 始める`、振る時間には `🎲 振る`（custom id は `b:cht:roll:<tableRound>`）。Activity：卓のラウンドに `game:action` の `table_roll` を送ります。
 
 ## 状態機械
 
@@ -87,12 +95,14 @@ PLAYER_TURN -> [timeout 60s or NotFound] -> SETTLED (player = last roll or menas
 
 ### 複数人の卓
 ```text
-LOBBY (host seated, 60s countdown)
-  -> [sit: <=6 seats, lock + escrow] -> LOBBY
-  -> [stand: refund + unlock] -> LOBBY
-  -> [host clicks begin OR 60s elapsed] -> PLAYING
-PLAYING -> [no seats left] -> CLOSED_EMPTY
-PLAYING -> [dealer rolls once -> each seat auto-rolls & settles] -> SETTLED
+IDLE -> [sit: open lobby, host seated, lock + escrow] -> LOBBY (60s countdown)
+LOBBY -> [sit: <=6 seats, same bet, lock + escrow] -> LOBBY
+LOBBY -> [stand: refund + unlock] -> LOBBY
+LOBBY -> [host clicks begin OR 60s elapsed, seats < 2] -> IDLE (folded, every stake refunded)
+LOBBY -> [host clicks begin OR 60s elapsed, seats >= 2] -> ROLLING (45s countdown)
+ROLLING -> [seat clicks roll: whole hand, once per seat] -> ROLLING
+ROLLING -> [last seat rolls OR 45s elapsed: the rest auto-roll] -> RESULT (one transaction)
+RESULT -> [10s] -> IDLE
 ```
 
 ## エッジケース
@@ -100,15 +110,16 @@ PLAYING -> [dealer rolls once -> each seat auto-rolls & settles] -> SETTLED
 - **削除によるキャンセルの防止**：親の目が表示されたあとにメッセージを削除すると（`discord.NotFound`）、返金ではなく、プレイヤーを `menashi` として即座に精算します。親の `pinzoro` や `arashi` を避ける抜け道をふさぐためです（`chinchiro.py:110-113,198-201`）。
 - **ボタンの連打による競合**：`_busy` フラグが、同時に来た振るクリックを拒否します。タイムアウトと振る処理が重なっても、`ctx.done` が二重精算を防ぎます。
 - **親の `hifumi` で勝ったときの文言**：スキンを装備していても、通常の勝ち文言を `親がヒフミ…！ 倍もらう…！` で上書きします（`chinchiro.py:167-168`）。
-- **卓のクラッシュからの復旧**：卓の途中で例外が起きたら、`ctx.abort()` は精算前の席だけを返金します。精算済みの席はそのままです（`chinchiro_table.py:98-102`）。
-- **卓の色**：最後の埋め込みは、`wins * 2 >= len(lines)` なら `ui.OK`、そうでなければ `ui.ERROR` を使います。
+- **卓の精算の失敗**：精算は 1 つのトランザクションです。どこかで失敗したら巻き戻し、もう 1 つのトランザクションで全員に返金します（`卓の精算に失敗しました` / `精算前の賭け金は、全額返しました。`）。プロセスが落ちたときはラウンドが開いたまま残り、起動時の復旧で返金します。
+- **振るときの断り**（この順に判定）：座っていない → `この卓に座っていません。`、決着済み → `もう決着しています。`、まだ座る時間 → `まだ始まっていません。`、振った → `もう振りました。`。同じ冪等キーで送り直すと、最初の結果を返すだけで二度は振りません。
+- **結果の並び**：強い順、同じ強さは座った順。勝った人に 👑、ほかの人は全角スペース。最後の埋め込みは金色です。
 
 ## ユーザーに表示する日本語文言
 
 | キー | 原文 | 出典 |
 |---|---|---|
 | `chinchiro.cmd.desc` | `🎲 チンチロ。親と勝負、目が出なければ3回まで振れる` | `cogs/casino/cog.py:51` |
-| `chinchiro.table.cmd.desc` | `🎲 チンチロの卓を立てる。みんなで同じ親と勝負（60秒で締切）` | `cogs/casino/cog.py:58` |
+| `chinchiro.table.cmd.desc` | `🎲 チンチロの卓を立てる。みんなで振って、いちばん強い役が総取り（60秒で締切）` | upstream cc6dc77 `cogs/casino/cog.py` |
 | `chinchiro.table.bet.desc` | `1人あたりの賭け金（座る人は全員この額）` | `cogs/casino/cog.py:60` |
 | `chinchiro.title` | `🎲 地下チンチロ` | `cogs/casino/texts.py:42` |
 | `chinchiro.table.title` | `🎲 地下チンチロの卓` | `cogs/casino/chinchiro_table.py:25` |
@@ -148,10 +159,22 @@ PLAYING -> [dealer rolls once -> each seat auto-rolls & settles] -> SETTLED
 | `chinchiro.table.err.full` | `満席です（6人）。` | `cogs/casino/chinchiro_table.py:70` |
 | `chinchiro.table.err.not_seated` | `座っていないか、もう始まっています。` | `cogs/casino/chinchiro_table.py:174` |
 | `chinchiro.table.err.host_only` | `始められるのは、卓を立てた人だけです。` | `cogs/casino/chinchiro_table.py:180` |
-| `chinchiro.table.empty` | `誰も座らなかったので、卓をたたみました。` | `cogs/casino/chinchiro_table.py:94` |
-| `chinchiro.table.failed_title` | `卓の勝負に失敗しました` | `cogs/casino/chinchiro_table.py:102` |
-| `chinchiro.table.failed_body` | `精算前の賭け金は、全額返しました。` | `cogs/casino/chinchiro_table.py:102` |
-| `chinchiro.table.verdict.win` | `🟢 勝ち` | `cogs/casino/chinchiro_table.py:128` |
-| `chinchiro.table.verdict.lose` | `🔴 負け` | `cogs/casino/chinchiro_table.py:128` |
-| `chinchiro.table.verdict.draw` | `⚪ 引き分け` | `cogs/casino/chinchiro_table.py:128` |
-| `chinchiro.table.rolling` | `ざわ…ざわ…　子が振る…` | `cogs/casino/chinchiro_table.py:108` |
+| `chinchiro.table.pot` | `賭け金: **{bet}**（全員同じ）　場代: 負けた分の10%` | upstream cc6dc77 `chinchiro_table.py` |
+| `chinchiro.table.lobby_rule` | `全員が振って、**いちばん強い役の人が総取り**します（並んだら山分け）。2人から遊べます。` | upstream cc6dc77 |
+| `chinchiro.table.btn.roll` | `🎲 振る` | upstream cc6dc77 |
+| `chinchiro.table.not_rolled` | `…まだ振っていません` | upstream cc6dc77 |
+| `chinchiro.table.roll_prompt` | `座っている人は「🎲 振る」を押してください（45秒で、まだの人は自動で振ります）。` | upstream cc6dc77 |
+| `chinchiro.table.err.not_at_table` | `この卓に座っていません。` | upstream cc6dc77 |
+| `chinchiro.table.err.finished` | `もう決着しています。` | upstream cc6dc77 |
+| `chinchiro.table.err.not_started` | `まだ始まっていません。` | upstream cc6dc77 |
+| `chinchiro.table.err.already_rolled` | `もう振りました。` | upstream cc6dc77 |
+| `chinchiro.table.folded` | `2人そろわなかったので、卓をたたみました（賭け金は全額返しました）。` | upstream cc6dc77 |
+| `chinchiro.table.head.draw` | `全員が同じ強さで、引き分け。賭け金は全額戻りました。` | upstream cc6dc77 |
+| `chinchiro.table.head.single` | `👑 **{name}** の総取り！` | upstream cc6dc77 |
+| `chinchiro.table.head.split` | `👑 {name1}・{name2} の山分け！` | upstream cc6dc77 |
+| `chinchiro.table.result_title` | `🎲 地下チンチロの卓 — 決着` | upstream cc6dc77 |
+| `chinchiro.table.rake` | `場代: **{rake}**` | remaster で追加 |
+| `chinchiro.table.failed_title` | `卓の精算に失敗しました` | upstream cc6dc77 |
+| `chinchiro.table.failed_body` | `精算前の賭け金は、全額返しました。` | upstream cc6dc77 |
+
+総取りの卓（upstream cc6dc77）で消えた文言：判定の `🟢 勝ち` / `🔴 負け` / `⚪ 引き分け`、`ざわ…ざわ…　子が振る…`、`誰も座らなかったので、卓をたたみました。`、「同じ親と勝負」の文言。
