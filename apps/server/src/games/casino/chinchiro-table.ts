@@ -2,6 +2,7 @@ import { CHINCHIRO_PROFILE, MIN_BET, chinchiroTable as tbl } from '@casino/domai
 import type { chinchiro as chin } from '@casino/domain/casino';
 import type { ErrorCode, TableSnapshot } from '@casino/shared';
 import { AppError } from '../../runtime/errors.ts';
+import { GameRuleError } from '../progression/context.ts';
 import type { RoundRow } from './core.ts';
 import type { GameContext } from './context.ts';
 import { evictIdleTables } from './tables.ts';
@@ -10,21 +11,19 @@ import type { Caller, SettlementSummary } from './types.ts';
 /** How long the result stays on the table before it is free for the next lobby. */
 export const CHINCHIRO_TABLE_RESULT_MS = 10_000;
 
-type Phase = 'idle' | 'lobby' | 'playing' | 'result';
+type Phase = 'idle' | 'lobby' | 'rolling' | 'result';
 
 interface Seated {
   caller: Caller;
   row: RoundRow;
+  /** The seat's whole hand once it rolled (by the button or automatically). */
+  rolls: chin.ChinchiroRoll[] | null;
 }
 
-interface SeatOutcome {
+interface SeatResult {
   userId: string;
-  roundId: string;
-  rolls: chin.ChinchiroRoll[];
-  result: chin.ChinchiroResult;
-  multiplier: number;
+  isWinner: boolean;
   payout: number;
-  penalty: number;
   settlement: SettlementSummary | null;
 }
 
@@ -37,12 +36,15 @@ interface Table {
   roundId: string | null;
   lobby: tbl.LobbyState | null;
   seated: Seated[];
-  dealerRolls: chin.ChinchiroRoll[] | null;
-  outcomes: SeatOutcome[];
-  /** Epoch ms the lobby starts by itself, or the reveal ends. */
+  /** Result phase: strongest hand first. */
+  results: SeatResult[];
+  rake: number;
+  /** Settling failed and every stake was returned instead. */
+  refunded: boolean;
+  /** Epoch ms the lobby starts by itself, or the seats left are rolled automatically. */
   deadline: number | null;
-  /** The last table ended without a seat (`誰も座らなかったので、卓をたたみました。`). */
-  closedEmpty: boolean;
+  /** The last table folded with fewer than two seats (everyone refunded). */
+  folded: boolean;
   cancel: (() => void) | null;
   /** Epoch ms of the last change, for idle eviction. */
   touchedAt: number;
@@ -65,6 +67,13 @@ export interface TableBeginAccepted {
   seats: number;
 }
 
+export interface TableRollAccepted {
+  tableRound: string;
+  rolls: chin.ChinchiroRoll[];
+  /** The last seat rolled, so the table settled. */
+  finished: boolean;
+}
+
 const REFUSAL: Record<tbl.TableRefusal, ErrorCode> = {
   started: 'conflict',
   already_sat: 'conflict',
@@ -72,17 +81,27 @@ const REFUSAL: Record<tbl.TableRefusal, ErrorCode> = {
   not_seated: 'conflict',
   host_only: 'forbidden',
   bet_mismatch: 'invalid_payload',
+  not_at_table: 'forbidden',
+  finished: 'conflict',
+  not_started: 'conflict',
+  already_rolled: 'conflict',
 };
 
 function refused(reason: tbl.TableRefusal): AppError {
   return new AppError(REFUSAL[reason], { message: reason });
 }
 
+/** A roll refusal: the chat bot shows `bot.rule.chinchiro_table_<reason>`. */
+function rollRefused(reason: tbl.TableRefusal): AppError {
+  return new GameRuleError(`chinchiro_table_${reason}`, {}, REFUSAL[reason]);
+}
+
 /**
- * The shared chinchiro table of an Activity instance: the host opens a lobby with a bet, up to
- * six seat at that bet for a minute (the host may start early), then the dealer plays one hand
- * and every seat its own. Stakes are escrowed per seat when sitting and returned on standing;
- * the reveal is timed so players see the rolls before the money moves.
+ * The shared chinchiro table of an Activity instance (or a chat channel): the host opens a
+ * lobby with a bet, two to six seat at that bet for a minute (the host may start early), then
+ * every seat rolls its own hand within 45 seconds and the strongest hand takes the pot (the
+ * losers' stakes minus the 10 % fee; ties split). Stakes are escrowed per seat when sitting and
+ * returned on standing or when the table folds. The whole table settles in one transaction.
  */
 export class ChinchiroTableService {
   private readonly ctx: GameContext;
@@ -112,7 +131,7 @@ export class ChinchiroTableService {
       { stake: input.stake, roundId: input.roundId },
       (): TableSeatAccepted => {
         const table = this.table(caller.guildId, instanceId);
-        if (table.phase === 'playing') throw new AppError('conflict');
+        if (table.phase === 'rolling') throw refused('started');
         const joining = table.phase === 'lobby' && table.lobby !== null;
         if (joining) {
           if (input.roundId !== undefined && input.roundId !== table.roundId) {
@@ -125,7 +144,7 @@ export class ChinchiroTableService {
             tableRound: table.roundId as string,
           });
           table.lobby = next.state;
-          table.seated.push({ caller, row });
+          table.seated.push({ caller, row, rolls: null });
           this.push(table);
           return {
             tableRound: table.roundId as string,
@@ -147,11 +166,12 @@ export class ChinchiroTableService {
           phase: 'lobby',
           roundId: tableRound,
           lobby,
-          seated: [{ caller, row }],
-          dealerRolls: null,
-          outcomes: [],
+          seated: [{ caller, row, rolls: null }],
+          results: [],
+          rake: 0,
+          refunded: false,
           deadline: lobby.deadline,
-          closedEmpty: false,
+          folded: false,
         });
         table.cancel = scheduler.after(tbl.TABLE_JOIN_MS, () => this.start(table, tableRound));
         this.push(table);
@@ -205,6 +225,45 @@ export class ChinchiroTableService {
     );
   }
 
+  /**
+   * A seated player rolls: one press plays the whole hand (up to three rolls until a hand
+   * forms). When the last seat has rolled, the table settles at once.
+   */
+  roll(caller: Caller, input: { roundId: string; idempotencyKey?: string }) {
+    const { idem, rng } = this.ctx;
+    const instanceId = this.instanceOf(caller);
+    return idem.run(
+      caller,
+      input.idempotencyKey,
+      'game:action:chinchiro-table:roll',
+      { roundId: input.roundId },
+      (): TableRollAccepted => {
+        const table = this.table(caller.guildId, instanceId);
+        if (table.roundId !== input.roundId) throw rollRefused('finished');
+        const reason = tbl.rollRefusal(
+          {
+            phase:
+              table.phase === 'lobby'
+                ? 'lobby'
+                : table.phase === 'rolling'
+                  ? 'rolling'
+                  : 'finished',
+            seats: table.seated.map((s) => s.caller.userId),
+            rolled: table.seated.filter((s) => s.rolls !== null).map((s) => s.caller.userId),
+          },
+          caller.userId,
+        );
+        if (reason !== null) throw rollRefused(reason);
+        const seat = table.seated.find((s) => s.caller.userId === caller.userId) as Seated;
+        seat.rolls = tbl.rollSeat(rng);
+        const finished = table.seated.every((s) => s.rolls !== null);
+        if (finished) this.finish(table, input.roundId);
+        else this.push(table);
+        return { tableRound: input.roundId, rolls: seat.rolls, finished };
+      },
+    );
+  }
+
   // ---- internals ---------------------------------------------------------------------------
 
   private instanceOf(caller: Caller): string {
@@ -227,10 +286,11 @@ export class ChinchiroTableService {
         roundId: null,
         lobby: null,
         seated: [],
-        dealerRolls: null,
-        outcomes: [],
+        results: [],
+        rake: 0,
+        refunded: false,
         deadline: null,
-        closedEmpty: false,
+        folded: false,
         cancel: null,
         touchedAt: this.ctx.clock.now(),
       };
@@ -239,75 +299,96 @@ export class ChinchiroTableService {
     return table;
   }
 
-  /** The lobby ends (timer or host): fold an empty table, otherwise deal. */
+  /** Every open seat gets its stake back, all in one transaction. */
+  private refundAll(table: Table, tableRound: string): void {
+    const { core } = this.ctx;
+    core.store.transaction(() => {
+      for (const seat of table.seated) core.refund(seat.row, tableRound);
+    });
+  }
+
+  /** The lobby ends (timer or host): fold a table of fewer than two, otherwise start rolling. */
   private start(table: Table, tableRound: string): void {
-    const { rng, clock, scheduler } = this.ctx;
+    const { clock, scheduler, logger } = this.ctx;
     if (table.roundId !== tableRound || table.phase !== 'lobby' || table.lobby === null) return;
     table.cancel?.();
     table.cancel = null;
     const lobby = tbl.expire(table.lobby);
-    if (tbl.isEmpty(lobby)) {
+    if (tbl.tooFew(lobby)) {
+      try {
+        this.refundAll(table, tableRound);
+      } catch (error) {
+        // the rounds stay open; recovery at the next start refunds them
+        logger.error({ err: error, tableRound }, 'chinchiro table fold refund failed');
+      }
       Object.assign(table, {
         phase: 'idle',
         roundId: null,
         lobby: null,
         seated: [],
         deadline: null,
-        closedEmpty: true,
+        folded: true,
       });
       this.push(table);
       return;
     }
-    const round = tbl.playTable(
-      rng,
-      lobby.bet,
-      table.seated.map((s) => s.caller.userId),
-    );
-    const steps =
-      round.dealerRolls.length + round.seats.reduce((sum, s) => sum + s.rolls.length, 0);
     table.lobby = lobby;
-    table.phase = 'playing';
-    table.dealerRolls = round.dealerRolls;
-    table.outcomes = round.seats.map((seat, i) => ({
-      userId: seat.userId,
-      roundId: (table.seated[i] as Seated).row.roundId,
-      rolls: seat.rolls,
-      result: seat.outcome.result,
-      multiplier: seat.outcome.multiplier,
-      payout: seat.payout,
-      penalty: seat.penalty,
-      settlement: null,
-    }));
-    const reveal = Math.max(1, steps) * tbl.TABLE_STEP_MS;
-    table.deadline = clock.now() + reveal;
+    table.phase = 'rolling';
+    table.deadline = clock.now() + tbl.TABLE_ROLL_MS;
+    table.cancel = scheduler.after(tbl.TABLE_ROLL_MS, () => this.finish(table, tableRound));
     this.push(table);
-    table.cancel = scheduler.after(reveal, () => this.payOut(table, tableRound));
   }
 
-  /** The reveal is over: settle every seat on its own; a failed seat gets its stake back. */
-  private payOut(table: Table, tableRound: string): void {
-    const { core, scheduler, logger } = this.ctx;
-    if (table.roundId !== tableRound || table.phase !== 'playing') return;
+  /**
+   * Everyone has rolled, or the roll window ran out (the seats left are rolled now): settle the
+   * pot. All seats settle in one transaction; if any fails, nothing is paid and every stake is
+   * returned instead. Never twice for one table round.
+   */
+  private finish(table: Table, tableRound: string): void {
+    const { core, rng, scheduler, logger } = this.ctx;
+    if (table.roundId !== tableRound || table.phase !== 'rolling' || table.lobby === null) return;
+    table.cancel?.();
     table.cancel = null;
-    table.outcomes.forEach((outcome, i) => {
-      const seat = table.seated[i] as Seated;
-      try {
-        outcome.settlement = core.settle(
-          seat.row,
-          { payout: outcome.payout, penalty: outcome.penalty, profile: CHINCHIRO_PROFILE },
-          tableRound,
-        );
-      } catch (error) {
-        logger.error({ err: error, roundId: seat.row.roundId }, 'chinchiro table settle failed');
-        try {
-          core.refund(seat.row, tableRound);
-        } catch (refundError) {
-          logger.error({ err: refundError, roundId: seat.row.roundId }, 'chinchiro refund failed');
-        }
-      }
-    });
     table.phase = 'result';
     table.deadline = null;
+    for (const seat of table.seated) seat.rolls ??= tbl.rollSeat(rng);
+    const hands = table.seated.map((s) => (s.rolls?.at(-1) as chin.ChinchiroRoll).hand);
+    const pot = tbl.potPayouts(hands, table.lobby.bet);
+    const order = tbl.resultOrder(hands);
+    try {
+      const settlements = core.store.transaction(() =>
+        table.seated.map((seat, i) =>
+          core.settle(
+            seat.row,
+            { payout: pot.payouts[i] as number, profile: CHINCHIRO_PROFILE, rtpDone: true },
+            tableRound,
+          ),
+        ),
+      );
+      table.results = order.map((i) => ({
+        userId: (table.seated[i] as Seated).caller.userId,
+        isWinner: pot.winners[i] as boolean,
+        payout: pot.payouts[i] as number,
+        settlement: settlements[i] as SettlementSummary,
+      }));
+      table.rake = pot.rake;
+      table.refunded = false;
+    } catch (error) {
+      logger.error({ err: error, tableRound }, 'chinchiro table settle failed');
+      try {
+        this.refundAll(table, tableRound);
+      } catch (refundError) {
+        logger.error({ err: refundError, tableRound }, 'chinchiro table refund failed');
+      }
+      table.results = order.map((i) => ({
+        userId: (table.seated[i] as Seated).caller.userId,
+        isWinner: pot.winners[i] as boolean,
+        payout: 0,
+        settlement: null,
+      }));
+      table.rake = 0;
+      table.refunded = true;
+    }
     this.push(table);
     table.cancel = scheduler.after(CHINCHIRO_TABLE_RESULT_MS, () => {
       if (table.roundId !== tableRound || table.phase !== 'result') return;
@@ -317,15 +398,16 @@ export class ChinchiroTableService {
         roundId: null,
         lobby: null,
         seated: [],
-        dealerRolls: null,
-        outcomes: [],
+        results: [],
+        rake: 0,
+        refunded: false,
       });
       this.push(table);
     });
   }
 
   private snap(table: Table): TableSnapshot {
-    const showRolls = table.phase === 'playing' || table.phase === 'result';
+    const showHands = table.phase === 'rolling' || table.phase === 'result';
     const seats = Array.from({ length: tbl.TABLE_MAX_SEATS }, (_, index) => ({
       index,
       userId: table.seated[index]?.caller.userId ?? null,
@@ -340,9 +422,11 @@ export class ChinchiroTableService {
       seats,
       data: {
         minBet: MIN_BET,
+        minSeats: tbl.TABLE_MIN_SEATS,
+        rakeBps: tbl.TABLE_RAKE_BPS,
         stepMs: tbl.TABLE_STEP_MS,
         deadline: table.deadline,
-        closedEmpty: table.closedEmpty,
+        folded: table.folded,
         ...(table.lobby === null
           ? {}
           : {
@@ -353,27 +437,27 @@ export class ChinchiroTableService {
                 roundId: s.row.roundId,
               })),
             }),
-        ...(showRolls && table.dealerRolls !== null
+        ...(showHands
           ? {
-              dealerRolls: table.dealerRolls,
-              hands: table.outcomes.map((o) => ({
-                userId: o.userId,
-                roundId: o.roundId,
-                rolls: o.rolls,
+              hands: table.seated.map((s) => ({
+                userId: s.caller.userId,
+                roundId: s.row.roundId,
+                rolled: s.rolls !== null,
+                rolls: s.rolls ?? [],
               })),
             }
           : {}),
         ...(table.phase === 'result'
           ? {
-              verdicts: table.outcomes.map((o) => ({
-                userId: o.userId,
-                result: o.result,
-                multiplier: o.multiplier,
-                payout: o.settlement?.payout ?? 0,
-                net: o.settlement?.net ?? 0,
-                settled: o.settlement !== null,
+              results: table.results.map((r) => ({
+                userId: r.userId,
+                isWinner: r.isWinner,
+                payout: r.settlement?.payout ?? 0,
+                net: r.settlement?.net ?? 0,
+                settled: r.settlement !== null,
               })),
-              won: tbl.tableWon(table.outcomes.map((o) => ({ outcome: { result: o.result } }))),
+              rake: table.rake,
+              refunded: table.refunded,
             }
           : {}),
       },
