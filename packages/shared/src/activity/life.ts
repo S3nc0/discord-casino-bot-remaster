@@ -69,6 +69,8 @@ export const LIFE_ROUTES = {
   transferPreview: '/api/life/transfer/preview',
   /** POST `TransferSendRequest` → `TransferSendResponse`. */
   transferSend: '/api/life/transfer/send',
+  /** GET (query `NetWorthQuery`) → `NetWorthView` (balance-sheet ranking and the caller's sheet). */
+  netWorth: '/api/life/net-worth',
 } as const;
 export type LifeRoute = (typeof LIFE_ROUTES)[keyof typeof LIFE_ROUTES];
 
@@ -685,3 +687,79 @@ export const TransferSendResponse = written({
   withheld: count,
 });
 export type TransferSendResponse = Static<typeof TransferSendResponse>;
+
+// ---- balance-sheet net worth ranking ----
+
+/** Balance-sheet lines, in display order: current assets, fixed assets, liabilities. */
+export const BALANCE_SHEET_PART_KEYS = [
+  'cash',
+  'deposit',
+  'crypto',
+  'bonds',
+  'options',
+  'pot',
+  'escrow',
+  'loans_lent',
+  'items',
+  'relics',
+  'horses',
+  'company',
+  'tools',
+  'debt',
+  'loans_owed',
+] as const;
+export type BalanceSheetPartKey = (typeof BALANCE_SHEET_PART_KEYS)[number];
+
+export const NetWorthQuery = Type.Object(
+  { view: Type.Optional(Type.Enum(['net', 'liquid'] as const)) },
+  closed,
+);
+export type NetWorthQuery = Static<typeof NetWorthQuery>;
+
+/** Subtotals. `liabilities` is a positive amount; `net = liquid + fixed − liabilities`. */
+export const BalanceSheetGroups = Type.Object({
+  liquid: Type.Integer(),
+  fixed: Type.Integer(),
+  gross: Type.Integer(),
+  liabilities: Type.Integer(),
+  net: Type.Integer(),
+});
+export type BalanceSheetGroups = Static<typeof BalanceSheetGroups>;
+
+/** Every line in Pelica; liabilities (`debt`, `loans_owed`) are zero or negative. */
+export const BalanceSheetParts = Type.Object(
+  Object.fromEntries(BALANCE_SHEET_PART_KEYS.map((k) => [k, Type.Integer()])) as Record<
+    BalanceSheetPartKey,
+    ReturnType<typeof Type.Integer>
+  >,
+);
+export type BalanceSheetParts = Static<typeof BalanceSheetParts>;
+
+export const NetWorthRow = Type.Object({
+  rank: Type.Integer({ minimum: 1 }),
+  userId: Snowflake,
+  name: Name,
+  /** The sort value of the view: `groups.net` or `groups.liquid`. */
+  value: Type.Integer(),
+  groups: BalanceSheetGroups,
+});
+export type NetWorthRow = Static<typeof NetWorthRow>;
+
+export const NetWorthView = Type.Object({
+  now: EpochMs,
+  view: Type.Enum(['net', 'liquid'] as const),
+  rows: Type.Array(NetWorthRow),
+  /** Members with an account in the guild. */
+  total: count,
+  /** The caller's own row and full balance sheet, or null without an account. */
+  self: Type.Union([
+    Type.Object({
+      rank: Type.Integer({ minimum: 1 }),
+      value: Type.Integer(),
+      groups: BalanceSheetGroups,
+      parts: BalanceSheetParts,
+    }),
+    Type.Null(),
+  ]),
+});
+export type NetWorthView = Static<typeof NetWorthView>;

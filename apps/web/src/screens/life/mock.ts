@@ -6,6 +6,7 @@ import type {
   PollsView,
   QuizItem,
   QuizMine,
+  NetWorthView,
   RankingView,
   SeizedLotView,
   ShopItem,
@@ -608,6 +609,65 @@ export function createMockLifeApi(now: () => number = () => Date.now()): LifeApi
         winStreak: 2,
         bestStreak: 6,
       }),
+    netWorth: (view) => {
+      const sheet = (
+        id: string,
+        name: string,
+        liquid: number,
+        fixed: number,
+        liabilities: number,
+      ) => ({
+        userId: id,
+        name,
+        groups: {
+          liquid,
+          fixed,
+          gross: liquid + fixed,
+          liabilities,
+          net: liquid + fixed - liabilities,
+        },
+      });
+      const all = [
+        sheet('200000000000000101', 'Aki', 84_000, 62_000, 0),
+        sheet('200000000000000001', 'Mock Player', 18_640, 41_500, 3_000),
+        sheet('200000000000000103', 'Sora', 52_300, 0, 0),
+        sheet('200000000000000102', 'Ren', 9_800, 30_000, 12_000),
+        sheet('200000000000000104', 'Mika', 4_100, 2_000, 0),
+      ];
+      const ranked = [...all]
+        .map((r) => ({ ...r, value: r.groups[view] }))
+        .sort((a, b) => b.value - a.value || (a.userId < b.userId ? -1 : 1))
+        .map((r, i) => ({ ...r, rank: i + 1 }));
+      const me = ranked.find((r) => r.userId === '200000000000000001')!;
+      return Promise.resolve<NetWorthView>({
+        now: now(),
+        view,
+        total: 9,
+        rows: ranked,
+        self: {
+          rank: me.rank,
+          value: me.value,
+          groups: me.groups,
+          parts: {
+            cash: 12_400,
+            deposit: 5_000,
+            crypto: 0,
+            bonds: 0,
+            options: 0,
+            pot: 1_240,
+            escrow: 0,
+            loans_lent: 0,
+            items: 7_000,
+            relics: 4_000,
+            horses: 30_500,
+            company: 0,
+            tools: 0,
+            debt: -3_000,
+            loans_owed: 0,
+          },
+        },
+      });
+    },
     ranking: () =>
       Promise.resolve<RankingView>({
         now: now(),

@@ -3,6 +3,7 @@ import {
   LIFE_ROUTES,
   LotBuyRequest,
   LotteryJoinRequest,
+  NetWorthQuery,
   PollCreateRequest,
   PollVoteRequest,
   QuizAnswerRequest,
@@ -24,6 +25,7 @@ import {
   type Clock,
   type LotteryView,
   type MissionsView,
+  type NetWorthView,
   type PollItem,
   type PollsView,
   type QuizItem,
@@ -90,6 +92,7 @@ import type { SessionService } from '../../auth/sessions.ts';
 import type { IdentityRepo } from '../../db/identity.ts';
 import type { Store } from '../../db/store.ts';
 import type { EconomyService } from '../../economy/economy-service.ts';
+import type { NetWorthService } from '../../finance/net-worth-service.ts';
 import { GameRuleError } from '../../games/progression/context.ts';
 import type { NonCasinoGames, TeiaiPort } from '../../games/progression/index.ts';
 import { LifeKit } from './life-support.ts';
@@ -104,6 +107,8 @@ export interface LifeRouteDeps {
   teiai: TeiaiPort;
   /** Game-day offset in hours (the config's `utcOffsetHours`). */
   offsetHours: number;
+  /** Balance-sheet valuation for the net-worth tabs; without it the route is not registered. */
+  netWorth?: NetWorthService;
 }
 
 const GAME_BY_LEGACY_NAME = new Map<string, string>(
@@ -597,6 +602,38 @@ export function registerLifeRoutes(app: FastifyInstance, deps: LifeRouteDeps): v
         };
       }),
     );
+
+    // ---------------------------------------------------------------- net worth ranking
+
+    const netWorth = deps.netWorth;
+    if (netWorth) {
+      life.get(LIFE_ROUTES.netWorth, (request) =>
+        kit.readQuery(request, NetWorthQuery, (w, query): NetWorthView => {
+          const view = query.view ?? 'net';
+          const res = netWorth.standingsWithSelf(w.guildId, w.userId, view, 10, clock.now());
+          return {
+            now: clock.now(),
+            view,
+            total: res.total,
+            rows: res.rows.map((r) => ({
+              rank: r.rank,
+              userId: r.sheet.userId,
+              name: nameOf(r.sheet.userId),
+              value: r.value,
+              groups: r.sheet.groups,
+            })),
+            self: res.self
+              ? {
+                  rank: res.self.rank,
+                  value: res.self.value,
+                  groups: res.self.sheet.groups,
+                  parts: res.self.sheet.parts,
+                }
+              : null,
+          };
+        }),
+      );
+    }
 
     // ---------------------------------------------------------------- transfer
 

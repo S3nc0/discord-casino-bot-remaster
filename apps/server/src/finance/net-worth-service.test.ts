@@ -4,6 +4,7 @@ import { MS_PER_DAY, companyInvested, spotSellQuote } from '@casino/domain/finan
 import { PART_KEYS, emptyParts } from '@casino/domain/progression';
 import { HORSE_VOUCHER_PRICE, horseWorth } from '@casino/domain/race';
 import { dormSpent, relicValue, upgradeSpent } from '@casino/domain/work';
+import { BALANCE_SHEET_PART_KEYS } from '@casino/shared';
 import { GUILD, createTestServer, type TestServer } from '../runtime/test-kit.ts';
 import { itemWorth } from './net-worth-service.ts';
 
@@ -59,6 +60,10 @@ function sheetOf(s: TestServer, userId: string) {
 }
 
 describe('NetWorthService: one line per source', () => {
+  it('the wire contract lists the same lines as the domain, in the same order', () => {
+    expect([...BALANCE_SHEET_PART_KEYS]).toEqual([...PART_KEYS]);
+  });
+
   it('counts cash, deposit, debt, bonds, pot, tools, waiting relics, items and horses', () => {
     const s = boot();
     member(s, A, 50_000);
@@ -281,7 +286,7 @@ describe('NetWorthService: ranking', () => {
               const want = emptyParts();
               want.cash = p.cash;
               want.deposit = p.deposit;
-              want.debt = -p.debt;
+              want.debt = 0 - p.debt || 0;
               want.items = p.titles * itemWorth('title_regular').worth;
               want.pot = p.pot;
               expect(sheet?.parts).toEqual(want);
