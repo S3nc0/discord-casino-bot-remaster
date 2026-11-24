@@ -72,6 +72,8 @@ export const LIFE_ROUTES = {
   transferSend: '/api/life/transfer/send',
   /** GET (query `NetWorthQuery`) → `NetWorthView` (balance-sheet ranking and the caller's sheet). */
   netWorth: '/api/life/net-worth',
+  /** POST `ShopColorRoleRequest` → `ShopColorRoleResponse` (wear or take off a name colour). */
+  shopColorRole: '/api/life/shop/color-role',
 } as const;
 export type LifeRoute = (typeof LIFE_ROUTES)[keyof typeof LIFE_ROUTES];
 
@@ -504,6 +506,8 @@ export const ShopView = Type.Object({
   items: Type.Array(ShopItem),
   market: Type.Array(MarketLotView),
   seized: Type.Array(SeizedLotView),
+  /** The name colour worn (a `color_role` item id), or null. */
+  colorRole: Type.Optional(Type.Union([Type.String({ maxLength: 40 }), Type.Null()])),
 });
 export type ShopView = Static<typeof ShopView>;
 
@@ -771,3 +775,35 @@ export const NetWorthView = Type.Object({
   ]),
 });
 export type NetWorthView = Static<typeof NetWorthView>;
+
+// ---- name colour (Discord role) ----
+
+export const ShopColorRoleRequest = Type.Object(
+  {
+    ...keyed,
+    /** The `color_role` item to wear, or null to take the colour off. */
+    itemId: Type.Union([Type.String({ pattern: '^role_[a-z]{1,20}$' }), Type.Null()]),
+  },
+  closed,
+);
+export type ShopColorRoleRequest = Static<typeof ShopColorRoleRequest>;
+
+/**
+ * Why Discord does not show the colour (yet): the bot lacks Manage Roles, its role is too low,
+ * a foreign role already has the colour's name (the choice was undone), or it is still on its way.
+ */
+export const ColorRoleNotice = Type.Enum([
+  'missing_permissions',
+  'hierarchy',
+  'name_taken',
+  'pending',
+] as const);
+export type ColorRoleNotice = Static<typeof ColorRoleNotice>;
+
+export const ShopColorRoleResponse = written({
+  colorRole: Type.Union([Type.String({ maxLength: 40 }), Type.Null()]),
+  notice: Type.Optional(ColorRoleNotice),
+  /** The Discord role name of the colour (`ペリカ・赤`), for the `name_taken` notice. */
+  roleName: Type.Optional(Type.String({ maxLength: 100 })),
+});
+export type ShopColorRoleResponse = Static<typeof ShopColorRoleResponse>;

@@ -52,7 +52,7 @@
   - `skin_kuro` (30,000), `skin_gold_dice` (150,000), `skin_glass_dice` (500,000), `skin_vip` (300,000), `skin_numa` (1,000,000).
 - **Collections (`collection`, 9 items, displayed on balance card, counted in net worth at purchase price)**:
   - `col_beer` (`🍺`, 13,500), `col_yakitori` (`🍢`, 25,000), `col_gaishutsu` (`🎫`, 50,000), `col_sunglasses` (`🕶️`, 100,000), `col_teppan` (`🔥`, 250,000), `col_megaphone` (`🎙️`, 500,000), `col_gold_bar` (`🪙`, 1,000,000), `col_stock` (`🏢`, 3,000,000), `col_throne` (`👑`, 10,000,000).
-- **Color Roles (`color_role`, 12 items, all 20,000)**: `role_red`, `role_orange`, `role_yellow`, `role_green`, `role_cyan`, `role_blue`, `role_purple`, `role_pink`, `role_gold`, `role_silver`, `role_black`, `role_white` (creates/assigns 0-permission role named `"ペリカ・<色名>"` placed right below bot's top role).
+- **Color Roles (`color_role`, 12 items, all 20,000)**: `role_red`, `role_orange`, `role_yellow`, `role_green`, `role_cyan`, `role_blue`, `role_purple`, `role_pink`, `role_gold`, `role_silver`, `role_black`, `role_white` (creates/assigns 0-permission role named `"ペリカ・<色名>"` placed right below bot's top role). Remaster: see §2.4.
 - **Relics (`relic`, 24 limited items)**: 6 base relics × 4 star tiers (★0..★3), price `0`, `limited=True`. See `docs/spec/relics.md`.
 
 ### 2.3 Per-User Stock Refill Formula (`domain/shop.py:139-159`)
@@ -61,6 +61,17 @@
 - `next_refill_at = None if stock >= rule.max else now + (1.0 - (stock - int(stock))) / rule.per_hour * 3600.0`.
 
 ---
+
+### 2.4 Name colour roles (remaster, migration 0014)
+
+Restored by owner decision 2026-11-24: wearing a `color_role` colours the member's name with a real Discord role, as the original bot did (`cogs/shop/discord_ops.py`).
+
+- **Slot.** `color_role` is an equip slot (`EQUIP_SLOTS`, `profiles.color_role`), one colour at a time. It is not hidden by the debt freeze (the Discord role stays on while in debt, as in the original). Chat: the shop's `🌈 Name colors` category (a menu of the colours you own and a "take off" button). Activity: Wear / Take off in the inventory; `POST /api/life/shop/color-role` (`ShopColorRoleRequest` → `ShopColorRoleResponse` with an optional `notice`), and `ShopView.colorRole`.
+- **Role.** Named `COLOR_ROLE_PREFIX` + the colour's name (`ペリカ・赤`, from `role_prefix` and the item's `name` in `catalogs/shop.yaml`), colour = the item's `value`, permissions 0, not hoisted, not mentionable, created on first use and moved directly below the bot's highest role unless only our colour roles sit between them. Wearing a colour takes the member's previous colour role off.
+- **Ours only.** The bot records every role it creates (`color_roles`) and the role it put on each member (`color_role_holders`), and never touches another role. A same-name role it did not create, or one of ours that gained a permission or is managed, is refused: the choice is undone and the member is told to ask an admin to rename it (EN/JA `shop.colorRole.notice.name_taken`). Before adding or removing any role the bot re-reads the guild's roles: one of ours that was renamed, gained a permission or became managed is forgotten (with the members said to wear it) and never added or removed again, so a role an admin repurposed stays on whoever has it; this is logged once per guild per 10 minutes. A stored role deleted in Discord (unknown role) is forgotten and recreated on the next sync. Roles are never deleted, not even when the feature is off or the bot leaves.
+- **After commit.** Every change writes a `color_role_sync` row in its own transaction; Discord is called only after the commit, through a REST port (`ColorRoleRest`: list roles and the bot's member, create role, edit colour/position, add/remove a member's role) on the bot's discord.js client, with a per-guild lock (one role per colour even for concurrent equips). Only the `Guilds` intent; no member cache. The equip applies its row at once (waiting a few seconds at most); the `shop:color-role-sweep` job (every 30 s) applies the rest, so a restart or a Discord error only delays it.
+- **When Discord refuses.** Without Manage Roles, or with the colour role not below the bot's highest role, the choice stays recorded, the member sees one notice (`missing_permissions` / `hierarchy`), the row is retried with back-off (30 s, 2 min, 10 min, 1 h, then hourly; at least 10 minutes while blocked) and the server logs one line per guild per 10 minutes. A row stays queued while the bot still has a colour role on the member that is not the worn colour's: a removal is never given up. Only an addition is: after 3 unexpected errors, or a day blocked. An unknown guild or member ends the row quietly. Rows of a denied guild wait untouched until it is approved again. Wearing the colour already worn, with Discord up to date, makes no Discord call.
+- **Ownership.** When the last copy leaves (`Inventory.take`: bankruptcy seizure, listing on the player market (escrow), any removal), the slot is cleared and a sync row is queued in that same transaction (also when the profile no longer names it but the bot still lists the member as wearing its role), so the role comes off. Buying it back, winning it at an auction or receiving it does not equip it. No Pelica moves: wearing is free (`tests/invariants/color-role.test.ts`).
 
 ## 3. Title Nickname Affixing (`domain/nick.py`, `cogs/shop/cog.py:82-175`)
 
@@ -129,4 +140,4 @@
 
 ## 6. Not ported
 
-- **Not in the remaster:** Discord nickname title affixing/syncing (`domain/nick.py`, §3, Manage Nicknames) and Discord role creation/assignment for `color_role` (Manage Roles); `color_role` items stay purchasable, profile-displayed, and player-market-tradable cosmetics only, and titles show on the balance card and Activity profile.
+- **Not in the remaster:** Discord nickname title affixing/syncing (`domain/nick.py`, §3, Manage Nicknames); titles show on the balance card and Activity profile. (`color_role` roles are ported: §2.4.)

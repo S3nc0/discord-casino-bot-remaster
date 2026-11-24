@@ -193,4 +193,5 @@ Planned owner: `B3` | Screen IDs: `teiai-bank`, `teiai-bank-cds`, `teiai-bank-de
 
 ## Not ported
 
-- **Not in the remaster:** The 2-minute nickname suffix sync (`【地下労働者】`, `【破産者】`, `【富豪】`, Manage Nicknames) and Discord role stripping on bankruptcy (Manage Roles) are not ported; the 🟢🟤🔴🟡 status display shows on the balance card, Activity profile, and rankings.
+- **Not in the remaster:** The 2-minute nickname suffix sync (`【地下労働者】`, `【破産者】`, `【富豪】`, Manage Nicknames) is not ported; the 🟢🟤🔴🟡 status display shows on the balance card, Activity profile, and rankings.
+- **Ported:** removing the name-colour role on bankruptcy (Manage Roles). The seizure takes the `color_role` item (`Inventory.take`), which clears the worn colour and queues the role's removal in the same transaction; the colour-role sweep takes the role off after commit ([shop.md](shop.md) §2.4).

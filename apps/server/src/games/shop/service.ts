@@ -19,7 +19,8 @@ import {
 import { MS_DAY, roundHalfEven } from '@casino/domain/progression';
 import { HORSE_VOUCHER_PRICE } from '@casino/domain/race';
 import { GameRuleError, type GamesCtx } from '../progression/context.ts';
-import { Inventory } from './inventory.ts';
+import { ColorRoleService, type ColorRoleSyncResult } from './color-roles.ts';
+import { Inventory, queueColorRoleSync } from './inventory.ts';
 
 export interface ProfileView {
   title: string | null;
@@ -27,6 +28,8 @@ export interface ProfileView {
   cardIcon: string | null;
   skinDice: string | null;
   skinTable: string | null;
+  /** The name colour (a Discord role). Shown even while frozen: the role stays on in Discord. */
+  colorRole: string | null;
   dailyBoost: number;
   insurance: number;
   /** True while debt (or bankruptcy) hides the equipment; it comes back when the debt is gone. */
@@ -51,16 +54,20 @@ const SLOT_COLUMN: Record<EquipSlot, string> = {
   card_icon: 'card_icon',
   skin_dice: 'skin_dice',
   skin_table: 'skin_table',
+  color_role: 'color_role',
 };
 
 /** Official shop, inventory, profile, seized-goods auction and the daily Teiai market. */
 export class ShopService {
   readonly inventory: Inventory;
+  /** Puts the equipped name colour on the member in Discord (after commit). */
+  readonly colorRoles: ColorRoleService;
   private readonly ctx: GamesCtx;
 
   constructor(ctx: GamesCtx) {
     this.ctx = ctx;
     this.inventory = new Inventory(ctx.store);
+    this.colorRoles = new ColorRoleService({ store: ctx.store, clock: ctx.clock });
   }
 
   // ------------------------------------------------------------------ stock
@@ -186,13 +193,17 @@ export class ShopService {
       cardIcon: show(r?.card_icon),
       skinDice: show(r?.skin_dice),
       skinTable: show(r?.skin_table),
+      colorRole: this.colorRoles.equipped(guildId, userId),
       dailyBoost: (r?.daily_boost as number | undefined) ?? 0,
       insurance: (r?.insurance as number | undefined) ?? 0,
       frozen,
     };
   }
 
-  /** Equip an owned cosmetic, or pass `null` to unequip a slot. */
+  /**
+   * Equip an owned cosmetic, or pass `null` to unequip a slot. The name colour (`color_role`)
+   * also queues its Discord role; call `colorRoles.syncNow` after the commit to apply it at once.
+   */
   equip(guildId: string, userId: string, slot: EquipSlot, itemId: string | null): void {
     if (!(EQUIP_SLOTS as readonly string[]).includes(slot))
       throw new GameRuleError('invalid_slot', {}, 'invalid_payload');
@@ -201,11 +212,34 @@ export class ShopService {
       if (!item || item.kind !== slot || this.inventory.qty(guildId, userId, itemId) < 1)
         throw new GameRuleError('not_owned', {}, 'not_found');
     }
-    this.ctx.store
-      .stmt(
-        `INSERT INTO profiles (guild_id, user_id, ${SLOT_COLUMN[slot]}) VALUES (?, ?, ?) ON CONFLICT (guild_id, user_id) DO UPDATE SET ${SLOT_COLUMN[slot]} = excluded.${SLOT_COLUMN[slot]}`,
-      )
-      .run(guildId, userId, itemId);
+    this.ctx.store.transaction(() => {
+      // Wearing the colour already worn (and already on Discord) changes nothing: no sync, so
+      // `syncNow` answers without a Discord call.
+      const unchanged =
+        slot === 'color_role' &&
+        this.colorRoles.equipped(guildId, userId) === itemId &&
+        this.colorRoles.upToDate(guildId, userId);
+      this.ctx.store
+        .stmt(
+          `INSERT INTO profiles (guild_id, user_id, ${SLOT_COLUMN[slot]}) VALUES (?, ?, ?) ON CONFLICT (guild_id, user_id) DO UPDATE SET ${SLOT_COLUMN[slot]} = excluded.${SLOT_COLUMN[slot]}`,
+        )
+        .run(guildId, userId, itemId);
+      if (slot === 'color_role' && !unchanged)
+        queueColorRoleSync(this.ctx.store, guildId, userId, this.ctx.clock.now());
+    });
+  }
+
+  /**
+   * Wear a name colour (or `null` to take it off) and apply its Discord role once the change has
+   * committed. The choice is recorded even when Discord refuses; the result says why.
+   */
+  async wearColor(
+    guildId: string,
+    userId: string,
+    itemId: string | null,
+  ): Promise<ColorRoleSyncResult | 'pending'> {
+    this.equip(guildId, userId, 'color_role', itemId);
+    return this.colorRoles.syncNow(guildId, userId);
   }
 
   // ------------------------------------------------------------------ bankruptcy seizure

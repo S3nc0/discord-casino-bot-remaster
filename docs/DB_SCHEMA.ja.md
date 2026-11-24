@@ -120,6 +120,7 @@ SQLite のファイルは 1 つで、サーバーのプロセス 1 つが `bette
 | `0011_arena_runner_up` | 闘技場 | `arena_tournaments.runner_up_id`（上を参照） |
 | `0012_pinned_posts` | ボット | `pinned_posts`（下を参照） |
 | `0013_stream` | 配信パネル | `streams`、`stream_rounds`、`stream_bets`、`stream_round_audit`（下を参照） |
+| `0014_color_roles` | ショップ | `profiles.color_role`、`color_roles`、`color_role_holders`、`color_role_sync`（下を参照） |
 
 `0012_pinned_posts.sql` は `pinned_posts` を作ります。ボットがチャットの投稿をピン留めした投票・共済の動議・抽選 1 件につき 1 行です。列は `kind`（`poll`、`motion`、`raffle`）、`ref_id`（`polls`・`kyosai_motions`・`raffles` の id。`kind` と合わせて主キー）、`guild_id`、`channel_id`、`message_id`、`pinned_at`、`tries`（想定外のエラーでピン留め解除に失敗した回数）です。外部キーはなく、元の行が消えていれば終了とみなします。`notify:pin-sweep` ジョブは、元が `open` でなくなった投稿のピン留めを外し、行を消します。ペリカは持たず、台帳の行もありません。インポーターは持ち込みません。[spec/polls.ja.md](spec/polls.ja.md) §2.5、[spec/kyosai.ja.md](spec/kyosai.ja.md) §6、[spec/lottery.ja.md](spec/lottery.ja.md) §2.3 を見てください。
 
@@ -131,6 +132,14 @@ SQLite のファイルは 1 つで、サーバーのプロセス 1 つが `bette
 - `stream_round_audit`：終わった勝負 1 回につき 1 行。精算か無効にしたのと同じトランザクションで書きます（決定 D3-2）。`round_id`（主キー）、`stream_id`、`guild_id`、`streamer_id`、`label`、`opened_at`、`locked_at`、`ended_at`、`outcome`（`win`、`lose`、`void`）、`cause`（`streamer`、`owner`、`stream_end`、`timeout`）、`actor_id`（タイマーのときは null）、`reason`（運営の理由、1〜200）、`bettors`、`win_total`、`lose_total`、`rake`（帝愛の控除と端数。返金なら 0）、`refunded`（0/1）、`top`（JSON。大きい順に最大 10 件の `{userId, amount}`。返金なら空）。運営だけが見るもので、データベースがあるかぎり残します。
 
 スパチャには専用のテーブルがありません。`ref_type = 'stream'`、`ref_id` が配信の番号の `transfer_out`・`transfer_fee`・`transfer_in` の台帳の行です。メッセージは保存しません。インポーターはこれらのテーブルを持ち込みません（取り込みの時点で、元の Bot には配信パネルがありません）。
+
+`0014_color_roles.sql` は名前の色のロールです（[spec/shop.ja.md](spec/shop.ja.md) §2.4）。`profiles.color_role`（付けている `color_role` の品、または null。最後の1つがなくなると空にします）を足し、STRICT のテーブルを 3 つ作ります（スノーフレークは TEXT、時刻はミリ秒）。
+
+- `color_roles`：ボットが作った色のロール。`(guild_id, item_id)` ごとに 1 行で、`role_id`（サーバー内で一意）と `created_at`。ボットはここにないロールには触りません。Discord でロールがもうないと分かったら行を消し、次に使うときに作り直します。同期で名前が変わった・権限が付いた・連携用になったと分かったときも行を消し、それからは触りません。
+- `color_role_holders`：ボットが最後にメンバーに付けた色のロール。主キーは `(guild_id, user_id)` で、`role_id` と `applied_at`。メンバー一覧を読まずに、何を外せばよいか分かるようにするためです。
+- `color_role_sync`：Discord のロールを `profiles.color_role` に合わせる必要のあるメンバー。主キーは `(guild_id, user_id)`。変更（付ける・外す・最後の1つがなくなる）と同じトランザクションで書きます。`queued_at`、`next_at`（それまでスイープは飛ばします。30 秒、2 分、10 分、1 時間、その後は1時間ごとと間隔を空け、権限がないときは 10 分以上。拒否されたサーバーの行はスイープしません）、`tries`（失敗した回数）、`seq`（新しい変更のたびに増やし、終わった同期が新しい依頼を消さないようにします）。`shop:color-role-sweep` ジョブ（30 秒ごと）と付けた操作そのものが、コミットの後に反映して行を消します。いま付けている色のものでない色のロール（`color_role_holders`）がメンバーに残っている行は消しません。あきらめるのは付ける行だけです。
+
+どれもペリカを持たず、台帳の行もありません。インポーターは持ち込みません（元の Bot はロールの記録を残していないので、切り替えの後にメンバーが色を付け直します）。
 
 | 共有フィード（`guild_id` なし、お金なし） | マイグレーション |
 | --- | --- |

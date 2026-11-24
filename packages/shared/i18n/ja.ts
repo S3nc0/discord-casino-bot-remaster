@@ -2191,4 +2191,29 @@ export const ja: Messages = {
   'status.badge.wealthy': '🟡 富豪',
   'status.badge.underground': '🟤 地下労働者',
   'status.badge.bankrupt': '🔴 破産者',
+  'bot.shop.colorWear': '持っている名前の色を付ける',
+  'bot.shop.colorOff': '名前の色を外す',
+  'bot.shop.colorWorn': '付けている色: {item}',
+  'bot.shop.colorOn': '名前の色を変えました',
+  'bot.shop.colorOnBody':
+    '**{item}** になりました。\n他の色つきロールがこれより上にあると、そちらの色が優先されます。',
+  'bot.shop.colorRefused': '名前の色を変えられません',
+  'bot.shop.colorOffTitle': '名前の色を外しました',
+  'bot.shop.colorOffBody': '名前の色を元に戻しました。',
+  'shop.colorRole.notice.missing_permissions':
+    '選んだ色は記録しましたが、Bot に「ロールの管理」権限がないため、名前の色を変えられません。サーバーの管理者に、Bot のロールへ権限を足してもらってください。足されたら色が付きます。',
+  'shop.colorRole.notice.hierarchy':
+    '選んだ色は記録しましたが、Bot のロールの位置が低いため、色を付けられません。サーバーの管理者に、サーバー設定の「ロール」で Bot のロールを上に動かしてもらってください。動かされたら色が付きます。',
+  'shop.colorRole.notice.name_taken':
+    '「{name}」という名前のロールがすでにあり、Bot が作ったものではないため、名前の色には使えません。サーバーの管理者に、そのロールの名前を変えてもらってから、もう一度お試しください。',
+  'shop.colorRole.notice.pending':
+    '選んだ色は記録しました。Discord 側の処理に少し時間がかかっています。まもなく色が付きます。',
+  'screen.life.inventory.wear': '付ける',
+  'screen.life.inventory.worn': '付けている',
+  'screen.life.inventory.takeOff': '外す',
+  'screen.life.inventory.colorHint':
+    '名前の色は、このサーバーでのあなたの名前に色を付けます。一度に1色です。',
+  'screen.life.inventory.colorOn': '名前の色を {item} にしました。',
+  'screen.life.inventory.colorOff': '名前の色を外しました。',
+  'screen.profile.nameColor': '名前の色',
 };

@@ -10,6 +10,7 @@ import {
   QuizPostRequest,
   QuizWithdrawRequest,
   ShopBuyRequest,
+  ShopColorRoleRequest,
   TransferMembersQuery,
   TransferPreviewRequest,
   TransferSendRequest,
@@ -87,7 +88,14 @@ import {
   TITLE_MAX,
   verdict,
 } from '@casino/domain/poll';
-import { CATALOG, CONFIRM_FROM, isBuyable, isUnique, needsConfirm } from '@casino/domain/shop';
+import {
+  CATALOG,
+  colorRoleName,
+  CONFIRM_FROM,
+  isBuyable,
+  isUnique,
+  needsConfirm,
+} from '@casino/domain/shop';
 import type { SessionService } from '../../auth/sessions.ts';
 import type { IdentityRepo } from '../../db/identity.ts';
 import type { Store } from '../../db/store.ts';
@@ -95,6 +103,7 @@ import type { EconomyService } from '../../economy/economy-service.ts';
 import type { NetWorthService } from '../../finance/net-worth-service.ts';
 import { GameRuleError } from '../../games/progression/context.ts';
 import type { NonCasinoGames, TeiaiPort } from '../../games/progression/index.ts';
+import { noticeOf } from '../../games/shop/color-roles.ts';
 import { LifeKit } from './life-support.ts';
 
 export interface LifeRouteDeps {
@@ -495,9 +504,30 @@ export function registerLifeRoutes(app: FastifyInstance, deps: LifeRouteDeps): v
             confirm: lot.confirm,
           })),
           seized: games.shop.seizedLots(w.guildId),
+          colorRole: games.shop.colorRoles.equipped(w.guildId, w.userId),
         };
       }),
     );
+
+    // Wear or take off a name colour. The choice commits first; the Discord role is applied after
+    // the commit (waiting a few seconds at most) and any reason it is not shown comes back as
+    // `notice`. A replayed key answers the stored response without touching Discord again.
+    life.post(LIFE_ROUTES.shopColorRole, async (request) => {
+      const res = kit.write(request, 'shop.colorRole', ShopColorRoleRequest, (w, body) => {
+        games.shop.equip(w.guildId, w.userId, 'color_role', body.itemId);
+        return { colorRole: body.itemId };
+      });
+      if (res.replayed) return res;
+      const { guildId, userId } = kit.who(request);
+      const notice = noticeOf(await games.shop.colorRoles.syncNow(guildId, userId, 4000));
+      const roleName = res.colorRole === null ? null : colorRoleName(res.colorRole);
+      return {
+        ...res,
+        colorRole: games.shop.colorRoles.equipped(guildId, userId),
+        ...(notice === null ? {} : { notice }),
+        ...(notice === 'name_taken' && roleName !== null ? { roleName } : {}),
+      };
+    });
 
     life.post(LIFE_ROUTES.shopBuy, (request) =>
       kit.write(request, 'shop.buy', ShopBuyRequest, (w, body) => {

@@ -300,6 +300,7 @@ export function createServer(options: CreateServerOptions): CasinoServices {
       finance,
       games,
       postPins,
+      colorRoles: games.shop.colorRoles,
       stream,
       purgeLaunchIntents: () => (launchIntents as SqliteLaunchIntentService).purge(),
     }),

@@ -12,6 +12,7 @@ import {
 } from 'discord.js';
 import { formatPelica, t, type Locale } from '@casino/shared/i18n';
 import {
+  colorRoleName,
   CONFIRM_FROM,
   CATALOG,
   isBuyable,
@@ -26,6 +27,7 @@ import {
   USER_DEFAULT_MINUTES,
 } from '@casino/domain/quiz';
 import type { NonCasinoGames } from '../games/progression/index.ts';
+import { noticeOf } from '../games/shop/color-roles.ts';
 import { AppError } from '../runtime/errors.ts';
 import {
   deleteBoard,
@@ -476,10 +478,98 @@ function shopCategory(ctx: ChatCtx, guildId: string, userId: string, kind: ItemK
       ),
     );
   }
+  if (kind === 'color_role') colorRows(ctx, guildId, userId, e, rows);
   rows.push(
     backRow(locale) as unknown as ActionRowBuilder<StringSelectMenuBuilder | ButtonBuilder>,
   );
   return { embeds: [e], components: rows };
+}
+
+/**
+ * The name colours the player owns: a menu to wear one and a button to take it off. The colour
+ * is a Discord role (games/shop/color-roles.ts); the choice is stored first, the role follows.
+ */
+function colorRows(
+  ctx: ChatCtx,
+  guildId: string,
+  userId: string,
+  e: ReturnType<typeof embed>,
+  rows: ActionRowBuilder<StringSelectMenuBuilder | ButtonBuilder>[],
+): void {
+  const { locale } = ctx;
+  const games = requireGames(ctx);
+  const worn = games.shop.colorRoles.equipped(guildId, userId);
+  if (worn !== null)
+    e.addFields({
+      name: '\u200b',
+      value: t(locale, 'bot.shop.colorWorn', { item: itemLabel(locale, worn) }),
+    });
+  const owned = itemsOfKind('color_role').filter(
+    (item) => item.id !== worn && games.shop.inventory.qty(guildId, userId, item.id) > 0,
+  );
+  if (owned.length > 0) {
+    rows.push(
+      new ActionRowBuilder<StringSelectMenuBuilder | ButtonBuilder>().addComponents(
+        new StringSelectMenuBuilder()
+          .setCustomId(cid('shop', 'wear'))
+          .setPlaceholder(t(locale, 'bot.shop.colorWear'))
+          .addOptions(
+            owned.slice(0, 25).map((item) => ({
+              label: itemLabel(locale, item.id).slice(0, 100),
+              value: item.id,
+            })),
+          ),
+      ),
+    );
+  }
+  if (worn !== null) {
+    rows.push(
+      new ActionRowBuilder<StringSelectMenuBuilder | ButtonBuilder>().addComponents(
+        new ButtonBuilder()
+          .setCustomId(cid('shop', 'off'))
+          .setLabel(t(locale, 'bot.shop.colorOff'))
+          .setStyle(ButtonStyle.Secondary),
+      ),
+    );
+  }
+}
+
+/** Wear (or take off) a name colour, then tell the player whether Discord shows it. */
+async function shopWearColor(
+  ctx: ChatCtx,
+  interaction: ComponentInteraction,
+  guildId: string,
+  itemId: string | null,
+): Promise<void> {
+  const { locale } = ctx;
+  const games = requireGames(ctx);
+  // The role calls can take a moment: acknowledge first, edit the message when done.
+  await interaction.deferUpdate();
+  const result = await games.shop.wearColor(guildId, interaction.user.id, itemId);
+  const notice = noticeOf(result);
+  const lines =
+    itemId === null
+      ? [t(locale, 'bot.shop.colorOffBody')]
+      : notice === 'name_taken'
+        ? []
+        : [t(locale, 'bot.shop.colorOnBody', { item: itemLabel(locale, itemId) })];
+  if (notice !== null)
+    lines.push(
+      t(locale, `shop.colorRole.notice.${notice}`, {
+        name: itemId === null ? '' : (colorRoleName(itemId) ?? ''),
+      }),
+    );
+  const title =
+    itemId === null
+      ? t(locale, 'bot.shop.colorOffTitle')
+      : notice === 'name_taken'
+        ? t(locale, 'bot.shop.colorRefused')
+        : t(locale, 'bot.shop.colorOn');
+  const tone = notice === null || notice === 'pending' ? 'success' : 'warning';
+  await updateMessage(interaction, {
+    embeds: [embed(tone, title, lines.join('\n\n'))],
+    components: [backRow(locale)],
+  });
 }
 
 async function shopOpen(ctx: ChatCtx, interaction: ChatInputCommandInteraction): Promise<void> {
@@ -679,6 +769,15 @@ async function shopComponent(
     }
     case 'mok':
       await shopMarketBuy(ctx, interaction, guildId, Number(id.args[0]));
+      return;
+    case 'wear': {
+      const item = itemById(picked);
+      if (!item || item.kind !== 'color_role') throw new AppError('invalid_payload');
+      await shopWearColor(ctx, interaction, guildId, item.id);
+      return;
+    }
+    case 'off':
+      await shopWearColor(ctx, interaction, guildId, null);
       return;
     default:
       throw new AppError('invalid_payload');

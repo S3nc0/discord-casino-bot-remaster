@@ -152,6 +152,13 @@ export default function ProfileScreen() {
             ? t('screen.profile.ownedNone')
             : '—'}
       </p>
+      {shop.data?.colorRole ? (
+        <p className="profile__owned" data-name-color={shop.data.colorRole}>
+          <strong>{t('screen.profile.nameColor')}</strong>
+          {' · '}
+          {itemLabel(locale, shop.data.colorRole)}
+        </p>
+      ) : null}
       <div className="profile__links">
         {SHORTCUTS.map((id) => (
           <Button key={id} variant="tonal" onClick={() => go(id)}>

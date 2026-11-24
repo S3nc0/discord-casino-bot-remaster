@@ -2,6 +2,7 @@ import type { Logger } from 'pino';
 import type { Store } from '../db/store.ts';
 import { FINANCE_JOBS, type FinanceServices } from '../finance/jobs.ts';
 import type { NonCasinoGames } from '../games/progression/register.ts';
+import type { ColorRoleService } from '../games/shop/color-roles.ts';
 import type { PostPinService } from '../notify/post-pins.ts';
 import type { StreamService } from '../stream/service.ts';
 import type { JobSpec } from './scheduler.ts';
@@ -13,6 +14,8 @@ export interface JobManifestDeps {
   games: Pick<NonCasinoGames, 'jobs'>;
   /** Pinned poll, motion and raffle posts; the sweep unpins the ones that ended. */
   postPins?: Pick<PostPinService, 'sweep'>;
+  /** Name-colour roles: the sweep applies the pending member rows. */
+  colorRoles?: Pick<ColorRoleService, 'sweep'>;
   /** Stream panel: auto-lock rounds past `autoLockAt`, close panels past 24 h. */
   stream?: Pick<StreamService, 'lockDue' | 'closeDue'>;
   /** Housekeeping hooks owned by the auth and casino layers. */
@@ -85,6 +88,17 @@ export function buildJobManifest(deps: JobManifestDeps): JobSpec[] {
       ]
     : [];
 
+  const colorRoleJobs: JobSpec[] = deps.colorRoles
+    ? [
+        {
+          id: 'shop:color-role-sweep',
+          cron: '*/30 * * * * *',
+          description: 'Put the equipped name colour roles on members (and take old ones off).',
+          run: () => deps.colorRoles?.sweep(),
+        },
+      ]
+    : [];
+
   // Both run once per guild that is not denied; the database is the only state, so a missed
   // tick is caught up by the next one.
   const stream = deps.stream;
@@ -120,5 +134,12 @@ export function buildJobManifest(deps: JobManifestDeps): JobSpec[] {
       ]
     : [];
 
-  return [...financeJobs, ...gameJobs, ...pinJobs, ...streamJobs, ...housekeeping];
+  return [
+    ...financeJobs,
+    ...gameJobs,
+    ...pinJobs,
+    ...colorRoleJobs,
+    ...streamJobs,
+    ...housekeeping,
+  ];
 }
