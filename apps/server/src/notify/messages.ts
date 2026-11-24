@@ -8,6 +8,7 @@ import {
   type Toast,
 } from '@casino/shared';
 import {
+  en,
   formatPelica,
   inboxKindMessageKey,
   screenMessageKey,
@@ -18,7 +19,7 @@ import {
 import type { ChannelMessage, DiscordEmbed, EmbedField } from './ports.ts';
 import { defaultEmbedTheme, type EmbedRole, type EmbedTheme } from './theme.ts';
 
-/** All 18 domain events subscribed by the notify module (everything except per-minute MarketTick). */
+/** All 19 domain events subscribed by the notify module (everything except per-minute MarketTick). */
 export const SUBSCRIBED_EVENT_TYPES = [
   'GameSettled',
   'BigWin',
@@ -38,6 +39,7 @@ export const SUBSCRIBED_EVENT_TYPES = [
   'OrderFilled',
   'MarketplaceOutbid',
   'DailyReady',
+  'TeiaiRelicListed',
 ] as const satisfies readonly DomainEventType[];
 
 export type SubscribedEventType = (typeof SUBSCRIBED_EVENT_TYPES)[number];
@@ -55,7 +57,7 @@ export interface EventMeta {
   readonly toastTone: Toast['tone'];
 }
 
-/** Complete metadata map covering every one of the 18 subscribed events. */
+/** Complete metadata map covering every one of the 19 subscribed events. */
 export const EVENT_META: Readonly<Record<SubscribedEventType, EventMeta>> = {
   GameSettled: {
     titleKey: 'notify.event.GameSettled.title',
@@ -218,6 +220,15 @@ export const EVENT_META: Readonly<Record<SubscribedEventType, EventMeta>> = {
     persona: null,
     defaultAnnounce: false,
     notificationKind: 'daily_ready',
+    toastTone: 'info',
+  },
+  TeiaiRelicListed: {
+    titleKey: 'notify.event.TeiaiRelicListed.title',
+    bodyKey: 'notify.event.TeiaiRelicListed.body',
+    role: 'gold',
+    persona: 'teiai_bank',
+    defaultAnnounce: true,
+    notificationKind: null,
     toastTone: 'info',
   },
 };
@@ -521,6 +532,22 @@ export function renderEventCopy(locale: Locale, event: SubscribedDomainEvent): R
         openInActivity: false,
         activityScreen: 'daily',
       };
+    case 'TeiaiRelicListed': {
+      const itemKey = `screen.finance.item.${event.itemId}`;
+      const item = itemKey in en ? t(locale, itemKey as MessageKey) : event.itemId;
+      return {
+        title: t(locale, meta.titleKey, { item }),
+        body: t(locale, meta.bodyKey, {
+          item,
+          listingId: event.listingId,
+          startPrice: formatPelica(locale, event.startPrice),
+          endAtSec: Math.floor(event.endAt / 1000),
+        }),
+        role: meta.role,
+        openInActivity: true,
+        activityScreen: 'market',
+      };
+    }
   }
 }
 

@@ -199,6 +199,19 @@ export const HorseFoaled = event('HorseFoaled', {
 /** `HorseFoaled` is announced in the guild channel only from this stat total up. */
 export const FOAL_ANNOUNCE_MIN_TOTAL = 205;
 
+/**
+ * Teiai put the day's relic up for auction on the player market (docs/spec/player-market.md §9).
+ * Guild-wide: announced in the guild channel and open to every member, no one is named.
+ */
+export const TeiaiRelicListed = event('TeiaiRelicListed', {
+  listingId: Type.Integer({ minimum: 1 }),
+  /** Unstarred relic item id, e.g. `relic_fossil`. */
+  itemId: Type.String({ minLength: 1, maxLength: 64 }),
+  /** Starting price (the relic's reference value). */
+  startPrice: Pelica,
+  endAt: EpochMs,
+});
+
 export const DomainEvent = Type.Union([
   GameSettled,
   BigWin,
@@ -219,6 +232,7 @@ export const DomainEvent = Type.Union([
   CompanyBankrupt,
   LotteryDrawn,
   HorseFoaled,
+  TeiaiRelicListed,
 ]);
 export type DomainEvent = Static<typeof DomainEvent>;
 export type DomainEventType = DomainEvent['type'];
@@ -247,4 +261,5 @@ export const DOMAIN_EVENT_TYPES = [
   'CompanyBankrupt',
   'LotteryDrawn',
   'HorseFoaled',
+  'TeiaiRelicListed',
 ] as const satisfies readonly DomainEventType[];

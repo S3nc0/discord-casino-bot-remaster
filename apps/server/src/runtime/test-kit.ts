@@ -159,6 +159,8 @@ export function createTestServer(
     rateLimits?: { ipPerMinute: number; tokenPerMinute: number; userPerMinute: number };
     socketLimits?: SocketLimits;
     trustProxy?: boolean | number;
+    /** Teiai's daily relic auction is off in test servers unless a test turns it on. */
+    relicAuctionPerDay?: number;
   } = {},
 ): TestServer {
   const keys = makeProxyKeys();
@@ -168,6 +170,7 @@ export function createTestServer(
   const server = createServer({
     config,
     clock,
+    relicAuctionPerDay: options.relicAuctionPerDay ?? 0,
     http: discord,
     logger: options.logger ?? createLogger({ level: 'silent' }),
     store: memoryStore(),

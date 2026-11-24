@@ -507,6 +507,54 @@ describe('Player market listings', () => {
     expect(view.container.querySelector('[data-outbid]')).toBeNull();
   });
 
+  it('shows a Teiai listing with the Teiai seller label and badge, and bids on it', async () => {
+    const base = createMockFinanceClient();
+    const posts: { route: string; body: unknown }[] = [];
+    const client: FinanceClient = {
+      post: async (route, body) => {
+        posts.push({ route, body });
+        return base.post(route, body);
+      },
+      get: async (route) => {
+        const data = await base.get(route);
+        if (route !== FINANCE_ROUTES.listings) return data;
+        const view = data as FinanceListingsView;
+        view.listings.push({
+          id: 90,
+          seller: { id: '0', name: '0' },
+          kind: 'item',
+          ref: 'relic_fossil',
+          name: null,
+          qty: 1,
+          mode: 'auction',
+          price: 1_500,
+          bid: 0,
+          topBidder: null,
+          youAreTop: false,
+          mine: false,
+          endAt: Date.now() + 24 * 3_600_000,
+          minNextBid: 1_500,
+        });
+        return view as typeof data;
+      },
+    };
+    const view = await openListings(client);
+    const card = view.container.querySelector('[data-listing="90"]')!;
+    expect(card.textContent).toContain('Seller: 🕴️ Teiai');
+    expect(card.textContent).toContain('Teiai relic');
+    expect(card.textContent).not.toContain('Seller: 0');
+    // A player's own listing keeps the player's name.
+    expect(view.container.querySelector('[data-listing="21"]')!.textContent).not.toContain(
+      'Teiai relic',
+    );
+    await click([...card.querySelectorAll('button')].find((b) => b.textContent === 'Place bid')!);
+    expect(posts[0]).toMatchObject({
+      route: FINANCE_ROUTES.listingBid,
+      body: { listingId: 90, amount: 1_500 },
+    });
+    expect(view.container.textContent).toContain('puts one unearthed relic up for auction');
+  });
+
   it('lets me take down my own listing when it has no bid', async () => {
     const s = spy();
     const view = await openListings(s.client);

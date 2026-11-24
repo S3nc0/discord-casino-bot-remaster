@@ -190,11 +190,14 @@ export function runCompanyMaintenanceTick(
 
 export interface PlayerMarketSettleTickReport {
   readonly settled: Record<string, SettledListingEntry[]>;
+  /** Listing ids of Teiai's daily relic auction put up by this tick, per guild. */
+  readonly relicListed: Record<string, number[]>;
 }
 
 /**
  * 1-minute Player Market loop:
- * - settles expired timed auctions (winner payout + 5% fee) and expired fixed/no-bid listings.
+ * - settles expired timed auctions (winner payout + 5% fee) and expired fixed/no-bid listings;
+ * - puts the day's Teiai relic auction up once per guild (a restart or a double tick lists no more).
  */
 export function runPlayerMarketSettleTick(
   services: FinanceServices,
@@ -202,12 +205,14 @@ export function runPlayerMarketSettleTick(
 ): PlayerMarketSettleTickReport {
   const guilds = listKnownGuildIds(services.store);
   const settled: Record<string, SettledListingEntry[]> = {};
+  const relicListed: Record<string, number[]> = {};
 
   for (const guildId of guilds) {
     settled[guildId] = services.playerMarket.settleExpired(guildId, nowMs);
+    relicListed[guildId] = services.playerMarket.teiaiDaily(guildId, nowMs);
   }
 
-  return { settled };
+  return { settled, relicListed };
 }
 
 /** Descriptor for B1's croner scheduler runner (all cron expressions in JST / `UTC_OFFSET_HOURS = 9`). */

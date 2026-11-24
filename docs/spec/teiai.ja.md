@@ -115,6 +115,7 @@
   3. **超過損失**：`excess = max(0, shortfall - trust_take)`。
      - サーモスタットが `shock = max(0, -net - trust_take)` を吸収し、`bailout` を返します（`enforce=False` の間は `0`）。
      - 残りの `left = int(excess - cover)` は、`charge_excess_for` で共済の保有者に負担させます。支払われなかった HOUSE の分は `excess_unpaid` に記録します。
+- **毎日の発掘品の競りからの銀行収入**（リマスター、上流 736efad。`docs/spec/player-market.ja.md` §5）：帝愛は、ギルドごとに UTC の1日に1回、発掘品を1つ、プレイヤーマーケットに出します。落札額は戻らない流出（シンク）で、その全額を `teiai.bankIncome(price)`（サーモスタットあり）で銀行に入れます。プレイヤーマーケットの手数料 5% を入れるのと同じ呼び出しです。売り手への支払いも手数料もなく、売れ残った発掘品は何も渡さず、帝愛からの購入は 24 時間 100,000 の2者間の上限に数えません。この経路でペリカが銀行に入るのは、プレイヤーが払ったときだけです。
 - **帝愛のハウス口座（`teiai_house`）**（`infra/db/bank.py:235-293`）：
   - 銀行の準備金（`teiai_bank`）とは別です。
   - デイリーと地下労働のピンハネ（`house_income_for`、`skimmed` が増える）と、会社の建設費・維持費（`house_receive_for`）を受け取ります。

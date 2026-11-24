@@ -562,6 +562,28 @@ describe('Announcer batching, threshold, rate-limiting, language, and personas',
     expect(h.port.channelPosts).toHaveLength(1);
     expect(h.port.channelPosts[0]?.message.embeds?.[0]?.description).toContain('Comet');
   });
+
+  it('announces Teiai relic listings in the guild channel with the item, price and a launch button', async () => {
+    const h = makeHarness({ batchWindowMs: 0 });
+    const event = {
+      type: 'TeiaiRelicListed' as const,
+      guildId: GUILD,
+      at: h.clock.now(),
+      listingId: 4,
+      itemId: 'relic_tear',
+      startPrice: 100_000,
+      endAt: h.clock.now() + 86_400_000,
+    };
+    expect(h.announcer.enqueue(event)).toBe(true);
+    await h.announcer.flushAll();
+    expect(h.port.channelPosts).toHaveLength(1);
+    const post = h.port.channelPosts[0]?.message;
+    const embed = post?.embeds?.[0];
+    expect(embed?.title).toContain('Dragon’s tear');
+    expect(embed?.description).toContain('100,000');
+    expect(post?.openInActivity).toBe(true);
+    expect(post?.activityScreen).toBe('market');
+  });
 });
 
 describe('R-9: shared ANNOUNCE_CHANNEL_ID fallback', () => {

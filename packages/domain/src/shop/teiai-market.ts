@@ -1,6 +1,8 @@
 import type { Rng } from '@casino/shared';
 import { uniform } from '../progression/py-random.ts';
 import { MS_DAY, MS_HOUR, roundHalfEven } from '../progression/time.ts';
+import { RELIC_DROPS } from '../work/labor.ts';
+import { RELIC_VALUE } from '../work/relics.ts';
 import { CATALOG, isAuctionListable, isMarketListable, isUnique, type Item } from './catalog.ts';
 
 // catalogs/teiai.yaml (the live numbers; docs/spec/shop.md quotes older ones)
@@ -126,4 +128,32 @@ export function revealBlack(shown: Item, rng: Rng, ownsUnique: (id: string) => b
   if (!chosen) return { itemId: shown.id, outcome: 'same' };
   if (isUnique(chosen) && ownsUnique(chosen.id)) return { itemId: shown.id, outcome: 'same' };
   return { itemId: chosen.id, outcome };
+}
+
+// ---- Teiai's daily relic auction (catalogs/teiai.yaml: relic_auction_per_day / relic_auction_hours)
+
+/** Relics Teiai puts up per guild per UTC day (0 turns it off). */
+export const RELIC_AUCTION_PER_DAY = 1;
+/** Length of that auction. */
+export const RELIC_AUCTION_HOURS = 24;
+
+/** The relic Teiai auctions and its starting price (the reference value, no cap on bids). */
+export interface RelicAuctionPick {
+  readonly itemId: string;
+  readonly startPrice: number;
+}
+
+/**
+ * Pick the day's relic by dig odds (the underground-work drop table), unstarred only: mostly
+ * fossils, the Dragon's tear is rare. The start price is the relic's reference value.
+ */
+export function pickRelic(rng: Rng): RelicAuctionPick {
+  const total = RELIC_DROPS.reduce((sum, d) => sum + d.prob, 0);
+  let x = rng.float() * total;
+  for (const drop of RELIC_DROPS) {
+    x -= drop.prob;
+    if (x < 0) return { itemId: drop.item, startPrice: RELIC_VALUE[drop.item] };
+  }
+  const last = RELIC_DROPS[RELIC_DROPS.length - 1] as (typeof RELIC_DROPS)[number];
+  return { itemId: last.item, startPrice: RELIC_VALUE[last.item] };
 }

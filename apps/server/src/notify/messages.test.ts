@@ -190,11 +190,20 @@ const SAMPLE_EVENTS: { [K in SubscribedEventType]: DomainEventOf<K> } = {
     at: AT,
     userId: U1,
   },
+  TeiaiRelicListed: {
+    type: 'TeiaiRelicListed',
+    guildId: G,
+    at: AT,
+    listingId: 7,
+    itemId: 'relic_fossil',
+    startPrice: 1500,
+    endAt: AT + 86_400_000,
+  },
 };
 
 describe('notify messages & shared i18n', () => {
-  it('maps every one of the 18 subscribed events to shared EN and JA keys and renders without leftover placeholders', () => {
-    expect(SUBSCRIBED_EVENT_TYPES).toHaveLength(18);
+  it('maps every one of the 19 subscribed events to shared EN and JA keys and renders without leftover placeholders', () => {
+    expect(SUBSCRIBED_EVENT_TYPES).toHaveLength(19);
 
     for (const type of SUBSCRIBED_EVENT_TYPES) {
       const meta = EVENT_META[type];

@@ -115,6 +115,7 @@ Planned owner: `B3` | Screen IDs: `teiai-bank`, `teiai-bank-cds`, `teiai-bank-de
   3. **Excess Loss**: `excess = max(0, shortfall - trust_take)`.
      - Thermostat absorbs `shock = max(0, -net - trust_take)` → returns `bailout` (`0` while `enforce=False`).
      - Remaining `left = int(excess - cover)` charged to Kyosai holders via `charge_excess_for`; unpaid HOUSE share recorded in `excess_unpaid`.
+- **Bank income from the daily relic auction** (remaster, upstream 736efad; `docs/spec/player-market.md` §5): once per guild per UTC day Teiai lists one relic on the player market. The winning bid is a sink and is credited whole to the bank through `teiai.bankIncome(price)` (thermostat on), the same call that takes the 5 % player-market fee. There is no seller credit and no fee, an unsold relic delivers nothing, and buying from Teiai skips the 100,000 / 24 h pair limit. Pelica only enters the bank this way when a player pays it.
 - **Teiai House Account (`teiai_house`)** (`infra/db/bank.py:235-293`):
   - Separate from bank reserves (`teiai_bank`).
   - Receives daily/labor skims (`house_income_for`, increments `skimmed`) and company build/upkeep fees (`house_receive_for`).

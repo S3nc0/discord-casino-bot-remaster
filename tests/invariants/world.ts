@@ -43,6 +43,8 @@ export interface LedgerRow {
 }
 
 export interface World {
+  /** Relics Teiai may list per guild per UTC day in this world (0 = off). */
+  relicAuctionPerDay: number;
   server: CasinoServices;
   economy: EconomyService;
   clock: ReturnType<typeof manualClock>;
@@ -86,7 +88,12 @@ function checkInvariantsAfterWarmUp(w: World): void {
   checkInvariants(w);
 }
 
-export function createWorld(seed: number): World {
+export interface WorldOptions {
+  /** Teiai's daily relic auction; off unless a test turns it on. */
+  relicAuctionPerDay?: number;
+}
+
+export function createWorld(seed: number, options: WorldOptions = {}): World {
   const keys = makeProxyKeys();
   const clock = manualClock(START_MS);
   const timers = manualScheduler(clock);
@@ -100,6 +107,7 @@ export function createWorld(seed: number): World {
     store: memoryStore(),
     rng: createSeededRng(seed),
     casinoTimers: timers.scheduler,
+    relicAuctionPerDay: options.relicAuctionPerDay ?? 0,
   });
   const gamesPlayed = new Map<string, number>();
   server.bus.onAnyDomain((event: DomainEvent) => {
@@ -108,6 +116,7 @@ export function createWorld(seed: number): World {
     gamesPlayed.set(key, (gamesPlayed.get(key) ?? 0) + 1);
   });
   return {
+    relicAuctionPerDay: options.relicAuctionPerDay ?? 0,
     server,
     economy: server.economy,
     clock,
@@ -249,4 +258,101 @@ export function checkInvariants(w: World): void {
       throw new Error(`transfer ${k}: fee ${fee} is not 10% (ceiling) of ${principal}`);
     }
   }
+
+  checkTeiaiRelicAuction(w, w.relicAuctionPerDay);
+}
+
+interface TeiaiListingRow {
+  id: number;
+  guild_id: string;
+  seller_id: string;
+  ref: string;
+  qty: number;
+  mode: string;
+  price: number;
+  bid: number;
+  bidder_id: string | null;
+  buyer_id: string | null;
+  sold_price: number;
+  fee: number;
+  status: string;
+  created_at: number;
+  end_at: number;
+}
+
+/** Teiai's seller id on the player market (`TEIAI_SELLER_ID`). */
+const TEIAI = '0';
+
+/** Total relics (any id starting `relic_`) in every inventory. */
+export function relicCount(w: World): number {
+  return (
+    w.server.store
+      .stmt(
+        "SELECT COALESCE(SUM(qty), 0) AS n FROM inventory WHERE item_id LIKE 'relic\\_%' ESCAPE '\\'",
+      )
+      .get() as { n: number }
+  ).n;
+}
+
+/**
+ * Teiai's daily relic auction (docs/spec/player-market.md §9). After every step:
+ * - at most `perDay` Teiai listings per guild per UTC day, each a 24 h auction of one relic;
+ * - a Teiai listing never produces a seller credit, a fee or a transfer row;
+ * - the Pelica a Teiai listing holds nets to the current bid while it is active, to the winning
+ *   bid once sold (a sink that is never released), and to 0 when it expired unsold;
+ * - the relics in inventories are exactly the Teiai listings sold (nothing else makes relics here).
+ */
+export function checkTeiaiRelicAuction(w: World, perDay: number): void {
+  const listings = rows<TeiaiListingRow>(
+    w,
+    'SELECT * FROM marketplace_listings WHERE seller_id = ? ORDER BY id',
+    TEIAI,
+  );
+  const perGuildDay = new Map<string, number>();
+  let sold = 0;
+  for (const l of listings) {
+    const day = `${l.guild_id}/${Math.floor(l.created_at / DAY_MS)}`;
+    const n = (perGuildDay.get(day) ?? 0) + 1;
+    perGuildDay.set(day, n);
+    if (n > perDay) throw new Error(`${day} has ${n} Teiai listings, over ${perDay} a day`);
+    if (
+      l.mode !== 'auction' ||
+      l.qty !== 1 ||
+      !l.ref.startsWith('relic_') ||
+      /_s\d+$/.test(l.ref)
+    ) {
+      throw new Error(`Teiai listing ${l.id} is not one unstarred relic auction`);
+    }
+    if (l.end_at - l.created_at < 24 * 3_600_000) throw new Error(`Teiai listing ${l.id} is short`);
+    const own = rows<LedgerRow>(
+      w,
+      "SELECT * FROM ledger WHERE ref_type LIKE 'marketplace%' AND ref_id = ? AND guild_id = ?",
+      String(l.id),
+      l.guild_id,
+    );
+    for (const r of own) {
+      if (!['marketplace_hold', 'marketplace_release'].includes(r.reason)) {
+        throw new Error(`Teiai listing ${l.id} has a ${r.reason} row (${r.delta})`);
+      }
+    }
+    const held = own.reduce((s, r) => s - r.delta, 0);
+    if (l.status === 'active' && held !== l.bid) {
+      throw new Error(`Teiai listing ${l.id} holds ${held}, bid is ${l.bid}`);
+    }
+    if (l.status === 'sold') {
+      sold += 1;
+      if (held !== l.sold_price || l.sold_price !== l.bid || l.sold_price <= 0) {
+        throw new Error(`Teiai listing ${l.id} sold for ${l.sold_price} but holds ${held}`);
+      }
+      if (l.fee !== 0 || l.buyer_id === null || l.buyer_id !== l.bidder_id) {
+        throw new Error(`Teiai listing ${l.id} sold with fee ${l.fee} to ${l.buyer_id}`);
+      }
+    }
+    if (l.status === 'expired' && (held !== 0 || l.bid !== 0)) {
+      throw new Error(`Teiai listing ${l.id} expired but holds ${held}`);
+    }
+    if (l.status === 'cancelled') throw new Error(`Teiai listing ${l.id} was cancelled`);
+  }
+  const relics = relicCount(w);
+  if (relics !== sold) throw new Error(`${relics} relics in inventories, ${sold} Teiai sales`);
 }
