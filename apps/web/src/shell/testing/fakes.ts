@@ -1,5 +1,5 @@
 import type { PublicUser, TokenResponse } from '@casino/shared';
-import type { ActivitySdk, PresenceActivity } from '../sdk.ts';
+import { isHttpUrl, type ActivitySdk, type PresenceActivity } from '../sdk.ts';
 import type { CasinoSocket } from '../socket.ts';
 import { useBalanceStore } from '../stores/balance.ts';
 import { useConnectionStore } from '../stores/connection.ts';
@@ -39,12 +39,14 @@ export function tokenResponse(patch: Partial<TokenResponse> = {}): TokenResponse
 export interface FakeSdk extends ActivitySdk {
   calls: string[];
   activities: PresenceActivity[];
+  openedUrls: string[];
   emitParticipants(users: PublicUser[]): void;
 }
 
 export function fakeSdk(opts: { guildId?: string | null; locale?: string | null } = {}): FakeSdk {
   const calls: string[] = [];
   const activities: PresenceActivity[] = [];
+  const openedUrls: string[] = [];
   const listeners: ((u: PublicUser[]) => void)[] = [];
   return {
     mode: 'mock',
@@ -52,6 +54,7 @@ export function fakeSdk(opts: { guildId?: string | null; locale?: string | null 
     guildId: opts.guildId === undefined ? GUILD : opts.guildId,
     calls,
     activities,
+    openedUrls,
     ready: () => {
       calls.push('ready');
       return Promise.resolve();
@@ -72,6 +75,11 @@ export function fakeSdk(opts: { guildId?: string | null; locale?: string | null 
     },
     setActivity: (a) => {
       activities.push(a);
+      return Promise.resolve();
+    },
+    openExternalLink: (url) => {
+      if (!isHttpUrl(url)) return Promise.reject(new Error('invalid_url'));
+      openedUrls.push(url);
       return Promise.resolve();
     },
     emitParticipants: (users) => listeners.forEach((l) => l(users)),
