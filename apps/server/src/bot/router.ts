@@ -520,6 +520,7 @@ export function createInteractionHandler(
 
     try {
       checkInteractionGuild(deps, interaction);
+      syncCallerProfile(deps.identity, interaction.user);
       if (interaction.isModalSubmit()) {
         await dispatchChatModal({ deps, locale }, interaction);
       } else if (interaction.isStringSelectMenu()) {

@@ -2123,6 +2123,7 @@ export const en = {
   'screen.casino.history.reason.stream_bet': 'Stream bet',
   'screen.casino.history.reason.stream_payout': 'Stream payout',
   'screen.casino.history.reason.stream_refund': 'Stream refund',
+  'bot.stream.cancelled': 'Cancelled.',
 } as const;
 
 export type MessageKey = keyof typeof en;

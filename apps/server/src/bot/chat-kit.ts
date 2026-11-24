@@ -159,12 +159,15 @@ export function tr(
 /** Time a player has before an unattended interactive message stops being honoured. */
 export const COMPONENT_TTL_MS = 15 * 60_000;
 
-/** A game rule's own message (`bot.rule.<rule>`), when the dictionary has one. */
+/** A game rule's own message (`bot.rule.*`, `screen.stream.rule.*`, `screen.life.rule.*`), when present. */
 export function ruleMessage(locale: Locale, error: unknown): string | null {
   if (!(error instanceof GameRuleError)) return null;
-  const key = `bot.rule.${error.rule}`;
-  if (!Object.hasOwn(dictionaries[locale], key)) return null;
-  return t(locale, key as MessageKey, error.ruleParams);
+  const params = error.ruleParams ?? error.params;
+  for (const prefix of ['bot.rule.', 'screen.stream.rule.', 'screen.life.rule.'] as const) {
+    const key = `${prefix}${error.rule}`;
+    if (Object.hasOwn(dictionaries[locale], key)) return t(locale, key as MessageKey, params);
+  }
+  return null;
 }
 
 /** Margin refusals the finance service raises, with the text players should read in chat. */

@@ -2103,4 +2103,5 @@ export const ja: Messages = {
   'screen.casino.history.reason.stream_bet': '配信の賭け',
   'screen.casino.history.reason.stream_payout': '配信の払い戻し',
   'screen.casino.history.reason.stream_refund': '配信の返金',
+  'bot.stream.cancelled': 'やめました。',
 };
