@@ -4,7 +4,7 @@
 
 Hard fork of fatcorn753/discord-casino-bot, rewritten in TypeScript as a Discord Activity plus chat bot. Updated by the Scribe from task reports.
 
-Current wave: done — v1.1.0 released 2026-11-24
+Current wave: done — v1.2.0 released 2026-11-24
 
 ## Wave 0 — Foundation
 
@@ -114,9 +114,19 @@ Owners register commands with `pnpm commands:deploy:guild` (see the [Owner Setup
 | 5.S2 | Stream panel Activity screen, 36th icon, viewer and streamer | F2 | done (PR #85) |
 | 5.REL | v1.1.0 release docs, Markdown sweep, `StreamService.previewTip` feature-switch check | SC | done |
 
+## Post-1.1.0 (v1.2.0)
+
+| Task | Scope | Owner | State |
+| --- | --- | --- | --- |
+| 6.D1 | Player guides and specs describe only what the remaster does | — | done (PR #88) |
+| 6.F1 | 🟡 Wealthy (富豪) badge wired on balance, bank, ranking, board and Activity screens | — | done (PR #89) |
+| 6.R1 | Name-colour shop items give real Discord colour roles (migration `0014`, Manage Roles) | — | done (PR #90) |
+| 6.R1R | Security review of 6.R1: 3 medium + 1 low | — | done (all fixed in PR #90) |
+| 6.REL | v1.2.0 release docs, Markdown sweep | SC | done |
+
 ## Blockers
 
-None. Wave 4 (v1.0.0) and Wave 5 (v1.1.0, upstream catch-up) are merged and released on 2026-11-24.
+None. Wave 4 (v1.0.0), Wave 5 (v1.1.0, upstream catch-up) and the post-1.1.0 work (v1.2.0) are merged and released on 2026-11-24.
 
 ## Notes
 
@@ -124,5 +134,5 @@ Discord sends no proxy signature headers on Activity traffic; `REQUIRE_PROXY_SIG
 
 The legacy import dry run (3.4) was skipped by the owner for v1.0.0. The importer is tested against fixtures, but it has not been run on the real `casino.db`. Before anyone relies on it, follow [Importing the legacy database](../MAINTAINERS.md#importing-the-legacy-database) and do a dry run on a copy first.
 
-Known gaps in v1.1.0:
+Known gaps in v1.2.0:
 - Raffle fees, CDS, and race/arena bets are not valued on the balance sheet (same as upstream).
