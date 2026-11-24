@@ -118,8 +118,8 @@ upstream の c099a04 と ce6f500 で、資産はどこでも貸借対照表（B/
      - `require_approval` が `true` のとき：`guild_status.status == "approved"` の場合だけ許可します。そうでなければ、`owner_ids` に DM で承認を依頼します（再通知は `RENOTIFY_AFTER = 3600s` に 1 回まで）。
      - `require_approval` が `false` のとき：`allowed_guild_ids` が空の場合だけ許可します。
   5. `approval_guard.command_feature_guard` を実行します：コマンドが、`features_off(guild_id)` で無効にされた機能に対応していないかを確認します。
-- **サーバーごとの 18 個の機能トグルのキー**（`domain/features.py:10-29`）：
-  `chinchiro`、`pachinko`、`slot`、`blackjack`、`roulette`、`arena`、`horse`、`market`、`bonds`、`kyosai`、`loan`、`company`、`labor`、`quiz`、`raffle`、`poll`、`p2p`、`shop`。
+- **旧版のサーバーごとの 18 個の機能トグルのキー**（`domain/features.py:10-29`）：
+  `chinchiro`、`pachinko`、`slot`、`blackjack`、`roulette`、`arena`、`horse`、`market`、`bonds`、`kyosai`、`loan`、`company`、`labor`、`quiz`、`raffle`、`poll`、`p2p`、`shop`（リマスターの Wave 5 で 19 個目のキー `stream` を追加。[admin.ja.md](admin.ja.md#wave-5-の追加) と [stream.ja.md](stream.ja.md#4-機能トグル) を参照）。
 - 最長一致でのコマンドの対応づけ（`domain/features.py:41-80`）：たとえば `"証券 注文 債券"` は `"bonds"` に、`"証券 注文 ..."` は `"market"` に対応します。
 - **機能が OFF でも常に許可されるもの**（`domain/features.py:58-68`）：
   `"共済 状況"`、`"共済 取消"`、`"貸付 返済"`、`"貸付 一覧"`、`"会社 状況"`、`"会社 持分"`、`"クイズ 取り下げ"`。

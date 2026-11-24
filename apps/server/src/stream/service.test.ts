@@ -634,6 +634,10 @@ describe('StreamService: end, close, feature switch, replays, owner void', () =>
         h.stream.tip(h.who(A), { streamId: s.id, amount: 100, idempotencyKey: h.key() }),
       ),
     ).toMatchObject({ code: 'feature_disabled' });
+    expect(h.stream.previewTip(h.who(A), s.id, 100)).toMatchObject({
+      ok: false,
+      rule: 'feature_disabled',
+    });
     expect(
       refusal(() => h.stream.start(h.who(B), { title: 'x', idempotencyKey: h.key() })),
     ).toMatchObject({ code: 'feature_disabled' });

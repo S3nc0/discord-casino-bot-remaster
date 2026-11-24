@@ -4,6 +4,33 @@
 
 All notable changes to this project are written here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow [Semantic Versioning](https://semver.org/).
 
+## [1.1.0] - 2026-11-24
+
+Ports the new upstream commits up to `upstream/main` into the TypeScript Activity and chat bot, plus a pixel app icon and Activity favicons.
+
+**Owner actions when updating from v1.0.0:**
+- In the Discord Developer Portal (**OAuth2 → URL Generator**), tick **Pin Messages** (`2251801961187328`, or `2251802498058240` with **Manage Webhooks**) and re-authorize the bot in each server (or grant **Pin Messages** to the bot role under *Server Settings → Roles*).
+- Upload `docs/images/app-icon-512.png` as the **App Icon** under **General Information**.
+- Re-deploy slash commands (`pnpm commands:deploy:guild` / `pnpm commands:deploy:global`) for `/stream`, `/casino chinchiro-table`, `/pelica ranking`, and `/admin stream-void`.
+
+### Added
+
+- **Stream panel** (#82, #84, #86, #85): `/stream start` (`/配信 開始`) posts a live stream panel with persistent buttons, matched by a dedicated **Streams** Activity screen and the 36th pixel game icon (`stream`). Viewers can send super chats (reusing player transfer rules and sharing the `20,000` Pelica daily principal cap) and bet on win/lose parimutuel rounds (`5%` rake, `10,000` Pelica per person per round). Rounds must be locked before declaring win or lose and auto-lock after 10 minutes; voice channel location comes from the caller's Activity instance (no bot-created voice channels); and owners can void undecided rounds with `/admin stream-void` (`/運営 配信無効`), writing an audit log row whenever a round ends.
+- **Teiai daily relic auction** (#79): once per server per UTC day, Teiai lists one unstarred dug-up relic weighted by excavation odds as a 24-hour auction starting at its reference value. Winning proceeds go to the Teiai bank, unsold relics vanish, and bids skip the 100k/24h two-player cap.
+- **Auto-pinning** (#78): new poll (`/poll create`), kyosai motion (`/kyosai propose`), and raffle (`/admin raffle start` / `repost`) posts are pinned automatically while open and unpinned within 30 seconds after they close, pass, reject, draw, or cancel (needs **Pin Messages**; refused pins log once per 10 minutes without failing the command).
+- **App icon and Activity favicons** (#83): pixel-art generator in `tools/pixel-art/app-icon/` producing `docs/images/app-icon-512.png` and `32×32` / `16×16` favicons linked in the Activity.
+
+### Changed
+
+- **Chinchiro table pot** (#80): `/casino chinchiro-table` and the Activity Chinchiro table add 2–6 seat winner-takes-all pot rounds where everyone faces each other with a `10%` rake on losing bets, a `rolling` phase with a 45-second auto-roll, single-transaction settlement with full refund on error, and no double payment on hifumi.
+- **Balance-sheet net worth** (#81): counts wealth across a 15-line balance sheet (`liquid + fixed − liabilities = net`, accruing Toichi debt interest per server first). `/pelica ranking` keeps the weekly game ranking as its default and adds `view: weekly | net | liquid`, a private `member` breakdown, and caller-only buttons (`🏆 純資産`, `💧 流動資産`, `🧾 自分の内訳`); the balance card adds the net-assets rank and balance-sheet summary; the live leaderboard ranks by net assets; and the Activity Ranking screen adds weekly/net/liquid tabs and a "My breakdown" sheet. Kyosai auction bids (`kyosai_bid_hold`) are included in `escrow`.
+- **Margin terminology** (#77): renamed the Japanese margin ratio term from `維持率` to `担保余裕度` across the UI, chat bot, and docs.
+
+### Fixed
+
+- **Collateral sell ratio and margin refusal texts** (#77): selling spot crypto or cancelling bonds with open margin positions now checks the `130%` open ratio instead of the `100%` loss-cut ratio, and margin/collateral refusals quote the floored post-action percentage and the `130%` minimum in both languages.
+- **Stream tip preview feature switch**: `StreamService.previewTip` now refuses with `feature_disabled` when the `stream` feature is paused in that server, matching `tip()`.
+
 ## [1.0.0] - 2026-11-24
 
 The remaster: the original Python chat bot rewritten in TypeScript as a Discord Activity plus a chat bot, in one repository, with one server process and one SQLite file.

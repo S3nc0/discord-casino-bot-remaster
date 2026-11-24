@@ -71,12 +71,12 @@ Bot admins (owners) are configured in the `.env` file on your server machine usi
 
 ## 4. Who Can Use `/admin` — and Where
 
-- **Bot owners (`OWNER_IDS`):** Can use **all 26 `/admin` (`/運営`) commands**.
-- **Server moderators (`Manage Server` permission):** Can use **`/admin notifications` (`/運営 通知設定`)** inside that server only. They cannot use the other 25 `/admin` commands or change another server's settings.
+- **Bot owners (`OWNER_IDS`):** Can use **all 27 `/admin` (`/運営`) commands**.
+- **Server moderators (`Manage Server` permission):** Can use **`/admin notifications` (`/運営 通知設定`)** inside that server only. They cannot use the other 26 `/admin` commands or change another server's settings.
 
 ### DM vs. server channel
 
-- **25 of the 26 commands work only in a Direct Message (DM) with the bot.** If you type `/admin` inside a server channel, Discord only shows `/admin notifications`. To use the rest, click the bot in your server's member list and open a DM with it, then type `/admin` there.
+- **26 of the 27 commands work only in a Direct Message (DM) with the bot.** If you type `/admin` inside a server channel, Discord only shows `/admin notifications`. To use the rest, click the bot in your server's member list and open a DM with it, then type `/admin` there.
 - **`/admin notifications` (`/運営 通知設定`)** works **both in a server channel and in a DM with the bot**. When you run it inside a server, `guild_id` defaults to the current server.
 
 ### Tips for filling in options
@@ -84,11 +84,11 @@ Bot admins (owners) are configured in the `.env` file on your server machine usi
 - **`guild_id` (`サーバー`):** In most commands, typing into `guild_id` shows an autocomplete list of servers the bot knows. For `server-allow` and `server-revoke`, paste the numeric Server ID directly.
 - **`user_id` (`ユーザー`):** Fill in `guild_id` first, then `user_id` autocompletes members in that server (or paste a User ID / `@mention`). The target user must already have an account in that server (they must have opened the Activity or run any bot command there at least once).
 - **`channel_id` (`チャンネル`):** Paste the numeric Channel ID copied with Developer Mode. Whenever you provide `channel_id`, you must also provide `guild_id`.
-- **Confirmations & modals:** All `/admin` replies are private (ephemeral). Commands that overwrite balances, send announcements, delete messages, cancel raffles, delete quizzes, or revoke servers show a confirmation prompt or modal first.
+- **Confirmations & modals:** All `/admin` replies are private (ephemeral). Commands that overwrite balances, send announcements, delete messages, cancel raffles, delete quizzes, void stream rounds, or revoke servers show a confirmation prompt or modal first.
 
 ---
 
-## 5. Every `/admin` Command (26 Commands)
+## 5. Every `/admin` Command (27 Commands)
 
 In the **Options** column, `*` marks a **required** option. Options without `*` are optional. All examples use fake placeholder IDs (`111111111111111111` = server, `222222222222222222` = user, `333333333333333333` = channel).
 
@@ -129,7 +129,7 @@ Run in a **DM with the bot** (`OWNER_IDS` only).
 > [!TIP]
 > **Bulk quiz file format:** Separate each question block with `---` (lines starting with `#` are comments). Each block needs `問題:` (question), `正解:` (correct answer), three `不正解:` lines (wrong answers), and optional `解説:` (explanation), `報酬:` (reward), and `期限:` (duration, e.g. `1d`).
 
-### Server and game settings (11)
+### Server and game settings (12)
 
 Run in a **DM with the bot** (`OWNER_IDS` only), **except `/admin notifications`**, which also works in a server channel for `Manage Server` moderators and owners.
 
@@ -140,9 +140,10 @@ Run in a **DM with the bot** (`OWNER_IDS` only), **except `/admin notifications`
 | `/admin purge-messages` | `/運営 発言削除` | `*guild_id` (`サーバー`), `*channel_id` (`チャンネル`) | Asks confirmation, then deletes the bot's own messages in that channel (requires `View Channel` and `Read Message History`). | `/admin purge-messages guild_id:111111111111111111 channel_id:333333333333333333` |
 | `/admin rtp set` | `/運営 還元率 設定` | `*guild_id` (`サーバー`), `*game` (`ゲーム`: `*` or one of the 5 casino games), `*level` (`レベル`: `1` Very tight .. `3` Standard .. `6` Generous) | Changes a server's payout RTP level (`1`–`6`) for one or all casino games and replies with the full RTP table. | `/admin rtp set guild_id:111111111111111111 game:* level:3` |
 | `/admin rtp list` | `/運営 還元率 一覧` | `guild_id` (`サーバー`, default all servers) | Shows the current RTP levels and approximate RTP percentages for servers (up to 10 embeds). | `/admin rtp list guild_id:111111111111111111` |
-| `/admin feature off` | `/運営 機能 停止` | `*guild_id` (`サーバー`), `*feature` (`機能`: `*` or any of the 18 features) | Pauses new starts for a feature in that server (already-started games/bets still settle normally). | `/admin feature off guild_id:111111111111111111 feature:pachinko` |
-| `/admin feature on` | `/運営 機能 再開` | `*guild_id` (`サーバー`), `*feature` (`機能`: `*` or any of the 18 features) | Resumes a paused feature in that server. | `/admin feature on guild_id:111111111111111111 feature:pachinko` |
+| `/admin feature off` | `/運営 機能 停止` | `*guild_id` (`サーバー`), `*feature` (`機能`: `*` or any of the 19 features) | Pauses new starts for a feature in that server (already-started games/bets still settle normally). | `/admin feature off guild_id:111111111111111111 feature:pachinko` |
+| `/admin feature on` | `/運営 機能 再開` | `*guild_id` (`サーバー`), `*feature` (`機能`: `*` or any of the 19 features) | Resumes a paused feature in that server. | `/admin feature on guild_id:111111111111111111 feature:pachinko` |
 | `/admin feature list` | `/運営 機能 一覧` | `guild_id` (`サーバー`, default all servers) | Shows which features are running (`▶️`) or paused (`⏸️`) in each server. | `/admin feature list guild_id:111111111111111111` |
+| `/admin stream-void` | `/運営 配信無効` | `*guild_id` (`サーバー`), `*target` (`対象`: `stream:<id>`, `round:<id>`, or round id), `*reason` (`理由`: `1`–`200` chars) | Voids an open or locked stream round, refunds all bettors in full, posts the reason in the panel channel, and logs an audit row. | `/admin stream-void guild_id:111111111111111111 target:stream:1 reason:Stream ended early` |
 | `/admin server-list` | `/運営 サーバー一覧` | *(none)* | Shows whether `REQUIRE_APPROVAL` is on/off, joined server count, and approved / pending / denied servers with IDs. | `/admin server-list` |
 | `/admin server-allow` | `/運営 サーバー許可` | `*guild_id` (`サーバーid`) | Approves a server ID to use the bot and posts an approved notice if the bot is already in that server. | `/admin server-allow guild_id:111111111111111111` |
 | `/admin server-revoke` | `/運営 サーバー取消` | `*guild_id` (`サーバーid`) | Asks confirmation, marks a server denied, and leaves it (refuses servers listed in `.env` `ALLOWED_GUILD_IDS`). | `/admin server-revoke guild_id:111111111111111111` |

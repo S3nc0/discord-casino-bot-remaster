@@ -51,7 +51,7 @@ Everything below runs inside Discord as an **Activity** (a mini app on your phon
 
 <table>
   <tr>
-    <td width="33%"><img src="docs/images/readme/icons/dice.svg" alt="" width="32"> <b>Chinchiro</b><br>Three dice against the dealer. Roll up to 3 times.</td>
+    <td width="33%"><img src="docs/images/readme/icons/dice.svg" alt="" width="32"> <b>Chinchiro</b><br>Three dice against the dealer, or a multiplayer winner-takes-all table pot.</td>
     <td width="33%"><img src="docs/images/readme/icons/slots.svg" alt="" width="32"> <b>Slots and Pachinko</b><br>Pull the lever. Chase the jackpot.</td>
     <td width="33%"><img src="docs/images/readme/icons/cards.svg" alt="" width="32"> <b>Blackjack and Roulette</b><br>Hit, stand, double. Or bet it all on red.</td>
   </tr>
@@ -67,7 +67,12 @@ Everything below runs inside Discord as an **Activity** (a mini app on your phon
   </tr>
   <tr>
     <td><img src="docs/images/readme/icons/trophy.svg" alt="" width="32"> <b>Rankings</b><br>Weekly champion, net assets and current assets.</td>
-    <td><img src="docs/images/readme/icons/shop.svg" alt="" width="32"> <b>Shop and market</b><br>Titles, colors, items. Trade with other players.</td>
+    <td><img src="docs/images/readme/icons/shop.svg" alt="" width="32"> <b>Shop and market</b><br>Titles, colors, items, Teiai's daily relic auction and player trading.</td>
+    <td><img src="docs/images/readme/icons/flame.svg" alt="" width="32"> <b>Streams</b><br>Super chats and win/lose bets on a streamer's live panel.</td>
+  </tr>
+  <tr>
+    <td><img src="docs/images/readme/icons/company.svg" alt="" width="32"> <b>Companies</b><br>Found a subsidiary, ship goods and share dividends.</td>
+    <td><img src="docs/images/readme/icons/loan.svg" alt="" width="32"> <b>P2P loans and Kyosai</b><br>Lend Pelica to players or trade mutual-aid shares.</td>
     <td><img src="docs/images/readme/icons/shield.svg" alt="" width="32"> <b>Safe by design</b><br>Your bet is held first and settled in one step, so no coins vanish mid-game.</td>
   </tr>
 </table>

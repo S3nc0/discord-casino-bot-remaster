@@ -148,8 +148,8 @@ net assets and the field `🧾 資産（貸借対照表）`. The Activity Rankin
      - If `require_approval` is `true`: allowed iff `guild_status.status == "approved"`. Otherwise triggers DM approval request to `owner_ids` (renotified at most once per `RENOTIFY_AFTER = 3600s`).
      - If `require_approval` is `false`: allowed iff `allowed_guild_ids` is empty.
   5. Runs `approval_guard.command_feature_guard`: checks if the command maps to a disabled feature in `features_off(guild_id)`.
-- **18 Per-Guild Feature Toggle Keys** (`domain/features.py:10-29`):
-  `chinchiro`, `pachinko`, `slot`, `blackjack`, `roulette`, `arena`, `horse`, `market`, `bonds`, `kyosai`, `loan`, `company`, `labor`, `quiz`, `raffle`, `poll`, `p2p`, `shop`.
+- **18 Legacy Per-Guild Feature Toggle Keys** (`domain/features.py:10-29`):
+  `chinchiro`, `pachinko`, `slot`, `blackjack`, `roulette`, `arena`, `horse`, `market`, `bonds`, `kyosai`, `loan`, `company`, `labor`, `quiz`, `raffle`, `poll`, `p2p`, `shop` (remaster Wave 5 adds a 19th key, `stream`; see [admin.md](admin.md#wave-5-additions) and [stream.md](stream.md#4-feature-toggle)).
 - Longest-prefix command mapping (`domain/features.py:41-80`): e.g. `"証券 注文 債券"` maps to `"bonds"`, whereas `"証券 注文 ..."` maps to `"market"`.
 - **Always Allowed even when feature is OFF** (`domain/features.py:58-68`):
   `"共済 状況"`, `"共済 取消"`, `"貸付 返済"`, `"貸付 一覧"`, `"会社 状況"`, `"会社 持分"`, `"クイズ 取り下げ"`.

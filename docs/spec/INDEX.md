@@ -20,7 +20,7 @@ Master index mapping every legacy module to its behaviour specification, determi
 | Module | Spec File | Fixture Dir | Planned Owner | Notes |
 | --- | --- | --- | --- | --- |
 | Casino Common (RTP levels, jackpot, events, escrow) | [casino-common.md](casino-common.md) | `tests/fixtures/legacy/casino-common/` | B2-A | Shared helpers used across all 5 casino games. |
-| Chinchiro | [chinchiro.md](chinchiro.md) | `tests/fixtures/legacy/chinchiro/` | B2-A | 3-dice game vs dealer (`pinzoro`–`hifumi`). |
+| Chinchiro | [chinchiro.md](chinchiro.md) | `tests/fixtures/legacy/chinchiro/` | B2-A | 3-dice game vs dealer (`pinzoro`–`hifumi`), plus 2–6 seat winner-takes-all table pots (`10%` fee, `/casino chinchiro-table`). |
 | Pachinko | [pachinko.md](pachinko.md) | `tests/fixtures/legacy/pachinko/` | B2-A | Multi-spin set machine with omens, tiers, and round multipliers. |
 | Slots | [slots.md](slots.md) | `tests/fixtures/legacy/slots/` | B2-A | 3-reel weighted slot machine. |
 | Blackjack | [blackjack.md](blackjack.md) | `tests/fixtures/legacy/blackjack/` | B2-A | Standard 21 with hit, stand, and double down. |
@@ -45,9 +45,9 @@ Master index mapping every legacy module to its behaviour specification, determi
 | Teiai Bank (reserve ratio, bankruptcy grace, CDS, trust) | [teiai.md](teiai.md) | `tests/fixtures/legacy/teiai/` | B3 | Fractional reserve, thermostat, trust deposits, Toichi debt, `15,000` bankruptcy grace, forced execution, overseas escape, and CDS. |
 | P2P Loans | [p2p-loans.md](p2p-loans.md) | `tests/fixtures/legacy/p2p-loans/` | B3 | Split from Teiai Bank for clarity; player-to-player offers, simple interest, overdue penalty, maturity auto-collect, and garnishment. |
 | Teiai Kyosai | [kyosai.md](kyosai.md) | `tests/fixtures/legacy/kyosai/` | B3 | Split from Teiai Bank for clarity; unit auctions, Hamilton dividends, excess-loss charges, P2P unit transfers (`5%` fee), and governance motions. |
-| Player Market / Auction / Escrow | [player-market.md](player-market.md) | `tests/fixtures/legacy/player-market/` | B3 | Fixed-price and timed-auction listings (`5%` fee, anti-snipe, grace pull-back); game wager escrow is in [casino-common.md](casino-common.md). |
+| Player Market / Auction / Escrow | [player-market.md](player-market.md) | `tests/fixtures/legacy/player-market/` | B3 | Fixed-price and timed-auction listings (`5%` fee, anti-snipe, grace pull-back), plus Teiai's daily dug-up relic auction (`1` unstarred relic/day, 24 h auction, skips `100,000`/24 h pair cap); game wager escrow is in [casino-common.md](casino-common.md). |
 | Companies | [companies.md](companies.md) | `tests/fixtures/legacy/companies/` | B3 | Deterministic daily states, continuous output, budget-capped sales, external stakes, dividends, and 3-day unpaid upkeep bankruptcy. |
-| Stream Panel (new, upstream catch-up) | [stream.md](stream.md) | *(none — new feature; property tests instead)* | S0 | Super chats (transfer rules) and parimutuel win/lose bets (`5%` rake, `10,000` per person per round) on a streamer's panel. Owner decisions 2026-11-24: a round must be locked before win or lose, bets auto-lock after 10 minutes, `/admin stream-void` with an audit log, no auto-created voice channels. |
+| Stream Panel (shipped in v1.1.0, upstream catch-up) | [stream.md](stream.md) | *(none — new feature; property tests instead)* | S0–S3 | Super chats (transfer rules, shares `20,000`/day cap) and parimutuel win/lose bets (`5%` rake, `10,000` per person per round) via the Activity Streams screen or `/stream start`. Owner decisions 2026-11-24: a round must be locked before win or lose, bets auto-lock after 10 minutes, `/admin stream-void` with an audit log, no auto-created voice channels. |
 
 ## Merged / Split Module Notes
 

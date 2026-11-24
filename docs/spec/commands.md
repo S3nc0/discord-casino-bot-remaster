@@ -158,9 +158,10 @@ Period choices (`PERIOD_CHOICES`): `1h` (`1時間`), `6h` (`6時間`), `24h` (`2
 | `admin event stop` | `運営 イベント 終了` | `guild_id` / `サーバー`: string autocomplete (optional) | `true` | `admin` |
 | `admin rtp set` | `運営 還元率 設定` | `guild_id` / `サーバー`: string autocomplete (required); `game` / `ゲーム`: string choices (`*` + 5 casino games) (required); `level` / `レベル`: integer choices (`1..6`) (required) | `true` | `admin` |
 | `admin rtp list` | `運営 還元率 一覧` | `guild_id` / `サーバー`: string autocomplete (optional) | `true` | `admin` |
-| `admin feature off` | `運営 機能 停止` | `guild_id` / `サーバー`: string autocomplete (required); `feature` / `機能`: string choices (`*` + 18 features) (required) | `true` | `admin` |
-| `admin feature on` | `運営 機能 再開` | `guild_id` / `サーバー`: string autocomplete (required); `feature` / `機能`: string choices (`*` + 18 features) (required) | `true` | `admin` |
+| `admin feature off` | `運営 機能 停止` | `guild_id` / `サーバー`: string autocomplete (required); `feature` / `機能`: string choices (`*` + 19 features) (required) | `true` | `admin` |
+| `admin feature on` | `運営 機能 再開` | `guild_id` / `サーバー`: string autocomplete (required); `feature` / `機能`: string choices (`*` + 19 features) (required) | `true` | `admin` |
 | `admin feature list` | `運営 機能 一覧` | `guild_id` / `サーバー`: string autocomplete (optional) | `true` | `admin` |
+| `admin stream-void` | `運営 配信無効` | `guild_id` / `サーバー`: string autocomplete (required); `target` / `対象`: string (`stream:<id>`, `round:<id>`, or round id) (required); `reason` / `理由`: string max `200` (required) | `true` | `admin` / `stream` |
 | `admin raffle start` | `運営 抽選 開催` | `guild_id` / `サーバー`: string autocomplete (required); `fee` / `掛金`: integer min `500` (optional); `minutes` / `募集時間`: integer `1..1440` (optional); `channel_id` / `チャンネル`: string autocomplete (optional) | `true` | `admin` |
 | `admin raffle repost` | `運営 抽選 再掲示` | `guild_id` / `サーバー`: string autocomplete (required); `channel_id` / `チャンネル`: string autocomplete (optional) | `true` | `admin` |
 | `admin raffle cancel` | `運営 抽選 中止` | `guild_id` / `サーバー`: string autocomplete (required) | `true` | `admin` |

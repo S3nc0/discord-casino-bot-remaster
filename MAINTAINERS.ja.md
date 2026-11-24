@@ -35,7 +35,7 @@
 | パス | 中身 |
 | --- | --- |
 | `apps/server/` | サーバー本体（1 つのプロセス）。Fastify の HTTP API、Socket.io、Discord チャットボット、スケジューラー、SQLite。入口は `src/main.ts` です。 |
-| `apps/server/src/` | `auth/` ログインとセッション、`db/` ストア・マイグレーション・インポーター、`economy/` 台帳の書き込み役、`finance/` 銀行・ローン・株・会社・市場、`games/` 各ゲーム、`http/` ルート、`socket/` Socket.io、`bot/` スラッシュコマンド、`notify/` お知らせ・DM・受信箱、`runtime/` 起動・ジョブ・制限。 |
+| `apps/server/src/` | `auth/` ログインとセッション、`db/` ストア・マイグレーション・インポーター、`economy/` 台帳の書き込み役、`finance/` 銀行・ローン・株・会社・市場、`games/` 各ゲーム、`stream/` 配信パネル、`http/` ルート、`socket/` Socket.io、`bot/` スラッシュコマンド、`notify/` お知らせ・DM・受信箱、`runtime/` 起動・ジョブ・制限。 |
 | `apps/server/scripts/` | `import-legacy.ts`（旧データの取り込み）と `load.ts`（負荷テスト用）。 |
 | `apps/web/` | Discord アクティビティ本体（React 19 + Vite）。`src/shell/` が外枠（ログイン、ソケット、ストア）、`src/screens/` が画面のグループごとのフォルダです。 |
 | `packages/shared/` | サーバーと画面の両方が守る取り決め。ID、TypeBox スキーマ、ソケットとドメインのイベント、台帳の理由、環境変数の仕様、`i18n/` の英日テキスト。 |
@@ -164,7 +164,7 @@ API やソケットの取り決めを壊す変更は、画面とサーバーを�
 **マイグレーション。** データベースの構造は `apps/server/src/db/migrations/` にある番号付きの SQL ファイルで、`index.ts` に並べ、サーバーの起動時に順番どおり 1 ファイルずつトランザクションで適用されます。適用済みファイルのチェックサムは `schema_migrations` に記録されます。
 
 - マージ済みのマイグレーションは絶対に書き換えません。次の番号で新しく足します。適用済みのファイルが書き換わっていたり、このビルドが知らないマイグレーションがデータベースに入っていたり（新しいビルドが書いたもの）すると、サーバーは起動を拒否します。そのファイルで古いビルドを動かさないでください。
-- 最新は `0012_pinned_posts` です（ボットがピン留めした投票・共済の動議・抽選の投稿を覚えておく `pinned_posts` テーブル。掃除のジョブがピン留めを外すために使います）。その前の `0011_arena_runner_up` は、`arena_tournaments.runner_up_id` という NULL 可能な列を足し、決勝の 2 位を保存します（それ以前に終わった大会では空です）。
+- 最新は `0013_stream` です（配信パネル用の `streams`、`stream_rounds`、`stream_bets`、`stream_round_audit`）。その前の `0012_pinned_posts` は、ボットがピン留めした投票・共済の動議・抽選の投稿を覚えておく `pinned_posts` テーブル（掃除のジョブがピン留めを外すために使います）を追加し、さらに前の `0011_arena_runner_up` は、`arena_tournaments.runner_up_id` という NULL 可能な列を足し、決勝の 2 位を保存します（それ以前に終わった大会では空です）。
 - お金の列は整数、金利は bp（ベーシスポイント）、価格は固定小数点です。ルールとテーブルは [docs/DB_SCHEMA.ja.md](docs/DB_SCHEMA.ja.md) にあります。
 
 **バックアップ。** Pi では systemd のタイマーが毎晩 3:30 ごろに `ops/pi/backup.sh` を実行し、`/var/backups/discord-casino/` に 7 日分を残します。SQLite のオンライン `.backup` を使うので、サーバーが動いていても安全です。今すぐ取るには：
@@ -258,7 +258,7 @@ sudo journalctl -u discord-casino.service -n 50 --no-pager
 
 | フォルダ | 描くもの | 書き出す先（とくに書いていなければ `apps/web/src/screens/`） |
 | --- | --- | --- |
-| `icons/` | ゲームアイコン 35 個 | `packages/ui/src/pixel/icon-art.ts` と `packages/ui/src/styles/bundle.css` のアイコンの色 |
+| `icons/` | ゲームアイコン 36 個 | `packages/ui/src/pixel/icon-art.ts` と `packages/ui/src/styles/bundle.css` のアイコンの色 |
 | `app-icon/` | アプリアイコン（`512x512`）と Activity 用ファビコン（`32x32`、`16x16`） | `docs/images/app-icon-512.png`、`apps/web/public/favicon-32.png`、`apps/web/public/favicon-16.png` |
 | `horse/` | 8 コマの競走馬（参考資料が必要） | `horse/horse-art.ts` と `horse/horse.css` の毛色と勝負服の色 |
 | `scenes/` | レース、厩舎、配合、闘技場（戦士 16 人）、鉱山（鉱夫、鉱石、発掘品）、ショップ、持ち物 | `horse/race-art.ts`、`stable-art.ts`、`arena-art.ts`、`life/mine-art.ts`、`shop-art.ts`、`inventory-art.ts` |

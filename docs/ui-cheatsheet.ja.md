@@ -51,7 +51,7 @@
 
 | エクスポート | 主なプロパティ | 使いどころ |
 | --- | --- | --- |
-| `GameIcon` | `name`（`GameIconName`、35 種）、`label?`、`bob?` | タイルや見出しのゲームや機能のアイコン。16×16 の絵を整数倍の大きさで。 |
+| `GameIcon` | `name`（`GameIconName`、36 種）、`label?`、`bob?` | タイルや見出しのゲームや機能のアイコン。16×16 の絵を整数倍の大きさで。 |
 | `Skyline` | `variant?`（`'night'\|'day'`。テーマに従う） | ホームのヒーローの後ろのドット絵の街。 |
 | `Sparkle` | `twinkle?` | ごほうびの小さなきらめき（`tertiary`）。 |
 | `PixelScene` | `art`（`SceneArt`）、`frame?`、`scale?`（整数）、`label?`、`children?` | 画面の場面を、くっきりした整数倍の大きさで。上に重ねる層も置けます。 |
