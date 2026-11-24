@@ -43,6 +43,11 @@
    └───────(admin cancel)──────────────────► [ cancelled ] (all refunded)
 ```
 
+### 2.3 Pinned Recruitment Post (remaster, port of upstream 22a1f66)
+- The recruitment post of `/admin raffle start` is **pinned** right after it is posted. `/admin raffle repost` pins the new post and **unpins the older one**. The pin is released once the raffle is no longer `open`: drawn, refunded or cancelled.
+- Needs the **Pin Messages** permission in that channel. Without it, with a full pin list or a deleted message, the raffle works the same, just unpinned. The failure is logged (one line per guild per 10 minutes at most) and the owner's reply to `start` / `repost` adds one line: `bot.admin.pinFailed`.
+- Mechanism: the message is recorded in `pinned_posts` (kind `raffle`); the `notify:pin-sweep` job (every 30 s) unpins every recorded post whose raffle is not `open` and deletes the row. A deleted message is ignored silently. See [DB_SCHEMA.md](../DB_SCHEMA.md).
+
 ---
 
 ## 3. Edge Cases

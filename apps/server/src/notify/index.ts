@@ -30,6 +30,7 @@ export * from './dm-queue.ts';
 export * from './inbox-writer.ts';
 export * from './messages.ts';
 export * from './personas.ts';
+export * from './post-pins.ts';
 export * from './ports.ts';
 export * from './runtime.ts';
 export * from './theme.ts';

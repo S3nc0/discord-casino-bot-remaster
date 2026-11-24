@@ -35,6 +35,7 @@ import {
   createTeiaiPort,
 } from './adapters/index.ts';
 import { EventBus } from './bus.ts';
+import { PostPinService } from '../notify/post-pins.ts';
 import { systemClock } from './clock.ts';
 import type { Config } from './config.ts';
 import { buildJobManifest } from './jobs.ts';
@@ -92,6 +93,8 @@ export interface CasinoServices {
   finance: FinanceServices;
   games: NonCasinoGames;
   casino: CasinoGames;
+  /** Pins the poll, kyosai motion and raffle posts and unpins them when they end. */
+  postPins: PostPinService;
   scheduler: Scheduler;
   /** Start HTTP and sockets, then the scheduler. */
   listen(): Promise<string>;
@@ -259,6 +262,8 @@ export function createServer(options: CreateServerOptions): CasinoServices {
   const refunded = casino.recover();
   if (refunded > 0) logger.warn({ refunded }, 'refunded casino rounds left open by a crash');
 
+  const postPins = new PostPinService({ store, clock, logger });
+
   const scheduler = new Scheduler({
     clock,
     logger,
@@ -268,6 +273,7 @@ export function createServer(options: CreateServerOptions): CasinoServices {
       logger,
       finance,
       games,
+      postPins,
       purgeLaunchIntents: () => (launchIntents as SqliteLaunchIntentService).purge(),
     }),
     ...(options.cronDriver === undefined ? {} : { driver: options.cronDriver }),
@@ -293,6 +299,7 @@ export function createServer(options: CreateServerOptions): CasinoServices {
     finance,
     games,
     casino,
+    postPins,
     scheduler,
     async listen() {
       const address = await app.listen({ port: config.port, host: config.host });

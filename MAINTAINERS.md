@@ -164,7 +164,7 @@ Breaking changes to the API or socket contract need the web build and the server
 **Migrations.** The schema is a list of numbered SQL files in `apps/server/src/db/migrations/`, listed in `index.ts` and applied in order when the server starts, one transaction each. Each applied file's checksum is stored in `schema_migrations`.
 
 - Never edit a migration that has merged. Add the next number instead. The server refuses to start if an applied file was edited, or if the database has a migration this build does not know (a newer build wrote it; do not run an older build on that file).
-- The latest is `0011_arena_runner_up` (a nullable `arena_tournaments.runner_up_id`: second place of the final; empty for tournaments that finished earlier).
+- The latest is `0012_pinned_posts` (the `pinned_posts` table: which poll, kyosai motion and raffle posts the bot has pinned, so the sweep can unpin them). Before it, `0011_arena_runner_up` added a nullable `arena_tournaments.runner_up_id`: second place of the final; empty for tournaments that finished earlier.
 - Money columns are integers, rates are basis points, prices are fixed point. Rules and tables: [docs/DB_SCHEMA.md](docs/DB_SCHEMA.md).
 
 **Backups.** On the Pi, a systemd timer runs `ops/pi/backup.sh` every night at about 03:30 and keeps seven days in `/var/backups/discord-casino/`. It uses SQLite's online `.backup`, so it is safe while the server runs. To take one right now:

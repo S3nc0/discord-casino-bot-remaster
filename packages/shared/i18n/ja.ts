@@ -1875,4 +1875,7 @@ export const ja: Messages = {
   'screen.casino.blackjack.credit.tooShort':
     '{need} ペリカ足りません。帝愛がダブルのために貸せるのは最大 {cap} ペリカまでです。',
   'screen.casino.blackjack.credit.failed': '帝愛から借りられませんでした。',
+  // Auto-pin: owner-facing hint when a raffle post could not be pinned.
+  'bot.admin.pinFailed':
+    '投稿をピン留めできませんでした。そのチャンネルでボットに「メッセージをピン留め」権限を付けてください。',
 };

@@ -45,7 +45,7 @@ outermost commit; they are dropped on rollback. That is how "events are publishe
 holds. Per-connection pragmas (`db/pragmas.ts`): WAL, `synchronous = NORMAL`,
 `busy_timeout = 5000`, foreign keys, recursive triggers.
 
-Migrations are numbered `.sql` files in `db/migrations/` (`0001_init` to `0011_arena_runner_up` at
+Migrations are numbered `.sql` files in `db/migrations/` (`0001_init` to `0012_pinned_posts` at
 the time of writing), listed in `db/migrations/index.ts` and inlined into the bundle. `runMigrations`
 applies the newer ones in order, one transaction each, and records a SHA-256 checksum in
 `schema_migrations`. The server refuses to start if an applied migration was edited, or if the file
@@ -58,7 +58,8 @@ add a new one. Tables and rules: [DB_SCHEMA.md](DB_SCHEMA.md).
 the game's time zone (`UTC_OFFSET_HOURS`, 9 for JST). `runtime/jobs.ts` is the one manifest:
 the finance jobs (the market, Teiai bank, loans and kyosai each every minute; companies daily plus maintenance; player-market settlement), the game jobs
 (races four times a day, daily reset and reminders, arena, weekly ranking, lottery, polls, quiz,
-shop market) which run once per guild that is not `denied`, and housekeeping (expired idempotency
+shop market) which run once per guild that is not `denied`, the pin sweep (every 30 seconds, see
+[Notify](#notify)), and housekeeping (expired idempotency
 keys every 10 minutes, expired launch intents every minute). A job that throws is logged and never
 stops the scheduler; a guild that throws never stops the other guilds.
 
@@ -94,6 +95,13 @@ its `NotificationKind` if players can opt in, and the toast tone):
   writes the inbox notice `dm_disabled`.
 - **Inbox** (`inbox-writer.ts`) and **toasts**: the same events are stored in the inbox and sent
   to the user's socket room.
+
+- **Pinned posts** (`post-pins.ts`): the public chat post of a new poll, kyosai motion or raffle is
+  pinned (`PostPinService.pinPost`) and recorded in `pinned_posts`; the `notify:pin-sweep` job
+  (every 30 s) unpins each one whose poll, motion or raffle is no longer open. It needs the **Pin
+  Messages** permission and never breaks the command or job around it: a refused pin is logged
+  (once per guild per 10 minutes) and a deleted message is ignored. The Discord side is the
+  separate `PostPinPort`, attached after the bot logs in.
 
 Everything reaches Discord through `DiscordNotifyPort` (`ports.ts`); with `BOT_DISABLED=1` a no-op
 port is used, so HTTP, sockets and jobs still run.
