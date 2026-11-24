@@ -88,9 +88,20 @@ const DiscordGuilds = Type.Array(
 );
 const ActivityInstance = Type.Object({
   instance_id: Type.String(),
-  location: Type.Object({ guild_id: Type.Optional(Type.Union([Type.String(), Type.Null()])) }),
+  location: Type.Object({
+    guild_id: Type.Optional(Type.Union([Type.String(), Type.Null()])),
+    /** The channel the instance runs in (the stream panel's location, docs/spec/stream.md §8). */
+    channel_id: Type.Optional(Type.Union([Type.String(), Type.Null()])),
+  }),
   users: Type.Array(Type.String()),
 });
+const DiscordChannel = Type.Object({
+  id: Type.String(),
+  type: Type.Integer(),
+  guild_id: Type.Optional(Type.Union([Type.String(), Type.Null()])),
+});
+/** Discord channel types that are voice channels: `GUILD_VOICE` and `GUILD_STAGE_VOICE`. */
+export const VOICE_CHANNEL_TYPES: ReadonlySet<number> = new Set([2, 13]);
 
 export interface DiscordUserInfo {
   id: string;
@@ -107,6 +118,8 @@ export interface DiscordGuildInfo {
 export interface ActivityInstanceInfo {
   instanceId: string;
   guildId: string | null;
+  /** Channel of the instance, when Discord names one. */
+  channelId: string | null;
   userIds: string[];
 }
 
@@ -211,8 +224,34 @@ export class DiscordApi {
     return {
       instanceId: instance.instance_id,
       guildId: instance.location.guild_id ?? null,
+      channelId: instance.location.channel_id ?? null,
       userIds: instance.users,
     };
+  }
+
+  /**
+   * The voice channel an Activity instance of `guildId` runs in, or null (no channel, a text
+   * channel, another guild's channel, or Discord did not answer). The stream location only.
+   */
+  async activityVoiceChannel(instanceId: string, guildId: string): Promise<string | null> {
+    try {
+      const instance = await this.getActivityInstance(instanceId);
+      if (!instance?.channelId || instance.guildId !== guildId) return null;
+      const response = await this.call(
+        {
+          method: 'GET',
+          url: `${this.baseUrl}/channels/${encodeURIComponent(instance.channelId)}`,
+          headers: { authorization: `Bot ${this.botToken}` },
+        },
+        [403, 404],
+      );
+      if (response.status !== 200 && response.status !== 201) return null;
+      const channel = this.parse(DiscordChannel, response, 'channel');
+      if (channel.guild_id !== guildId || !VOICE_CHANNEL_TYPES.has(channel.type)) return null;
+      return channel.id;
+    } catch {
+      return null;
+    }
   }
 
   private async call(request: HttpRequest, accept: number[] = []): Promise<HttpResponse> {

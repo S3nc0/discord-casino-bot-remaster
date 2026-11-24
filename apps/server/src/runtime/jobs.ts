@@ -3,6 +3,7 @@ import type { Store } from '../db/store.ts';
 import { FINANCE_JOBS, type FinanceServices } from '../finance/jobs.ts';
 import type { NonCasinoGames } from '../games/progression/register.ts';
 import type { PostPinService } from '../notify/post-pins.ts';
+import type { StreamService } from '../stream/service.ts';
 import type { JobSpec } from './scheduler.ts';
 
 export interface JobManifestDeps {
@@ -12,6 +13,8 @@ export interface JobManifestDeps {
   games: Pick<NonCasinoGames, 'jobs'>;
   /** Pinned poll, motion and raffle posts; the sweep unpins the ones that ended. */
   postPins?: Pick<PostPinService, 'sweep'>;
+  /** Stream panel: auto-lock rounds past `autoLockAt`, close panels past 24 h. */
+  stream?: Pick<StreamService, 'lockDue' | 'closeDue'>;
   /** Housekeeping hooks owned by the auth and casino layers. */
   purgeLaunchIntents(): unknown;
 }
@@ -82,5 +85,40 @@ export function buildJobManifest(deps: JobManifestDeps): JobSpec[] {
       ]
     : [];
 
-  return [...financeJobs, ...gameJobs, ...pinJobs, ...housekeeping];
+  // Both run once per guild that is not denied; the database is the only state, so a missed
+  // tick is caught up by the next one.
+  const stream = deps.stream;
+  const perGuild = (name: string, run: (guildId: string) => unknown) => () => {
+    for (const guildId of listGameGuilds(store)) {
+      try {
+        run(guildId);
+      } catch (error) {
+        logger.error({ err: error, job: name, guildId }, 'stream job failed for guild');
+      }
+    }
+  };
+  const streamJobs: JobSpec[] = stream
+    ? [
+        {
+          id: 'stream:lock-due',
+          cron: '* * * * *',
+          description:
+            'Lock stream rounds whose bets closed by themselves (10 minutes after opening).',
+          run: perGuild('stream.lockDue', (g) => stream.lockDue(g)),
+        },
+        {
+          id: 'stream:close-due',
+          cron: '* * * * *',
+          description:
+            'Close stream panels 24 hours after they started (an undecided round is voided).',
+          run: perGuild('stream.closeDue', (g) =>
+            stream.closeDue(g, (error, streamId) =>
+              logger.error({ err: error, guildId: g, streamId }, 'stream close failed'),
+            ),
+          ),
+        },
+      ]
+    : [];
+
+  return [...financeJobs, ...gameJobs, ...pinJobs, ...streamJobs, ...housekeeping];
 }

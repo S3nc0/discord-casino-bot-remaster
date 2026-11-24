@@ -24,6 +24,7 @@ import {
   type ServerToClientEvents,
   type SocketData,
   type TableSnapshot,
+  type StreamView,
 } from '@casino/shared';
 import type { Logger } from 'pino';
 import {
@@ -64,6 +65,8 @@ export interface SocketHandlers {
   bet?(scope: RoomScope, intent: BetIntent): Promise<IntentAck> | IntentAck;
   action?(scope: RoomScope, intent: ActionIntent): Promise<IntentAck> | IntentAck;
   presence?(scope: RoomScope, payload: PresenceScreen): void;
+  /** The caller's view of a live stream of their guild, or null (the `stream:join` check). */
+  streamView?(scope: RoomScope, streamId: number): StreamView | null;
 }
 
 export interface SocketLimits {
@@ -406,6 +409,21 @@ export function attachSocketServer(options: SocketServerOptions): SocketServer {
       void socket.leave(rooms.table(scope.instanceId, payload.game));
     });
 
+    socket.on('stream:join', (payload, ack) => {
+      if (!handlers.streamView) return reply(ack, { ok: false, error: 'feature_disabled' });
+      const view = handlers.streamView(scope, payload.streamId);
+      if (!view) return reply(ack, { ok: false, error: 'not_found' });
+      // The room name is built from the token's guild, never from client input.
+      if (!joinScoped(socket, rooms.stream(scope.guildId, payload.streamId))) {
+        return reply(ack, { ok: false, error: 'forbidden' });
+      }
+      return reply(ack, { ok: true, data: view });
+    });
+
+    socket.on('stream:leave', (payload) => {
+      void socket.leave(rooms.stream(scope.guildId, payload.streamId));
+    });
+
     socket.on('game:bet', async (intent, ack) => {
       if (!handlers.bet) {
         return reply(ack, {
@@ -474,6 +492,12 @@ export function attachSocketServer(options: SocketServerOptions): SocketServer {
   // it names, and only the ones signed in to that guild (a user room spans guilds).
   const offDomain = bus.onAnyDomain((event) => {
     const audience = audienceOf(event);
+    if (audience.scope === 'stream') {
+      // One emit to both rooms, so a socket in both gets the event once.
+      const room = rooms.stream(event.guildId, audience.streamId);
+      io.to(audience.guild ? [room, rooms.guild(event.guildId)] : room).emit('domain:event', event);
+      return;
+    }
     if (audience.scope === 'guild') {
       io.to(rooms.guild(event.guildId)).emit('domain:event', event);
       return;

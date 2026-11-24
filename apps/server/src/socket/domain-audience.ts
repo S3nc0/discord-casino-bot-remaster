@@ -16,11 +16,37 @@ const GUILD_PUBLIC = new Set<DomainEventType>([
   'TeiaiRelicListed',
 ]);
 
-export type Audience = { scope: 'guild' } | { scope: 'users'; userIds: string[] };
+export type Audience =
+  | { scope: 'guild' }
+  | { scope: 'users'; userIds: string[] }
+  /** The stream's room (`rooms.stream`); `guild` also sends it to the guild room (the live list). */
+  | { scope: 'stream'; streamId: number; guild: boolean };
+
+/**
+ * Stream panel events go to the stream room. Start and end are public (the live list updates
+ * without polling); tips, bets and rounds stay in the room of the people watching.
+ */
+const STREAM_EVENTS = new Set<DomainEventType>([
+  'StreamStarted',
+  'StreamTipped',
+  'StreamBetPlaced',
+  'StreamRoundOpened',
+  'StreamRoundLocked',
+  'StreamRoundSettled',
+  'StreamEnded',
+]);
+const STREAM_GUILD_PUBLIC = new Set<DomainEventType>(['StreamStarted', 'StreamEnded']);
 
 /** Who may receive `event` over the socket. */
 export function audienceOf(event: DomainEvent): Audience {
   if (GUILD_PUBLIC.has(event.type)) return { scope: 'guild' };
+  if (STREAM_EVENTS.has(event.type) && 'streamId' in event) {
+    return {
+      scope: 'stream',
+      streamId: event.streamId,
+      guild: STREAM_GUILD_PUBLIC.has(event.type),
+    };
+  }
   if (event.type === 'CompanyBankrupt') {
     return { scope: 'users', userIds: [...new Set([event.ownerId, ...event.investorIds])] };
   }

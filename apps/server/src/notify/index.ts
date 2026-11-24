@@ -3,7 +3,7 @@ import type { Logger } from 'pino';
 import type { Store } from '../db/store.ts';
 import type { EventBus } from '../runtime/bus.ts';
 import type { CasinoServer } from '../socket/server.ts';
-import { Announcer, type FlushReport } from './announcer.ts';
+import { Announcer, GuildRateLimiter, type FlushReport } from './announcer.ts';
 import { NotifyConfigService } from './config-service.ts';
 import { DmQueue, type DmProcessReport } from './dm-queue.ts';
 import { InboxWriter } from './inbox-writer.ts';
@@ -14,6 +14,7 @@ import {
   type SubscribedDomainEvent,
 } from './messages.ts';
 import { WebhookPersonaManager } from './personas.ts';
+import { StreamPosts } from './stream-posts.ts';
 import {
   createNoopDiscordPort,
   createNoopRealtimePort,
@@ -33,6 +34,7 @@ export * from './personas.ts';
 export * from './post-pins.ts';
 export * from './ports.ts';
 export * from './runtime.ts';
+export * from './stream-posts.ts';
 export * from './theme.ts';
 
 export interface AttachNotifyOptions {
@@ -70,8 +72,10 @@ export interface NotifyHandle {
   readonly dmQueue: DmQueue;
   readonly inboxWriter: InboxWriter;
   readonly personas: WebhookPersonaManager;
+  /** Tip cards, round notices and results of the stream panel, in the panel's channel. */
+  readonly streamPosts: StreamPosts;
   /** Flush due announcement batches and process due DM queue items. */
-  flush(): Promise<{ announcements: FlushReport; dms: DmProcessReport }>;
+  flush(): Promise<{ announcements: FlushReport; dms: DmProcessReport; streams: number }>;
   /** Unsubscribe from the bus and stop background timers. */
   stop(): void;
 }
@@ -126,6 +130,7 @@ export function attachNotify(options: AttachNotifyOptions): NotifyHandle {
       : { permissionCooldownMs: options.permissionCooldownMs }),
   });
 
+  const rateLimiter = new GuildRateLimiter(options.rateWindowMs ?? 60_000);
   const announcer = new Announcer({
     configService: config,
     port,
@@ -133,6 +138,7 @@ export function attachNotify(options: AttachNotifyOptions): NotifyHandle {
     clock: options.clock,
     logger: options.logger,
     theme,
+    rateLimiter,
     ...(options.batchWindowMs === undefined ? {} : { batchWindowMs: options.batchWindowMs }),
     ...(options.maxBatchSize === undefined ? {} : { maxBatchSize: options.maxBatchSize }),
     ...(options.rateWindowMs === undefined ? {} : { rateWindowMs: options.rateWindowMs }),
@@ -174,13 +180,32 @@ export function attachNotify(options: AttachNotifyOptions): NotifyHandle {
     }
   };
 
+  const streamPosts = new StreamPosts({
+    store: options.store,
+    configService: config,
+    port,
+    rateLimiter,
+    clock: options.clock,
+    logger: options.logger,
+    theme,
+  });
+
   const unsubscribes = SUBSCRIBED_EVENT_TYPES.map((type) =>
     options.bus.onDomain(type, (event) => handleEvent(event)),
   );
+  unsubscribes.push(streamPosts.attach(options.bus));
 
-  const flush = async (): Promise<{ announcements: FlushReport; dms: DmProcessReport }> => {
-    const [announcements, dms] = await Promise.all([announcer.flushDue(), dmQueue.processDue()]);
-    return { announcements, dms };
+  const flush = async (): Promise<{
+    announcements: FlushReport;
+    dms: DmProcessReport;
+    streams: number;
+  }> => {
+    const [announcements, dms, streams] = await Promise.all([
+      announcer.flushDue(),
+      dmQueue.processDue(),
+      streamPosts.flushDue(),
+    ]);
+    return { announcements, dms, streams };
   };
 
   const pollIntervalMs = options.pollIntervalMs ?? 1_000;
@@ -201,6 +226,7 @@ export function attachNotify(options: AttachNotifyOptions): NotifyHandle {
     dmQueue,
     inboxWriter,
     personas,
+    streamPosts,
     flush,
     stop() {
       if (stopped) return;
