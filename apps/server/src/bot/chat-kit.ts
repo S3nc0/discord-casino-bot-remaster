@@ -166,6 +166,20 @@ export function ruleMessage(locale: Locale, error: unknown): string | null {
   return t(locale, key as MessageKey, error.params);
 }
 
+/** Margin refusals the finance service raises, with the text players should read in chat. */
+const MARGIN_REASON_KEYS = {
+  margin_ratio_too_low: 'screen.finance.reason.margin_ratio_too_low',
+  market_collateral_locked: 'screen.finance.reason.market_collateral_locked',
+} as const satisfies Record<string, MessageKey>;
+
+/** The text for a margin refusal (`unwrapService` keeps its reason on the error), else `null`. */
+export function marginReasonMessage(locale: Locale, error: unknown): string | null {
+  if (!(error instanceof AppError) || error.authReason === undefined) return null;
+  if (!Object.hasOwn(MARGIN_REASON_KEYS, error.authReason)) return null;
+  const key = MARGIN_REASON_KEYS[error.authReason as keyof typeof MARGIN_REASON_KEYS];
+  return t(locale, key);
+}
+
 /** Now on the game clock. */
 export function nowOf(deps: Pick<BotRouterDeps, 'clock'>): number {
   return deps.clock ? deps.clock.now() : Date.now();

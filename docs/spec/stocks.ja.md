@@ -96,7 +96,7 @@
   - 使えるレバレッジ：`SHORT_LEVERAGES = (1, 2, 3, 5)`。
   - `SHORT_MIN_MARGIN = 10` ペリカ。
   - `RISK_K = 20.0`（ポートフォリオの証拠金の係数）。
-  - `OPEN_RATIO = 1.30`（信用取引を建てる・追加する、または担保を売る・取り消すのに必要な、最低 130% の維持率）。
+  - `OPEN_RATIO = 1.30`（信用取引を建てる・追加する、または担保を売る・取り消すのに必要な、最低 130% の担保余裕度）。
   - `LOSSCUT_RATIO = 1.00`（100% で強制決済が発動）。
   - 担保の掛け目（`COLLATERAL_HAIRCUT`）：`spot = 0.80`、`normal` の債券 ＝ `0.95`、`junk` の債券 ＝ `0.50`。
   - 信用取引の金利（`BORROW_RATE_PER_DAY`）：
@@ -110,7 +110,7 @@
   - 同じ銘柄で、`long` と `short` を同時には持てません（`margin_opposite_open`）。
   - 同じ向きの既存のポジションに追加すると、1 行 `(guild_id, user_id, symbol, side)` に平均されます（`units += u`、`entry_value += ev`、`margin += m`）。
   - 債務者（`debt > 0`）は、新しい信用取引のポジションを建てられません（`margin_debt_blocks`）。
-- **クロスマージンのポートフォリオの純資産と維持率**（`domain/market.py:196-204`、`infra/db/margin.py`）：
+- **クロスマージンのポートフォリオの純資産と担保余裕度**（`domain/market.py:196-204`、`infra/db/margin.py`）：
   - 現在の価格での、符号つきのエクスポージャーのベクトル `w[s] = +notional`（買い）または `-notional`（売り）。
   - `required_margin(w) = 20.0 * sqrt(max(0.0, w^T Σ w))`。相関のあるヘッジ（たとえば `cs` の買い ＋ `teio` の売り）は分散を相殺し、必要証拠金を減らします。
   - `margin_pnl(side, units, entry_value, price)`：`round(now - entry_value)`（買い）、`round(entry_value - now)`（売り）。ここで `now = units * price / UNIT`。
@@ -229,7 +229,7 @@
 - **決算**：scheduled → announced（月曜 09:00）→ released（火曜 13:30）。
 
 ## エッジケース
-- 信用取引のポジションを持ったまま、現物を売る、または通常債を取り消すと、`check_spot_sell` / `check_bond_cancel` が働き、売却後の維持率が `OPEN_RATIO = 1.30` を下回るなら失敗します。
+- 信用取引のポジションを持ったまま、現物を売る、または通常債を取り消すと、`check_spot_sell` / `check_bond_cancel` が働き、売却後の担保余裕度が `OPEN_RATIO = 1.30` を下回るなら失敗します。
 - 破産のときは、現物（`taxable=False`）、信用取引のポジション、通常債（`bond_write_off_for`）を強制的に清算します。
 - `MarketView` はオーナーごと（`OwnerView`）で、自動更新されません。`/証券 市況` は、更新されない対話型のビューを投稿し、ライブチャート（`chart_posts`）は、60 分のあいだ、その場で編集されます。
 - `/債券` のコマンドの cog（`cogs/market/bond_cog.py`）は、ユーザーを `/証券 注文 債券` と `/証券 保有` に案内する、旧版からの転送のメッセージとしてだけ残してあります。
@@ -241,7 +241,7 @@
 | `market.event_up` | `📈 急騰！` | `cogs/market/embeds.py:20` |
 | `market.event_down` | `📉 急落！` | `cogs/market/embeds.py:20` |
 | `market.tax_line` | `🕴️ 帝愛の税（利益の累進課税）: **−{tax:,}ペリカ**（帝愛銀行の収入になります）\n` | `cogs/market/embeds.py:27` |
-| `market.margin_ratio` | `{mark} **口座の維持率 {ratio:.0%}**　有効証拠金 {equity} ÷ 必要証拠金 {req}\n（{losscut:.0%} を下回ると、損の大きい建玉から強制決済。現物・債券は担保に数えます）` | `cogs/market/embeds.py:48-51` |
+| `market.margin_ratio` | `{mark} **口座の担保余裕度 {ratio:.0%}**　有効証拠金 {equity} ÷ 必要証拠金 {req}\n（{losscut:.0%} を下回ると、損の大きい建玉から強制決済。現物・債券は担保に数えます）` | `cogs/market/embeds.py:48-51` |
 | `market.pin_banner` | `\n**{mark}に張り付き中**　約定しない売買: {locked}` | `cogs/market/embeds.py:135` |
 | `market.pin_down_err` | `🚨 {name} は**ストップ安に張り付いています**。{act}は、買い手がいなくて約定しません（下げが止まるまで、待つしかありません）。` | `cogs/shared/messages/market.py:25-26` |
 | `market.pin_up_err` | `🚀 {name} は**ストップ高に張り付いています**。{act}は、売り手がいなくて約定しません（上げが止まるまで、待つしかありません）。` | `cogs/shared/messages/market.py:34-35` |
@@ -256,9 +256,9 @@
 | `market.view_owner_only` | `自分の \`/証券 市況\` で操作してください。` | `cogs/market/views.py:186` |
 | `market.modal_pct_title` | `手放す割合` / `割合（1〜100の数字。100で全部）` | `cogs/market/views.py:25-27` |
 | `market.bond_buy_title` | `{emoji} {name}を買いました` | `cogs/market/embeds.py:453` |
-| `market.err_collateral_locked` | `信用取引の担保になっているので、売れません（売ると維持率が {ratio:.0%}・{open_ratio:.0%} 以上が必要）。先に建玉を決済してください。` | `cogs/shared/messages/market.py:46-47` |
+| `market.err_collateral_locked` | `信用取引の担保になっているので、売れません（売ると担保余裕度が {ratio:.0%}・{open_ratio:.0%} 以上が必要）。先に建玉を決済してください。` | `cogs/shared/messages/market.py:46-47` |
 | `market.err_margin_opposite` | `{name}の{other_label}を建てています。先に決済してください。` | `cogs/shared/messages/market.py:53` |
-| `market.err_margin_ratio` | `口座の維持率が足りなくなります（建てると {ratio:.0%}・{open_ratio:.0%} 以上が必要）。証拠金を減らすか、レバレッジを下げるか、現物や債券を担保に持ってください。` | `cogs/shared/messages/market.py:67-68` |
+| `market.err_margin_ratio` | `口座の担保余裕度が足りなくなります（建てると {ratio:.0%}・{open_ratio:.0%} 以上が必要）。証拠金を減らすか、レバレッジを下げるか、現物や債券を担保に持ってください。` | `cogs/shared/messages/market.py:67-68` |
 | `market.err_opt_bank_no_cash` | `いま帝愛銀行の手元の現金が足りず、プレミアムを払えません（準備率が低いとき）。` | `cogs/shared/messages/market.py:88` |
 | `market.err_bond_min` | `{min_amount:,}ペリカ以上で買ってください。` | `cogs/shared/messages/market.py:91` |
 | `market.err_bond_max` | `{name}は元本の合計が {max_total:,}ペリカ まで（いま {held:,}ペリカ 保有）。あと {room:,}ペリカ まで買えます。` | `cogs/shared/messages/market.py:93-94` |

@@ -1164,7 +1164,7 @@ export const en = {
   'screen.finance.market.noHoldings': 'You hold nothing yet.',
   'screen.finance.market.equity': 'Equity',
   'screen.finance.market.required': 'Required',
-  'screen.finance.market.health': 'Margin health',
+  'screen.finance.market.health': 'Collateral headroom',
   'screen.finance.market.losscutWarn': 'Close to a loss-cut. Close a position or add cash.',
   'screen.finance.market.spotRow': '{symbol} ×{units}',
   'screen.finance.market.longRow': 'Long {symbol} ×{units}',
@@ -1297,6 +1297,10 @@ export const en = {
   'screen.finance.reason.marketplace_asset_not_owned': 'You do not hold that many.',
   'screen.finance.reason.marketplace_debtor_blocked': 'You cannot sell while you owe Teiai.',
   'screen.finance.reason.invalid_qty': 'That quantity is not valid.',
+  'screen.finance.reason.margin_ratio_too_low':
+    "Your account's collateral headroom would fall below 130%. Post less margin, lower the leverage, or hold spot or bonds as collateral.",
+  'screen.finance.reason.market_collateral_locked':
+    'That is backing your margin positions, so it cannot be sold (selling would leave the account short on collateral headroom). Close a position first.',
   // Casino screens, daily bonus on Home and ledger history (screen.casino.*).
   'home.games': 'Games',
   'screen.casino.bet': 'Bet',

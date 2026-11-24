@@ -39,7 +39,7 @@ import {
   dispatchChatComponent,
   dispatchChatModal,
 } from './chat-dispatch.ts';
-import { ruleMessage } from './chat-kit.ts';
+import { marginReasonMessage, ruleMessage } from './chat-kit.ts';
 import { dispatchWiredCommand } from './wired-commands.ts';
 
 export const OPEN_ACTIVITY_BUTTON_ID = buildLaunchButtonId('home');
@@ -315,6 +315,8 @@ function localizedErrorMessage(locale: Locale, error: AppError): string {
   if (error.authReason === 'guild_only') return t(locale, 'bot.guard.guildOnly');
   const rule = ruleMessage(locale, error);
   if (rule !== null) return rule;
+  const margin = marginReasonMessage(locale, error);
+  if (margin !== null) return margin;
   return t(locale, errorMessageKey(error.code));
 }
 
