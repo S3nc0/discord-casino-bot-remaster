@@ -344,6 +344,77 @@ describe('inventory', () => {
     expect(root.querySelector('.life-banner svg')).not.toBeNull();
     expect(text(rows.find((r) => text(r).includes('Rookie Gambler')))).toContain('×1');
   });
+
+  /** The mock with a gold name color owned; `wear` answers like the server. */
+  const withColor = (wear?: LifeApi['shopColorRole']) => {
+    const base = createMockLifeApi();
+    let worn: string | null = null;
+    const calls: (string | null)[] = [];
+    const provided: LifeApi = {
+      ...base,
+      shop: async () => {
+        const v = await base.shop();
+        return {
+          ...v,
+          items: v.items.map((i) => (i.id === 'role_gold' ? { ...i, owned: 1 } : i)),
+          colorRole: worn,
+        };
+      },
+      shopColorRole: async (itemId, key) => {
+        calls.push(itemId);
+        const r = wear
+          ? await wear(itemId, key)
+          : { replayed: false, balance: 12_400, colorRole: itemId };
+        if (r.notice !== 'name_taken') worn = itemId;
+        return r;
+      },
+    };
+    return { provided, calls };
+  };
+  const row = (root: ParentNode, label: string) =>
+    [...root.querySelectorAll('.bb-list li')].find((r) => text(r).includes(label))!;
+
+  it('wears a name color, shows it as worn, and takes it off again', async () => {
+    const { provided, calls } = withColor();
+    const root = await show(<InventoryScreen />, provided);
+    expect(text(root)).toContain(en['screen.life.inventory.colorHint']);
+    await click(button(row(root, 'Gold'), 'Wear'));
+    expect(calls).toEqual(['role_gold']);
+    expect(toasts()).toContain('screen.life.inventory.colorOn');
+    expect(text(row(root, 'Gold'))).toContain('Worn');
+    await click(button(row(root, 'Gold'), 'Take off'));
+    expect(calls).toEqual(['role_gold', null]);
+    expect(toasts()).toContain('screen.life.inventory.colorOff');
+    expect(text(row(root, 'Gold'))).toContain('Wear');
+  });
+
+  it('explains when the server cannot color names (Manage Roles missing)', async () => {
+    const { provided } = withColor(async (itemId) => ({
+      replayed: false,
+      balance: 12_400,
+      colorRole: itemId,
+      notice: 'missing_permissions',
+    }));
+    const root = await show(<InventoryScreen />, provided);
+    await click(button(row(root, 'Gold'), 'Wear'));
+    expect(text(root.querySelector('.bb-banner'))).toContain('Manage Roles');
+    expect(text(row(root, 'Gold'))).toContain('Worn');
+  });
+
+  it('names the foreign role when its name is taken and keeps the color off', async () => {
+    const { provided } = withColor(async () => ({
+      replayed: false,
+      balance: 12_400,
+      colorRole: null,
+      notice: 'name_taken',
+      roleName: 'ペリカ・金',
+    }));
+    const root = await show(<InventoryScreen />, provided);
+    await click(button(row(root, 'Gold'), 'Wear'));
+    expect(text(root.querySelector('.bb-banner'))).toContain('ペリカ・金');
+    expect(toasts()).not.toContain('screen.life.inventory.colorOn');
+    expect(text(row(root, 'Gold'))).not.toContain('Worn');
+  });
 });
 
 describe('quiz', () => {

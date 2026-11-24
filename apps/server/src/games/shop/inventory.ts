@@ -2,7 +2,14 @@ import type { Store } from '../../db/store.ts';
 import { AppError } from '../../runtime/errors.ts';
 
 /** `profiles` columns that hold an equipped item id (fixed names, never user input). */
-const EQUIP_COLUMNS = ['title', 'card_color', 'card_icon', 'skin_dice', 'skin_table'] as const;
+const EQUIP_COLUMNS = [
+  'title',
+  'card_color',
+  'card_icon',
+  'skin_dice',
+  'skin_table',
+  'color_role',
+] as const;
 
 /** Items per player. Quantities never go below zero; the service checks before it takes. */
 export class Inventory {
@@ -53,11 +60,33 @@ export class Inventory {
    */
   private unequip(guildId: string, userId: string, itemId: string): void {
     for (const column of EQUIP_COLUMNS) {
-      this.store
+      const changes = this.store
         .stmt(
           `UPDATE profiles SET ${column} = NULL WHERE guild_id = ? AND user_id = ? AND ${column} = ?`,
         )
-        .run(guildId, userId, itemId);
+        .run(guildId, userId, itemId).changes;
+      // A name colour that leaves (seized, listed, sold, removed) takes its Discord role with it:
+      // queue the member for the colour-role sweep in this same transaction.
+      if (column === 'color_role' && changes > 0) queueColorRoleSync(this.store, guildId, userId);
     }
   }
+}
+
+/**
+ * Mark a member's Discord colour role as out of date (games/shop/color-roles.ts applies it after
+ * commit). Call inside the transaction that changed the equipped colour.
+ */
+export function queueColorRoleSync(
+  store: Store,
+  guildId: string,
+  userId: string,
+  now = Date.now(),
+): void {
+  store
+    .stmt(
+      `INSERT INTO color_role_sync (guild_id, user_id, queued_at, next_at, tries) VALUES (?, ?, ?, 0, 0)
+       ON CONFLICT (guild_id, user_id) DO UPDATE SET
+         queued_at = excluded.queued_at, next_at = 0, tries = 0, seq = seq + 1`,
+    )
+    .run(guildId, userId, now);
 }

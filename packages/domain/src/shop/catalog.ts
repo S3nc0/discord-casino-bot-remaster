@@ -33,7 +33,15 @@ export const UNIQUE_KINDS: ReadonlySet<ItemKind> = new Set([
   'color_role',
   'collection',
 ]);
-export const EQUIP_SLOTS = ['title', 'card_color', 'card_icon', 'skin_dice', 'skin_table'] as const;
+/** `color_role` is the name colour (a Discord role, docs/spec/shop.md §2), one at a time. */
+export const EQUIP_SLOTS = [
+  'title',
+  'card_color',
+  'card_icon',
+  'skin_dice',
+  'skin_table',
+  'color_role',
+] as const;
 export type EquipSlot = (typeof EQUIP_SLOTS)[number];
 
 export const CONFIRM_FROM = 10_000;

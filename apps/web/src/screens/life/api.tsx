@@ -31,6 +31,7 @@ const METHODS = [
   'shopBuy',
   'shopMarketBuy',
   'shopSeizedBuy',
+  'shopColorRole',
   'missions',
   'ranking',
   'transfer',

@@ -1,4 +1,5 @@
 import { startBot, type BotHandle, type StartBotOptions } from '../bot/index.ts';
+import { createDiscordColorRolePort } from '../games/shop/color-roles.ts';
 import { createDiscordPinPort } from '../notify/post-pins.ts';
 import { startNotifyRuntime, type NotifyRuntimeHandle } from '../notify/runtime.ts';
 import { systemClock } from './clock.ts';
@@ -33,6 +34,8 @@ export async function startRuntime(
   const env = options.env ?? process.env;
   const bot = await startBot(server, config, { env, ...options.bot });
   if (bot.client) server.postPins.attach(createDiscordPinPort(bot.client));
+  if (bot.client)
+    server.games.shop.colorRoles.attach(createDiscordColorRolePort(bot.client), server.logger);
   const notify = startNotifyRuntime({
     db: server.store,
     bus: server.bus,
@@ -49,6 +52,7 @@ export async function startRuntime(
       const steps: [string, () => Promise<void>][] = [
         ['scheduler', () => server.stopJobs()],
         ['pins', async () => server.postPins.attach(null)],
+        ['color roles', async () => server.games.shop.colorRoles.attach(null)],
         ['notify', async () => notify.stop()],
         ['bot', () => bot.close()],
         ['server', () => server.close()],

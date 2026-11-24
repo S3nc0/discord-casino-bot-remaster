@@ -14,6 +14,7 @@ import {
   type QuizView,
   type RankingView,
   type ShopBuyResponse,
+  type ShopColorRoleResponse,
   type ShopView,
   type ToolWire,
   type TransferMembers,
@@ -86,6 +87,8 @@ export interface LifeApi {
   shopBuy(itemId: string, qty: number | undefined, key: string): Promise<ShopBuyResponse>;
   shopMarketBuy(lotId: number, key: string): Promise<ShopBuyResponse>;
   shopSeizedBuy(lotId: number, key: string): Promise<ShopBuyResponse>;
+  /** Wear a name color you own, or `null` to take it off. */
+  shopColorRole(itemId: string | null, key: string): Promise<ShopColorRoleResponse>;
   missions(): Promise<MissionsView>;
   ranking(): Promise<RankingView>;
   /** Balance-sheet ranking: net assets (default) or current assets, with the caller's sheet. */
@@ -183,6 +186,7 @@ export function createHttpLifeApi({
       }),
     shopMarketBuy: (lotId, k) => post(LIFE_ROUTES.shopMarketBuy, { idempotencyKey: k, lotId }),
     shopSeizedBuy: (lotId, k) => post(LIFE_ROUTES.shopSeizedBuy, { idempotencyKey: k, lotId }),
+    shopColorRole: (itemId, k) => post(LIFE_ROUTES.shopColorRole, { idempotencyKey: k, itemId }),
     missions: () => call('GET', LIFE_ROUTES.missions),
     ranking: () => call('GET', LIFE_ROUTES.ranking),
     netWorth: (view) => call('GET', query(LIFE_ROUTES.netWorth, { view })),

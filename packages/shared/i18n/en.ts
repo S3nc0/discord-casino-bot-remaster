@@ -2211,6 +2211,30 @@ export const en = {
   'status.badge.wealthy': '🟡 Wealthy',
   'status.badge.underground': '🟤 Underground laborer',
   'status.badge.bankrupt': '🔴 Bankrupt',
+  'bot.shop.colorWear': 'Wear a name color you own',
+  'bot.shop.colorOff': 'Take the name color off',
+  'bot.shop.colorWorn': 'Wearing: {item}',
+  'bot.shop.colorOn': 'Name color changed',
+  'bot.shop.colorOnBody':
+    'You now wear **{item}**.\nIf another colored role of yours sits higher in the role list, its color wins.',
+  'bot.shop.colorRefused': 'Cannot use this name color',
+  'bot.shop.colorOffTitle': 'Name color removed',
+  'bot.shop.colorOffBody': 'Your name is back to its usual color.',
+  'shop.colorRole.notice.missing_permissions':
+    'Your choice is saved, but the bot cannot color names on this server: it needs the Manage Roles permission. Ask a server admin to add it to the bot’s role. Your color appears once that is done.',
+  'shop.colorRole.notice.hierarchy':
+    'Your choice is saved, but the bot’s role is too low in the role list to give you the color. Ask a server admin to move the bot’s role higher (in Server Settings → Roles). Your color appears once that is done.',
+  'shop.colorRole.notice.name_taken':
+    'A role named “{name}” already exists on this server and the bot did not create it, so it cannot be used as a name color. Ask a server admin to rename it, then try again.',
+  'shop.colorRole.notice.pending':
+    'Your choice is saved. Discord is taking a moment; your color will appear shortly.',
+  'screen.life.inventory.wear': 'Wear',
+  'screen.life.inventory.worn': 'Worn',
+  'screen.life.inventory.takeOff': 'Take off',
+  'screen.life.inventory.colorHint': 'A name color colors your name on this server. One at a time.',
+  'screen.life.inventory.colorOn': 'Your name is now {item}.',
+  'screen.life.inventory.colorOff': 'Name color taken off.',
+  'screen.profile.nameColor': 'Name color',
 } as const;
 
 export type MessageKey = keyof typeof en;

@@ -221,6 +221,7 @@ export function createMockLifeApi(now: () => number = () => Date.now()): LifeApi
     item('col_beer', 'collection', 13_500),
     item('role_gold', 'color_role', 20_000),
   ];
+  let colorRole: string | null = null;
   const market: MarketLotView[] = [
     {
       id: 1,
@@ -536,6 +537,7 @@ export function createMockLifeApi(now: () => number = () => Date.now()): LifeApi
         items: structuredClone(items),
         market: structuredClone(market),
         seized: structuredClone(seized),
+        colorRole,
       }),
     shopBuy: (itemId) => {
       const it = items.find((x) => x.id === itemId);
@@ -545,6 +547,12 @@ export function createMockLifeApi(now: () => number = () => Date.now()): LifeApi
       it.owned += 1;
       if (it.available !== null) it.available -= 1;
       return Promise.resolve({ ...ok(), itemId, price: it.price });
+    },
+    shopColorRole: (itemId) => {
+      if (itemId !== null && !items.some((x) => x.id === itemId && x.owned > 0))
+        return rule('not_owned');
+      colorRole = itemId;
+      return Promise.resolve({ ...ok(), colorRole });
     },
     shopMarketBuy: (lotId) => {
       const lot = market.find((x) => x.id === lotId);
