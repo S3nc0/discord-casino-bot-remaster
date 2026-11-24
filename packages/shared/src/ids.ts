@@ -83,6 +83,7 @@ export const SCREEN_IDS = [
   'inbox',
   'profile',
   'settings',
+  'stream',
 ] as const;
 export const ScreenId = Type.Enum(SCREEN_IDS);
 export type ScreenId = (typeof SCREEN_IDS)[number];
@@ -100,3 +101,11 @@ export function isScreenId(value: string): value is ScreenId {
  * Not a snowflake: no Discord user has id 0, so it can never clash with a real account.
  */
 export const TEIAI_SELLER_ID = '0';
+
+/** Row id of a stream panel (`streams.id`). */
+export const StreamId = Type.Integer({ minimum: 1 });
+export type StreamId = Static<typeof StreamId>;
+
+/** Row id of a stream round (`stream_rounds.id`), unique across streams. */
+export const StreamRoundId = Type.Integer({ minimum: 1 });
+export type StreamRoundId = Static<typeof StreamRoundId>;

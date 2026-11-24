@@ -85,6 +85,8 @@ describe('intents', () => {
         'game:bet',
         'inbox:read',
         'presence:screen',
+        'stream:join',
+        'stream:leave',
         'table:join',
         'table:leave',
       ].sort(),

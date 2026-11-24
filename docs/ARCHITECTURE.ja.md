@@ -116,6 +116,7 @@ Discord のドキュメントでは、`X-Signature-Ed25519`、`X-Signature-Times
 
 - すべての行で `isDeltaAllowed(reason, delta)` が成り立つ必要があります。昔の処理が 1 つの文字列で両方向を表していた場合は、理由を 2 つに分けています（`horse_retirement` / `horse_retirement_fee`、`quiz_author_reward` / `quiz_author_clawback`、`admin_grant` / `admin_revoke`）。
 - あとから足したもの: `horse_breeding_fee`（sink。繁殖手数料の 15,000）、`quiz_author_pay`（sink。ユーザーの作者が正解の報酬を払う。正解者の `quiz_reward` は faucet です。不足分は作者の帝愛の負債になるので、行の合計が 0 になるとは限りません）、`game_insurance_refund`（faucet。下を参照）。
+- 配信パネル（Wave 5）：`stream_bet`（sink。エスクローした賭け金）、`stream_payout` と `stream_refund`（faucet）。払い戻しは賭け金に負けた側の山の分け前を足したもの、返金は賭け金ちょうど（無効・片側だけの勝負・終了した配信）。控除 5% と端数は帝愛銀行に残ります。スパチャは `ref_type = 'stream'` の `transfer_out` / `transfer_in` / `transfer_fee` をそのまま使います。[spec/stream.ja.md](spec/stream.ja.md) を参照。
 - **決定: 保険の返金は faucet の `game_insurance_refund` とする。** 同じトランザクションの中で払うプレイヤーはいない（アイテムの代金は `shop_buy` としてすでに出ている）ので、transfer ではありません。`game_refund` でもありません。それは中止したラウンドの賭け金を返すものです。履歴（`保険券で半額返金:{game}`）、統計、供給量のチェックでは、両者を区別する必要があります。
 - 総額を入れてから控除する: 総額を入金し、そのあと差し引き分を独立した sink の行として出金します（デイリーと労働の収入には `teiai_skim`、利益の出た売却と信用取引の決済には `capital_gains_tax`、売却代金には `marketplace_fee` / `kyosai_fee`、収入には `debt_withholding`）。昔のシステムは skim を差分 0 の行として書いていましたが、台帳は差分 0 の行を拒否します。
 - 株式市場と `cs` 暗号資産のティッカーは、1 つの現物の帳簿を共有します。どちらも `stock_buy`、`stock_sell`、`trade_fee` を使い、ティッカーは `ref_id` に入れます。帝愛の信託預金は `bank_deposit` / `bank_withdraw` / `bank_interest` です。同じお金の動きのチャット専用版と画面専用版は同じ理由を使い、`ref_type` / `ref_id` で区別します。

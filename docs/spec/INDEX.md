@@ -47,6 +47,7 @@ Master index mapping every legacy module to its behaviour specification, determi
 | Teiai Kyosai | [kyosai.md](kyosai.md) | `tests/fixtures/legacy/kyosai/` | B3 | Split from Teiai Bank for clarity; unit auctions, Hamilton dividends, excess-loss charges, P2P unit transfers (`5%` fee), and governance motions. |
 | Player Market / Auction / Escrow | [player-market.md](player-market.md) | `tests/fixtures/legacy/player-market/` | B3 | Fixed-price and timed-auction listings (`5%` fee, anti-snipe, grace pull-back); game wager escrow is in [casino-common.md](casino-common.md). |
 | Companies | [companies.md](companies.md) | `tests/fixtures/legacy/companies/` | B3 | Deterministic daily states, continuous output, budget-capped sales, external stakes, dividends, and 3-day unpaid upkeep bankruptcy. |
+| Stream Panel (new, upstream catch-up) | [stream.md](stream.md) | *(none — new feature; property tests instead)* | S0 | Super chats (transfer rules) and parimutuel win/lose bets (`5%` rake, `10,000` per person per round) on a streamer's panel. Owner decisions 2026-11-24: a round must be locked before win or lose, bets auto-lock after 10 minutes, `/admin stream-void` with an audit log, no auto-created voice channels. |
 
 ## Merged / Split Module Notes
 

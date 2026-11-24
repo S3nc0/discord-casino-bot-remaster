@@ -301,6 +301,11 @@ Rules for callers:
   (sink: a user author pays a correct answer's reward; the answerer's `quiz_reward` is a faucet
   because a shortfall becomes the author's Teiai debt, so the rows need not sum to zero) and
   `game_insurance_refund` (faucet, see below).
+- Stream panel (Wave 5): `stream_bet` (sink, the escrowed stake), `stream_payout` and `stream_refund`
+  (faucets). A payout is the stake plus a share of the loser pot; a refund is exactly the stake
+  (void, one-sided round, ended stream). The 5% rake and the rounding dust stay with the Teiai bank.
+  Super chats reuse `transfer_out` / `transfer_in` / `transfer_fee` with `ref_type = 'stream'`.
+  See [spec/stream.md](spec/stream.md).
 - **Decision: the insurance refund is a faucet, `game_insurance_refund`.** No player pays it in
   the same transaction (the item's price already left as `shop_buy`), so it is not a transfer.
   It is not `game_refund` either: that one returns the stake of a voided round, and history

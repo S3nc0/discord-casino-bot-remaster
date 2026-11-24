@@ -23,8 +23,14 @@ const AT = 1_790_000_000_000;
 
 describe('wave 2 ledger reasons', () => {
   it('appends the breeding fee, insurance refund and quiz author payment', () => {
-    const tail = LEDGER_REASONS.slice(-3);
-    expect(tail).toEqual(['horse_breeding_fee', 'game_insurance_refund', 'quiz_author_pay']);
+    // Later waves append after these three, so look them up instead of taking the list's tail.
+    const at = LEDGER_REASONS.indexOf('horse_breeding_fee');
+    expect(at).toBeGreaterThan(0);
+    expect(LEDGER_REASONS.slice(at, at + 3)).toEqual([
+      'horse_breeding_fee',
+      'game_insurance_refund',
+      'quiz_author_pay',
+    ]);
   });
 
   it('classifies them per the flow table', () => {

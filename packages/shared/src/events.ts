@@ -9,7 +9,16 @@ import {
   PriceMicros,
   QuantityMilli,
   Snowflake,
+  StreamId,
+  StreamRoundId,
 } from './ids.ts';
+import {
+  STREAM_LIMITS,
+  StreamEndCause,
+  StreamLockCause,
+  StreamSettleResult,
+  StreamSide,
+} from './stream.ts';
 
 /**
  * Domain events. Produced by server services after a state change has been committed,
@@ -212,6 +221,76 @@ export const TeiaiRelicListed = event('TeiaiRelicListed', {
   endAt: EpochMs,
 });
 
+// ---- stream panel (docs/spec/stream.md) ----
+// None of these carries a `userId`: the socket layer would route such an event to that one user.
+// The stream events go to the stream room (`rooms.stream`) and, for the announcer, to the channel.
+
+/** A streamer opened a panel. */
+export const StreamStarted = event('StreamStarted', {
+  streamId: StreamId,
+  streamerId: Snowflake,
+  title: Type.String({ maxLength: STREAM_LIMITS.titleMax }),
+  url: Type.Union([Type.String({ maxLength: STREAM_LIMITS.urlMax }), Type.Null()]),
+  /** Text channel of the panel message, or null for a stream started in the Activity only. */
+  channelId: Type.Union([Snowflake, Type.Null()]),
+});
+
+/** A super chat landed. The tip card is posted from this event. */
+export const StreamTipped = event('StreamTipped', {
+  streamId: StreamId,
+  streamerId: Snowflake,
+  tipperId: Snowflake,
+  amount: Pelica,
+  fee: Pelica,
+  /** Up to 150 characters, may be empty. Posted with no mentions allowed. */
+  message: Type.String({ maxLength: STREAM_LIMITS.tipMessageMax }),
+  /** Panel totals after this tip. */
+  tips: Pelica,
+  tipCount: Type.Integer({ minimum: 0 }),
+});
+
+/** Totals of the active round changed because someone bet. No bettor identity. */
+export const StreamBetPlaced = event('StreamBetPlaced', {
+  streamId: StreamId,
+  roundId: StreamRoundId,
+  side: StreamSide,
+  winTotal: Pelica,
+  loseTotal: Pelica,
+  bettors: Type.Integer({ minimum: 0 }),
+});
+
+export const StreamRoundOpened = event('StreamRoundOpened', {
+  streamId: StreamId,
+  streamerId: Snowflake,
+  roundId: StreamRoundId,
+  label: Type.String({ maxLength: STREAM_LIMITS.roundLabelMax }),
+  /** Bets close by themselves at this time (open time + 10 minutes). */
+  autoLockAt: EpochMs,
+});
+
+/** Bets closed: by the streamer, or by the 10-minute timer. */
+export const StreamRoundLocked = event('StreamRoundLocked', {
+  streamId: StreamId,
+  streamerId: Snowflake,
+  roundId: StreamRoundId,
+  cause: StreamLockCause,
+});
+
+/** A round paid out or was voided. `result.cause` says who and why. */
+export const StreamRoundSettled = event('StreamRoundSettled', {
+  streamId: StreamId,
+  streamerId: Snowflake,
+  result: StreamSettleResult,
+});
+
+export const StreamEnded = event('StreamEnded', {
+  streamId: StreamId,
+  streamerId: Snowflake,
+  cause: StreamEndCause,
+  tips: Pelica,
+  tipCount: Type.Integer({ minimum: 0 }),
+});
+
 export const DomainEvent = Type.Union([
   GameSettled,
   BigWin,
@@ -233,6 +312,13 @@ export const DomainEvent = Type.Union([
   LotteryDrawn,
   HorseFoaled,
   TeiaiRelicListed,
+  StreamStarted,
+  StreamTipped,
+  StreamBetPlaced,
+  StreamRoundOpened,
+  StreamRoundLocked,
+  StreamRoundSettled,
+  StreamEnded,
 ]);
 export type DomainEvent = Static<typeof DomainEvent>;
 export type DomainEventType = DomainEvent['type'];
@@ -262,4 +348,11 @@ export const DOMAIN_EVENT_TYPES = [
   'LotteryDrawn',
   'HorseFoaled',
   'TeiaiRelicListed',
+  'StreamStarted',
+  'StreamTipped',
+  'StreamBetPlaced',
+  'StreamRoundOpened',
+  'StreamRoundLocked',
+  'StreamRoundSettled',
+  'StreamEnded',
 ] as const satisfies readonly DomainEventType[];

@@ -86,6 +86,7 @@ const FEATURES = [
   'poll',
   'p2p',
   'shop',
+  'stream',
 ] as const;
 type Feature = (typeof FEATURES)[number];
 

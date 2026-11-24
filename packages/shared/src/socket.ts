@@ -8,12 +8,14 @@ import {
   PelicaDelta,
   ScreenId,
   Snowflake,
+  StreamId,
 } from './ids.ts';
 import { ActionIntent, BetIntent, RoundId, type IntentAck } from './intents.ts';
 import type { DomainEvent } from './events.ts';
 import type { InboxItem, Toast } from './notify.ts';
 import { LedgerReason } from './ledger.ts';
 import { PublicUser } from './auth.ts';
+import type { StreamView } from './activity/stream.ts';
 import type { Locale } from '../i18n/locale.ts';
 
 /**
@@ -59,6 +61,12 @@ export type TableJoin = Static<typeof TableJoin>;
 
 export const TableLeave = Type.Object({ game: GameId }, closed);
 export type TableLeave = Static<typeof TableLeave>;
+
+/** Join or leave the room of one live stream of the token's guild (`rooms.stream`). */
+export const StreamJoin = Type.Object({ streamId: StreamId }, closed);
+export type StreamJoin = Static<typeof StreamJoin>;
+export const StreamLeave = Type.Object({ streamId: StreamId }, closed);
+export type StreamLeave = Static<typeof StreamLeave>;
 
 export const PresenceScreen = Type.Object({ screen: ScreenId }, closed);
 export type PresenceScreen = Static<typeof PresenceScreen>;
@@ -128,6 +136,9 @@ export interface ClientToServerEvents {
   'game:bet': (intent: BetIntent, ack: (result: IntentAck) => void) => void;
   'game:action': (intent: ActionIntent, ack: (result: IntentAck) => void) => void;
   'presence:screen': (payload: PresenceScreen) => void;
+  /** Ack carries the stream view for this user; refused unless the stream is live in the guild. */
+  'stream:join': (payload: StreamJoin, ack: Ack<StreamView>) => void;
+  'stream:leave': (payload: StreamLeave) => void;
   'inbox:read': (payload: InboxRead, ack: Ack<{ unread: number }>) => void;
   /** Round-trip probe; the server answers with its clock (epoch ms). */
   'time:ping': (ack: (serverNow: EpochMs) => void) => void;
@@ -156,4 +167,6 @@ export const CLIENT_PAYLOADS = {
   'game:action': ActionIntent,
   'presence:screen': PresenceScreen,
   'inbox:read': InboxRead,
+  'stream:join': StreamJoin,
+  'stream:leave': StreamLeave,
 } as const satisfies Partial<Record<keyof ClientToServerEvents, unknown>>;
