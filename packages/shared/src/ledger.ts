@@ -132,6 +132,10 @@ export const LEDGER_REASONS = [
   'game_insurance_refund',
   // quiz: a user author pays the reward of a correct answer (quiz.md §2, `クイズ報酬の支払い`)
   'quiz_author_pay',
+  // --- Wave 5: stream panel (docs/spec/stream.md). Tips reuse `transfer_*` with ref_type 'stream'. ---
+  'stream_bet',
+  'stream_payout',
+  'stream_refund',
 ] as const;
 
 export const LedgerReason = Type.Enum(LEDGER_REASONS);
@@ -259,6 +263,13 @@ const FLOW: { readonly [R in LedgerReason]: readonly [LedgerFlow, 1 | -1] } = {
   // official quizzes) while the author's wallet may cover only part (the rest becomes Teiai
   // debt), so the two rows need not sum to zero.
   quiz_author_pay: ['sink', -1],
+  // Stream win/lose bets (parimutuel). The stake is escrowed at once: a sink, like `race_bet`.
+  // The payout (stake + share of the loser pot) and the refund (void, one-sided, ended stream)
+  // are faucets. Sum of payouts <= sum of bets per round; the 5% rake and the rounding dust stay
+  // with the Teiai bank.
+  stream_bet: ['sink', -1],
+  stream_payout: ['faucet', 1],
+  stream_refund: ['faucet', 1],
 };
 
 function project<T>(pick: (entry: readonly [LedgerFlow, 1 | -1]) => T) {

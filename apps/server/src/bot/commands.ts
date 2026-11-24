@@ -160,6 +160,7 @@ const FEATURE_CHOICES: readonly CommandChoiceSpec<string>[] = [
   { value: 'poll', name: 'Polls', jaName: '投票' },
   { value: 'p2p', name: 'Player market', jaName: 'P2P市場' },
   { value: 'shop', name: 'Shop', jaName: 'ショップ' },
+  { value: 'stream', name: 'Streams', jaName: '配信' },
 ];
 
 const LANGUAGE_CHOICES: readonly CommandChoiceSpec<string>[] = [

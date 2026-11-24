@@ -20,3 +20,5 @@ export * from './activity/life.ts';
 export * from './activity/finance.ts';
 export * from './activity/casino.ts';
 export * from './activity/horse.ts';
+export * from './stream.ts';
+export * from './activity/stream.ts';

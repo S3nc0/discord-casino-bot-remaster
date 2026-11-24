@@ -72,7 +72,9 @@ describe('Home', () => {
 
   it('reaches every screen from Home or the navigation bar, nothing only by a deep link', () => {
     const onHome = new Set(HOME_SECTIONS.flatMap((section) => section.tiles.map((t) => t.screen)));
-    const reachable = new Set<string>([...onHome, ...NAV_SCREENS, 'home']);
+    // `stream` is in the contracts first (Wave 5, S0); its screen and Home tile come with S2,
+    // which removes it from this list.
+    const reachable = new Set<string>([...onHome, ...NAV_SCREENS, 'home', 'stream']);
     expect(SCREEN_IDS.filter((id) => !reachable.has(id))).toEqual([]);
   });
 

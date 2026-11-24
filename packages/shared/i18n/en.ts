@@ -1989,6 +1989,140 @@ export const en = {
   'screen.life.ranking.nw.noRank': 'Claim your daily Pelica to get an account and a rank.',
   'screen.life.ranking.nw.mine': 'My breakdown',
   'screen.life.ranking.nw.sheetTitle': 'Your balance sheet',
+  // Stream panel (Wave 5, S0): rules, labels, chat panel, help, admin and ledger labels.
+  'screen.stream': 'Stream',
+  'screen.stream.rule.stream_bad_title': 'Write a title of 1 to {max} characters.',
+  'screen.stream.rule.stream_bad_url':
+    'The URL must start with https:// or http:// (a full web address).',
+  'screen.stream.rule.stream_already_live':
+    'You already have a live panel. Close it first with "End stream".',
+  'screen.stream.rule.stream_ended': 'This stream has ended.',
+  'screen.stream.rule.stream_not_streamer':
+    'Only the streamer can do this (or the stream has ended).',
+  'screen.stream.rule.stream_self_tip': "You can't send a super chat to your own stream.",
+  'screen.stream.rule.stream_tip_min': 'Super chats start at {min} Pelica.',
+  'screen.stream.rule.stream_bad_label': 'Round names are up to {max} characters.',
+  'screen.stream.rule.stream_round_active':
+    'A round is still undecided. Settle or void it before starting a new one.',
+  'screen.stream.rule.stream_no_open_round': 'Bets are not open right now.',
+  'screen.stream.rule.stream_no_round': 'There is no undecided round.',
+  'screen.stream.rule.stream_bad_side': 'That is not a valid side to bet on.',
+  'screen.stream.rule.stream_self_bet': "The streamer can't bet on their own round.",
+  'screen.stream.rule.stream_other_side':
+    "You already bet on the other side of this round (you can't switch sides).",
+  'screen.stream.rule.stream_bet_min': 'Bets start at {min} Pelica.',
+  'screen.stream.rule.stream_bet_max':
+    'You can bet up to {max} Pelica per round (you have already bet {already} Pelica).',
+  'screen.stream.rule.stream_not_locked':
+    'Close the bets first. A win or loss can be declared only after the bets are locked (you can void a round at any time).',
+  'screen.stream.rule.stream_round_changed': 'That round is no longer the current one.',
+  'screen.stream.rule.stream_round_settled':
+    'That round has already paid out, so it cannot be voided.',
+  'screen.stream.rule.stream_debt': 'You cannot send super chats or bet while you have Teiai debt.',
+  'screen.stream.rule.stream_void_reason': 'Write a reason of 1 to {max} characters.',
+  'screen.stream.rule.stream_void_target': 'No stream or round matches that id.',
+  'screen.stream.side.win': '🏆 Streamer wins',
+  'screen.stream.side.lose': '💀 Streamer loses',
+  'screen.stream.round.open': 'Taking bets',
+  'screen.stream.round.locked': 'Bets closed (waiting for the result)',
+  'screen.stream.round.default': 'Next round',
+  'screen.stream.odds': '(about x{odds} if you win)',
+  'bot.stream.panel.titleLive': '🔴 Live: {title}',
+  'bot.stream.panel.titleEnded': '⏹️ Stream ended: {title}',
+  'bot.stream.panel.streamer': 'Streamer: {streamer}',
+  'bot.stream.panel.location': '📍 Location: {channel}',
+  'bot.stream.panel.tips': '💸 Super chats **{amount}** ({count})',
+  'bot.stream.panel.round': '🎲 **{label}** · {status}',
+  'bot.stream.panel.win': '🏆 Win **{amount}** {odds}',
+  'bot.stream.panel.lose': '💀 Lose **{amount}** {odds}',
+  'bot.stream.panel.bettors': '{count} bettors',
+  'bot.stream.panel.noRound':
+    '🎲 No round right now (the streamer starts one from "🎛️ Streamer menu")',
+  'bot.stream.panel.closes': 'This panel closes by itself {time}',
+  'bot.stream.panel.autoLock': 'Bets close by themselves {time}',
+  'bot.stream.panel.footer':
+    'Super chats are transfers to the streamer (same fee and daily cap as transfers). Bets are pooled: Teiai takes {rake} of the losing side. Up to {max} Pelica per person. The streamer cannot bet on their own round.',
+  'bot.stream.btn.tip': 'Super chat',
+  'bot.stream.btn.win': 'Bet on a win',
+  'bot.stream.btn.lose': 'Bet on a loss',
+  'bot.stream.btn.menu': 'Streamer menu',
+  'bot.stream.notNumber': 'Enter a number.',
+  'bot.stream.startErrTitle': 'Cannot open the panel',
+  'bot.stream.tip.modal': 'Send a super chat',
+  'bot.stream.tip.amount': 'Amount (from {min} Pelica)',
+  'bot.stream.tip.message': 'Message (optional)',
+  'bot.stream.tip.author': '{name}　💸 {amount} Pelica',
+  'bot.stream.tip.confirmTitle': 'Send this super chat?',
+  'bot.stream.tip.confirmBody':
+    'You send **{amount}** to the streamer.\nFee: {fee} ({total} in total is taken from you)',
+  'bot.stream.tip.confirmYes': 'Send',
+  'bot.stream.tip.sentTitle': 'Super chat sent',
+  'bot.stream.tip.sentBody': 'Fee: {fee}　Your balance: **{balance}**',
+  'bot.stream.tip.errTitle': 'Cannot send the super chat',
+  'bot.stream.bet.modal': 'Bet on: {side}',
+  'bot.stream.bet.amount': 'Amount ({min} to {max} Pelica)',
+  'bot.stream.bet.doneTitle': 'Bet placed',
+  'bot.stream.bet.doneBody': '**{amount}** on **{side}**.\nBalance: **{balance}**',
+  'bot.stream.bet.errTitle': 'Cannot bet',
+  'bot.stream.round.modal': 'Start a round',
+  'bot.stream.round.label': 'Round name (empty for "Next round")',
+  'bot.stream.round.openedTitle': '🎲 Bets are open for "{label}"',
+  'bot.stream.round.openedBody':
+    'You can bet on {streamer} winning or losing (with 🏆 / 💀 on the stream panel). Bets close by themselves {time}.',
+  'bot.stream.round.autoLocked':
+    '🔒 Bets for "{label}" closed by themselves ({minutes} minutes after the round opened). Waiting for the streamer to declare the result.',
+  'bot.stream.menu.title': '🎛️ Streamer menu',
+  'bot.stream.menu.open': '🎲 Start a round',
+  'bot.stream.menu.lock': '🔒 Close the bets',
+  'bot.stream.menu.win': '🏆 Won',
+  'bot.stream.menu.lose': '💀 Lost',
+  'bot.stream.menu.void': '↩️ Void (refund everyone)',
+  'bot.stream.menu.end': '⏹️ End the stream',
+  'bot.stream.menu.ownerOnly': 'Only the streamer can use this.',
+  'bot.stream.menu.ownerOnlyButton': 'The streamer menu is for the streamer only.',
+  'bot.stream.menu.locked': '🔒 Bets closed.',
+  'bot.stream.settle.confirmTitle': 'Declare the result?',
+  'bot.stream.settle.sideBody': 'The round is settled as **{side}**. This cannot be undone.',
+  'bot.stream.settle.voidBody':
+    'The round is voided and everyone gets their stake back. This cannot be undone.',
+  'bot.stream.settle.yes': 'Confirm',
+  'bot.stream.settle.done': 'Settled.',
+  'bot.stream.settle.errTitle': 'Cannot do that',
+  'bot.stream.end.confirmTitle': 'End the stream?',
+  'bot.stream.end.confirmBody':
+    'The panel closes. An undecided round is voided and every stake is refunded.',
+  'bot.stream.end.yes': 'End',
+  'bot.stream.end.done': 'The stream has ended.',
+  'bot.stream.result.title': '🏁 Result of a round of {title}',
+  'bot.stream.result.headVoid': '↩️ The round was voided. Every stake was refunded.',
+  'bot.stream.result.headSide': 'Result: **{side}**',
+  'bot.stream.result.refunded':
+    'Only one side had bets, so there was no contest and everyone was refunded.',
+  'bot.stream.result.more': '{count} more',
+  'bot.stream.result.rake': 'Teiai deduction: {amount}',
+  'bot.stream.result.noWinner': 'Nobody called it.',
+  'bot.stream.result.ownerVoid': 'Voided by the server owner. Reason: {reason}',
+  'bot.stream.help.title': '📺 Streams (`/stream`)',
+  'bot.stream.help.start':
+    '`start` The streamer picks a title (and a stream URL if any) and posts a stream panel in the channel. Works for a Discord screen share or an outside stream such as YouTube.',
+  'bot.stream.help.tip':
+    '💸 `Super chat` sends Pelica to the streamer with a message shown in the channel. Bigger amounts get a louder colour. Fee and daily cap are the same as `/pelica transfer`.',
+  'bot.stream.help.bet':
+    '🏆 / 💀 Bet on the streamer winning or losing. Bets are pooled: Teiai takes {rake} of the losing side and the winners share the rest (a winner always gets the stake back). Up to {max} Pelica per person per round.',
+  'bot.stream.help.menu':
+    '🎛️ In the `Streamer menu` the streamer starts a round, closes the bets (they also close by themselves after {minutes} minutes), declares the result (only after the bets are closed) or voids the round (refunds everyone, any time). The streamer cannot bet on their own round.',
+  'bot.stream.help.close':
+    'When the stream ends or the panel closes by itself after {hours} hours, an undecided round is voided and every stake is refunded.',
+  'bot.stream.help.location':
+    '📍 If you start the stream from the Activity, the voice channel the Activity runs in shows on the panel as the location. The bot never creates or deletes channels.',
+  'bot.admin.feature.stream': 'Streams (tips & win/lose bets)',
+  'bot.admin.streamVoid.title': '↩️ Round voided',
+  'bot.admin.streamVoid.body':
+    '{guild}: voided round {round} ("{label}") of stream {stream}. {count} bettors were refunded {amount} Pelica in total.\nReason: {reason}',
+  'bot.admin.streamVoid.errTitle': 'Could not void the round',
+  'screen.casino.history.reason.stream_bet': 'Stream bet',
+  'screen.casino.history.reason.stream_payout': 'Stream payout',
+  'screen.casino.history.reason.stream_refund': 'Stream refund',
 } as const;
 
 export type MessageKey = keyof typeof en;
