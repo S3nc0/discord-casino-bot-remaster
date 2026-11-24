@@ -365,3 +365,103 @@ describe('NetWorthService: ranking', () => {
     expect(median).toBeLessThan(250);
   });
 });
+
+describe('NetWorthService: display status & wealthy badge', () => {
+  it('flips to wealthy at 1,000,000 financial net worth and drops immediately when assets fall', () => {
+    const s = boot();
+    member(s, A, 999_999);
+    expect(s.finance.netWorth.displayStatusOf(GUILD, A)).toBe('katagi');
+
+    // 1 Pelica more crosses the threshold via cash + deposit + bond
+    s.economy.credit({ guildId: GUILD, userId: A, amount: 1, reason: 'admin_grant' });
+    expect(s.finance.netWorth.displayStatusOf(GUILD, A)).toBe('wealthy');
+    expect(s.finance.netWorth.standings(GUILD, 'net').rows[0]?.status).toBe('wealthy');
+
+    // Drops back as soon as balance falls below 1,000,000
+    s.economy.debit({ guildId: GUILD, userId: A, amount: 500_000, reason: 'admin_revoke' });
+    expect(s.finance.netWorth.displayStatusOf(GUILD, A)).toBe('katagi');
+
+    // Crosses again using deposit + active bond + cash
+    s.store
+      .stmt('INSERT INTO bank_deposits (guild_id, user_id, amount, updated_at) VALUES (?, ?, ?, ?)')
+      .run(GUILD, A, 300_000, s.clock.now());
+    s.store
+      .stmt(
+        `INSERT INTO bonds (guild_id, user_id, kind, principal, rate_bps, status, payout, created_at, due_at, checked_at)
+         VALUES (?, ?, 'normal', 200000, 100, 'active', 0, 0, 1, 0)`,
+      )
+      .run(GUILD, A);
+    expect(s.finance.netWorth.displayStatusOf(GUILD, A)).toBe('wealthy');
+  });
+
+  it('ignores fixed assets and P2P loans lent, and lets underground/bankrupt win over 1M cash', () => {
+    const s = boot();
+    // A: 900k cash + 500k fixed company + 500k P2P loan lent + 100k pot -> total net worth 2M, financial net worth 900k -> katagi
+    member(s, A, 900_000);
+    member(s, B, 1_500_000);
+    member(s, C, 1_500_000);
+    const now = s.clock.now();
+    s.store
+      .stmt(
+        `INSERT INTO companies (guild_id, user_id, name, kind, level, funds, stock_at, upkeep_day, created_at)
+         VALUES (?, ?, 'Co', 'farm', 1, 500000, 0, '2026-01-01', 0)`,
+      )
+      .run(GUILD, A);
+    s.store
+      .stmt(
+        `INSERT INTO loans (guild_id, lender_id, borrower_id, principal, rate_bps, term_days, status, paid, created_at, offer_expires_at, accepted_at, due_at)
+         VALUES (?, ?, ?, 500000, 0, 7, 'active', 0, ?, ?, ?, ?)`,
+      )
+      .run(GUILD, A, B, now, now, now, now + 7 * MS_PER_DAY);
+    s.store
+      .stmt('INSERT INTO work_state (guild_id, user_id, pot) VALUES (?, ?, ?)')
+      .run(GUILD, A, 100_000);
+    addHorse(s, A, 10, 5, 8);
+
+    // B: 1.5M cash + 1 Teiai debt -> underground
+    setDebt(s, B, 1);
+
+    // C: 1.5M cash + overdue P2P loan -> underground, then bankrupt (debt > 0 & bankrupt_at) -> bankrupt
+    s.store
+      .stmt(
+        `INSERT INTO loans (guild_id, lender_id, borrower_id, principal, rate_bps, term_days, status, paid, created_at, offer_expires_at, accepted_at, due_at)
+         VALUES (?, ?, ?, 1000, 0, 1, 'overdue', 0, ?, ?, ?, ?)`,
+      )
+      .run(
+        GUILD,
+        A,
+        C,
+        now - 2 * MS_PER_DAY,
+        now - 2 * MS_PER_DAY,
+        now - 2 * MS_PER_DAY,
+        now - MS_PER_DAY,
+      );
+
+    const statuses = s.finance.netWorth.displayStatuses(GUILD);
+    expect(statuses.get(A)).toBe('katagi');
+    expect(statuses.get(B)).toBe('underground');
+    expect(statuses.get(C)).toBe('underground');
+
+    setDebt(s, C, 5_000);
+    s.store
+      .stmt('UPDATE bank_accounts SET bankrupt_at = ? WHERE guild_id = ? AND user_id = ?')
+      .run(now, GUILD, C);
+    expect(s.finance.netWorth.displayStatusOf(GUILD, C)).toBe('bankrupt');
+  });
+
+  it('keeps katagi_only checks on raw status so wealthy players stay allowed', () => {
+    const s = boot();
+    member(s, A, 1_500_000);
+    expect(s.finance.netWorth.displayStatusOf(GUILD, A)).toBe('wealthy');
+    expect(s.finance.teiai.getStatus(GUILD, A)).toBe('katagi');
+
+    // katagi_only actions remain permitted for a wealthy player
+    const spot = s.finance.stocks.buySpot(GUILD, A, 'teio', 10_000);
+    expect(spot.ok).toBe(true);
+    const deposit = s.finance.teiai.bankDeposit(GUILD, A, 50_000);
+    expect(deposit.ok).toBe(true);
+    const co = s.finance.companies.foundCompany(GUILD, A, 'Gold Co', 'farm');
+    expect(co.ok).toBe(true);
+    expect(s.finance.netWorth.displayStatusOf(GUILD, A)).toBe('wealthy');
+  });
+});

@@ -5,10 +5,12 @@ import { RuntimeContext, type ShellRuntime } from '../../shell/runtime.ts';
 import { useBalanceStore } from '../../shell/stores/balance.ts';
 import { useNavStore } from '../../shell/stores/nav.ts';
 import { useSessionStore } from '../../shell/stores/session.ts';
+import { useSettingsStore } from '../../shell/stores/settings.ts';
 import { resetStores } from '../../shell/testing/fakes.ts';
 import { act, render, type Rendered } from '../../shell/testing/render.tsx';
 import { withServices } from '../casino/testing.tsx';
 import { LifeApiContext } from '../life/api.tsx';
+import type { LifeApi } from '../life/client.ts';
 import { createMockLifeApi } from '../life/mock.ts';
 import ProfileScreen from './ProfileScreen.tsx';
 
@@ -35,10 +37,10 @@ function signIn(user: Partial<PublicUser> = {}) {
   });
 }
 
-async function show(): Promise<HTMLElement> {
+async function show(api: LifeApi = createMockLifeApi()): Promise<HTMLElement> {
   const { element } = withServices(
     <RuntimeContext.Provider value={RUNTIME}>
-      <LifeApiContext.Provider value={createMockLifeApi()}>
+      <LifeApiContext.Provider value={api}>
         <ProfileScreen />
       </LifeApiContext.Provider>
     </RuntimeContext.Provider>,
@@ -101,5 +103,30 @@ describe('profile card', () => {
     expect(links.map((b) => b.textContent)).toEqual(['Inventory', 'History', 'Relics', 'Settings']);
     await act(async () => links[1]!.click());
     expect(useNavStore.getState().screen).toBe('history');
+  });
+
+  it('shows the Clean badge by default and flips to Wealthy (EN and JA) without changing the name', async () => {
+    signIn();
+    const cleanRoot = await show();
+    expect(text(cleanRoot.querySelector('.profile__status'))).toBe('🟢 Clean');
+    expect(cleanRoot.querySelector('.profile__status')?.getAttribute('data-status')).toBe('katagi');
+
+    const base = createMockLifeApi();
+    const wealthyApi: LifeApi = {
+      ...base,
+      ranking: async () => ({ ...(await base.ranking()), selfStatus: 'wealthy' }),
+    };
+    mounted?.unmount();
+    const wealthyEn = await show(wealthyApi);
+    expect(text(wealthyEn.querySelector('.profile__status'))).toBe('🟡 Wealthy');
+    expect(wealthyEn.querySelector('.profile__status')?.getAttribute('data-status')).toBe(
+      'wealthy',
+    );
+    expect(text(wealthyEn.querySelector('.profile-card__name'))).toBe('Player');
+
+    mounted?.unmount();
+    useSettingsStore.setState({ language: 'ja' });
+    const wealthyJa = await show(wealthyApi);
+    expect(text(wealthyJa.querySelector('.profile__status'))).toBe('🟡 富豪');
   });
 });

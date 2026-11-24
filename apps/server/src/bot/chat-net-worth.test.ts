@@ -154,12 +154,103 @@ describe('balance card and board', () => {
     expect(sheet).toContain('**純資産 35,000');
   });
 
-  it('the board ranks by balance-sheet net worth with subtotals', () => {
+  it('the board ranks by balance-sheet net worth with subtotals and status emoji', () => {
     const { s } = setup();
     const rows = s.finance.netWorth.standings(GUILD, 'net').rows;
     const e = boardEmbed('en', rows, s.clock.now()).toJSON();
-    expect(e.description).toContain(`🥇 <@${USER}>`);
+    expect(e.description).toContain(`🥇 <@${USER}> —`);
     expect(e.description).toContain('(current 5,000 · fixed 30,000)');
-    expect(e.description).toContain(`🥈 <@${OTHER_USER}>`);
+    expect(e.description).toContain(`🥈 <@${OTHER_USER}> 🟤 —`);
+  });
+
+  it('balance card flips from Clean to Wealthy at 1,000,000 financial assets and drops back', async () => {
+    const { s, handler } = setup();
+    const runClean = command({ name: 'pelica', sub: 'balance', locale: 'en' });
+    await handler(runClean.interaction as never);
+    const cleanFields = embedOf(runClean.out[0]!.options).fields ?? [];
+    expect(cleanFields.find((f) => f.name === 'Status')?.value).toBe('🟢 Clean');
+
+    // Credit enough cash to reach 1,000,000 financial net worth -> Wealthy (EN + JA)
+    s.economy.credit({ guildId: GUILD, userId: USER, amount: 995_000, reason: 'admin_grant' });
+    const runEn = command({ name: 'pelica', sub: 'balance', locale: 'en' });
+    await handler(runEn.interaction as never);
+    expect(
+      (embedOf(runEn.out[0]!.options).fields ?? []).find((f) => f.name === 'Status')?.value,
+    ).toBe('🟡 Wealthy');
+
+    const runJa = command({ name: 'pelica', sub: 'balance', locale: 'ja' });
+    await handler(runJa.interaction as never);
+    expect(
+      (embedOf(runJa.out[0]!.options).fields ?? []).find((f) => f.name === '身分')?.value,
+    ).toBe('🟡 富豪');
+
+    // /pelica bank also displays the Wealthy badge
+    const runBank = command({ name: 'pelica', sub: 'bank', locale: 'ja' });
+    await handler(runBank.interaction as never);
+    expect(
+      (embedOf(runBank.out[0]!.options).fields ?? []).find((f) => f.name === '状態')?.value,
+    ).toBe('🟡 富豪');
+
+    // Drop cash by 1 Pelica -> drops back to Clean even though the 30,000 horse keeps net worth > 1M
+    s.economy.debit({ guildId: GUILD, userId: USER, amount: 1, reason: 'admin_revoke' });
+    const runDrop = command({ name: 'pelica', sub: 'balance', locale: 'en' });
+    await handler(runDrop.interaction as never);
+    expect(
+      (embedOf(runDrop.out[0]!.options).fields ?? []).find((f) => f.name === 'Status')?.value,
+    ).toBe('🟢 Clean');
+  });
+
+  it('ranking rows and board show 🟡 / 🟤 / 🔴 next to names and no emoji for Clean', async () => {
+    const { s, handler } = setup();
+    const THIRD = '200000000000000009';
+    const FOURTH = '200000000000000010';
+    s.economy.ensureMember(GUILD, THIRD, { initialGrant: false });
+    s.economy.ensureMember(GUILD, FOURTH, { initialGrant: false });
+    // USER -> wealthy, OTHER_USER -> underground (already has 1,000 debt), THIRD -> bankrupt, FOURTH -> katagi
+    s.economy.credit({ guildId: GUILD, userId: USER, amount: 1_000_000, reason: 'admin_grant' });
+    s.finance.teiai.ensureAccount(GUILD, THIRD);
+    s.store
+      .stmt(
+        'UPDATE bank_accounts SET debt = 5000, debt_interest_at = ?, bankrupt_at = ? WHERE guild_id = ? AND user_id = ?',
+      )
+      .run(s.clock.now(), s.clock.now(), GUILD, THIRD);
+    s.economy.credit({ guildId: GUILD, userId: FOURTH, amount: 10_000, reason: 'admin_grant' });
+
+    // Net worth ranking
+    const netRun = command({ name: 'pelica', sub: 'ranking', strings: { view: 'net' } });
+    await handler(netRun.interaction as never);
+    const netDesc = embedOf(netRun.out[0]!.options).description ?? '';
+    expect(netDesc).toContain(`<@${USER}> 🟡 —`);
+    expect(netDesc).toContain(`<@${OTHER_USER}> 🟤 —`);
+    expect(netDesc).toContain(`<@${THIRD}> 🔴 —`);
+    expect(netDesc).toContain(`<@${FOURTH}> —`);
+
+    // Weekly ranking
+    for (const [uid, net] of [
+      [USER, 500],
+      [OTHER_USER, 400],
+      [THIRD, 300],
+      [FOURTH, 200],
+    ] as const) {
+      s.bus.publishDomain({
+        type: 'GameSettled',
+        guildId: GUILD,
+        at: s.clock.now(),
+        userId: uid,
+        game: 'slots',
+        roundId: `r-${uid}`,
+        stake: 100,
+        payout: 100 + net,
+        net,
+        source: 'chat',
+      });
+    }
+    const weeklyRun = command({ name: 'pelica', sub: 'ranking' });
+    await handler(weeklyRun.interaction as never);
+    const weeklyDesc = embedOf(weeklyRun.out[0]!.options).description ?? '';
+    expect(weeklyDesc).toContain(`<@${USER}> 🟡 —`);
+    expect(weeklyDesc).toContain(`<@${OTHER_USER}> 🟤 —`);
+    expect(weeklyDesc).toContain(`<@${THIRD}> 🔴 —`);
+    expect(weeklyDesc).toContain(`<@${FOURTH}> —`);
   });
 });

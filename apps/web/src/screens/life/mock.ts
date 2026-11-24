@@ -616,9 +616,11 @@ export function createMockLifeApi(now: () => number = () => Date.now()): LifeApi
         liquid: number,
         fixed: number,
         liabilities: number,
+        status: 'katagi' | 'wealthy' | 'underground' | 'bankrupt',
       ) => ({
         userId: id,
         name,
+        status,
         groups: {
           liquid,
           fixed,
@@ -628,11 +630,11 @@ export function createMockLifeApi(now: () => number = () => Date.now()): LifeApi
         },
       });
       const all = [
-        sheet('200000000000000101', 'Aki', 84_000, 62_000, 0),
-        sheet('200000000000000001', 'Mock Player', 18_640, 41_500, 3_000),
-        sheet('200000000000000103', 'Sora', 52_300, 0, 0),
-        sheet('200000000000000102', 'Ren', 9_800, 30_000, 12_000),
-        sheet('200000000000000104', 'Mika', 4_100, 2_000, 0),
+        sheet('200000000000000101', 'Aki', 84_000, 62_000, 0, 'katagi'),
+        sheet('200000000000000001', 'Mock Player', 18_640, 41_500, 3_000, 'underground'),
+        sheet('200000000000000103', 'Sora', 52_300, 0, 0, 'katagi'),
+        sheet('200000000000000102', 'Ren', 9_800, 30_000, 12_000, 'underground'),
+        sheet('200000000000000104', 'Mika', 4_100, 2_000, 0, 'katagi'),
       ];
       const ranked = [...all]
         .map((r) => ({ ...r, value: r.groups[view] }))
@@ -648,6 +650,7 @@ export function createMockLifeApi(now: () => number = () => Date.now()): LifeApi
           rank: me.rank,
           value: me.value,
           groups: me.groups,
+          status: me.status,
           parts: {
             cash: 12_400,
             deposit: 5_000,
@@ -682,6 +685,7 @@ export function createMockLifeApi(now: () => number = () => Date.now()): LifeApi
             net: 18_400,
             plays: 31,
             qualified: true,
+            status: 'katagi',
           },
           {
             rank: 2,
@@ -690,6 +694,7 @@ export function createMockLifeApi(now: () => number = () => Date.now()): LifeApi
             net: 6200,
             plays: 12,
             qualified: true,
+            status: 'katagi',
           },
           {
             rank: 3,
@@ -698,6 +703,7 @@ export function createMockLifeApi(now: () => number = () => Date.now()): LifeApi
             net: 2100,
             plays: 4,
             qualified: false,
+            status: 'katagi',
           },
           {
             rank: 4,
@@ -706,6 +712,7 @@ export function createMockLifeApi(now: () => number = () => Date.now()): LifeApi
             net: -900,
             plays: 9,
             qualified: false,
+            status: 'underground',
           },
           {
             rank: 5,
@@ -714,6 +721,7 @@ export function createMockLifeApi(now: () => number = () => Date.now()): LifeApi
             net: -4300,
             plays: 15,
             qualified: false,
+            status: 'katagi',
           },
         ],
         self: { rank: 2, net: 6200, plays: 12, total: 9 },
@@ -725,6 +733,7 @@ export function createMockLifeApi(now: () => number = () => Date.now()): LifeApi
           net: 22_000,
           wins: 3,
         },
+        selfStatus: balance >= 1_000_000 ? 'wealthy' : 'katagi',
       }),
 
     transfer: () =>

@@ -560,9 +560,47 @@ describe('net worth ranking', () => {
     const liquid = (await me.get(`${LIFE_ROUTES.netWorth}?view=liquid`)).json();
     expect(Value.Check(NetWorthView, liquid)).toBe(true);
     expect(liquid.rows.map((r: { userId: string }) => r.userId)).toEqual([OTHER_USER, USER]);
-    expect(liquid.self).toMatchObject({ rank: 2, value: cash(USER) });
+    expect(liquid.self).toMatchObject({ rank: 2, value: cash(USER), status: 'katagi' });
 
     expect((await me.get(`${LIFE_ROUTES.netWorth}?view=gross`)).statusCode).toBe(400);
+  });
+
+  it('exposes wealthy and underground display statuses on net-worth and weekly ranking views', async () => {
+    server = createTestServer();
+    const me = await login(USER);
+    await login(OTHER_USER);
+    server.economy.credit({
+      guildId: GUILD,
+      userId: USER,
+      amount: 1_000_000,
+      reason: 'admin_grant',
+    });
+    server.finance.teiai.adminSetDebt(GUILD, OTHER_USER, 1_000);
+    server.bus.publishDomain({
+      type: 'GameSettled',
+      guildId: GUILD,
+      at: server.clock.now(),
+      userId: USER,
+      game: 'slots',
+      roundId: 'w-1',
+      stake: 100,
+      payout: 300,
+      net: 200,
+      source: 'activity',
+    });
+
+    const net = (await me.get(LIFE_ROUTES.netWorth)).json();
+    expect(Value.Check(NetWorthView, net)).toBe(true);
+    expect(net.self).toMatchObject({ status: 'wealthy' });
+    expect(net.rows.find((r: { userId: string }) => r.userId === USER)?.status).toBe('wealthy');
+    expect(net.rows.find((r: { userId: string }) => r.userId === OTHER_USER)?.status).toBe(
+      'underground',
+    );
+
+    const weekly = (await me.get(LIFE_ROUTES.ranking)).json();
+    expect(Value.Check(RankingView, weekly)).toBe(true);
+    expect(weekly.selfStatus).toBe('wealthy');
+    expect(weekly.rows[0]).toMatchObject({ userId: USER, status: 'wealthy' });
   });
 });
 

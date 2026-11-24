@@ -17,6 +17,7 @@ import {
   type BalanceSheetGroups,
   type BalanceSheetPartKey,
   type BalanceSheetParts,
+  type FinanceDebtStatus,
 } from '@casino/shared';
 import { formatPelica, useLocale, useT, type Translate } from '../../shell/i18n.ts';
 import { useLifeApi } from './api.tsx';
@@ -28,6 +29,14 @@ import './social.css';
 
 type RankingTab = 'weekly' | 'net' | 'liquid';
 type NetWorthTab = Exclude<RankingTab, 'weekly'>;
+
+/** Ranking-row status emoji (`docs/teiai.md`: 🟡 / 🟤 / 🔴 next to names; Clean has none). */
+const STATUS_EMOJI: Record<FinanceDebtStatus, string> = {
+  katagi: '',
+  wealthy: '🟡',
+  underground: '🟤',
+  bankrupt: '🔴',
+};
 
 /** The podium under a sunburst; a glint sweeps over the trophy (still under reduced motion). */
 function Podium() {
@@ -143,6 +152,7 @@ function NetWorthRanking({ view }: { view: NetWorthTab }) {
                   headline={
                     <>
                       {r.name}
+                      {r.status && STATUS_EMOJI[r.status] ? ` ${STATUS_EMOJI[r.status]}` : null}
                       {r.rank === v.self?.rank ? (
                         <span className="life__you"> · {t('screen.life.you')}</span>
                       ) : null}
@@ -224,6 +234,7 @@ function WeeklyRanking() {
                   headline={
                     <>
                       {r.name}
+                      {r.status && STATUS_EMOJI[r.status] ? ` ${STATUS_EMOJI[r.status]}` : null}
                       {r.net === v.self?.net && r.rank === v.self.rank ? (
                         <span className="life__you"> · {t('screen.life.you')}</span>
                       ) : null}

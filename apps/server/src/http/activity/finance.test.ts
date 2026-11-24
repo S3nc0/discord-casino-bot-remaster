@@ -112,6 +112,19 @@ describe('reads match their schemas', () => {
     expect(market.symbols.map((s) => s.key)).toEqual(['cs', 'teio', 'numa', 'gold']);
     expect(market.symbols[0]?.history.length).toBeGreaterThan(0);
   });
+
+  it('bank view flips status to wealthy at 1,000,000 financial net worth and drops back', async () => {
+    server = createTestServer();
+    const me = await login(USER);
+    grant(USER, 997_000);
+    const rich = (await me.get(FINANCE_ROUTES.bank)).json<FinanceBankView>();
+    expect(Value.Check(FinanceBankView, rich)).toBe(true);
+    expect(rich.status).toBe('wealthy');
+
+    server.economy.debit({ guildId: GUILD, userId: USER, amount: 1, reason: 'admin_revoke' });
+    const after = (await me.get(FINANCE_ROUTES.bank)).json<FinanceBankView>();
+    expect(after.status).toBe('katagi');
+  });
 });
 
 describe('Teiai Bank repay', () => {
