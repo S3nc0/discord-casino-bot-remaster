@@ -3,6 +3,7 @@
 import fc from 'fast-check';
 import { minNextBid } from '../../packages/domain/src/finance/index.ts';
 import { GUILDS, INSTANCE, USERS, attempt, dayOf, relicCount, type World } from './world.ts';
+import { isStreamCmd, stepStream, streamCommands, type StreamCmd } from './stream.ts';
 
 export type Cmd =
   | { t: 'daily'; g: number; u: number }
@@ -40,7 +41,8 @@ export type Cmd =
   | { t: 'relicBid'; g: number; u: number; extra: number }
   /** Run the clock to the Teiai relic's end and settle the market. */
   | { t: 'relicSettle'; g: number }
-  | { t: 'replay' };
+  | { t: 'replay' }
+  | StreamCmd;
 
 const g = fc.nat(GUILDS.length - 1);
 const u = fc.nat(USERS.length - 1);
@@ -196,6 +198,7 @@ export const command: fc.Arbitrary<Cmd> = fc.oneof(
     }),
   },
   { weight: 2, arbitrary: fc.record({ t: fc.constant('relicSettle' as const), g }) },
+  ...streamCommands,
 );
 
 export const commands = (max = 60): fc.Arbitrary<Cmd[]> =>
@@ -285,6 +288,7 @@ export function step(w: World, c: Cmd, last: Replayable | undefined): StepResult
     return { keyed: { describe, run } };
   };
 
+  if (isStreamCmd(c)) return stepStream(w, c, keyed, expectedTransfer);
   switch (c.t) {
     case 'daily':
       attempt(() => s.games.progression.claimDaily(guild(c.g), user(c.u)));

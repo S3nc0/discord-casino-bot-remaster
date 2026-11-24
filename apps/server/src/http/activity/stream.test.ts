@@ -1,10 +1,10 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { Value } from 'typebox/value';
+import type { StreamError } from '@casino/shared';
 import {
   STREAM_ROUTES,
   StreamBetResponse,
   StreamEndResponse,
-  StreamError,
   StreamList,
   StreamSettleResponse,
   StreamStartResponse,

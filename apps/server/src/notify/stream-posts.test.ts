@@ -79,7 +79,7 @@ describe('stream posts', () => {
     expect(all).toHaveLength(4);
     const [tip, opened, locked, result] = all.map((p) => p.message);
     expect(tip?.embeds?.[0]).toMatchObject({
-      title: `…${OTHER_USER.slice(-4)}　💸 2,000ペリカ`,
+      title: `…${OTHER_USER.slice(-4)}\u3000💸 2,000ペリカ`,
       description: '@everyone gl',
       color: 0xffca28,
     });
