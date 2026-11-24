@@ -77,8 +77,9 @@ const flows = {
     await page.waitForTimeout(8000);
     await shot(page, 'chinchiro-lobby', scheme);
     await page.waitForTimeout(13500);
-    await shot(page, 'chinchiro-playing', scheme);
-    await page.waitForTimeout(9000);
+    await shot(page, 'chinchiro-rolling', scheme);
+    await click(page, '🎲 Roll');
+    await page.waitForTimeout(5000);
     await shot(page, 'chinchiro-table-result', scheme);
   },
   async roulette(page, scheme) {

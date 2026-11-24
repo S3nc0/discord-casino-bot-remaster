@@ -1372,7 +1372,6 @@ export const ja: Messages = {
   'screen.casino.chinchiro.table.begin': '始める',
   'screen.casino.chinchiro.table.idle':
     '卓は立っていません。賭け金を決めて卓を立てると、2〜6人で遊べます。いちばん強い役の人が総取りです。',
-  'screen.casino.chinchiro.table.lobby': '卓の賭け金 {amount}ペリカ',
   'screen.casino.chinchiro.table.waiting': '参加者を待っています… {seconds}秒',
   'screen.casino.chinchiro.table.host': '卓主',
   'screen.casino.chinchiro.table.free': '空席',

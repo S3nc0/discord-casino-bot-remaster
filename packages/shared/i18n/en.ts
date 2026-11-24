@@ -1386,7 +1386,6 @@ export const en = {
   'screen.casino.chinchiro.table.begin': 'Start now',
   'screen.casino.chinchiro.table.idle':
     'No table is open. Pick a bet and open one: 2 to 6 players, and the strongest hand takes the pot.',
-  'screen.casino.chinchiro.table.lobby': 'Table bet {amount} Pelica',
   'screen.casino.chinchiro.table.waiting': 'Waiting for players… {seconds}s',
   'screen.casino.chinchiro.table.host': 'Host',
   'screen.casino.chinchiro.table.free': 'Free seat',

@@ -143,7 +143,14 @@ describe('Chinchiro, shared table', () => {
 
   const seatsOf = (...ids: (string | null)[]) =>
     Array.from({ length: 6 }, (_, index) => ({ index, userId: ids[index] ?? null }));
-  const base: ChinchiroTableData = { minBet: 10, stepMs: 900, deadline: null, closedEmpty: false };
+  const base: ChinchiroTableData = {
+    minBet: 10,
+    minSeats: 2,
+    rakeBps: 1000,
+    stepMs: 900,
+    deadline: null,
+    folded: false,
+  };
 
   async function openTable(client: FakeClient) {
     const { view } = await show(client);
@@ -188,7 +195,8 @@ describe('Chinchiro, shared table', () => {
       { seats: seatsOf(USER_ID, '200000000000000002') },
     );
     act(() => client.push(lobby));
-    expect(text(view.container)).toContain('Table bet 200 Pelica');
+    expect(text(view.container)).toContain('Bet 200 Pelica each · Table fee 10% of the losers');
+    expect(text(view.container)).toContain('2 players or more');
     expect(text(view.container)).toContain('Waiting for players');
     expect(text(view.container)).toContain('Host');
     expect(view.container.querySelectorAll('.cc-seat[data-free="true"]')).toHaveLength(4);
@@ -223,11 +231,41 @@ describe('Chinchiro, shared table', () => {
     expect(buttons(view.container).some((b) => b.textContent === 'Start now')).toBe(false);
   });
 
-  it('plays the reveal and shows the verdict and my payout', async () => {
+  it('lets a seated player roll once, and marks who has not rolled yet', async () => {
     const client = new FakeClient();
     const view = await openTable(client);
-    const dealer = [roll([4, 4, 3], 'me', 3)];
-    const mine = [roll([6, 6, 2], 'me', 2), roll([5, 6, 6], 'me', 5)];
+    const other = '200000000000000002';
+    const rolling = (mine: ChinchiroRollView[]) =>
+      tableSnapshot(
+        'chinchiro',
+        'rolling',
+        {
+          ...base,
+          hostId: USER_ID,
+          bet: 100,
+          deadline: Date.now() + 45_000,
+          hands: [
+            { userId: USER_ID, roundId: 'ch-7', rolled: mine.length > 0, rolls: mine },
+            { userId: other, roundId: 'ch-8', rolled: false, rolls: [] },
+          ],
+        },
+        { seats: seatsOf(USER_ID, other) },
+      );
+    act(() => client.push(rolling([])));
+    expect(text(view.container)).toContain('Not rolled yet');
+    expect(text(view.container)).toMatch(/4[45]s to roll/);
+    client.answer({ tableRound: 'tbl-1', rolls: [roll([4, 5, 6], 'shigoro')], finished: false });
+    await click(button(view.container, '🎲 Roll'));
+    expect(client.actions).toEqual([{ game: 'chinchiro', roundId: 'tbl-1', action: 'table_roll' }]);
+    act(() => client.push(rolling([roll([4, 5, 6], 'shigoro')])));
+    expect(buttons(view.container).some((b) => b.textContent === '🎲 Roll')).toBe(false);
+    expect(view.container.querySelectorAll('.cc-seatroll')).toHaveLength(2);
+  });
+
+  it('shows the pot result: strongest first with the crown, the fee and my payout', async () => {
+    const client = new FakeClient();
+    const view = await openTable(client);
+    const other = '200000000000000002';
     act(() =>
       client.push(
         tableSnapshot(
@@ -235,37 +273,67 @@ describe('Chinchiro, shared table', () => {
           'result',
           {
             ...base,
-            hostId: USER_ID,
+            hostId: other,
             bet: 100,
-            dealerRolls: dealer,
-            hands: [{ userId: USER_ID, roundId: 'ch-7', rolls: mine }],
-            verdicts: [
+            hands: [
+              { userId: other, roundId: 'ch-8', rolled: true, rolls: [roll([4, 4, 3], 'me', 3)] },
               {
                 userId: USER_ID,
-                result: 'win',
-                multiplier: 1,
-                payout: 200,
-                net: 100,
-                settled: true,
+                roundId: 'ch-7',
+                rolled: true,
+                rolls: [roll([6, 6, 2], 'me', 2), roll([5, 6, 6], 'me', 5)],
               },
             ],
-            won: true,
+            results: [
+              { userId: USER_ID, isWinner: true, payout: 190, net: 90, settled: true },
+              { userId: other, isWinner: false, payout: 0, net: -100, settled: true },
+            ],
+            rake: 10,
+            refunded: false,
+          },
+          { seats: seatsOf(other, USER_ID) },
+        ),
+      ),
+    );
+    expect(text(view.container)).toContain('👑 You take the pot!');
+    const rows = [...view.container.querySelectorAll('.cc-seatroll')];
+    expect(rows.map((r) => r.getAttribute('data-winner'))).toEqual(['true', 'false']);
+    expect(rows[0]?.textContent).toContain('👑');
+    expect(rows[0]?.textContent).toContain('Point 5');
+    expect(rows[1]?.textContent).toContain('Point 3');
+    expect(text(view.container)).toContain('Table fee 10 Pelica');
+    expect(text(view.container)).toContain('You won 90 Pelica');
+    expect(text(view.container)).toContain('You take the pot!');
+  });
+
+  it('says the stakes came back when settling failed', async () => {
+    const client = new FakeClient();
+    const view = await openTable(client);
+    act(() =>
+      client.push(
+        tableSnapshot(
+          'chinchiro',
+          'result',
+          {
+            ...base,
+            bet: 100,
+            hands: [{ userId: USER_ID, roundId: 'ch-7', rolled: true, rolls: [] }],
+            results: [{ userId: USER_ID, isWinner: true, payout: 0, net: 0, settled: false }],
+            rake: 0,
+            refunded: true,
           },
           { seats: seatsOf(USER_ID) },
         ),
       ),
     );
-    expect(text(view.container)).toContain('Point 3');
-    expect(text(view.container)).toContain('Point 5');
-    expect(text(view.container)).toContain('Won');
-    expect(text(view.container)).toContain('You won 100 Pelica');
-    expect(text(view.container)).toContain('You win!');
+    expect(text(view.container)).toContain('Every stake was returned');
+    expect(text(view.container)).not.toContain('You won');
   });
 
-  it('says why an empty table was closed', async () => {
+  it('says why a table of one was folded', async () => {
     const client = new FakeClient();
     const view = await openTable(client);
-    act(() => client.push(tableSnapshot('chinchiro', 'idle', { ...base, closedEmpty: true })));
-    expect(text(view.container)).toContain('Nobody sat down');
+    act(() => client.push(tableSnapshot('chinchiro', 'idle', { ...base, folded: true })));
+    expect(text(view.container)).toContain('Fewer than 2 players sat down');
   });
 });

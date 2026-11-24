@@ -8,7 +8,6 @@ import type {
 } from '@casino/shared';
 import { useLocale, useT } from '../../shell/i18n.ts';
 import { useSessionStore } from '../../shell/stores/session.ts';
-import { useReveal } from './anim.ts';
 import { BetBar } from './BetBar.tsx';
 import { DiceRow, handLabel } from './DiceRow.tsx';
 import { ErrorLine } from './ErrorLine.tsx';
@@ -166,16 +165,12 @@ function SharedTable({ minBet, onSettled }: { minBet: number; onSettled: () => v
   const data = (snapshot?.data ?? null) as ChinchiroTableData | null;
   const phase = snapshot?.phase ?? 'idle';
   const seated = snapshot?.seats.some((s) => s.userId === me) ?? false;
-  const seconds = useCountdown(phase === 'lobby' ? (data?.deadline ?? null) : null, offsetMs);
-  const dealerRolls = data?.dealerRolls ?? [];
+  const timed = phase === 'lobby' || phase === 'rolling';
+  const seconds = useCountdown(timed ? (data?.deadline ?? null) : null, offsetMs);
   const hands = data?.hands ?? [];
-  const total =
-    phase === 'playing' || phase === 'result'
-      ? dealerRolls.length + hands.reduce((n, h) => n + h.rolls.length, 0)
-      : null;
-  const revealKey = `${snapshot?.roundId ?? ''}-${phase === 'playing' || phase === 'result' ? 'go' : 'wait'}`;
-  const revealed = useReveal(total, data?.stepMs ?? 900, revealKey);
-  const shownAll = phase === 'result' ? (total ?? 0) : revealed;
+  const myHand = hands.find((h) => h.userId === me);
+  const rake = Math.round((data?.rakeBps ?? 1000) / 100);
+  const minSeats = data?.minSeats ?? 2;
 
   useEffect(() => {
     if (phase === 'result') onSettled();
@@ -194,10 +189,14 @@ function SharedTable({ minBet, onSettled }: { minBet: number; onSettled: () => v
       return out;
     });
   };
-  const act = (action: 'stand' | 'begin') => {
+  const act = (action: 'stand' | 'begin' | 'table_roll') => {
     if (!snapshot?.roundId) return;
     sfx.arm();
-    void run(() => client.action('chinchiro', snapshot.roundId as string, action));
+    void run(async () => {
+      const out = await client.action('chinchiro', snapshot.roundId as string, action);
+      if (action === 'table_roll') sfx.play('diceRoll');
+      return out;
+    });
   };
 
   const nameOf = (userId: string | null, index: number) =>
@@ -206,26 +205,50 @@ function SharedTable({ minBet, onSettled }: { minBet: number; onSettled: () => v
       : userId === me
         ? t('screen.casino.chinchiro.you')
         : (names.get(userId) ?? t('screen.casino.chinchiro.table.seat', { n: index + 1 }));
-
-  let cursor = dealerRolls.length;
-  const seatViews = hands.map((hand) => {
-    const start = cursor;
-    cursor += hand.rolls.length;
-    return { hand, start };
-  });
-  const dealerShown = Math.min(shownAll, dealerRolls.length);
-  const verdictOf = (userId: string) => data?.verdicts?.find((v) => v.userId === userId);
-  const myVerdict = me ? verdictOf(me) : undefined;
+  const seatIndex = (userId: string) => hands.findIndex((h) => h.userId === userId);
+  const potLine = (
+    <Tag hue="yellow" solid>
+      {t('screen.casino.chinchiro.table.pot', {
+        amount: formatNumber(locale, data?.bet ?? 0),
+        rake,
+      })}
+    </Tag>
+  );
 
   if (!snapshot) return <p className="cc-status">{t('screen.casino.loadingTable')}</p>;
+
+  const results = data?.results ?? [];
+  const winners = results.filter((r) => r.isWinner);
+  const head =
+    winners.length === results.length
+      ? t('screen.casino.chinchiro.table.head.draw')
+      : winners.length === 1 && winners[0]?.userId === me
+        ? `👑 ${t('screen.casino.chinchiro.table.youWin')}`
+        : winners.length === 1
+          ? t('screen.casino.chinchiro.table.head.single', {
+              name: nameOf(winners[0]?.userId ?? null, seatIndex(winners[0]?.userId ?? '')),
+            })
+          : t('screen.casino.chinchiro.table.head.split', {
+              names: winners
+                .map((w) => nameOf(w.userId, seatIndex(w.userId)))
+                .join(locale === 'ja' ? '・' : ', '),
+            });
+  const mine = results.find((r) => r.userId === me);
+  const myDetail = !mine
+    ? ''
+    : winners.length === results.length
+      ? t('screen.casino.chinchiro.table.youDraw')
+      : mine.isWinner
+        ? t(`screen.casino.chinchiro.table.${winners.length === 1 ? 'youWin' : 'youSplit'}`)
+        : t('screen.casino.chinchiro.table.youLose');
 
   return (
     <div className="cc-stack">
       {phase === 'idle' ? (
         <>
           <p className="cc-intro">
-            {data?.closedEmpty
-              ? t('screen.casino.chinchiro.table.empty')
+            {data?.folded
+              ? t('screen.casino.chinchiro.table.folded', { min: minSeats })
               : t('screen.casino.chinchiro.table.idle')}
           </p>
           <BetBar
@@ -244,17 +267,14 @@ function SharedTable({ minBet, onSettled }: { minBet: number; onSettled: () => v
       {phase === 'lobby' && data ? (
         <>
           <p className="cc-status">
-            <Tag hue="yellow" solid>
-              {t('screen.casino.chinchiro.table.lobby', {
-                amount: formatNumber(locale, data.bet ?? 0),
-              })}
-            </Tag>{' '}
+            {potLine}{' '}
             {seconds !== null ? (
               <Tag hue="orange" solid>
                 {t('screen.casino.chinchiro.table.waiting', { seconds })}
               </Tag>
             ) : null}
           </p>
+          <p className="cc-note">{t('screen.casino.chinchiro.table.rule', { min: minSeats })}</p>
           <ul
             className="cc-seats"
             aria-label={t('screen.casino.chinchiro.table.seats', {
@@ -293,60 +313,100 @@ function SharedTable({ minBet, onSettled }: { minBet: number; onSettled: () => v
         </>
       ) : null}
 
-      {(phase === 'playing' || phase === 'result') && data ? (
-        <div className="cc-table" data-phase={phase}>
+      {phase === 'rolling' && data ? (
+        <>
           <p className="cc-status">
-            {phase === 'playing' ? t('screen.casino.chinchiro.table.rolling') : null}
+            {potLine}{' '}
+            {seconds !== null ? (
+              <Tag hue="orange" solid>
+                {t('screen.casino.chinchiro.table.rollTime', { seconds })}
+              </Tag>
+            ) : null}
           </p>
-          <DiceRow
-            roll={dealerShown > 0 ? (dealerRolls[dealerShown - 1] ?? null) : null}
-            rollKey={`${snapshot.roundId}-d${dealerShown}`}
-            caption={t('screen.casino.chinchiro.dealer')}
-            dealer
-          />
-          {seatViews.map(({ hand, start }, i) => {
-            const count = Math.max(0, Math.min(hand.rolls.length, shownAll - start));
-            const verdict = phase === 'result' ? verdictOf(hand.userId) : undefined;
-            return (
+          <p className="cc-note">{t('screen.casino.chinchiro.table.rolling')}</p>
+          <div className="cc-table" data-phase={phase}>
+            {hands.map((hand, i) => (
               <div key={hand.roundId} className="cc-seatroll" data-me={hand.userId === me}>
                 <DiceRow
-                  roll={count > 0 ? (hand.rolls[count - 1] ?? null) : null}
-                  rollKey={`${hand.roundId}-${count}`}
+                  roll={lastOf(hand.rolls)}
+                  rollKey={`${hand.roundId}-${hand.rolls.length}`}
                   caption={nameOf(hand.userId, i)}
                 />
-                {verdict && count === hand.rolls.length ? (
-                  <Tag
-                    hue={
-                      verdict.result === 'win'
-                        ? 'green'
-                        : verdict.result === 'lose'
-                          ? 'red'
-                          : 'neutral'
-                    }
-                    solid
-                  >
-                    {t(`screen.casino.chinchiro.table.${verdict.result}`)}
-                  </Tag>
-                ) : null}
+                {hand.rolled ? null : <Tag>{t('screen.casino.chinchiro.table.notRolled')}</Tag>}
               </div>
-            );
-          })}
-        </div>
+            ))}
+          </div>
+          <ErrorLine errorKey={errorKey} />
+          {myHand && !myHand.rolled ? (
+            <Button
+              variant="filled"
+              onClick={() => act('table_roll')}
+              disabled={busy}
+              className="cc-cta"
+            >
+              {t('screen.casino.chinchiro.table.roll')}
+            </Button>
+          ) : null}
+        </>
       ) : null}
 
-      {phase === 'result' && myVerdict ? (
-        <ResultBanner
-          settlement={{
-            net: myVerdict.net,
-            payout: myVerdict.payout,
-            jackpot: 0,
-            tier: null,
-            stake: data?.bet ?? 0,
-          }}
-          detail={t(`screen.casino.chinchiro.result.${myVerdict.result}`)}
-        />
+      {phase === 'result' && data ? (
+        <>
+          {data.refunded ? (
+            <Banner variant="warning" title={t('screen.casino.chinchiro.table.refunded')} />
+          ) : (
+            <p className="cc-status">{head}</p>
+          )}
+          <div className="cc-table" data-phase={phase}>
+            {results.map((r) => {
+              const i = seatIndex(r.userId);
+              const hand = hands[i];
+              return (
+                <div
+                  key={r.userId}
+                  className="cc-seatroll"
+                  data-me={r.userId === me}
+                  data-winner={r.isWinner}
+                >
+                  <DiceRow
+                    roll={hand ? lastOf(hand.rolls) : null}
+                    rollKey={`${hand?.roundId ?? r.userId}-${hand?.rolls.length ?? 0}`}
+                    caption={`${r.isWinner ? '👑 ' : ''}${nameOf(r.userId, i)}`}
+                  />
+                  {data.refunded ? null : (
+                    <Tag hue={r.net > 0 ? 'green' : r.net < 0 ? 'red' : 'neutral'} solid>
+                      {r.isWinner ? `${t('screen.casino.chinchiro.table.winner')} ` : ''}
+                      {r.net > 0 ? '+' : ''}
+                      {formatNumber(locale, r.net)}
+                    </Tag>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+          {data.refunded ? null : (
+            <p className="cc-note">
+              {potLine}{' '}
+              {t('screen.casino.chinchiro.table.rake', {
+                amount: formatNumber(locale, data.rake ?? 0),
+              })}
+            </p>
+          )}
+          {mine && !data.refunded ? (
+            <ResultBanner
+              settlement={{
+                net: mine.net,
+                payout: mine.payout,
+                jackpot: 0,
+                tier: null,
+                stake: data.bet ?? 0,
+              }}
+              detail={myDetail}
+            />
+          ) : null}
+          <ErrorLine errorKey={errorKey} />
+        </>
       ) : null}
-      {phase !== 'lobby' ? <ErrorLine errorKey={errorKey} /> : null}
     </div>
   );
 }

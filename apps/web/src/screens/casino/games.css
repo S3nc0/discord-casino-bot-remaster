@@ -271,6 +271,11 @@ rect.cc-die__pip {
   box-shadow: 0 0 0 2px var(--primary);
 }
 
+/* the pot's winner (or the tied winners) wears the crown */
+.cc-seatroll[data-winner='true'] {
+  box-shadow: 0 0 0 2px var(--tertiary);
+}
+
 /* ---- slots ---- */
 .cc-machine {
   display: flex;
