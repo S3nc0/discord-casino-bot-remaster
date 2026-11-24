@@ -167,9 +167,15 @@ Do [Owner Setup Guide — Step 8](OWNER_SETUP.md#8-turn-the-chat-bot-on) first: 
 
 ---
 
-## Later Waves
+## 11. Games, Stream Panel, Name Colour and Wealthy Badge
 
-The checks below will be filled in as the remaining Wave 2 work lands:
+Short checks for the features added after the chat commands. They use your test server and, for the stream panel, a second account (the streamer cannot tip or bet on their own stream). Keep the Activity open next to the chat to compare balances.
 
-- [ ] **Game screens** — *(placeholder: table join, betting, payout, balance update inside the Activity)*
-- [ ] **Remaining chat commands** — *(placeholder: commands not yet wired to the bot)*
+- [ ] **An Activity game round.** In the Activity, open **Casino**, pick a game (for example **Slots**), place a small bet and play one round. The result shows, the balance changes by exactly the win or loss, and the same balance shows in `/pelica balance` (`/ペリカ 残高`).
+- [ ] **Stream panel: super chat.** The streamer runs `/stream start` (`/配信 開始`) with a title. The second account presses **Super chat**, enters `100` and confirms. The streamer's balance goes up, the sender's goes down by the amount plus the fee, and the panel total changes.
+- [ ] **Stream panel: a round that settles.** The streamer opens **Streamer menu → Start a round**. The second account presses **Bet on a win** and bets `100`. The streamer presses **Close the bets**, then **Won** and **Confirm**. The second account is paid out, or refunded if nobody bet on the other side. Trying **Won** before closing the bets is refused. Then the streamer presses **End the stream**.
+- [ ] **Name colour gives the role.** Give your account enough Pelica to buy a name colour (`/admin grant`, see [Owner Admin Guide](OWNER_ADMIN.md)), then buy one from `/shop` (`/ショップ`) → **🌈 Name colors** and wear it (or **Inventory → Wear** in the Activity). A role named `ペリカ・<colour>` appears on you under *Server Settings → Roles*, directly below the bot's role, and your name shows that colour. Take the colour off: the role goes away from you within about 30 seconds. If nothing happens, see [Owner Setup Guide — Name colours](OWNER_SETUP.md#name-colours-manage-roles-and-the-bots-role).
+- [ ] **The Wealthy badge shows.** With no debt, give your account enough Pelica to reach a net worth of `1,000,000` (for example `/admin grant` with `amount:1000000`). 🟡 appears next to your name on `/pelica balance`, `/pelica bank` (`/ペリカ 帝愛`), `/pelica ranking` (`/ペリカ ランキング`) and in the Activity **Bank**, **Profile** and **Ranking** screens. It is display only: nothing else changes for you.
+
+✅ **Expected:** Every balance matches between chat and Activity, the stream round pays out as described, the colour role is added and removed, and 🟡 shows once the net worth is reached.
+**If it fails:** Match the symptom in [Owner Setup Guide — Troubleshooting](OWNER_SETUP.md#10-troubleshooting). If it is not there, report it (Step 9).
