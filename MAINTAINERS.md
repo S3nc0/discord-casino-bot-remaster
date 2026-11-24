@@ -35,7 +35,7 @@ Related: [CONTRIBUTING.md](CONTRIBUTING.md), [SECURITY.md](SECURITY.md), [CHANGE
 | Path | What is in it |
 | --- | --- |
 | `apps/server/` | The one server process: Fastify HTTP API, Socket.io, the Discord chat bot, the scheduler, SQLite. Entry point `src/main.ts`. |
-| `apps/server/src/` | `auth/` login and sessions, `db/` store, migrations and importer, `economy/` the ledger writer, `finance/` bank, loans, stocks, companies, market, `games/` every game, `http/` routes, `socket/` Socket.io, `bot/` slash commands, `notify/` announcements, DMs and inbox, `runtime/` boot, jobs, limits. |
+| `apps/server/src/` | `auth/` login and sessions, `db/` store, migrations and importer, `economy/` the ledger writer, `finance/` bank, loans, stocks, companies, market, `games/` every game, `stream/` stream panel, `http/` routes, `socket/` Socket.io, `bot/` slash commands, `notify/` announcements, DMs and inbox, `runtime/` boot, jobs, limits. |
 | `apps/server/scripts/` | `import-legacy.ts` (legacy import) and `load.ts` (load generator). |
 | `apps/web/` | The Discord Activity: React 19 + Vite. `src/shell/` is the frame (login, sockets, stores), `src/screens/` has one folder per group of screens. |
 | `packages/shared/` | The contracts both sides agree on: ids, TypeBox schemas, socket and domain events, ledger reasons, env contract, and the EN/JA text in `i18n/`. |
@@ -164,7 +164,7 @@ Breaking changes to the API or socket contract need the web build and the server
 **Migrations.** The schema is a list of numbered SQL files in `apps/server/src/db/migrations/`, listed in `index.ts` and applied in order when the server starts, one transaction each. Each applied file's checksum is stored in `schema_migrations`.
 
 - Never edit a migration that has merged. Add the next number instead. The server refuses to start if an applied file was edited, or if the database has a migration this build does not know (a newer build wrote it; do not run an older build on that file).
-- The latest is `0012_pinned_posts` (the `pinned_posts` table: which poll, kyosai motion and raffle posts the bot has pinned, so the sweep can unpin them). Before it, `0011_arena_runner_up` added a nullable `arena_tournaments.runner_up_id`: second place of the final; empty for tournaments that finished earlier.
+- The latest is `0013_stream` (`streams`, `stream_rounds`, `stream_bets` and `stream_round_audit` for the stream panel). Before it, `0012_pinned_posts` added `pinned_posts` (which poll, kyosai motion and raffle posts the bot has pinned, so the sweep can unpin them), and `0011_arena_runner_up` added a nullable `arena_tournaments.runner_up_id`: second place of the final; empty for tournaments that finished earlier.
 - Money columns are integers, rates are basis points, prices are fixed point. Rules and tables: [docs/DB_SCHEMA.md](docs/DB_SCHEMA.md).
 
 **Backups.** On the Pi, a systemd timer runs `ops/pi/backup.sh` every night at about 03:30 and keeps seven days in `/var/backups/discord-casino/`. It uses SQLite's online `.backup`, so it is safe while the server runs. To take one right now:
@@ -258,7 +258,7 @@ Every icon, sprite and scene is generated, never hand-edited. The commands, inpu
 
 | Folder | Draws | Writes (`apps/web/src/screens/` unless noted) |
 | --- | --- | --- |
-| `icons/` | The 35 game icons | `packages/ui/src/pixel/icon-art.ts` and the icon fills in `packages/ui/src/styles/bundle.css` |
+| `icons/` | The 36 game icons | `packages/ui/src/pixel/icon-art.ts` and the icon fills in `packages/ui/src/styles/bundle.css` |
 | `app-icon/` | App icon (`512x512`) and Activity favicons (`32x32`, `16x16`) | `docs/images/app-icon-512.png`, `apps/web/public/favicon-32.png`, `apps/web/public/favicon-16.png` |
 | `horse/` | The eight-frame race horse (needs a reference) | `horse/horse-art.ts` and the coat and silks colours in `horse/horse.css` |
 | `scenes/` | Race, stable, breeding, arena (16 fighters), mine (miner, ores, relics), shop, inventory | `horse/race-art.ts`, `stable-art.ts`, `arena-art.ts`; `life/mine-art.ts`, `shop-art.ts`, `inventory-art.ts` |

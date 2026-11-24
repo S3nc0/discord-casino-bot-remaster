@@ -20,7 +20,7 @@
 | モジュール | 仕様ファイル | フィクスチャ | 担当 | メモ |
 | --- | --- | --- | --- | --- |
 | カジノ共通（RTP レベル、ジャックポット、イベント、エスクロー） | [casino-common.ja.md](casino-common.ja.md) | `tests/fixtures/legacy/casino-common/` | B2-A | 5 つのカジノゲーム全部で使う共通処理。 |
-| チンチロ | [chinchiro.ja.md](chinchiro.ja.md) | `tests/fixtures/legacy/chinchiro/` | B2-A | 親と戦う 3 つ振りのサイコロゲーム（`pinzoro`〜`hifumi`）。 |
+| チンチロ | [chinchiro.ja.md](chinchiro.ja.md) | `tests/fixtures/legacy/chinchiro/` | B2-A | 親と戦う 3 つ振りのサイコロゲーム（`pinzoro`〜`hifumi`）と、2〜6 席の勝者総取りの卓（控除 `10%`、`/カジノ チンチロ卓`）。 |
 | パチンコ | [pachinko.ja.md](pachinko.ja.md) | `tests/fixtures/legacy/pachinko/` | B2-A | 予兆、ティア、ラウンド倍率を持つ複数スピンのセット台。 |
 | スロット | [slots.ja.md](slots.ja.md) | `tests/fixtures/legacy/slots/` | B2-A | 重み付き 3 リールのスロット。 |
 | ブラックジャック | [blackjack.ja.md](blackjack.ja.md) | `tests/fixtures/legacy/blackjack/` | B2-A | ヒット、スタンド、ダブルダウンのある標準的な 21。 |
@@ -45,9 +45,9 @@
 | 帝愛銀行（準備率、破産猶予、破綻保証、信託） | [teiai.ja.md](teiai.ja.md) | `tests/fixtures/legacy/teiai/` | B3 | 部分準備、サーモスタット、信託預金、トイチの債務、`15,000` の破産猶予、強制執行、海外逃亡、破綻保証。 |
 | 個人間融資 | [p2p-loans.ja.md](p2p-loans.ja.md) | `tests/fixtures/legacy/p2p-loans/` | B3 | わかりやすさのため帝愛銀行から分割。プレイヤー間の貸出オファー、単利、延滞ペナルティ、満期の自動回収、差し押さえ。 |
 | 帝愛共済 | [kyosai.ja.md](kyosai.ja.md) | `tests/fixtures/legacy/kyosai/` | B3 | わかりやすさのため帝愛銀行から分割。口のオークション、ハミルトン方式の配当、超過損失の徴収、口のプレイヤー間譲渡（手数料 `5%`）、ガバナンス動議。 |
-| プレイヤーマーケット／オークション／エスクロー | [player-market.ja.md](player-market.ja.md) | `tests/fixtures/legacy/player-market/` | B3 | 固定価格と期限つきオークションの出品（手数料 `5%`、スナイプ対策、猶予期間内の取り下げ）。ゲームの賭け金のエスクローは [casino-common.ja.md](casino-common.ja.md) にあります。 |
+| プレイヤーマーケット／オークション／エスクロー | [player-market.ja.md](player-market.ja.md) | `tests/fixtures/legacy/player-market/` | B3 | 固定価格と期限つきオークションの出品（手数料 `5%`、スナイプ対策、猶予期間内の取り下げ）、および帝愛による毎日の発掘品オークション（星なし発掘品 `1` 点/日、24 時間オークション、`100,000`/24 時間の相手別上限の対象外）。ゲームの賭け金のエスクローは [casino-common.ja.md](casino-common.ja.md) にあります。 |
 | 会社 | [companies.ja.md](companies.ja.md) | `tests/fixtures/legacy/companies/` | B3 | 決定論的な毎日の市況、連続生産、予算で頭打ちになる売上、外部の出資、配当、維持費 3 日未払いによる破産。 |
-| 配信パネル（新規、上流の取り込み） | [stream.ja.md](stream.ja.md) | *（なし。新機能のため、代わりにプロパティテスト）* | S0 | 配信者のパネルで、スパチャ（送金のルール）と勝ち・負けの山分けの賭け（控除 `5%`、1 人 1 勝負 `10,000` まで）を受ける。2026-11-24 のオーナーの決定：勝ち・負けは締切のあとだけ、賭けは 10 分で自動で締切、`/admin stream-void` と監査ログ、ボイスチャンネルは自動で作らない。 |
+| 配信パネル（v1.1.0 で実装、上流の取り込み） | [stream.ja.md](stream.ja.md) | *（なし。新機能のため、代わりにプロパティテスト）* | S0〜S3 | アクティビティの配信画面または `/配信 開始` から開く配信者のパネルで、スパチャ（送金のルール・1 日 `20,000` の上限を共有）と勝ち・負けの山分けの賭け（控除 `5%`、1 人 1 勝負 `10,000` まで）を受ける。2026-11-24 のオーナーの決定：勝ち・負けは締切のあとだけ、賭けは 10 分で自動で締切、`/admin stream-void`（`/運営 配信無効`）と監査ログ、ボイスチャンネルは自動で作らない。 |
 
 ## 統合・分割したモジュールのメモ
 

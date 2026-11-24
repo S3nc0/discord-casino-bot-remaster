@@ -51,7 +51,7 @@
 
 <table>
   <tr>
-    <td width="33%"><img src="docs/images/readme/icons/dice.svg" alt="" width="32"> <b>チンチロ</b><br>親と3つのサイコロで勝負。目が出なければ3回まで振れます。</td>
+    <td width="33%"><img src="docs/images/readme/icons/dice.svg" alt="" width="32"> <b>チンチロ</b><br>親との勝負に加え、みんなで遊ぶ総取りの卓も。</td>
     <td width="33%"><img src="docs/images/readme/icons/slots.svg" alt="" width="32"> <b>スロットとパチンコ</b><br>レバーを引いて、大当たりを狙おう。</td>
     <td width="33%"><img src="docs/images/readme/icons/cards.svg" alt="" width="32"> <b>ブラックジャックとルーレット</b><br>ヒット、スタンド、ダブル。全額を赤に賭けるのもアリ。</td>
   </tr>
@@ -67,7 +67,12 @@
   </tr>
   <tr>
     <td><img src="docs/images/readme/icons/trophy.svg" alt="" width="32"> <b>ランキング</b><br>週間王者や、純資産・流動資産の順位が見られます。</td>
-    <td><img src="docs/images/readme/icons/shop.svg" alt="" width="32"> <b>ショップと取引</b><br>称号や名前の色、アイテムを交換。ほかの人との取引もできます。</td>
+    <td><img src="docs/images/readme/icons/shop.svg" alt="" width="32"> <b>ショップと取引</b><br>称号やアイテム、帝愛の日替わり発掘品オークションや個人間の取引も。</td>
+    <td><img src="docs/images/readme/icons/flame.svg" alt="" width="32"> <b>配信パネル</b><br>配信者のパネルで、スパチャや勝敗の賭けを楽しめます。</td>
+  </tr>
+  <tr>
+    <td><img src="docs/images/readme/icons/company.svg" alt="" width="32"> <b>会社</b><br>子会社を育てて製品を売り、配当を出そう。</td>
+    <td><img src="docs/images/readme/icons/loan.svg" alt="" width="32"> <b>個人間融資と帝愛共済</b><br>ペリカの貸し借りや、共済の口の売買ができます。</td>
     <td><img src="docs/images/readme/icons/shield.svg" alt="" width="32"> <b>安心の作り</b><br>賭け金は先に預かって、1回の処理で精算します。ゲームの途中でペリカが消えることはありません。</td>
   </tr>
 </table>

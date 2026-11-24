@@ -58,7 +58,7 @@ No photograph is shipped or kept in the repository: only the generated pixel row
 
 ### Drawn without references
 
-All other pixel art is drawn in code in `tools/pixel-art/` with no reference images: the 35 game icons (`packages/ui/src/pixel/icon-art.ts`); the app icon and Activity favicons (`tools/pixel-art/app-icon/`); the race track, stall, paddock, arena, mine, shop and storeroom scenery and the ores and relics (`tools/pixel-art/scenes/`); the casino scenes, cards, dice, chips and reel symbols (`tools/pixel-art/casino/`); the quiz, lottery, poll, missions, ranking, relics, transfer, daily bonus, history and profile scenes (`tools/pixel-art/social/`); and the finance scenes, coins, company badges, gavel and dividend coin (`tools/pixel-art/finance/`).
+All other pixel art is drawn in code in `tools/pixel-art/` with no reference images: the 36 game icons (`packages/ui/src/pixel/icon-art.ts`); the app icon and Activity favicons (`tools/pixel-art/app-icon/`); the race track, stall, paddock, arena, mine, shop and storeroom scenery and the ores and relics (`tools/pixel-art/scenes/`); the casino scenes, cards, dice, chips and reel symbols (`tools/pixel-art/casino/`); the quiz, lottery, poll, missions, ranking, relics, transfer, daily bonus, history and profile scenes (`tools/pixel-art/social/`); and the finance scenes, coins, company badges, gavel and dividend coin (`tools/pixel-art/finance/`).
 
 ## Tools
 

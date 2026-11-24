@@ -158,9 +158,10 @@ Discord のスラッシュコマンド、サブコマンドグループ、サブ
 | `admin event stop` | `運営 イベント 終了` | `guild_id` / `サーバー`: string、オートコンプリート（任意） | `true` | `admin` |
 | `admin rtp set` | `運営 還元率 設定` | `guild_id` / `サーバー`: string、オートコンプリート（必須）、`game` / `ゲーム`: string の選択肢（`*` と 5 つのカジノゲーム）（必須）、`level` / `レベル`: integer の選択肢（`1..6`）（必須） | `true` | `admin` |
 | `admin rtp list` | `運営 還元率 一覧` | `guild_id` / `サーバー`: string、オートコンプリート（任意） | `true` | `admin` |
-| `admin feature off` | `運営 機能 停止` | `guild_id` / `サーバー`: string、オートコンプリート（必須）、`feature` / `機能`: string の選択肢（`*` と 18 の機能）（必須） | `true` | `admin` |
-| `admin feature on` | `運営 機能 再開` | `guild_id` / `サーバー`: string、オートコンプリート（必須）、`feature` / `機能`: string の選択肢（`*` と 18 の機能）（必須） | `true` | `admin` |
+| `admin feature off` | `運営 機能 停止` | `guild_id` / `サーバー`: string、オートコンプリート（必須）、`feature` / `機能`: string の選択肢（`*` と 19 の機能）（必須） | `true` | `admin` |
+| `admin feature on` | `運営 機能 再開` | `guild_id` / `サーバー`: string、オートコンプリート（必須）、`feature` / `機能`: string の選択肢（`*` と 19 の機能）（必須） | `true` | `admin` |
 | `admin feature list` | `運営 機能 一覧` | `guild_id` / `サーバー`: string、オートコンプリート（任意） | `true` | `admin` |
+| `admin stream-void` | `運営 配信無効` | `guild_id` / `サーバー`: string、オートコンプリート（必須）、`target` / `対象`: string（`stream:<id>`、`round:<id>`、または勝負の番号）（必須）、`reason` / `理由`: string、最大 `200`（必須） | `true` | `admin` / `stream` |
 | `admin raffle start` | `運営 抽選 開催` | `guild_id` / `サーバー`: string、オートコンプリート（必須）、`fee` / `掛金`: integer、最小 `500`（任意）、`minutes` / `募集時間`: integer `1..1440`（任意）、`channel_id` / `チャンネル`: string、オートコンプリート（任意） | `true` | `admin` |
 | `admin raffle repost` | `運営 抽選 再掲示` | `guild_id` / `サーバー`: string、オートコンプリート（必須）、`channel_id` / `チャンネル`: string、オートコンプリート（任意） | `true` | `admin` |
 | `admin raffle cancel` | `運営 抽選 中止` | `guild_id` / `サーバー`: string、オートコンプリート（必須） | `true` | `admin` |
