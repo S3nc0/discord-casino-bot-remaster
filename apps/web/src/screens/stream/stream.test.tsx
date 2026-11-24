@@ -21,6 +21,7 @@ import {
   type TransferView,
 } from '@casino/shared';
 import { ThemeProvider } from '@casino/ui';
+import { readConfig } from '../../shell/config.ts';
 import { RuntimeContext, ShellRuntime } from '../../shell/runtime.ts';
 import { createMockApi } from '../../shell/mockApi.ts';
 import { useBalanceStore } from '../../shell/stores/balance.ts';
@@ -365,7 +366,7 @@ function makeHarness(overrides: Partial<StreamApi> = {}, initialView = makeView(
 
   const sdk = fakeSdk();
   const runtime = new ShellRuntime({
-    config: { mode: 'mock', clientId: '1', proxyPrefix: '', mockScreen: 'stream' },
+    config: readConfig('?screen=stream', { VITE_MOCK_DISCORD: '1' }),
     sdk,
     api: createMockApi(),
     origin: 'http://localhost',
@@ -474,7 +475,7 @@ describe('Stream helpers', () => {
 
 describe('StreamScreen', () => {
   beforeEach(() => {
-    useSettingsStore.setState({ locale: 'en' });
+    useSettingsStore.setState({ language: 'en' });
     useBalanceStore.getState().set(25_000);
     useToastStore.getState().clear();
     useSessionStore.setState({
