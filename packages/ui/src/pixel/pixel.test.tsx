@@ -23,8 +23,8 @@ const css = readFileSync(
 
 describe('pixel art data', () => {
   it('has the game and item icons on a 16 by 16 grid', () => {
-    expect(GAME_ICON_NAMES).toHaveLength(35);
-    expect(new Set(GAME_ICON_NAMES).size).toBe(35);
+    expect(GAME_ICON_NAMES).toHaveLength(36);
+    expect(new Set(GAME_ICON_NAMES).size).toBe(36);
     for (const name of [
       'dice',
       'slots',
@@ -65,6 +65,7 @@ describe('pixel art data', () => {
       'relic',
       'history',
       'profile',
+      'stream',
     ])
       expect([...GAME_ICON_NAMES]).toContain(name);
     for (const name of GAME_ICON_NAMES) {

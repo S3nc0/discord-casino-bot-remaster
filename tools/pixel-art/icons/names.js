@@ -35,4 +35,5 @@ export default [
   'relic',
   'history',
   'profile',
+  'stream',
 ];
