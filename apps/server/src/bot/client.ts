@@ -100,7 +100,14 @@ export function createDiscordClient(deps: CreateBotClientDeps): Client {
   let stopBoards: (() => void) | null = null;
   client.once(Events.ClientReady, (readyClient) => {
     if (deps.store) {
-      stopBoards = startBoardRefresh(client, deps.store, deps.identity, deps.logger);
+      stopBoards = startBoardRefresh(
+        client,
+        deps.store,
+        deps.identity,
+        deps.logger,
+        () => (deps.clock ?? systemClock).now(),
+        deps.finance?.netWorth,
+      );
     }
     deps.logger.info(
       { userId: readyClient.user.id, guilds: readyClient.guilds.cache.size },

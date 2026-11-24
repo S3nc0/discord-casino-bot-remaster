@@ -18,6 +18,7 @@ import {
   handleFinanceCommand,
   handleFinanceComponent,
 } from './finance-chat.ts';
+import { handleNetWorthCommand, handleNetWorthComponent } from './net-worth-chat.ts';
 import {
   handleProgressCommand,
   handleProgressComponent,
@@ -35,6 +36,7 @@ export async function dispatchChatCommand(
     (await handleCasinoCommand(ctx, path, interaction)) ||
     (await handleFinanceCommand(ctx, path, interaction)) ||
     (await handleProgressCommand(ctx, path, interaction)) ||
+    (await handleNetWorthCommand(ctx, path, interaction)) ||
     (await handleAdminCommand(ctx, path, interaction))
   );
 }
@@ -50,6 +52,7 @@ export async function dispatchChatComponent(
     if (await handleCasinoComponent(ctx, interaction, id)) return true;
     if (await handleFinanceComponent(ctx, interaction, id)) return true;
     if (await handleAdminComponent(ctx, interaction, id)) return true;
+    if (await handleNetWorthComponent(ctx, interaction, id)) return true;
   }
   return handleProgressComponent(ctx, interaction, id);
 }
