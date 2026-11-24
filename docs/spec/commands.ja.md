@@ -48,7 +48,7 @@ Discord のスラッシュコマンド、サブコマンドグループ、サブ
 | `pelica bank` | `ペリカ 帝愛` | — | `true` | `teiai` |
 | `pelica bankrupt` | `ペリカ 破産` | — | `false`（確認のあと） | `teiai` |
 | `pelica missions` | `ペリカ ミッション` | — | `true` | `economy`（`missions`） |
-| `pelica ranking` | `ペリカ ランキング` | `member` / `内訳`: user（任意） | `false`（`member` を指定したときは `true`） | `economy`（`ranking`） |
+| `pelica ranking` | `ペリカ ランキング` | `view` / `表示`: string の選択肢（`weekly` / `📅 週間（ゲームの損益）`、`net` / `🏆 純資産`、`liquid` / `💧 流動資産`）（任意。既定は `weekly`）、`member` / `内訳`: user（任意） | `false`（`net`／`liquid` で `member` を指定したときは `true`） | `economy`（`ranking`。[economy-core.ja.md §3](economy-core.ja.md#3-貸借対照表純資産流動資産総資産)） |
 | `pelica leaderboard` | `ペリカ ランキング掲示` | `channel` / `チャンネル`: channel（任意）、`stop` / `止める`: boolean（任意） | `true` | `economy`（`boards`。サーバー管理権限かオーナー） |
 | `pelica transfer` | `ペリカ 送金` | `member` / `相手`: user（必須）、`amount` / `金額`: integer、`1..1000000`、オートコンプリート（必須） | `false`（確認のときは `true`） | `economy`（`transfer`） |
 | `pelica history` | `ペリカ 履歴` | — | `true` | `economy`（`history`） |

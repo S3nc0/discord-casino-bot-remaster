@@ -95,7 +95,7 @@ describe('/pelica ranking view', () => {
     expect(lines[1]).toContain(`<@${USER}>`);
   });
 
-  it('member: opens that member’s balance sheet', async () => {
+  it('member: opens that member’s balance sheet, for the caller only', async () => {
     const { handler } = setup();
     const run = command({
       name: 'pelica',
@@ -106,6 +106,7 @@ describe('/pelica ranking view', () => {
     await handler(run.interaction as never);
     const text = allText(run.out[0]!.options);
     expect(embedOf(run.out[0]!.options).title).toBe('🧾 Asset breakdown of Bob');
+    expect(run.out[0]!.options.flags).toBeDefined();
     expect(text).toContain('💴 Cash: 20,000');
     expect(text).toContain('💳 Borrowings (debt to Teiai): 1,000');
     expect(text).toContain('Net assets (total assets − liabilities): 19,000');

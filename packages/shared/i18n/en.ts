@@ -647,7 +647,7 @@ export const en = {
   'bot.bank.bankrupt.public': '{user} declared bankruptcy.',
   'bot.bank.bankrupt.seized': 'Seized',
   'bot.bank.bankrupt.paid': 'Paid to Teiai',
-  'bot.board.title': '🏆 Pelica ranking (net worth)',
+  'bot.board.title': '🏆 Pelica ranking (net assets)',
   'bot.board.updated': 'Last updated: <t:{ts}:R>',
   'bot.board.footer': 'Updates automatically every {minutes} min',
   'bot.board.empty': 'No players yet.',

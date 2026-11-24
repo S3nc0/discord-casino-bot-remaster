@@ -174,7 +174,8 @@ function breakdownMessage(
 
 /**
  * `/pelica ranking view:net|liquid` (D2: the default view stays the weekly game ranking, which
- * `wired-commands.ts` answers). With `member`, opens that member's breakdown instead.
+ * `wired-commands.ts` answers). With `member`, opens that member's breakdown instead, visible only
+ * to the caller.
  */
 export async function handleNetWorthCommand(
   ctx: ChatCtx,
@@ -192,7 +193,7 @@ export async function handleNetWorthCommand(
   await reply(
     interaction,
     member
-      ? breakdownMessage(ctx, netWorth, guildId, ownerId, member)
+      ? { ...breakdownMessage(ctx, netWorth, guildId, ownerId, member), flags: EPHEMERAL }
       : rankingMessage(ctx, netWorth, guildId, ownerId, view),
   );
   return true;

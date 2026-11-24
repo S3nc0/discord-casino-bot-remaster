@@ -66,7 +66,7 @@ Everything below runs inside Discord as an **Activity** (a mini app on your phon
     <td><img src="docs/images/readme/icons/lottery.svg" alt="" width="32"> <b>Lottery, quiz and polls</b><br>Server-wide fun that anyone can start.</td>
   </tr>
   <tr>
-    <td><img src="docs/images/readme/icons/trophy.svg" alt="" width="32"> <b>Rankings</b><br>Weekly champion, net worth and more.</td>
+    <td><img src="docs/images/readme/icons/trophy.svg" alt="" width="32"> <b>Rankings</b><br>Weekly champion, net assets and current assets.</td>
     <td><img src="docs/images/readme/icons/shop.svg" alt="" width="32"> <b>Shop and market</b><br>Titles, colors, items. Trade with other players.</td>
     <td><img src="docs/images/readme/icons/shield.svg" alt="" width="32"> <b>Safe by design</b><br>Your bet is held first and settled in one step, so no coins vanish mid-game.</td>
   </tr>

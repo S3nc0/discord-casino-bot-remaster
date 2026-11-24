@@ -11,7 +11,7 @@ Canonical English and Japanese terms used across the legacy bot, YAML catalogs, 
 - **Per-Guild Economy / サーバー別経済**: Strict isolation of balances, debt, inventory, horses, companies, and markets by `guild_id`.
 - **Ledger / 取引履歴**: Append-only balance-change log recording `delta`, `balance_after`, `reason`, and timestamp.
 - **Escrow / エスクロー**: Temporary wager hold placed before a game resolves, refunded on cancel or settled on completion.
-- **Net Worth / 総資産**: 15-part balance sheet across cash, bank deposits, securities, bonds, options, companies, horses, relics, and debt.
+- **Net Assets / 純資産**: Total assets minus liabilities on the balance sheet below; the default ranking key (it used to be mislabelled `総資産` here).
 - **Daily Bonus / デイリー**: Claimable reward resetting every 6 hours JST (4 slots/day) with consecutive-claim streak scaling.
 - **Streak Guard / ストリーク保護**: Consumable item that preserves a daily streak when a slot is missed.
 - **Daily Double / デイリー2倍**: Consumable item that doubles the next daily bonus payout.
@@ -19,13 +19,28 @@ Canonical English and Japanese terms used across the legacy bot, YAML catalogs, 
 - **Weekly Champion / 週間王者**: Title and reward granted to the top qualified weekly player (`min_plays = 5`).
 - **Mission / デイリーミッション**: Daily seeded gameplay objective awarding Pelica upon completion.
 
+## Assets (balance sheet)
+
+`/pelica ranking` (views `net` and `liquid`), `/pelica balance`, the live board and the breakdown
+count wealth as a balance sheet (B/S). Lines and groups: `LIQUID_KEYS`, `FIXED_KEYS`,
+`LIABILITY_KEYS` in `packages/domain/src/progression/economy-core.ts`; labels are the `bs.*` keys in
+`packages/shared/i18n`. Rules and numbers: [economy-core.md §3](economy-core.md#3-balance-sheet-net-assets-純資産-current-assets-流動資産-total-assets-総資産).
+
+- **Current Assets / 流動資産**: Assets that turn into Pelica quickly: cash, deposit (Teiai trust), stocks (spot at market value + margin valuation), bonds (principal), options (valuation), receivable (labor earnings not yet collected), held deposits (auction bids), loans receivable (lent to members). The second ranking view.
+- **Fixed Assets / 固定資産**: Assets held and not turned into Pelica right away: belongings (purchase price), relics (reference value), racehorses (purchase price + expected retirement value), company (funds + office build cost), labor tools and dorm (upgrades paid so far).
+- **Total Assets / 総資産**: Current assets + fixed assets, before liabilities.
+- **Liabilities / 負債**: Borrowings: debt to Teiai (accrued interest included) and borrowings from members.
+- **Net Assets / 純資産**: Total assets − liabilities. The default net-worth ranking, the board and the balance-card rank. `current + fixed − liabilities = net` always holds.
+- **Financial Net Worth / 金融純資産**: Cash − Teiai debt + deposit, stocks, bonds and options at value. Used only for the 🟡 Wealthy badge; fixed assets and member-to-member loans are left out.
+- **Final Total Assets / ファイナル総資産**: Retired legacy term; it is now Net Assets.
+
 ## Player Statuses & Ranks
 
 - **Katagi / カタギ**: Standard debt-free player status.
 - **Underground Laborer / 地下労働者**: Status assigned while holding active Teiai Bank debt (`debt > 0`).
 - **Bankruptcy Grace / 破産猶予**: Warning period triggered when Teiai debt reaches `15,000` Pelica, preceding forced bankruptcy.
 - **Bankrupt / 破産者**: Status after voluntary or forced bankruptcy; triggers asset seizure, debt compression, and loan blacklist.
-- **Wealthy / 富豪**: Top-tier status granted to the highest net-worth players in the guild.
+- **Wealthy / 富豪**: Display-only badge for a Katagi player whose financial net worth (金融純資産) is at least `1,000,000`.
 
 ## Casino Games
 
