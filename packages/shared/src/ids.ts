@@ -94,3 +94,9 @@ export function isGameId(value: string): value is GameId {
 export function isScreenId(value: string): value is ScreenId {
   return (SCREEN_IDS as readonly string[]).includes(value);
 }
+
+/**
+ * `seller_id` of a player-market listing that Teiai itself puts up (the daily relic auction).
+ * Not a snowflake: no Discord user has id 0, so it can never clash with a real account.
+ */
+export const TEIAI_SELLER_ID = '0';

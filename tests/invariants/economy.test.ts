@@ -15,7 +15,7 @@ afterEach(async () => {
 
 /** Play a command list through a fresh economy, checking the invariants after every step. */
 async function play(seed: number, played: number[], list: Cmd[]): Promise<void> {
-  const w = createWorld(seed);
+  const w = createWorld(seed, { relicAuctionPerDay: 1 });
   try {
     warmUp(w, played);
     let last: Replayable | undefined;

@@ -1,5 +1,6 @@
 import type { FastifyInstance } from 'fastify';
 import type { Logger } from 'pino';
+import { RELIC_AUCTION_PER_DAY } from '@casino/domain/shop';
 import type { Clock, LaunchIntentService, Rng } from '@casino/shared';
 import { createFetchClient, DiscordApi, type HttpClient } from '../auth/discord.ts';
 import { SqliteLaunchIntentService } from '../auth/launch-intents.ts';
@@ -68,6 +69,11 @@ export interface CreateServerOptions {
   cronDriver?: CronDriver;
   /** Timers of the casino rounds (betting windows, turn timeouts). Defaults to real timers. */
   casinoTimers?: CasinoTimers;
+  /**
+   * Relics Teiai puts on the player market per guild per UTC day. Defaults to
+   * `RELIC_AUCTION_PER_DAY` (1); test worlds pass 0 unless a test turns it on.
+   */
+  relicAuctionPerDay?: number;
 }
 
 /** Everything one process shares. The bot and the scheduler plug into the same instances. */
@@ -156,6 +162,7 @@ export function createServer(options: CreateServerOptions): CasinoServices {
     { store, economy, identity, clock, rng, bus, utcOffsetHours },
     {
       marketplaceAssets: createMarketplaceAssets(store, new Inventory(store)),
+      relicAuctionPerDay: options.relicAuctionPerDay ?? RELIC_AUCTION_PER_DAY,
       liquidateExternalAssets: createExternalLiquidation(() => (lazy.games as NonCasinoGames).shop),
     },
   );

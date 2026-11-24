@@ -81,6 +81,23 @@ Planned owner: `B3` | Screen IDs: `market`, `market-create`, `market-mine` (`pac
 - `price_desc`: `CASE WHEN bid>0 THEN bid ELSE price END DESC, id ASC`
 - `new`: `id DESC`
 
+### 5. Teiai's Daily Relic Auction (added in the remaster; upstream 736efad)
+Once per guild per **UTC** day Teiai itself puts **one relic** up on this market as a 24-hour auction.
+- **Config** (`catalogs/teiai.yaml`: `relic_auction_per_day: 1`, `relic_auction_hours: 24`; code: `RELIC_AUCTION_PER_DAY`, `RELIC_AUCTION_HOURS` in `packages/domain/src/shop/teiai-market.ts`). `0` per day turns it off. The server option `relicAuctionPerDay` carries it; test worlds (server test kit, e2e, invariants) default to `0` unless a test turns it on.
+- **Which relic** (`pickRelic`): weighted by the underground-work dig odds, unstarred only: fossil 0.0033, bone 0.0017, meteor 0.00067, vase 0.00027, crown 0.000067, tear 0.000017, normalised to 54.8 % / 28.2 % / 11.1 % / 4.5 % / 1.1 % / 0.28 %. The Dragon's tear is rare.
+- **Listing**: `mode = auction`, `qty = 1`, starting price = the relic's reference value (`RELIC_VALUE`: 1,500 / 4,000 / 10,000 / 25,000 / 60,000 / 100,000), no upper bid cap. `seller_id = '0'` (`TEIAI_SELLER_ID`, not a snowflake, so it can never be a real account). Nothing is escrowed: the relic appears from nowhere (an **item faucet**, mean reference value about 5,133 per day per guild).
+- **Once per day, idempotent**: the day's guard is the listings table itself. `teiaiDaily(guildId)` counts Teiai listings with `created_at >= UTC day start` and lists only the missing ones, inside one transaction. A second tick, a restart, or two instances on one database list nothing more. It runs from the 1-minute player-market job (`runPlayerMarketSettleTick`, `relicListed` in its report) and skips guilds whose status is `denied`.
+- **Normal auction rules apply**: +5 % (min +100) per bid, the 5-minute anti-snipe extension, bid holds (`marketplace_hold`) and refunds on outbid (`marketplace_release`), the grace/bankruptcy pull-back of a user's own bids. Buying or bidding on a Teiai listing does **not** count toward, nor is it blocked by, the 100,000 / 24 h `PAIR_DAILY_LIMIT` (Teiai is not a player to pair with, so it is no transfer loophole).
+- **Settlement** (`settleExpired`):
+  - Sold: the winner's held bid is the whole price. It is a **sink** that is never released; it goes to **Teiai Bank income** (`teiai.bankIncome(price)`, thermostat on). No seller credit (`marketplace_auction_sale`), no `marketplace_fee`, no transfer rows. The relic is delivered to the winner. The row is `sold` with `fee = 0`.
+  - Unsold: the row is `expired`; nothing is delivered and nothing moves (the relic disappears, since Teiai keeps it).
+  - The original's "winner cannot receive, so refund and Teiai keeps it" branch does not exist here: a relic has no receive limit (not unique, not a horse), and `deliverAsset` cannot fail.
+- **No win post**: the remaster posts nothing when any player-market auction is won, so the original's `…落札しました（出品者 🕴️ 帝愛）。` post has no counterpart; the winner just finds the relic in the inventory.
+- **Never touched by players**: `cancelListing` answers `marketplace_not_seller`; `pullBackForUser` only moves listings whose seller is that user.
+- **Announcement**: the listing publishes the `TeiaiRelicListed` domain event (after commit, guild-wide on the socket). The announcer posts an embed in the guild channel as the Teiai bank persona (title `🕴️ Teiai lists: {item}`, start price, end time) with the launch button to the market screen. This is on by default per guild like other announcements.
+- **Screens**: in the Activity market (Players tab) a Teiai listing shows the seller as `🕴️ Teiai` (EN) / `🕴️ 帝愛` (JA), a `Teiai relic` tag, and a hint line under the market hint. The listings API returns `seller.id = '0'` for it; screens key off `TEIAI_SELLER_ID`.
+- **Invariants** (`tests/invariants`, command `teiaiRelic`, `relicBid`, `relicSettle`): at most `perDay` Teiai listings per guild per UTC day; each is one unstarred relic auction of 24 h or more; a Teiai listing has only `marketplace_hold` / `marketplace_release` ledger rows (never a sale, fee or transfer); the Pelica held on it nets to the current bid while active, to the winning bid once sold, to 0 when expired; and the relics in inventories equal the Teiai sales.
+
 ## Timers & Schedules
 - **30-Second Settlement Loop (`P2PCog.tick`)**: settles expired/ended listings, edits ended announcement posts to remove buttons (`post_done = 1`), posts auction win announcements.
 - **View Timeouts**: `DetailView`, `SellView`, `MineView` = `300s`; `ConfirmView` = `30s`.
@@ -111,4 +128,7 @@ Planned owner: `B3` | Screen IDs: `market`, `market-create`, `market-mine` (`pac
 | `p2p.err_pair_limit` | `同じ相手との取引は、24時間で合計 {limit:,}ペリカ までです（いま {used:,}ペリカ・今回 {amount:,}ペリカ）。` | `cogs/shared/messages/economy.py:173-174` |
 | `p2p.err_price_range` | `値段は {lo:,}〜{hi:,}ペリカ にしてください（定価の幅に収めます）。` | `cogs/shared/messages/economy.py:183` |
 | `p2p.ledger_buy` / `sell` | `取引:購入（{label}）` / `取引:売却（{label}）` | `infra/db/p2p.py:221,258` |
+| `p2p.teiai_seller` (remaster) | `🕴️ 帝愛` | `screen.finance.listings.sellerTeiai` |
+| `p2p.teiai_post_title` (remaster) | `🕴️ 帝愛の出品: {item}` | `notify.event.TeiaiRelicListed.title` |
+| `p2p.teiai_help` (remaster) | `🕴️ 帝愛も1日（UTC）に1回、発掘品を1つ競りで出す（開始は目安の価値、24時間。掘れる確率どおりに選ぶので、竜の涙はまれ）。代金は帝愛銀行へ` | `screen.finance.listings.teiaiHint` |
 | `p2p.ledger_bid` / `refund` | `取引:入札（{label}）` / `取引:入札の返金（{label}）` | `infra/db/p2p.py:284,288,391` |

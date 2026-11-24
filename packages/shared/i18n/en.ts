@@ -935,6 +935,9 @@ export const en = {
   'notify.event.MarketplaceOutbid.body': 'Listing #{listingId} now has a higher bid of {newBid}.',
   'notify.event.DailyReady.title': 'Daily Bonus Ready',
   'notify.event.DailyReady.body': 'Your daily bonus is ready to claim!',
+  'notify.event.TeiaiRelicListed.title': '🕴️ Teiai lists: {item}',
+  'notify.event.TeiaiRelicListed.body':
+    'Teiai put **{item}** up for auction (listing #{listingId}). Bidding starts at {startPrice} and closes <t:{endAtSec}:R>. The whole price goes to the Teiai bank.',
 
   'notify.dm_disabled.title': 'Direct Messages Disabled',
   'notify.dm_disabled.body':
@@ -1188,6 +1191,10 @@ export const en = {
   'screen.finance.listings.kind.item': 'Item',
   'screen.finance.listings.kind.horse': 'Horse',
   'screen.finance.listings.seller': 'Seller: {name}',
+  'screen.finance.listings.sellerTeiai': '🕴️ Teiai',
+  'screen.finance.listings.teiaiTag': 'Teiai relic',
+  'screen.finance.listings.teiaiHint':
+    '🕴️ Teiai also puts one unearthed relic up for auction once a day (UTC): it starts at the relic’s reference value and runs 24 hours. The relic is picked by dig odds, so the Dragon’s tear is rare. The whole price goes to the Teiai bank.',
   'screen.finance.listings.topBid': '{amount} · top bid by {name}',
   'screen.finance.listings.youLead': 'You are the top bidder',
   'screen.finance.listings.outbid': 'You were outbid. The top bid is now {amount}.',

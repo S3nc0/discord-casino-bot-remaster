@@ -12,6 +12,8 @@ import {
   type MarketplaceMode,
   type MarketplaceStatus,
 } from '@casino/domain/finance';
+import { pickRelic, RELIC_AUCTION_HOURS } from '@casino/domain/shop';
+import { TEIAI_SELLER_ID } from '@casino/shared';
 import type { ServiceResult, TeiaiService } from './teiai-service.ts';
 import {
   financeDeps,
@@ -115,15 +117,91 @@ export class InMemoryMarketplaceAssetAdapter implements MarketplaceAssetAdapter 
   }
 }
 
+export interface PlayerMarketOptions {
+  /**
+   * Relics Teiai lists per guild per UTC day (0 = off, the default so tests and worlds start
+   * without it). The runtime passes `RELIC_AUCTION_PER_DAY`.
+   */
+  readonly relicAuctionPerDay?: number;
+}
+
+const MS_PER_DAY = 86_400_000;
+
+/** Teiai's own listings (the daily relic auction): no seller, no escrow, no seller credit. */
+function isTeiaiListing(listing: Pick<MarketplaceListingRow, 'seller_id'>): boolean {
+  return listing.seller_id === TEIAI_SELLER_ID;
+}
+
 export class PlayerMarketService {
   private readonly deps: FinanceDeps;
   private readonly teiai: TeiaiService;
   private readonly assets: MarketplaceAssetAdapter;
+  private readonly relicAuctionPerDay: number;
 
-  constructor(deps: FinanceDeps, teiai: TeiaiService, assets: MarketplaceAssetAdapter) {
+  constructor(
+    deps: FinanceDeps,
+    teiai: TeiaiService,
+    assets: MarketplaceAssetAdapter,
+    options: PlayerMarketOptions = {},
+  ) {
     this.deps = financeDeps(deps);
     this.teiai = teiai;
     this.assets = assets;
+    this.relicAuctionPerDay = Math.max(0, Math.trunc(options.relicAuctionPerDay ?? 0));
+  }
+
+  /**
+   * Put the guild's relic auction(s) for the current UTC day on the market, once. The guard is
+   * the listings table itself: Teiai listings created since the day start count, so a restart
+   * or a double tick never lists twice. Returns the new listing ids (empty when today's is out).
+   * The relic is drawn by dig odds and appears from nowhere (an item faucet); its starting
+   * price is the reference value and bids have no cap. Teiai-listed rows are never escrowed.
+   */
+  teiaiDaily(guildId: string, nowMs = this.deps.clock.now()): number[] {
+    if (this.relicAuctionPerDay <= 0) return [];
+    const dayStart = Math.floor(nowMs / MS_PER_DAY) * MS_PER_DAY;
+    return this.deps.store.transaction(() => {
+      const guild = this.deps.store
+        .stmt('SELECT status FROM guilds WHERE guild_id = ?')
+        .get(guildId) as { status: string } | undefined;
+      if (guild?.status === 'denied') return [];
+      const done = (
+        this.deps.store
+          .stmt(
+            'SELECT COUNT(*) AS cnt FROM marketplace_listings WHERE guild_id = ? AND seller_id = ? AND created_at >= ?',
+          )
+          .get(guildId, TEIAI_SELLER_ID, dayStart) as { cnt: number }
+      ).cnt;
+      const ids: number[] = [];
+      for (let i = done; i < this.relicAuctionPerDay; i += 1) {
+        const { itemId, startPrice } = pickRelic(this.deps.rng);
+        const endAt = nowMs + RELIC_AUCTION_HOURS * MS_PER_HOUR;
+        const res = this.deps.store
+          .stmt(
+            `INSERT INTO marketplace_listings (
+              guild_id, seller_id, kind, ref, qty, mode, price, status, created_at, end_at
+            ) VALUES (?, ?, 'item', ?, 1, 'auction', ?, 'active', ?, ?)`,
+          )
+          .run(guildId, TEIAI_SELLER_ID, itemId, startPrice, nowMs, endAt);
+        const listingId = Number(res.lastInsertRowid);
+        ids.push(listingId);
+        const bus = this.deps.bus;
+        if (bus) {
+          this.deps.store.afterCommit(() => {
+            bus.publishDomain({
+              type: 'TeiaiRelicListed',
+              guildId,
+              at: nowMs,
+              listingId,
+              itemId,
+              startPrice,
+              endAt,
+            });
+          });
+        }
+      }
+      return ids;
+    });
   }
 
   getListing(listingId: number): MarketplaceListingRow | null {
@@ -245,15 +323,18 @@ export class PlayerMarketService {
         return { ok: false, reason: 'marketplace_debtor_blocked' };
       }
 
-      const used24h = getSharedPairVolume24h(
-        this.deps.store,
-        guildId,
-        listing.seller_id,
-        buyerId,
-        nowMs,
-      );
-      if (!checkPairDailyLimit(used24h, listing.price).ok) {
-        return { ok: false, reason: 'marketplace_pair_daily_limit' };
+      // Buying from Teiai is not a transfer between two players, so it skips the pair limit.
+      if (!isTeiaiListing(listing)) {
+        const used24h = getSharedPairVolume24h(
+          this.deps.store,
+          guildId,
+          listing.seller_id,
+          buyerId,
+          nowMs,
+        );
+        if (!checkPairDailyLimit(used24h, listing.price).ok) {
+          return { ok: false, reason: 'marketplace_pair_daily_limit' };
+        }
       }
       if (this.deps.economy.getBalance(guildId, buyerId) < listing.price) {
         return { ok: false, reason: 'insufficient_funds' };
@@ -339,15 +420,17 @@ export class PlayerMarketService {
         return { ok: false, reason: 'marketplace_bid_too_low' };
       }
 
-      const used24h = getSharedPairVolume24h(
-        this.deps.store,
-        guildId,
-        listing.seller_id,
-        bidderId,
-        nowMs,
-      );
-      if (!checkPairDailyLimit(used24h, amount).ok) {
-        return { ok: false, reason: 'marketplace_pair_daily_limit' };
+      if (!isTeiaiListing(listing)) {
+        const used24h = getSharedPairVolume24h(
+          this.deps.store,
+          guildId,
+          listing.seller_id,
+          bidderId,
+          nowMs,
+        );
+        if (!checkPairDailyLimit(used24h, amount).ok) {
+          return { ok: false, reason: 'marketplace_pair_daily_limit' };
+        }
       }
 
       const prevBidder = listing.bidder_id;
@@ -439,7 +522,36 @@ export class PlayerMarketService {
 
       const settled: SettledListingEntry[] = [];
       for (const listing of expired) {
-        if (listing.mode === 'auction' && listing.bidder_id !== null && listing.bid > 0) {
+        if (isTeiaiListing(listing)) {
+          // Teiai's relic auction: the winner's held bid is the whole payment (a sink already
+          // on the ledger as `marketplace_hold`), so it goes to bank income with no seller
+          // credit and no fee. Unsold, the relic simply disappears (it was never escrowed).
+          if (listing.bidder_id !== null && listing.bid > 0) {
+            this.teiai.bankIncome(guildId, listing.bid, { thermo: true, nowMs });
+            this.deps.store
+              .stmt(
+                `UPDATE marketplace_listings
+                 SET status = 'sold', buyer_id = ?, sold_price = ?, fee = 0, closed_at = ?
+                 WHERE id = ?`,
+              )
+              .run(listing.bidder_id, listing.bid, nowMs, listing.id);
+            this.assets.deliverAsset(
+              guildId,
+              listing.bidder_id,
+              listing.kind,
+              listing.ref,
+              listing.qty,
+            );
+            settled.push({ listing, outcome: 'sold' });
+          } else {
+            this.deps.store
+              .stmt(
+                "UPDATE marketplace_listings SET status = 'expired', closed_at = ? WHERE id = ?",
+              )
+              .run(nowMs, listing.id);
+            settled.push({ listing, outcome: 'expired' });
+          }
+        } else if (listing.mode === 'auction' && listing.bidder_id !== null && listing.bid > 0) {
           const fee = marketplaceFee(listing.bid);
           // Escrowed bid paid out via faucet `marketplace_auction_sale`, fee debited via `marketplace_fee`
           this.deps.economy.credit({

@@ -22,6 +22,7 @@
 ### 2.1 Acquisition & Storage
 - Relics are discovered passively by underground labor workers (`apprentice`, `miner`, `craftsman`; NOT `foreman`) during idle settlement (`domain/labor.py:234-251`) and transferred to `inventory` when the user presses **受け取る** (`infra/db/labor.py:474-479`).
 - They are **not** sold in the regular shop (`shop.py` registers them as `category="relic"` items for inventory, market, and asset valuation only).
+- A second source (remaster, upstream 736efad): **Teiai auctions one unstarred relic per guild per UTC day** on the player market (`docs/spec/player-market.md` §5). The relic is drawn by the same dig odds as underground labor (`RELIC_DROPS`: fossil most often, the Dragon's tear rarely), starts at its reference value (`RELIC_VALUE`) and goes to the top bidder for the whole price, which is a sink into Teiai Bank income; unsold, it disappears. It is the only way to get a relic by paying Pelica to Teiai, and it adds about 5,133 of reference value per guild per day.
 - Players can trade relics on the P2P player market (`docs/spec/player-market.md`). **Escrowed/listed relics do NOT apply buffs** while listed because they are removed from `inventory`.
 
 ### 2.2 Star Tiers & Merging (`catalogs/relics.yaml:2-4`, `domain/relics.py:11-50`, `infra/db/relics.py:47-69`)
