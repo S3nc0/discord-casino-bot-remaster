@@ -83,3 +83,7 @@ Planned owner: `B2-B` | Screen ID: `ranking` (`packages/shared/src/ids.ts`) | Fe
 | `weekly.champion_line2` | `今週の稼ぎ **{net:+,}ペリカ**（{plays}戦）。\`/ショップ\` の「持ち物」の画面で身につけられます（次の発表まで）。` | `cogs/weekly/embeds.py:19` |
 | `weekly.no_champion` | `今週は、{min_plays}ゲーム以上遊んでプラスだった人がいませんでした。王者はお休みです。` | `cogs/weekly/embeds.py:24` |
 | `weekly.previous_revoked` | `前の王者 {mentions_joined_by_nakaguro} の称号は外れました。` | `cogs/weekly/embeds.py:27` |
+
+## Not ported
+
+- **Not in the remaster:** Discord nickname synchronization (`sync_title_nick`) for awarded or stripped weekly champion titles is not ported; titles show on the balance card and Activity profile.

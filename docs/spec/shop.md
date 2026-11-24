@@ -124,3 +124,9 @@
 | `shop.ledger.purchase` | `購入:{label}[×{qty}]` | `infra/db/shop.py:130` |
 | `shop.ledger.auction` | `競売:{label}[×{qty}]` | `infra/db/auction.py:133` |
 | `shop.ledger.teiai_market` | `帝愛の出品:{label}[×{qty}]` | `infra/db/auction.py:245` |
+
+---
+
+## 6. Not ported
+
+- **Not in the remaster:** Discord nickname title affixing/syncing (`domain/nick.py`, §3, Manage Nicknames) and Discord role creation/assignment for `color_role` (Manage Roles); `color_role` items stay purchasable, profile-displayed, and player-market-tradable cosmetics only, and titles show on the balance card and Activity profile.
