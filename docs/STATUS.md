@@ -4,7 +4,7 @@
 
 Hard fork of fatcorn753/discord-casino-bot, rewritten in TypeScript as a Discord Activity plus chat bot. Updated by the Scribe from task reports.
 
-Current wave: done — v1.0.0 released 2026-11-24
+Current wave: done — v1.1.0 released 2026-11-24
 
 ## Wave 0 — Foundation
 
@@ -93,16 +93,37 @@ Owners register commands with `pnpm commands:deploy:guild` (see the [Owner Setup
 | 4.D2 | Readable numbers everywhere, softer kit button colour rule | D1 | done (PR #72) |
 | 4.D2 follow-up | Casino lazy fallback and route test flake | D1 | done (PR #73) |
 | 4.D3 | Fast, deterministic breeding range test (`SLOW_TESTS=1` for the full sweep) | D1 | done (PR #74) |
-| 4.REL | Remove the original Python bot, every Markdown file up to date (EN/JA), final Pi check | SC + O1 | in review (PR #75) |
+| 4.REL | Remove the original Python bot, every Markdown file up to date (EN/JA), final Pi check | SC + O1 | done (PR #75) |
 | 4.3 | Tag v1.0.0, set the CHANGELOG date, deploy | Leader + O1 | done (2026-11-24) |
-| 4.4 | Final tree check + push | Leader | todo |
+| 4.4 | Final tree check + push | Leader | done |
+
+## Wave 5 — Upstream catch-up (v1.1.0)
+
+| Task | Scope | Owner | State |
+| --- | --- | --- | --- |
+| 5.T1 | Margin term `担保余裕度`, 130% open ratio on collateral sell, margin refusal texts | D1 | done (PR #77) |
+| 5.T2 | Chinchiro table pot (2–6 seats, winner takes all, 10% fee) | B2-A | done (PR #80) |
+| 5.T3 | Teiai daily dug-up relic auction | B2-B | done (PR #79) |
+| 5.T4 | Auto-pin poll, kyosai motion and raffle posts, unpin when they end | B4 | done (PR #78) |
+| 5.T5 | Balance-sheet net worth (ranking views, breakdown, balance card, board) | B2-B | done (PR #81) |
+| 5.ICON | App icon (`docs/images/app-icon-512.png`) and Activity favicons | SC | done (PR #83) |
+| 5.S0 | Stream panel contracts, strings and spec (`docs/spec/stream.md`) | A1 | done (PR #82) |
+| 5.S1 | Stream panel server (`0013_stream`, `StreamService`, jobs, routes, sockets) | B1 | done (PR #84) |
+| 5.S1R | Money review of stream panel (5.S1) | R1 | done (no findings) |
+| 5.S3 | Stream panel chat bot (`/stream start`, persistent buttons, modals, `/admin stream-void`) | B4 | done (PR #86) |
+| 5.S2 | Stream panel Activity screen, 36th icon, viewer and streamer | F2 | done (PR #85) |
+| 5.REL | v1.1.0 release docs, Markdown sweep, `StreamService.previewTip` feature-switch check | SC | done |
 
 ## Blockers
 
-None. Wave 3 is complete (Gate 3 passed 2026-11-23). Wave 4: every feature, art and fix task is merged; the release itself (tag, date, deploy) is done: v1.0.0, 2026-11-24.
+None. Wave 4 (v1.0.0) and Wave 5 (v1.1.0, upstream catch-up) are merged and released on 2026-11-24.
 
 ## Notes
 
 Discord sends no proxy signature headers on Activity traffic; `REQUIRE_PROXY_SIGNATURE` stays `0`.
 
 The legacy import dry run (3.4) was skipped by the owner for v1.0.0. The importer is tested against fixtures, but it has not been run on the real `casino.db`. Before anyone relies on it, follow [Importing the legacy database](../MAINTAINERS.md#importing-the-legacy-database) and do a dry run on a copy first.
+
+Known gaps in v1.1.0:
+- The `🟡` wealthy badge is not wired yet.
+- Raffle fees, CDS, and race/arena bets are not valued on the balance sheet (same as upstream).
