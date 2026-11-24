@@ -107,6 +107,7 @@ export async function updateMessage(
 export function unwrapService<T>(res: ServiceResult<T>): T {
   if (res.ok) return res.data;
   const reason = res.reason;
+  const rule = { reason, ...(res.params ? { ruleParams: res.params } : {}) };
   if (reason === 'insufficient_funds') throw new AppError('insufficient_funds');
   if (
     reason.includes('debtor_blocked') ||
@@ -115,12 +116,12 @@ export function unwrapService<T>(res: ServiceResult<T>): T {
     reason.includes('not_buyer') ||
     reason.includes('not_borrower')
   ) {
-    throw new AppError('forbidden', { reason });
+    throw new AppError('forbidden', rule);
   }
   if (reason.includes('not_found') || reason === 'no_debt') {
-    throw new AppError('not_found', { reason });
+    throw new AppError('not_found', rule);
   }
-  if (reason.includes('expired')) throw new AppError('expired', { reason });
+  if (reason.includes('expired')) throw new AppError('expired', rule);
   if (
     reason.includes('invalid') ||
     reason.includes('min_') ||
@@ -129,9 +130,9 @@ export function unwrapService<T>(res: ServiceResult<T>): T {
     reason.includes('out_of_range') ||
     reason.includes('self_')
   ) {
-    throw new AppError('invalid_payload', { reason });
+    throw new AppError('invalid_payload', rule);
   }
-  throw new AppError('conflict', { reason });
+  throw new AppError('conflict', rule);
 }
 
 /** Game-rule failures (`GameRuleError`) already carry a shared error code. */
@@ -163,7 +164,21 @@ export function ruleMessage(locale: Locale, error: unknown): string | null {
   if (!(error instanceof GameRuleError)) return null;
   const key = `bot.rule.${error.rule}`;
   if (!Object.hasOwn(dictionaries[locale], key)) return null;
-  return t(locale, key as MessageKey, error.params);
+  return t(locale, key as MessageKey, error.ruleParams);
+}
+
+/** Margin refusals the finance service raises, with the text players should read in chat. */
+const MARGIN_REASON_KEYS = {
+  margin_ratio_too_low: 'screen.finance.reason.margin_ratio_too_low',
+  market_collateral_locked: 'screen.finance.reason.market_collateral_locked',
+} as const satisfies Record<string, MessageKey>;
+
+/** The text for a margin refusal (`unwrapService` keeps its reason on the error), else `null`. */
+export function marginReasonMessage(locale: Locale, error: unknown): string | null {
+  if (!(error instanceof AppError) || error.authReason === undefined) return null;
+  if (!Object.hasOwn(MARGIN_REASON_KEYS, error.authReason)) return null;
+  const key = MARGIN_REASON_KEYS[error.authReason as keyof typeof MARGIN_REASON_KEYS];
+  return t(locale, key, error.ruleParams);
 }
 
 /** Now on the game clock. */

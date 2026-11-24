@@ -90,7 +90,7 @@ Planned owner: `B3` | Screen IDs: `stocks`, `stocks-detail` (`packages/shared/sr
 | `crypto.err_invalid_amount` | `金額が正しくありません。` | `cogs/shared/messages/market.py:42` |
 | `crypto.err_balance` | `ペリカが足りません（残高 {balance:,}ペリカ）。` | `cogs/shared/messages/market.py:43` |
 | `crypto.err_too_small` | `その金額では 0.001枚も買えません。金額を増やしてください。` | `cogs/shared/messages/market.py:44` |
-| `crypto.err_collateral` | `信用取引の担保になっているので、売れません（売ると維持率が {ratio:.0%}・{open_ratio:.0%} 以上が必要）。先に建玉を決済してください。` | `cogs/shared/messages/market.py:46-47` |
+| `crypto.err_collateral` | `信用取引の担保になっているので、売れません（売ると担保余裕度が {ratio:.0%}・{open_ratio:.0%} 以上が必要）。先に建玉を決済してください。` | `cogs/shared/messages/market.py:46-47` |
 | `crypto.err_not_held` | `{name}を持っていません。` | `cogs/shared/messages/market.py:49` |
 | `crypto.err_sell_range` | `売れるのは 0.001〜{max_lots} です（持っている分）。` | `cogs/shared/messages/market.py:50` |
 | `crypto.err_proceeds_small` | `その数量では受け取れる額が 1ペリカ未満です。もう少し多く売ってください。` | `cogs/shared/messages/market.py:51` |

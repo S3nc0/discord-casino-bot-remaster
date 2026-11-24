@@ -11,6 +11,16 @@ export type { FinanceBody, FinanceClient, FinanceReadRoute, FinanceReads } from 
 const isErrorCode = (value: unknown): value is ErrorCode =>
   typeof value === 'string' && (ERROR_CODES as readonly string[]).includes(value);
 
+/** The numeric `params` of an error body (the margin ratios), nothing else. */
+function numberParams(value: unknown): Record<string, number> | undefined {
+  if (typeof value !== 'object' || value === null) return undefined;
+  const out: Record<string, number> = {};
+  for (const [key, entry] of Object.entries(value)) {
+    if (typeof entry === 'number' && Number.isFinite(entry)) out[key] = entry;
+  }
+  return Object.keys(out).length > 0 ? out : undefined;
+}
+
 export interface HttpFinanceOptions {
   prefix: string;
   getSessionToken: () => string | null;
@@ -33,12 +43,18 @@ export function createHttpFinanceClient(options: HttpFinanceOptions): FinanceCli
     }
     const payload: unknown = await response.json().catch(() => null);
     if (!response.ok) {
-      const p = (payload ?? {}) as { error?: unknown; reason?: unknown; retryAfterMs?: unknown };
+      const p = (payload ?? {}) as {
+        error?: unknown;
+        reason?: unknown;
+        retryAfterMs?: unknown;
+        params?: unknown;
+      };
       throw new FinanceApiError(
         isErrorCode(p.error) ? p.error : response.status === 401 ? 'unauthorized' : 'internal',
         response.status,
         typeof p.reason === 'string' ? p.reason : undefined,
         typeof p.retryAfterMs === 'number' ? p.retryAfterMs : undefined,
+        numberParams(p.params),
       );
     }
     return payload as T;

@@ -65,6 +65,8 @@ export type FinanceCompanyKind = (typeof FINANCE_COMPANY_KINDS)[number];
 export const FinanceError = Type.Object({
   error: ErrorCode,
   reason: Type.Optional(Type.String({ maxLength: 80 })),
+  /** Numbers the refusal text quotes, such as the margin ratio after the action. */
+  params: Type.Optional(Type.Record(Type.String({ maxLength: 40 }), Type.Number())),
   retryAfterMs: Type.Optional(Type.Integer({ minimum: 0 })),
 });
 export type FinanceError = Static<typeof FinanceError>;
