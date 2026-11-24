@@ -25,6 +25,7 @@ import { buildLaunchActivityRow } from '../notify/discord-port.ts';
 import type { PinKind, PostPinService } from '../notify/post-pins.ts';
 import { botColor } from '../notify/theme.ts';
 import { AppError } from '../runtime/errors.ts';
+import { statusEmoji } from './net-worth-chat.ts';
 
 export interface WiredCommandsDeps {
   economy: EconomyService;
@@ -270,14 +271,15 @@ export async function dispatchWiredCommand(
       const top = deps.games.progression.weeklyStandings(guildId);
       const targetUser = interaction.options.getUser('member') ?? interaction.user;
       const selfRank = deps.games.progression.weeklyRankOf(guildId, targetUser.id);
+      const statuses = deps.finance?.netWorth.displayStatuses(guildId);
       const lines =
         top.length === 0
           ? t(locale, 'bot.label.noRanking')
           : top
-              .map(
-                (row, i) =>
-                  `${i + 1}. <@${row.userId}> — **${formatSignedPelica(locale, row.net)}** (${row.plays})`,
-              )
+              .map((row, i) => {
+                const badge = statusEmoji(statuses?.get(row.userId) ?? 'katagi');
+                return `${i + 1}. <@${row.userId}>${badge ? ` ${badge}` : ''} — **${formatSignedPelica(locale, row.net)}** (${row.plays})`;
+              })
               .join('\n');
       const embed = new EmbedBuilder()
         .setColor(botColor('primary'))
@@ -372,12 +374,16 @@ export async function dispatchWiredCommand(
       const bank = deps.finance.teiai.getBankStatus(guildId);
       const debt = deps.finance.teiai.getDebt(guildId, userId);
       const deposit = deps.finance.teiai.getDeposit(guildId, userId);
-      const playerStatus = deps.finance.teiai.getStatus(guildId, userId);
+      const playerStatus = deps.finance.netWorth.displayStatusOf(guildId, userId);
       const embed = new EmbedBuilder()
         .setColor(botColor('primary'))
         .setTitle(t(locale, 'screen.bank'))
         .addFields(
-          { name: t(locale, 'bot.label.status'), value: `\`${playerStatus}\``, inline: true },
+          {
+            name: t(locale, 'bot.label.status'),
+            value: t(locale, `status.badge.${playerStatus}`),
+            inline: true,
+          },
           { name: t(locale, 'bot.label.debt'), value: formatPelica(locale, debt), inline: true },
           {
             name: t(locale, 'bot.label.deposit'),

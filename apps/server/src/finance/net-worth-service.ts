@@ -3,18 +3,22 @@ import {
   companyInvested,
   loanRemaining,
   marginPnl,
+  resolvePlayerStatus,
   spotSellQuote,
   type SymbolKey,
 } from '@casino/domain/finance';
 import {
   balanceSheet,
   balanceSheetValue,
+  displayPlayerStatus,
   emptyParts,
+  financialNetWorth,
   rankBalanceSheets,
   type AssetKey,
   type AssetParts,
   type BalanceSheet,
   type BalanceSheetView,
+  type DisplayPlayerStatus,
 } from '@casino/domain/progression';
 import { horseWorth } from '@casino/domain/race';
 import { itemById } from '@casino/domain/shop';
@@ -38,6 +42,7 @@ export interface NetWorthStanding {
   readonly rank: number;
   readonly sheet: BalanceSheet;
   readonly value: number;
+  readonly status: DisplayPlayerStatus;
 }
 
 export interface NetWorthStandings {
@@ -76,8 +81,36 @@ export class NetWorthService {
   /** Every member's balance sheet, unsorted. Accrues debt interest first (one write transaction). */
   sheets(guildId: string, nowMs = this.deps.clock.now()): BalanceSheet[] {
     this.deps.accrueDebtInterest(guildId, nowMs);
-    const parts = this.collect(guildId, nowMs);
+    const { parts } = this.collect(guildId, nowMs);
     return [...parts].map(([userId, p]) => balanceSheet(userId, p));
+  }
+
+  /** Financial net worth (金融純資産) of every member of the guild, from one pass. */
+  financialNetWorths(guildId: string, nowMs = this.deps.clock.now()): Map<string, number> {
+    this.deps.accrueDebtInterest(guildId, nowMs);
+    const { parts } = this.collect(guildId, nowMs);
+    const out = new Map<string, number>();
+    for (const [userId, p] of parts) out.set(userId, financialNetWorth(p));
+    return out;
+  }
+
+  /** Display status (`katagi` | `wealthy` | `underground` | `bankrupt`) of every member. */
+  displayStatuses(
+    guildId: string,
+    nowMs = this.deps.clock.now(),
+  ): Map<string, DisplayPlayerStatus> {
+    this.deps.accrueDebtInterest(guildId, nowMs);
+    const collected = this.collect(guildId, nowMs);
+    return this.resolveStatuses(collected);
+  }
+
+  /** Display status of one member (`katagi` if the member has no account yet). */
+  displayStatusOf(
+    guildId: string,
+    userId: string,
+    nowMs = this.deps.clock.now(),
+  ): DisplayPlayerStatus {
+    return this.displayStatuses(guildId, nowMs).get(userId) ?? 'katagi';
   }
 
   /** Ranked standings for one view, top `limit` rows. */
@@ -87,7 +120,11 @@ export class NetWorthService {
     limit = 10,
     nowMs = this.deps.clock.now(),
   ): NetWorthStandings {
-    const ranked = rankBalanceSheets(this.sheets(guildId, nowMs), view);
+    this.deps.accrueDebtInterest(guildId, nowMs);
+    const collected = this.collect(guildId, nowMs);
+    const statuses = this.resolveStatuses(collected);
+    const sheets = [...collected.parts].map(([userId, p]) => balanceSheet(userId, p));
+    const ranked = rankBalanceSheets(sheets, view);
     return {
       view,
       total: ranked.length,
@@ -95,6 +132,7 @@ export class NetWorthService {
         rank: i + 1,
         sheet,
         value: balanceSheetValue(sheet.groups, view),
+        status: statuses.get(sheet.userId) ?? 'katagi',
       })),
     };
   }
@@ -110,13 +148,18 @@ export class NetWorthService {
     limit = 10,
     nowMs = this.deps.clock.now(),
   ): NetWorthStandings & { readonly self: NetWorthStanding | null } {
-    const ranked = rankBalanceSheets(this.sheets(guildId, nowMs), view);
+    this.deps.accrueDebtInterest(guildId, nowMs);
+    const collected = this.collect(guildId, nowMs);
+    const statuses = this.resolveStatuses(collected);
+    const sheets = [...collected.parts].map(([id, p]) => balanceSheet(id, p));
+    const ranked = rankBalanceSheets(sheets, view);
     const at = ranked.findIndex((s) => s.userId === userId);
     const own = ranked[at];
     const row = (sheet: BalanceSheet, i: number): NetWorthStanding => ({
       rank: i + 1,
       sheet,
       value: balanceSheetValue(sheet.groups, view),
+      status: statuses.get(sheet.userId) ?? 'katagi',
     });
     return {
       view,
@@ -128,9 +171,24 @@ export class NetWorthService {
 
   // ---------------------------------------------------------------------------------------------
 
-  private collect(guildId: string, nowMs: number): Map<string, AssetParts> {
+  private resolveStatuses(collected: CollectedGuild): Map<string, DisplayPlayerStatus> {
+    const out = new Map<string, DisplayPlayerStatus>();
+    for (const [userId, p] of collected.parts) {
+      const raw = resolvePlayerStatus({
+        debt: -p.debt,
+        bankruptAtMs: collected.bankruptAt.get(userId) ?? null,
+        hasOverdueLoan: collected.overdueBorrowers.has(userId),
+      });
+      out.set(userId, displayPlayerStatus(raw, financialNetWorth(p)));
+    }
+    return out;
+  }
+
+  private collect(guildId: string, nowMs: number): CollectedGuild {
     const { store } = this.deps;
     const parts = new Map<string, AssetParts>();
+    const bankruptAt = new Map<string, number | null>();
+    const overdueBorrowers = new Set<string>();
     for (const r of store
       .stmt('SELECT user_id FROM guild_members WHERE guild_id = ?')
       .all(guildId) as { user_id: string }[]) {
@@ -153,9 +211,10 @@ export class NetWorthService {
       add(r.user_id, 'cash', r.balance);
     }
     for (const r of store
-      .stmt('SELECT user_id, debt FROM bank_accounts WHERE guild_id = ? AND debt > 0')
-      .all(guildId) as { user_id: string; debt: number }[]) {
+      .stmt('SELECT user_id, debt, bankrupt_at FROM bank_accounts WHERE guild_id = ? AND debt > 0')
+      .all(guildId) as { user_id: string; debt: number; bankrupt_at: number | null }[]) {
       add(r.user_id, 'debt', -r.debt);
+      if (r.bankrupt_at !== null) bankruptAt.set(r.user_id, r.bankrupt_at);
     }
 
     // Teiai trust deposit.
@@ -266,9 +325,10 @@ export class NetWorthService {
     // P2P loans: what is left to repay is the lender's asset and the borrower's liability.
     for (const r of store
       .stmt(
-        "SELECT lender_id, borrower_id, principal, rate_bps, term_days, accepted_at, paid FROM loans WHERE guild_id = ? AND status IN ('active', 'overdue')",
+        "SELECT lender_id, borrower_id, status, principal, rate_bps, term_days, accepted_at, paid FROM loans WHERE guild_id = ? AND status IN ('active', 'overdue')",
       )
       .all(guildId) as LoanRow[]) {
+      if (r.status === 'overdue') overdueBorrowers.add(r.borrower_id);
       if (r.accepted_at === null) continue;
       const left = loanRemaining(
         {
@@ -307,8 +367,14 @@ export class NetWorthService {
         add(investorId, 'company', v);
       }
     }
-    return parts;
+    return { parts, bankruptAt, overdueBorrowers };
   }
+}
+
+interface CollectedGuild {
+  readonly parts: Map<string, AssetParts>;
+  readonly bankruptAt: Map<string, number | null>;
+  readonly overdueBorrowers: Set<string>;
 }
 
 interface MarginRow {
@@ -343,6 +409,7 @@ interface ListingRow {
 interface LoanRow {
   lender_id: string;
   borrower_id: string;
+  status: string;
   principal: number;
   rate_bps: number;
   term_days: number;

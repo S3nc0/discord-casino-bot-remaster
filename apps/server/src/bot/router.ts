@@ -213,6 +213,11 @@ function addBalanceSheetFields(
   const money = (n: number): string => formatPelica(locale, n);
   embed.addFields(
     {
+      name: t(locale, 'bot.balance.status'),
+      value: t(locale, `status.badge.${self.status}`),
+      inline: true,
+    },
+    {
       name: t(locale, 'bot.balance.rank'),
       value: t(locale, 'bot.balance.rankValue', { rank: self.rank, total }),
       inline: true,

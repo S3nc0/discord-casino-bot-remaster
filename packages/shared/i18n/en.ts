@@ -2205,6 +2205,12 @@ export const en = {
   'screen.stream.ui.resultVoid': 'Voided — all stakes refunded.',
   'screen.stream.ui.resultRefunded': 'One-sided round — all stakes refunded.',
   'screen.stream.ui.resultOutcome': 'Result: {side} · {count} payouts · Teiai rake: {rake}',
+  'bot.balance.status': 'Status',
+  'screen.finance.bank.status.wealthy': 'Wealthy',
+  'status.badge.katagi': '🟢 Clean',
+  'status.badge.wealthy': '🟡 Wealthy',
+  'status.badge.underground': '🟤 Underground laborer',
+  'status.badge.bankrupt': '🔴 Bankrupt',
 } as const;
 
 export type MessageKey = keyof typeof en;

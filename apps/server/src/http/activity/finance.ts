@@ -206,7 +206,7 @@ export function registerFinanceRoutes(authed: FastifyInstance, ctx: FinanceRoute
       balance: economy.getBalance(g, u),
       debt: account.debt,
       deposit: teiai.getDeposit(g, u),
-      status: teiai.getStatus(g, u),
+      status: finance.netWorth.displayStatusOf(g, u, clock.now()),
       inGrace: teiai.isInGrace(g, u),
       graceUntil: account.grace_until,
       blacklistUntil: account.blacklist_until,

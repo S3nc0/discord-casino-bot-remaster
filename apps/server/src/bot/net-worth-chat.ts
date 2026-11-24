@@ -14,6 +14,7 @@ import {
   type AssetGroups,
   type AssetKey,
   type BalanceSheet,
+  type DisplayPlayerStatus,
 } from '@casino/domain/progression';
 import { formatPelica, t, type Locale } from '@casino/shared/i18n';
 import type { NetWorthService, NetWorthStanding } from '../finance/net-worth-service.ts';
@@ -37,6 +38,22 @@ export type NetWorthChatView = 'net' | 'liquid';
 export const NET_WORTH_TOP_N = 10;
 const MEDALS = ['🥇', '🥈', '🥉'];
 
+/**
+ * Ranking-row status emoji (`docs/teiai.md`: 🟡 / 🟤 / 🔴 next to names; Clean has none).
+ */
+export function statusEmoji(status: DisplayPlayerStatus): string {
+  switch (status) {
+    case 'wealthy':
+      return '🟡';
+    case 'underground':
+      return '🟤';
+    case 'bankrupt':
+      return '🔴';
+    case 'katagi':
+      return '';
+  }
+}
+
 /** `（流動 12,345・固定 6,789・負債 1,000）`; groups that are zero are left out, nothing at all → ''. */
 export function subtotals(locale: Locale, groups: AssetGroups): string {
   const bits: string[] = [];
@@ -52,10 +69,11 @@ export function subtotals(locale: Locale, groups: AssetGroups): string {
     : t(locale, 'bs.sub.wrap', { parts: bits.join(t(locale, 'bs.sub.sep')) });
 }
 
-/** One ranking line: medal or place, mention, value in bold, subtotals. */
+/** One ranking line: medal or place, mention, optional status emoji, value in bold, subtotals. */
 export function standingLine(locale: Locale, row: NetWorthStanding): string {
   const sub = subtotals(locale, row.sheet.groups);
-  return `${MEDALS[row.rank - 1] ?? `${row.rank}.`} <@${row.sheet.userId}> — **${formatPelica(locale, row.value)}**${sub ? ` ${sub}` : ''}`;
+  const badge = statusEmoji(row.status);
+  return `${MEDALS[row.rank - 1] ?? `${row.rank}.`} <@${row.sheet.userId}>${badge ? ` ${badge}` : ''} — **${formatPelica(locale, row.value)}**${sub ? ` ${sub}` : ''}`;
 }
 
 export function netWorthRankingEmbed(
