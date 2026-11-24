@@ -147,9 +147,22 @@ describe('NetWorthService: one line per source', () => {
          VALUES (?, 1, 'open', 300, ?, 1, 0)`,
       )
       .run(GUILD, B);
+    // A Teiai relic auction (seller '0', not a member): only the bidder's hold counts.
+    s.store
+      .stmt(
+        `INSERT INTO marketplace_listings (guild_id, seller_id, kind, ref, qty, mode, price, bid, bidder_id, status, created_at, end_at)
+         VALUES (?, '0', 'item', 'relic_vase', 1, 'auction', 100, 400, ?, 'active', 0, 1)`,
+      )
+      .run(GUILD, B);
+    expect(
+      s.finance.netWorth
+        .sheets(GUILD)
+        .map((x) => x.userId)
+        .sort(),
+    ).toEqual([A, B]);
     expect(sheetOf(s, A).parts.items).toBe(2 * 3_000);
     expect(sheetOf(s, A).parts.horses).toBe(HORSE_VOUCHER_PRICE);
-    expect(sheetOf(s, B).parts.escrow).toBe(1_000);
+    expect(sheetOf(s, B).parts.escrow).toBe(1_400);
   });
 
   it('puts what is left of a P2P loan on both sides and splits a company with its investors', () => {
