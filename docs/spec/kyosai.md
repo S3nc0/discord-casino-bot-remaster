@@ -77,6 +77,11 @@ Planned owner: `B3` | Screen ID: `kyosai` (`packages/shared/src/ids.ts`) | Featu
   - `yes_units > no_units` (strict majority; tie rejects) **AND** `yes_units >= 0.25 * circulating_units` (`circulating = 10,000 - house_units`).
   - Motions close in `(closes, id)` order; each passing motion overwrites `trust_premium` (last-closed wins).
 
+### 6. Pinned Motion Post (remaster, port of upstream 22a1f66)
+- The public reply of `/kyosai propose` is **pinned** in its channel right after it is posted, and **unpinned** once the motion is `passed` or `rejected` (the minute tick closes it). A motion proposed in the Activity has no chat post and is not pinned.
+- Needs the **Pin Messages** permission in that channel. Without it, with a full pin list or a deleted message, the motion works the same, just unpinned: the failure is logged (one line per guild per 10 minutes at most) and never shown to players.
+- Mechanism: the message is recorded in `pinned_posts` (kind `motion`); the `notify:pin-sweep` job (every 30 s) unpins every recorded post whose motion is not `open` and deletes the row. A deleted message is ignored silently. See [DB_SCHEMA.md](../DB_SCHEMA.md).
+
 ## Timers & Schedules
 - **1-Minute Tick (`KyosaiCog.tick`)**: `kyosai_daily` (every 24h), `kyosai_close_motions` (edits motion embed & posts verdict), `kyosai_auction_tick` (settles & opens lots, posts `sold`/`listed`).
 

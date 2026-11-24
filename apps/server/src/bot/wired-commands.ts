@@ -22,6 +22,7 @@ import type { ServiceResult } from '../finance/teiai-service.ts';
 import type { CasinoGames } from '../games/index.ts';
 import type { NonCasinoGames } from '../games/progression/index.ts';
 import { buildLaunchActivityRow } from '../notify/discord-port.ts';
+import type { PinKind, PostPinService } from '../notify/post-pins.ts';
 import { botColor } from '../notify/theme.ts';
 import { AppError } from '../runtime/errors.ts';
 
@@ -31,6 +32,7 @@ export interface WiredCommandsDeps {
   casino?: CasinoGames;
   finance?: FinanceServices;
   games?: NonCasinoGames;
+  pins?: PostPinService;
 }
 
 export type SendReplyFn = (
@@ -131,6 +133,31 @@ function replyWithScreen(
     components: [buildLaunchActivityRow(locale, screen)],
     ...(ephemeral ? { flags: MessageFlags.Ephemeral } : {}),
   });
+}
+
+/**
+ * Pin the public reply of a command that opened a poll or a kyosai motion. The pin is a courtesy:
+ * a missing permission, a full pin list or a failed fetch never fails the command.
+ */
+async function pinReply(
+  deps: WiredCommandsDeps,
+  interaction: ChatInputCommandInteraction,
+  kind: PinKind,
+  refId: number,
+): Promise<void> {
+  if (!deps.pins || !interaction.guildId) return;
+  try {
+    const message = await interaction.fetchReply();
+    await deps.pins.pinPost({
+      kind,
+      refId,
+      guildId: interaction.guildId,
+      channelId: message.channelId ?? interaction.channelId ?? '',
+      messageId: message.id,
+    });
+  } catch {
+    // Nothing to do: the poll or motion is already created and announced.
+  }
 }
 
 function requireGuildId(interaction: ChatInputCommandInteraction): string {
@@ -615,6 +642,7 @@ export async function dispatchWiredCommand(
           inline: true,
         });
       await replyWithScreen(sendReply, interaction, locale, embed, 'poll', false);
+      await pinReply(deps, interaction, 'poll', poll.id);
       return true;
     }
 
@@ -1060,6 +1088,7 @@ export async function dispatchWiredCommand(
           { name: t(locale, 'bot.label.rate'), value: `${premiumPct}%`, inline: true },
         );
       await replyWithScreen(sendReply, interaction, locale, embed, 'kyosai', false);
+      await pinReply(deps, interaction, 'motion', motion.id);
       return true;
     }
 

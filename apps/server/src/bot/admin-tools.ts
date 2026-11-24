@@ -204,6 +204,44 @@ async function post(
   return true;
 }
 
+/** Like `post`, and hands back where the message landed (`null` when nothing was posted). */
+async function postSent(
+  ctx: ChatCtx,
+  client: Client,
+  guildId: string,
+  channelRaw: string | null,
+  payload: { embeds: EmbedBuilder[]; components?: ActionRowBuilder<ButtonBuilder>[] },
+): Promise<{ channelId: string; messageId: string } | null> {
+  const channelId = await postableChannel(ctx, client, guildId, channelRaw);
+  if (channelId === null) return null;
+  const channel = await fetchSendable(client, channelId, guildId);
+  if (!channel) return null;
+  const sent = (await channel.send({ ...payload, allowedMentions: { parse: [] } } as never)) as
+    { id?: string } | undefined;
+  return sent?.id ? { channelId, messageId: sent.id } : null;
+}
+
+/** Post a raffle message and pin it. `pinned` is false only when the pin was tried and refused. */
+async function postRaffle(
+  ctx: ChatCtx,
+  client: Client,
+  raffle: { id: number; fee: number; closes_at: number; entrants: string[] },
+  guildId: string,
+  channelRaw: string | null,
+): Promise<{ posted: boolean; pinned: boolean }> {
+  const sent = await postSent(ctx, client, guildId, channelRaw, raffleMessage(ctx, raffle)).catch(
+    () => null,
+  );
+  if (!sent) return { posted: false, pinned: true };
+  const result = await ctx.deps.pins?.pinPost({
+    kind: 'raffle',
+    refId: raffle.id,
+    guildId,
+    ...sent,
+  });
+  return { posted: true, pinned: result !== 'failed' };
+}
+
 // ------------------------------------------------------------------ modal parameters
 
 const FORM_TTL_MS = 900_000;
@@ -915,6 +953,12 @@ function raffleMessage(
   return { embeds: [e], components: [row] };
 }
 
+/** The "posted" line of a raffle reply, plus the pin hint when the pin was refused. */
+function postedNote(locale: Locale, posted: boolean, pinned: boolean): string {
+  const line = t(locale, posted ? 'bot.admin.posted' : 'bot.admin.notPosted');
+  return posted && !pinned ? `${line}\n${t(locale, 'bot.admin.pinFailed')}` : line;
+}
+
 async function raffleStart(ctx: ChatCtx, interaction: ChatInputCommandInteraction): Promise<void> {
   const { locale } = ctx;
   if (!ctx.deps.games) throw new AppError('internal');
@@ -929,19 +973,19 @@ async function raffleStart(ctx: ChatCtx, interaction: ChatInputCommandInteractio
       ? {}
       : { minutes: interaction.options.getInteger('minutes') as number }),
   });
-  const ok = await post(
+  const { posted, pinned } = await postRaffle(
     ctx,
     interaction.client,
+    raffle,
     guildId,
     interaction.options.getString('channel_id'),
-    raffleMessage(ctx, raffle),
-  ).catch(() => false);
+  );
   await reply(interaction, {
     embeds: [
       embed(
         'success',
         t(locale, 'bot.admin.raffle.started', { id: raffle.id }),
-        t(locale, ok ? 'bot.admin.posted' : 'bot.admin.notPosted'),
+        postedNote(locale, posted, pinned),
       ),
     ],
     flags: EPHEMERAL,
@@ -960,17 +1004,15 @@ async function raffleRepost(ctx: ChatCtx, interaction: ChatInputCommandInteracti
     });
     return;
   }
-  const ok = await post(
+  const { posted, pinned } = await postRaffle(
     ctx,
     interaction.client,
+    raffle,
     guildId,
     interaction.options.getString('channel_id'),
-    raffleMessage(ctx, raffle),
-  ).catch(() => false);
+  );
   await reply(interaction, {
-    embeds: [
-      embed(ok ? 'success' : 'warning', t(locale, ok ? 'bot.admin.posted' : 'bot.admin.notPosted')),
-    ],
+    embeds: [embed(posted ? 'success' : 'warning', postedNote(locale, posted, pinned))],
     flags: EPHEMERAL,
   });
 }
