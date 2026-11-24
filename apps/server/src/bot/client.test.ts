@@ -106,7 +106,7 @@ describe('deployCommands', () => {
       rest: mockRest,
     });
     expect(guildRes.route).toBe(Routes.applicationGuildCommands('345678901234567890', GUILD));
-    expect(guildRes.count).toBe(15);
+    expect(guildRes.count).toBe(16);
 
     const globalRes = await deployCommands({
       token: 'real-bot-token',
@@ -115,7 +115,7 @@ describe('deployCommands', () => {
       rest: mockRest,
     });
     expect(globalRes.route).toBe(Routes.applicationCommands('345678901234567890'));
-    expect(globalRes.count).toBe(15);
+    expect(globalRes.count).toBe(16);
     expect(calls).toHaveLength(2);
   });
 

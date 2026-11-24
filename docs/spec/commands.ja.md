@@ -32,6 +32,7 @@ Discord のスラッシュコマンド、サブコマンドグループ、サブ
 | `/loan` | `貸付` | Peer-to-peer Pelica loans with daily simple interest | 🤝 ペリカの貸し借り（日割りの単利つき） | `guild` | `loan` |
 | `/kyosai` | `共済` | Teiai Kyosai mutual shares, auctions, transfers & motions | 🏛️ 帝愛共済（配当と、最後の損の負担・口の競りと譲渡・動議） | `guild` | `kyosai` |
 | `/company` | `会社` | Found a Teiai subsidiary, produce goods & take stakes | 🏢 会社（帝愛の子会社を作って、製品を売る） | `guild` | `company` |
+| `/stream` | `配信` | Post a stream panel for super chats and win/lose bets | 📺 配信パネルを出して、スパチャや勝敗の賭けを受ける | `guild` | `stream` |
 | `/help` | `help` | Beginner's guide with interactive topic buttons | 📖 はじめての人向けの案内（ボタンでくわしい説明） | `any` | `help` |
 | `/settings` | `設定` | View or update your personal language and app preferences | ⚙️ 言語などの個人設定を確認・変更する | `any` | `settings` |
 | `/admin` | `運営` | [Admin] Bot owner server, economy & event controls (DM only) | [管理者] Bot を使えるサーバーの管理。Bot とのDMで使えます | `dm` | `admin` |
@@ -125,14 +126,20 @@ Discord のスラッシュコマンド、サブコマンドグループ、サブ
 | `company dividend` | `会社 配当率` | `percent` / `割合`: integer `0..100`（必須） | `true` | `company` |
 | `company holdings` | `会社 持分` | — | `true` | `company` |
 
-### 7. ヘルプと設定（`/help`、`/settings`）
+### 7. 配信パネル（`/stream` / `/配信`）
+
+| コマンドのパス | 日本語のパス | オプション（`name` / `日本語`：型、範囲、選択肢） | エフェメラル | 担当モジュール |
+| --- | --- | --- | --- | --- |
+| `stream start` | `配信 開始` | `title` / `タイトル`: string、長さ `1..100`（必須）、`url` / `url`: string、最大 `300` 文字（`http://` または `https://`、任意） | `false`（永続ボタン付きの配信パネルを投稿） | `stream`（[stream.ja.md](stream.ja.md)） |
+
+### 8. ヘルプと設定（`/help`、`/settings`）
 
 | コマンドのパス | 日本語のパス | オプション（`name` / `日本語`：型、範囲、選択肢） | エフェメラル | 担当モジュール |
 | --- | --- | --- | --- | --- |
 | `help` | `help` | — | `true` | `bot`（実装済み） |
 | `settings` | `設定` | `language` / `言語`: string の選択肢（`auto`、`en`、`ja`）（任意） | `true` | `settings`（実装済み） |
 
-### 8. 管理コマンド（`/admin` / `/運営`。DM のみ、`OWNER_IDS` で制限）
+### 9. 管理コマンド（`/admin` / `/運営`。DM のみ、`OWNER_IDS` で制限）
 
 | コマンドのパス | 日本語のパス | オプション（`name` / `日本語`：型、範囲、選択肢） | エフェメラル | 担当モジュール |
 | --- | --- | --- | --- | --- |

@@ -25,6 +25,7 @@ import {
   parseDurationMinutes,
   quizPostSubmit,
 } from './progress-chat.ts';
+import { handleStreamCommand, handleStreamComponent, handleStreamModal } from './stream-chat.ts';
 
 /** Slash commands that used to answer "coming soon". Returns false when nothing handles the path. */
 export async function dispatchChatCommand(
@@ -37,7 +38,8 @@ export async function dispatchChatCommand(
     (await handleFinanceCommand(ctx, path, interaction)) ||
     (await handleProgressCommand(ctx, path, interaction)) ||
     (await handleNetWorthCommand(ctx, path, interaction)) ||
-    (await handleAdminCommand(ctx, path, interaction))
+    (await handleAdminCommand(ctx, path, interaction)) ||
+    (await handleStreamCommand(ctx, path, interaction))
   );
 }
 
@@ -53,6 +55,7 @@ export async function dispatchChatComponent(
     if (await handleFinanceComponent(ctx, interaction, id)) return true;
     if (await handleAdminComponent(ctx, interaction, id)) return true;
     if (await handleNetWorthComponent(ctx, interaction, id)) return true;
+    if (await handleStreamComponent(ctx, interaction, id)) return true;
   }
   return handleProgressComponent(ctx, interaction, id);
 }
@@ -67,6 +70,7 @@ export async function dispatchChatModal(
     await quizPostSubmit(ctx, interaction);
     return true;
   }
+  if (await handleStreamModal(ctx, interaction, id)) return true;
   return adminModalSubmit(ctx, interaction, id, (raw) => parseDurationMinutes(raw, 'h'));
 }
 

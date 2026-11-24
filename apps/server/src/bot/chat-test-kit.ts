@@ -27,6 +27,7 @@ export interface FakeChannel {
   id: string;
   guildId: string | null;
   sent: unknown[];
+  edits: { id: string; options: unknown }[];
   deleted: string[];
   /** One entry per `bulkDelete` call: the ids it was given. */
   bulkDeleted: string[][];
@@ -54,6 +55,7 @@ export function fakeChannel(
     id,
     guildId,
     sent: [] as unknown[],
+    edits: [] as { id: string; options: unknown }[],
     deleted: [] as string[],
     bulkDeleted: [] as string[][],
     messages: new Map(),
@@ -86,7 +88,10 @@ export function fakeChannel(
         channel.deleted.push(mid);
         store.delete(mid);
       },
-      edit: async () => undefined,
+      edit: async (options: unknown) => {
+        channel.edits.push({ id: mid, options });
+        return undefined;
+      },
     });
   }
   (channel as Record<string, unknown>).messages = {
@@ -225,7 +230,10 @@ export function command(spec: CommandSpec) {
   return { interaction, out };
 }
 
-export function button(customId: string, spec: Partial<CommandSpec> = {}) {
+export function button(
+  customId: string,
+  spec: Partial<CommandSpec> & { message?: { embeds?: unknown[] } } = {},
+) {
   const user = spec.user ?? makeUser(USER, 'alice', 'Alice');
   const { interaction, out } = baseInteraction({
     id: spec.id ?? `bx-${Math.random().toString(36).slice(2)}`,
@@ -235,7 +243,12 @@ export function button(customId: string, spec: Partial<CommandSpec> = {}) {
     user,
     client: spec.client ?? fakeClient(),
   });
-  Object.assign(interaction, { customId, isButton: () => true, launchActivity: vi.fn() });
+  Object.assign(interaction, {
+    customId,
+    isButton: () => true,
+    launchActivity: vi.fn(),
+    ...(spec.message ? { message: spec.message } : {}),
+  });
   return { interaction, out };
 }
 
@@ -306,6 +319,7 @@ export function makeHandler(server: TestServer, overrides: Partial<BotRouterDeps
     finance: server.finance,
     games: server.games,
     pins: server.postPins,
+    stream: server.stream,
     clock: server.clock,
     ...overrides,
   });

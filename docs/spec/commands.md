@@ -32,6 +32,7 @@ Single source of truth for all Discord slash commands, subcommand groups, subcom
 | `/loan` | `貸付` | Peer-to-peer Pelica loans with daily simple interest | 🤝 ペリカの貸し借り（日割りの単利つき） | `guild` | `loan` |
 | `/kyosai` | `共済` | Teiai Kyosai mutual shares, auctions, transfers & motions | 🏛️ 帝愛共済（配当と、最後の損の負担・口の競りと譲渡・動議） | `guild` | `kyosai` |
 | `/company` | `会社` | Found a Teiai subsidiary, produce goods & take stakes | 🏢 会社（帝愛の子会社を作って、製品を売る） | `guild` | `company` |
+| `/stream` | `配信` | Post a stream panel for super chats and win/lose bets | 📺 配信パネルを出して、スパチャや勝敗の賭けを受ける | `guild` | `stream` |
 | `/help` | `help` | Beginner's guide with interactive topic buttons | 📖 はじめての人向けの案内（ボタンでくわしい説明） | `any` | `help` |
 | `/settings` | `設定` | View or update your personal language and app preferences | ⚙️ 言語などの個人設定を確認・変更する | `any` | `settings` |
 | `/admin` | `運営` | [Admin] Bot owner server, economy & event controls (DM only) | [管理者] Bot を使えるサーバーの管理。Bot とのDMで使えます | `dm` | `admin` |
@@ -125,14 +126,20 @@ Period choices (`PERIOD_CHOICES`): `1h` (`1時間`), `6h` (`6時間`), `24h` (`2
 | `company dividend` | `会社 配当率` | `percent` / `割合`: integer `0..100` (required) | `true` | `company` |
 | `company holdings` | `会社 持分` | — | `true` | `company` |
 
-### 7. Help & Settings (`/help`, `/settings`)
+### 7. Stream Panel (`/stream` / `/配信`)
+
+| Command Path | JA Path | Options (`name` / `JA` : type, bounds, choices) | Ephemeral | Owning Module |
+| --- | --- | --- | --- | --- |
+| `stream start` | `配信 開始` | `title` / `タイトル`: string, length `1..100` (required); `url` / `url`: string, max length `300` (`http://` or `https://`, optional) | `false` (posts the live panel with persistent buttons) | `stream` ([stream.md](stream.md)) |
+
+### 8. Help & Settings (`/help`, `/settings`)
 
 | Command Path | JA Path | Options (`name` / `JA` : type, bounds, choices) | Ephemeral | Owning Module |
 | --- | --- | --- | --- | --- |
 | `help` | `help` | — | `true` | `bot` (implemented) |
 | `settings` | `設定` | `language` / `言語`: string choices (`auto`, `en`, `ja`) (optional) | `true` | `settings` (implemented) |
 
-### 8. Admin Tools (`/admin` / `/運営` — DM Only, `OWNER_IDS` Gate)
+### 9. Admin Tools (`/admin` / `/運営` — DM Only, `OWNER_IDS` Gate)
 
 | Command Path | JA Path | Options (`name` / `JA` : type, bounds, choices) | Ephemeral | Owning Module |
 | --- | --- | --- | --- | --- |

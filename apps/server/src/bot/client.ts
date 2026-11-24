@@ -14,6 +14,7 @@ import type { CasinoServices } from '../runtime/server.ts';
 import { PLACEHOLDER_DISCORD_TOKEN } from './deploy.ts';
 import { startBoardRefresh } from './boards.ts';
 import { createInteractionHandler, type BotRouterDeps } from './router.ts';
+import { startStreamPanelRefresh } from './stream-chat.ts';
 
 /** Guilds intent only: zero privileged intents (no GuildMembers, Presences, MessageContent). */
 export const BOT_INTENTS = [GatewayIntentBits.Guilds] as const;
@@ -98,6 +99,13 @@ export function createDiscordClient(deps: CreateBotClientDeps): Client {
   const onInteraction = createInteractionHandler(deps);
 
   let stopBoards: (() => void) | null = null;
+  let stopStreamPanels: (() => void) | null = null;
+  const stopBackground = (): void => {
+    stopBoards?.();
+    stopBoards = null;
+    stopStreamPanels?.();
+    stopStreamPanels = null;
+  };
   client.once(Events.ClientReady, (readyClient) => {
     if (deps.store) {
       stopBoards = startBoardRefresh(
@@ -109,6 +117,9 @@ export function createDiscordClient(deps: CreateBotClientDeps): Client {
         deps.finance?.netWorth,
       );
     }
+    if (deps.stream) {
+      stopStreamPanels = startStreamPanelRefresh(client, deps.stream, deps.identity, deps.logger);
+    }
     deps.logger.info(
       { userId: readyClient.user.id, guilds: readyClient.guilds.cache.size },
       'discord bot ready',
@@ -119,7 +130,12 @@ export function createDiscordClient(deps: CreateBotClientDeps): Client {
     void onInteraction(interaction);
   });
 
-  client.once(Events.ShardDisconnect, () => stopBoards?.());
+  client.once(Events.ShardDisconnect, stopBackground);
+  const destroy = client.destroy.bind(client);
+  client.destroy = async () => {
+    stopBackground();
+    return destroy();
+  };
 
   client.on(Events.Warn, (warning) => {
     deps.logger.warn({ warning }, 'discord client warning');

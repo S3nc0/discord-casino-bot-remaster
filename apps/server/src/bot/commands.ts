@@ -7,6 +7,7 @@ import {
   type ChatInputCommandInteraction,
   type RESTPostAPIChatInputApplicationCommandsJSONBody,
 } from 'discord.js';
+import { STREAM_LIMITS } from '@casino/shared';
 
 export type CommandContext = 'guild' | 'dm' | 'any';
 
@@ -2230,6 +2231,45 @@ export const COMMAND_SPECS: readonly TopLevelCommandSpec[] = [
       },
     ],
   },
+  {
+    kind: 'group',
+    name: 'stream',
+    jaName: '配信',
+    description: 'Post a stream panel for super chats and win/lose bets',
+    jaDescription: '📺 配信パネルを出して、スパチャや勝敗の賭けを受ける',
+    context: 'guild',
+    children: [
+      {
+        kind: 'subcommand',
+        name: 'start',
+        jaName: '開始',
+        description: 'Open a stream panel in this channel for super chats and bets',
+        jaDescription: '配信パネルを出す（スパチャと、あなたの勝敗への賭けを受けられる）',
+        module: 'stream',
+        ephemeral: false,
+        options: [
+          {
+            kind: 'string',
+            name: 'title',
+            jaName: 'タイトル',
+            description: 'Stream title',
+            jaDescription: '配信のタイトル',
+            required: true,
+            minLength: 1,
+            maxLength: STREAM_LIMITS.titleMax,
+          },
+          {
+            kind: 'string',
+            name: 'url',
+            jaName: 'url',
+            description: 'Stream URL (e.g. YouTube; omit for Discord screen share)',
+            jaDescription: '配信の URL（YouTube など。Discord の画面共有なら省略）',
+            maxLength: STREAM_LIMITS.urlMax,
+          },
+        ],
+      },
+    ],
+  },
 ];
 
 function contextsFor(context: CommandContext): InteractionContextType[] {
@@ -2496,6 +2536,7 @@ export const WIRED_COMMAND_PATHS: ReadonlySet<string> = new Set([
   'admin quiz list',
   'admin quiz delete',
   'admin stream-void',
+  'stream start',
 ]);
 
 function indexCommandLeaves(): ReadonlyMap<string, ResolvedCommandMeta> {

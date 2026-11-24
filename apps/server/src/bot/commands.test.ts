@@ -61,9 +61,9 @@ function assertRequiredBeforeOptional(
 describe('command registry', () => {
   const jsonCommands = buildSlashCommands();
 
-  it('registers all 15 top-level commands with EN base and JA localizations', () => {
-    expect(COMMAND_SPECS).toHaveLength(15);
-    expect(jsonCommands).toHaveLength(15);
+  it('registers all 16 top-level commands with EN base and JA localizations', () => {
+    expect(COMMAND_SPECS).toHaveLength(16);
+    expect(jsonCommands).toHaveLength(16);
 
     const names = jsonCommands.map((c) => [c.name, c.name_localizations?.ja]);
     expect(names).toEqual([
@@ -82,6 +82,7 @@ describe('command registry', () => {
       ['help', 'help'],
       ['settings', '設定'],
       ['admin', '運営'],
+      ['stream', '配信'],
     ]);
   });
 
@@ -218,6 +219,7 @@ describe('command registry', () => {
       'admin quiz bulk',
       'admin quiz list',
       'admin quiz delete',
+      'stream start',
     ]);
     expect(COMMAND_META_BY_PATH.size).toBe(leafPaths.length);
   });
@@ -244,6 +246,7 @@ describe('command registry', () => {
     ]);
     expect(byName.get('pelica')?.contexts).toEqual([InteractionContextType.Guild]);
     expect(byName.get('casino')?.contexts).toEqual([InteractionContextType.Guild]);
+    expect(byName.get('stream')?.contexts).toEqual([InteractionContextType.Guild]);
 
     expect(getCommandMeta('admin grant')).toMatchObject({
       ownerOnly: true,
@@ -258,6 +261,12 @@ describe('command registry', () => {
       implemented: true,
     });
     expect(getCommandMeta('pelica balance')).toMatchObject({
+      ownerOnly: false,
+      context: 'guild',
+      ephemeral: false,
+      implemented: true,
+    });
+    expect(getCommandMeta('stream start')).toMatchObject({
       ownerOnly: false,
       context: 'guild',
       ephemeral: false,
