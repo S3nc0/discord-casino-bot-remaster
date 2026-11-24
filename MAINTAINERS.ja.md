@@ -43,7 +43,7 @@
 | `packages/ui/` | Bitbloom。コンポーネント、デザイントークン、フォント、ドット絵のアイコンとスプライト、効果音とエフェクト。 |
 | `catalogs/` | 調整できる数値（配当、価格、金利）の YAML。 |
 | `design/` | Bitbloom のデザイントークンと、それを作るスクリプト。 |
-| `tools/pixel-art/` | アイコン、スプライト、場面をすべて作るジェネレーター：`icons/`、`horse/`、`scenes/`、`casino/`、`social/`、`finance/`（[ドット絵を作り直す](#ドット絵を作り直す) を参照）。 |
+| `tools/pixel-art/` | アイコン、スプライト、場面をすべて作るジェネレーター：`icons/`、`app-icon/`、`horse/`、`scenes/`、`casino/`、`social/`、`finance/`（[ドット絵を作り直す](#ドット絵を作り直す) を参照）。 |
 | `tests/` | `e2e/`（複数クライアントのソケットテスト）、`invariants/`（台帳のプロパティテスト）、`fixtures/legacy/`（元のボットで記録した一致確認用のデータ）。ユニットテストはコードの隣にあります。 |
 | `ops/` | `pi/` インストーラーと systemd ユニット、`cloudflared/` トンネルのひな形、`pi-sim/` arm64 コンテナと負荷テスト。 |
 | `docs/` | オーナー向けガイド、`ARCHITECTURE.md`、`DB_SCHEMA.md`、`STATUS.md`、`spec/`（動作仕様）、`ui-cheatsheet.md`（どれも英日）、元のボットのゲームごとのメモ（日本語）。 |
@@ -259,6 +259,7 @@ sudo journalctl -u discord-casino.service -n 50 --no-pager
 | フォルダ | 描くもの | 書き出す先（とくに書いていなければ `apps/web/src/screens/`） |
 | --- | --- | --- |
 | `icons/` | ゲームアイコン 35 個 | `packages/ui/src/pixel/icon-art.ts` と `packages/ui/src/styles/bundle.css` のアイコンの色 |
+| `app-icon/` | アプリアイコン（`512x512`）と Activity 用ファビコン（`32x32`、`16x16`） | `docs/images/app-icon-512.png`、`apps/web/public/favicon-32.png`、`apps/web/public/favicon-16.png` |
 | `horse/` | 8 コマの競走馬（参考資料が必要） | `horse/horse-art.ts` と `horse/horse.css` の毛色と勝負服の色 |
 | `scenes/` | レース、厩舎、配合、闘技場（戦士 16 人）、鉱山（鉱夫、鉱石、発掘品）、ショップ、持ち物 | `horse/race-art.ts`、`stable-art.ts`、`arena-art.ts`、`life/mine-art.ts`、`shop-art.ts`、`inventory-art.ts` |
 | `casino/` | スロット、チンチロ、ブラックジャック、ルーレット、パチンコ、チップ | `casino/art/*-art.ts` |
@@ -271,6 +272,7 @@ sudo journalctl -u discord-casino.service -n 50 --no-pager
 
 ```sh
 node tools/pixel-art/icons/build.js
+node tools/pixel-art/app-icon/build.js
 ART_OUT=/some/folder ART_REF=/some/folder/ref node tools/pixel-art/horse/ship.js
 ART_REF=/some/folder/ref node tools/pixel-art/scenes/ship.js
 node tools/pixel-art/casino/ship.js
