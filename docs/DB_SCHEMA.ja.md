@@ -118,6 +118,9 @@ SQLite のファイルは 1 つで、サーバーのプロセス 1 つが `bette
 | `0009_horse_breeding` | 配合 | `horse_breedings`（`horse_breeding_fee` の台帳の `ref_id`）と、`horses` の親、世代、誕生、成熟、間隔の列（[horse-breeding.ja.md](spec/horse-breeding.ja.md) §5） |
 | `0010_bot_tools` | 持ち主向けのツール | `leaderboards`（サーバーごとに固定表示するランキングのメッセージ）、`casino_events`（持ち主が手で始める特別イベント。サーバーごとに最大 1 つ） |
 | `0011_arena_runner_up` | 闘技場 | `arena_tournaments.runner_up_id`（上を参照） |
+| `0012_pinned_posts` | ボット | `pinned_posts`（下を参照） |
+
+`0012_pinned_posts.sql` は `pinned_posts` を作ります。ボットがチャットの投稿をピン留めした投票・共済の動議・抽選 1 件につき 1 行です。列は `kind`（`poll`、`motion`、`raffle`）、`ref_id`（`polls`・`kyosai_motions`・`raffles` の id。`kind` と合わせて主キー）、`guild_id`、`channel_id`、`message_id`、`pinned_at`、`tries`（想定外のエラーでピン留め解除に失敗した回数）です。外部キーはなく、元の行が消えていれば終了とみなします。`notify:pin-sweep` ジョブは、元が `open` でなくなった投稿のピン留めを外し、行を消します。ペリカは持たず、台帳の行もありません。インポーターは持ち込みません。[spec/polls.ja.md](spec/polls.ja.md) §2.5、[spec/kyosai.ja.md](spec/kyosai.ja.md) §6、[spec/lottery.ja.md](spec/lottery.ja.md) §2.3 を見てください。
 
 | 共有フィード（`guild_id` なし、お金なし） | マイグレーション |
 | --- | --- |

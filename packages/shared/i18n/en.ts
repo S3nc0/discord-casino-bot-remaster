@@ -1883,6 +1883,9 @@ export const en = {
   'screen.casino.blackjack.credit.tooShort':
     'You are {need} Pelica short, and Teiai lends at most {cap} for a double.',
   'screen.casino.blackjack.credit.failed': 'Teiai would not lend it.',
+  // Auto-pin: owner-facing hint when a raffle post could not be pinned.
+  'bot.admin.pinFailed':
+    'The post could not be pinned. Give the bot the Pin Messages permission in that channel.',
 } as const;
 
 export type MessageKey = keyof typeof en;

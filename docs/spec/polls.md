@@ -44,6 +44,11 @@
   - `no > yes`: `❌ 反対多数`
   - `yes == no`: `⚖️ 同数`
 
+### 2.5 Pinned Post (remaster, port of upstream 22a1f66)
+- The public reply of `/poll create` is **pinned** in its channel right after it is posted, and **unpinned** once the poll is no longer `open` (closed by the minute tick). A poll created in the Activity has no chat post and is not pinned.
+- Needs the **Pin Messages** permission in that channel. Without it, or when the channel's pin list is full or the message is gone, the poll works exactly the same, just unpinned: the failure is logged (at most one line per guild per 10 minutes) and never shown to players.
+- Mechanism: the pinned message is recorded in `pinned_posts` (kind `poll`); the `notify:pin-sweep` job (every 30 s) unpins every recorded post whose poll is not `open` and deletes the row. A message that was already deleted is ignored silently. See [DB_SCHEMA.md](../DB_SCHEMA.md).
+
 ---
 
 ## 3. Verbatim Japanese Strings

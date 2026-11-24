@@ -172,6 +172,10 @@ function baseInteraction(spec: {
     editReply: vi.fn(async (options: unknown) => {
       out.push({ kind: 'editReply', options });
     }),
+    fetchReply: vi.fn(async () => ({
+      id: `reply-${spec.id}`,
+      channelId: spec.channelId ?? 'chan-1',
+    })),
     showModal: vi.fn(async (modal: unknown) => {
       interaction.replied = true;
       out.push({ kind: 'modal', options: modal });
@@ -301,6 +305,7 @@ export function makeHandler(server: TestServer, overrides: Partial<BotRouterDeps
     casino: server.casino,
     finance: server.finance,
     games: server.games,
+    pins: server.postPins,
     clock: server.clock,
     ...overrides,
   });

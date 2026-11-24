@@ -137,6 +137,16 @@ are per guild. Only the read-only feeds below are shared by all guilds, as in th
 | `0009_horse_breeding` | Breeding | `horse_breedings` (ledger `ref_id` of `horse_breeding_fee`), plus parent, generation, foaled, maturity and cooldown columns on `horses` ([horse-breeding.md](spec/horse-breeding.md) §5) |
 | `0010_bot_tools` | Owner tools | `leaderboards` (a pinned board message per guild), `casino_events` (the owner's manual special event, at most one per guild) |
 | `0011_arena_runner_up` | Arena | `arena_tournaments.runner_up_id` (see above) |
+| `0012_pinned_posts` | Bot | `pinned_posts` (see below) |
+
+`0012_pinned_posts.sql` creates `pinned_posts`: one row per poll, kyosai motion or raffle whose chat
+post the bot has pinned. Columns: `kind` (`poll`, `motion` or `raffle`), `ref_id` (the id in
+`polls`, `kyosai_motions` or `raffles`; primary key with `kind`), `guild_id`, `channel_id`,
+`message_id`, `pinned_at` and `tries` (unpin attempts that failed with an unexpected error). There
+is no foreign key: a source row that is gone counts as ended. The `notify:pin-sweep` job unpins a
+post when its source is no longer `open` and then deletes the row. It holds no Pelica and has no
+ledger rows. The importer does not carry it. See [spec/polls.md](spec/polls.md) §2.5,
+[spec/kyosai.md](spec/kyosai.md) §6 and [spec/lottery.md](spec/lottery.md) §2.3.
 
 | Shared feed (no `guild_id`, no money) | Migration |
 | --- | --- |

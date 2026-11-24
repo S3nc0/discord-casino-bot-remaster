@@ -82,6 +82,7 @@ describe('boot', () => {
     for (const job of server.games.jobs) expect(ids).toContain(`games:${job.name}`);
     expect(ids).toContain('casino:idempotency-purge');
     expect(ids).toContain('auth:launch-intents-purge');
+    expect(ids).toContain('notify:pin-sweep');
     expect(new Set(ids).size).toBe(ids.length);
     // Races four times a day (ensureDay at midnight, tick every 5 s), the arena, the weekly
     // ranking and the lottery are all in the manifest.
