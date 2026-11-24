@@ -45,7 +45,7 @@ outermost commit; they are dropped on rollback. That is how "events are publishe
 holds. Per-connection pragmas (`db/pragmas.ts`): WAL, `synchronous = NORMAL`,
 `busy_timeout = 5000`, foreign keys, recursive triggers.
 
-Migrations are numbered `.sql` files in `db/migrations/` (`0001_init` to `0013_stream` at
+Migrations are numbered `.sql` files in `db/migrations/` (`0001_init` to `0014_color_roles` at
 the time of writing), listed in `db/migrations/index.ts` and inlined into the bundle. `runMigrations`
 applies the newer ones in order, one transaction each, and records a SHA-256 checksum in
 `schema_migrations`. The server refuses to start if an applied migration was edited, or if the file
@@ -60,7 +60,8 @@ the finance jobs (the market, Teiai bank, loans and kyosai each every minute; co
 (races four times a day, daily reset and reminders, arena, weekly ranking, lottery, polls, quiz,
 shop market, and the stream panel's `stream:lock-due` and `stream:close-due` every minute) which
 run once per guild that is not `denied`, the pin sweep (every 30 seconds, see
-[Notify](#notify)), and housekeeping (expired idempotency
+[Notify](#notify)), the name-colour role sweep `shop:color-role-sweep` (every 30 seconds, see
+[Name-colour roles](#name-colour-roles)), and housekeeping (expired idempotency
 keys every 10 minutes, expired launch intents every minute). A job that throws is logged and never
 stops the scheduler; a guild that throws never stops the other guilds.
 
@@ -78,6 +79,24 @@ is a script, not a server start: `pnpm commands:deploy:guild` (to `TEST_GUILD_ID
 `pnpm commands:deploy:global`, or `pnpm commands:dry-run` to print what would be sent. The client
 asks for the `Guilds` intent only, and the cache and sweeper settings keep it small
 (`BOT_CACHE_SETTINGS`, `BOT_SWEEPER_OPTIONS`).
+
+## Name-colour roles
+
+`apps/server/src/games/shop/color-roles.ts` (`ColorRoleService`, `games.shop.colorRoles`) puts the
+worn name colour on the member as a Discord role ([spec/shop.md](spec/shop.md) §2.4). The database
+is the authority: `profiles.color_role` is the choice, `color_roles` the roles the bot created (it
+touches no other role), `color_role_holders` the role it put on each member, and a
+`color_role_sync` row is written in the same transaction as every change, including the last
+copy leaving the inventory (`Inventory.take`: seizure, a market listing, any removal). Discord is
+called only after the commit, through `ColorRoleRest` (list roles and the bot's member, create a
+role, edit its colour or position, add or remove a member's role) over the bot client's REST
+manager, attached after login like the pin port. Only the `Guilds` intent is needed and no member
+is cached. A per-guild lock serialises the syncs, so one colour never gets two roles. The equip
+applies its own row at once (the chat answer and `POST /api/life/shop/color-role` wait a few
+seconds at most and return a `notice` when Discord refuses); the `shop:color-role-sweep` job
+(every 30 s) applies the rest, retrying a missing Manage Roles or a role too low every 10 minutes
+for a day (logged once per guild per 10 minutes) and an unexpected error 3 times. It never blocks a
+command or a job, and with `BOT_DISABLED=1` the rows wait.
 
 ## Notify
 

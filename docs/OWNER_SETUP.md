@@ -161,11 +161,26 @@ You will gather these values during Steps 2–6. Keep a private note (such as a 
 2. Under **Installation Contexts**, tick **Guild Install** (guild = Discord server) and click **Save Changes**.
 3. Under **Default Install Settings → Guild Install**:
    - **Scopes:** add `applications.commands` and `bot`.
-   - **Permissions:** tick **Send Messages**, **Embed Links**, **Use Slash Commands** and **Pin Messages** (also tick **Manage Webhooks** if you want webhook personas later). The bot pins new polls, kyosai motions and raffle posts while they are open, and unpins them when they end. **Pin Messages** is what allows that. Without it everything still works, only nothing is pinned. The permission integer of this set is `2251801961187328`, or `2251802498058240` with **Manage Webhooks**.
-   - **Already installed before v1.1.0?** Tick **Pin Messages** here, then either open the install link again and **Authorize** again (Discord updates the bot's role), or give the bot's role **Pin Messages** in *Server Settings → Roles*.
+   - **Permissions:** tick **Send Messages**, **Embed Links**, **Use Slash Commands**, **Pin Messages** and **Manage Roles** (also tick **Manage Webhooks** if you want webhook personas later). The bot pins new polls, kyosai motions and raffle posts while they are open, and unpins them when they end: **Pin Messages** allows that. **Manage Roles** lets the name-colour items of the shop colour a member's name (see [Name colours](#name-colours-manage-roles-and-the-bots-role)). Without either one everything still works, only nothing is pinned or no name is coloured. The permission integer of this set is `2251802229622784`, or `2251802766493696` with **Manage Webhooks**.
+   - **Already installed before v1.1.0?** Tick **Pin Messages** here, then either open the install link again and **Authorize** again (Discord updates the bot's role), or give the bot's role **Pin Messages** in *Server Settings → Roles*. **Before the name-colour release?** Do the same for **Manage Roles**.
    - Click **Save Changes**.
 4. Under **Install Link**, keep **Discord Provided Link**, click **Copy**, and open the link in your browser.
 5. Choose your **test server** and click **Authorize**.
+
+### Name colours: Manage Roles and the bot's role
+
+The shop sells 12 name colours (`🌈 Name colors`, 20,000 Pelica each). When a member wears one, the bot gives them a role named `ペリカ・` + the colour (`ペリカ・赤`, `ペリカ・青` …) with that colour. The bot creates each role the first time someone wears it: no permissions, not shown separately in the member list, not mentionable. It places the role directly below its own highest role. A member wears one colour at a time; taking it off, selling it, listing it on the player market or losing it to a bankruptcy takes the role off again.
+
+For this the bot needs two things:
+
+1. **Manage Roles.** Tick it in the install settings above, or give it to the bot's role in *Server Settings → Roles*.
+2. **The bot's role placed high enough.** Discord only lets a bot manage roles **below** its own highest role. In *Server Settings → Roles*, drag the bot's role (it has the app's name) above the roles whose members should be able to show a colour. Discord shows the colour of the **highest coloured role** a member has, so a coloured role above the bot's role (an admin or moderator role, say) still wins for its members.
+
+**The risk, honestly.** Manage Roles lets the bot create, edit and assign any role below its own highest role, and give those roles to anyone. Keep the bot's role **below** your admin and moderator roles, and do not give the roles below it permissions you would not hand to the bot. This bot only ever touches the colour roles it created itself (it stores their ids) and the colour role it put on a member; it never edits, deletes or assigns any other role. It does not delete the colour roles when someone takes a colour off, when the feature is turned off or when the bot leaves the server; delete them by hand if you want them gone.
+
+**A role with the same name.** If the server already has a role named like a colour (`ペリカ・赤` …) that this bot did not create (for example one left by the original bot, or one an admin made), the bot refuses to use it and tells the member to ask an admin to rename it. Rename or delete that role, then the member can wear the colour again. The bot also stops using one of its own colour roles once someone gives it a permission.
+
+**Without Manage Roles, or with the bot's role too low,** wearing a colour still works in the game (the Activity and the shop show it), the member gets a short notice that the server needs Manage Roles and the bot's role placed higher, and the bot retries every 10 minutes for a day, so the colour appears by itself once you fix it. The server log shows one line per server per 10 minutes (`cannot set name colour roles: …`).
 
 ### 4.2 Add URL Mappings (before enabling Activities)
 

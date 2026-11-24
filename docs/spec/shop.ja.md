@@ -52,7 +52,7 @@
   - `skin_kuro`（30,000）、`skin_gold_dice`（150,000）、`skin_glass_dice`（500,000）、`skin_vip`（300,000）、`skin_numa`（1,000,000）。
 - **コレクション（`collection`、9 件、残高カードに表示され、購入価格で総資産に数えられる）**：
   - `col_beer`（`🍺`、13,500）、`col_yakitori`（`🍢`、25,000）、`col_gaishutsu`（`🎫`、50,000）、`col_sunglasses`（`🕶️`、100,000）、`col_teppan`（`🔥`、250,000）、`col_megaphone`（`🎙️`、500,000）、`col_gold_bar`（`🪙`、1,000,000）、`col_stock`（`🏢`、3,000,000）、`col_throne`（`👑`、10,000,000）。
-- **カラーロール（`color_role`、12 件、すべて 20,000）**：`role_red`、`role_orange`、`role_yellow`、`role_green`、`role_cyan`、`role_blue`、`role_purple`、`role_pink`、`role_gold`、`role_silver`、`role_black`、`role_white`（権限 0 で、名前が `"ペリカ・<色名>"` のロールを作って付与し、Bot の最上位のロールのすぐ下に置きます）。
+- **カラーロール（`color_role`、12 件、すべて 20,000）**：`role_red`、`role_orange`、`role_yellow`、`role_green`、`role_cyan`、`role_blue`、`role_purple`、`role_pink`、`role_gold`、`role_silver`、`role_black`、`role_white`（権限 0 で、名前が `"ペリカ・<色名>"` のロールを作って付与し、Bot の最上位のロールのすぐ下に置きます）。リマスターは §2.4 を参照。
 - **発掘品（`relic`、限定 24 件）**：基本の発掘品 6 種 × 星 4 段階（★0..★3）、価格 `0`、`limited=True`。`docs/spec/relics.ja.md` を参照。
 
 ### 2.3 ユーザーごとの在庫の補充の式（`domain/shop.py:139-159`）
@@ -61,6 +61,17 @@
 - `next_refill_at = None if stock >= rule.max else now + (1.0 - (stock - int(stock))) / rule.per_hour * 3600.0`。
 
 ---
+
+### 2.4 名前の色のロール（リマスター、マイグレーション 0014）
+
+持ち主の決定（2026-11-24）で復活：`color_role` を付けると、元の Bot（`cogs/shop/discord_ops.py`）と同じく、本物の Discord のロールでメンバーの名前に色が付きます。
+
+- **スロット。** `color_role` は装備のスロットです（`EQUIP_SLOTS`、`profiles.color_role`）。一度に1色。借金による凍結では隠しません（元の Bot と同じく、借金中も Discord のロールは付いたまま）。チャット：ショップの `🌈 名前の色（ロール）` の売り場（持っている色のメニューと「外す」ボタン）。アクティビティ：持ち物の「付ける／外す」。`POST /api/life/shop/color-role`（`ShopColorRoleRequest` → 任意の `notice` 付きの `ShopColorRoleResponse`）と `ShopView.colorRole`。
+- **ロール。** 名前は `COLOR_ROLE_PREFIX` ＋色の名前（`ペリカ・赤`。`catalogs/shop.yaml` の `role_prefix` と品の `name`）、色は品の `value`、権限 0、メンバー一覧で別表示しない、メンションできない。初めて使うときに作り、Bot の最上位のロールのすぐ下へ動かします（間にあるのが自分の色ロールだけなら動かしません）。色を付けると、前に付けていた色のロールは外します。
+- **自分のロールだけ。** Bot は作ったロール（`color_roles`）と、各メンバーに付けたロール（`color_role_holders`）を記録し、ほかのロールには触りません。Bot が作っていない同じ名前のロールや、権限が付いた・連携用になった自分のロールは使いません。その色は付けなかったことにし、管理者に名前を変えてもらうよう伝えます（`shop.colorRole.notice.name_taken`）。Discord で削除された記録済みのロール（Unknown Role）は忘れ、次の同期で作り直します。ロールは削除しません（機能をオフにしたときや、Bot がサーバーを抜けたときも）。
+- **コミットの後。** 変更のたびに、同じトランザクションで `color_role_sync` の行を書きます。Discord を呼ぶのはコミットの後だけで、Bot の discord.js クライアントの REST ポート（`ColorRoleRest`：ロール一覧と Bot のメンバー、ロールの作成、色・位置の変更、メンバーへのロールの付け外し）を、サーバーごとのロックの下で使います（同時に付けても、色ごとにロールは1つ）。インテントは `Guilds` だけで、メンバーのキャッシュは使いません。付けた操作はその行をすぐ反映し（待つのは数秒まで）、残りは `shop:color-role-sweep` ジョブ（30 秒ごと）が反映するので、再起動や Discord のエラーは遅れになるだけです。
+- **Discord に断られたとき。** ロールの管理の権限がない、または色ロールが Bot の最上位のロールより下にないときは、選んだ色は記録したまま、メンバーにお知らせを1回出し（`missing_permissions`／`hierarchy`）、10 分ごとに1日やり直し、ログはサーバーごとに 10 分に1行です。ほかのエラーは3回までやり直します。サーバーやメンバーが見つからないときは、静かに終えます。
+- **持ち主が変わるとき。** 最後の1つがなくなると（`Inventory.take`：破産の差し押さえ、プレイヤー間の市場への出品〔預かり〕、そのほかの取り上げ）、同じトランザクションでスロットを空け、同期の行を積むので、ロールが外れます。買い戻し・競売で落札・受け取りでは、自動で付けません。ペリカは動きません。付けるのは無料です（`tests/invariants/color-role.test.ts`）。
 
 ## 3. 称号のニックネームへの付与（`domain/nick.py`、`cogs/shop/cog.py:82-175`）
 
@@ -129,4 +140,4 @@
 
 ## 6. 持ち込まないもの
 
-- **リマスターでは未実装：** Discord のニックネームへの称号付与・同期（`domain/nick.py`、§3、ニックネームの管理権限）と、`color_role` のサーバーロール作成・付与（ロールの管理権限）は移植していません。`color_role` は購入・プロフィールカード表示・プレイヤー間取引の見た目アイテムとして残り、称号は残高カードとアクティビティのプロフィールに表示されます。
+- **リマスターでは未実装：** Discord のニックネームへの称号付与・同期（`domain/nick.py`、§3、ニックネームの管理権限）は移植していません。称号は残高カードとアクティビティのプロフィールに表示されます（`color_role` のロールは移植済み：§2.4）。

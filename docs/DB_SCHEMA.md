@@ -139,6 +139,7 @@ are per guild. Only the read-only feeds below are shared by all guilds, as in th
 | `0011_arena_runner_up` | Arena | `arena_tournaments.runner_up_id` (see above) |
 | `0012_pinned_posts` | Bot | `pinned_posts` (see below) |
 | `0013_stream` | Stream panel | `streams`, `stream_rounds`, `stream_bets`, `stream_round_audit` (see below) |
+| `0014_color_roles` | Shop | `profiles.color_role`, `color_roles`, `color_role_holders`, `color_role_sync` (see below) |
 
 `0012_pinned_posts.sql` creates `pinned_posts`: one row per poll, kyosai motion or raffle whose chat
 post the bot has pinned. Columns: `kind` (`poll`, `motion` or `raffle`), `ref_id` (the id in
@@ -183,6 +184,26 @@ Super chats have no table of their own: they are `transfer_out` / `transfer_fee`
 ledger rows with `ref_type = 'stream'` and `ref_id` = stream id. The tip message is not stored.
 The importer does not carry any of these tables (the original bot had no stream panel at the
 import point).
+
+`0014_color_roles.sql` holds the name-colour roles ([spec/shop.md](spec/shop.md) §2.4). It adds
+`profiles.color_role` (the worn `color_role` item, or null; cleared when the last copy leaves) and
+three STRICT tables with TEXT snowflakes and millisecond timestamps:
+
+- `color_roles`: the colour roles the bot created, one per `(guild_id, item_id)`, with `role_id`
+  (unique per guild) and `created_at`. The bot touches no role that is not listed here. A row is
+  removed when Discord says the role no longer exists; the role is then created again on next use.
+- `color_role_holders`: the colour role the bot last put on a member, primary key
+  `(guild_id, user_id)`, with `role_id` and `applied_at`, so a change knows what to take off
+  without reading the member list.
+- `color_role_sync`: members whose Discord roles must catch up with `profiles.color_role`, primary
+  key `(guild_id, user_id)`. Written in the transaction of the change (equip, unequip, the last
+  copy leaving); `queued_at`, `next_at` (the sweep skips the row until then: 10 minutes after a
+  missing permission), `tries` (failed attempts) and `seq` (bumped on every new change, so a
+  finished sync never deletes a newer request). The `shop:color-role-sweep` job (every 30 s) and
+  the equip itself apply it after commit and delete it.
+
+None of them holds Pelica or has ledger rows. The importer does not carry them (the original bot
+kept no record of its roles; members wear a colour again after the switch).
 
 | Shared feed (no `guild_id`, no money) | Migration |
 | --- | --- |
