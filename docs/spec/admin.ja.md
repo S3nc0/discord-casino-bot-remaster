@@ -110,3 +110,8 @@
 | `admin.target_need_guild` | `チャンネルを使えません` / `チャンネルを指定するときは、\`サーバー\` も指定してください。` | `cogs/admin/targets.py:89,97` |
 | `admin.target_no_member` | `そのサーバーにいません` / `\`{uid}\` は {guild} のメンバーではありません。` | `cogs/admin/targets.py:120` |
 | `admin.target_bot` | `Bot には{verb}できません` | `cogs/admin/targets.py:130` |
+
+## Wave 5 の追加
+
+- **機能キー `stream`**（配信：スパチャと勝敗の賭け）を `/admin feature` のキーに加えます。止めると、新しいパネル・スパチャ・賭けを断ります。勝負を始める・締め切る・精算する・無効にする・配信を終えるは止めていても使えるので、預かった賭け金は必ず返せます（[stream.ja.md](stream.ja.md) §4）。
+- **`/admin stream-void`**（オーナー専用）：`target`（`stream:<id>`、`round:<id>`、または勝負の id だけ）、必須の `reason`（1〜200 文字）、サーバー。受付中か締切済みの勝負を無効にして、賭け金を全額返します。もう払い済みの勝負は無効にできません。終わった勝負はすべて監査ログに 1 行残ります（配信者・合計・上位の当たり・誰が決めたか・いつ）。ルールと文言は [stream.ja.md](stream.ja.md) の §9 と §13。キー：`bot.admin.feature.stream`、`bot.admin.streamVoid.*`。

@@ -92,3 +92,7 @@ Planned owner: `B2-B` | Screen ID: `transfer` (`packages/shared/src/ids.ts`) | F
 | `transfer.ledger_out` | `送金（送）→{receiver_id}` | `infra/db/wallet.py:350` |
 | `transfer.ledger_fee` | `送金手数料` | `infra/db/wallet.py:353` |
 | `transfer.ledger_in` | `送金（受）←{sender_id}` | `infra/db/wallet.py:354` |
+
+## Wave 5: super chats are transfers
+
+A super chat on a stream panel ([stream.md](stream.md) §3) is a transfer to the streamer and uses this spec unchanged: the same fee (10 %, rounded up, paid on top), the same 3-games minimum, the same debt block, the same confirmation from 5,000, and the same receiver withholding. Its rows carry `ref_type = 'stream'`, `ref_id = the stream id`. Because the daily cap counts `transfer_out` rows, **tips and transfers share the one 20,000 per day cap**. The stream adds only its own limits: at least 100 per tip, a message of up to 150 characters, and no tips to your own stream.

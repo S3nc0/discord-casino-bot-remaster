@@ -92,3 +92,7 @@
 | `transfer.ledger_out` | `送金（送）→{receiver_id}` | `infra/db/wallet.py:350` |
 | `transfer.ledger_fee` | `送金手数料` | `infra/db/wallet.py:353` |
 | `transfer.ledger_in` | `送金（受）←{sender_id}` | `infra/db/wallet.py:354` |
+
+## Wave 5：スパチャは送金
+
+配信パネルのスパチャ（[stream.ja.md](stream.ja.md) §3）は配信者への送金で、この仕様をそのまま使います。手数料（10%、切り上げ、上乗せ）、3 回以上プレイの条件、借金で断ること、5,000 からの確認、受け取る側の天引きは同じです。行には `ref_type = 'stream'`、`ref_id = 配信の id` が付きます。1 日の上限は `transfer_out` の行で数えるので、**スパチャと送金は 1 日 20,000 の上限を共有します**。配信が足すのは、1 回 100 以上、メッセージ 150 文字まで、自分の配信には送れない、という独自の制限だけです。

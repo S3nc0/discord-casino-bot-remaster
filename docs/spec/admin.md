@@ -110,3 +110,8 @@ Planned owner: `B2-B` | Feature toggle: none (owner-only DM commands + guild adm
 | `admin.target_need_guild` | `チャンネルを使えません` / `チャンネルを指定するときは、\`サーバー\` も指定してください。` | `cogs/admin/targets.py:89,97` |
 | `admin.target_no_member` | `そのサーバーにいません` / `\`{uid}\` は {guild} のメンバーではありません。` | `cogs/admin/targets.py:120` |
 | `admin.target_bot` | `Bot には{verb}できません` | `cogs/admin/targets.py:130` |
+
+## Wave 5 additions
+
+- **Feature key `stream`** (streams: tips and win/lose bets) joins the keys of `/admin feature`. Turning it off refuses new panels, tips and bets; opening a round, locking, settling, voiding and ending keep working so escrowed stakes can always be released ([stream.md](stream.md) §4).
+- **`/admin stream-void`** (owner-only): `target` (`stream:<id>`, `round:<id>` or a bare round id), a required `reason` (1 to 200 characters) and the guild. It voids an open or locked round and refunds every stake in full; a round that already paid out cannot be voided. Every round that ends leaves an audit row (streamer, totals, top winners, who settled or voided, when). Rules and strings: [stream.md](stream.md) §9 and §13. Keys: `bot.admin.feature.stream`, `bot.admin.streamVoid.*`.
