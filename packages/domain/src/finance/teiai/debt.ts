@@ -1,6 +1,11 @@
 import type { Rng } from '@casino/shared';
 import { BPS_SCALE, MS_PER_DAY, MS_PER_HOUR, roundTo, truncInt } from '../math.ts';
-import { TEIAI_CONSTANTS, type PlayerDebtStatus } from './constants.ts';
+import {
+  TEIAI_CONSTANTS,
+  WEALTHY_ASSETS,
+  type PlayerDebtStatus,
+  type PlayerDisplayStatus,
+} from './constants.ts';
 
 /** Daily bonus skim while in Teiai debt: 20%, rounded down (floor integer Pelica). */
 export function dailySkim(amount: number): number {
@@ -31,9 +36,17 @@ export function resolvePlayerStatus(input: {
   return 'katagi';
 }
 
-/** True when player qualifies for cosmetic wealthy display (`katagi` and net worth >= 1,000,000). */
-export function isWealthyStatus(status: PlayerDebtStatus, netWorth: number): boolean {
-  return status === 'katagi' && netWorth >= TEIAI_CONSTANTS.wealthyAssets;
+/** True when player qualifies for cosmetic wealthy display (`katagi` and financial net worth >= 1,000,000). */
+export function isWealthy(status: PlayerDebtStatus, financialNetWorth: number): boolean {
+  return status === 'katagi' && financialNetWorth >= WEALTHY_ASSETS;
+}
+
+/** Display-only status badge: upgrades `katagi` to `wealthy` when financial net worth qualifies. */
+export function resolveDisplayStatus(
+  status: PlayerDebtStatus,
+  financialNetWorth: number,
+): PlayerDisplayStatus {
+  return isWealthy(status, financialNetWorth) ? 'wealthy' : status;
 }
 
 export interface DebtInterestAccrual {

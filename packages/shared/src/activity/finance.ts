@@ -94,7 +94,12 @@ export type FinanceWriteResult = Static<typeof FinanceWriteResult>;
 
 // ---- Teiai Bank ----
 
-export const FinanceDebtStatus = Type.Enum(['katagi', 'underground', 'bankrupt'] as const);
+export const FinanceDebtStatus = Type.Enum([
+  'katagi',
+  'underground',
+  'bankrupt',
+  'wealthy',
+] as const);
 export type FinanceDebtStatus = Static<typeof FinanceDebtStatus>;
 
 export const FinanceBankView = Type.Object({

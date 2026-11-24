@@ -59,7 +59,10 @@ export const TEIAI_CONSTANTS = {
   thermostatCoupling: 1.0,
 } as const;
 
+export const WEALTHY_ASSETS = TEIAI_CONSTANTS.wealthyAssets;
+
 export type PlayerDebtStatus = 'katagi' | 'underground' | 'bankrupt';
+export type PlayerDisplayStatus = 'katagi' | 'wealthy' | 'underground' | 'bankrupt';
 export type BankLiquidityLevel = 'safe' | 'warn' | 'danger' | 'frozen';
 export type CdsStatus = 'active' | 'paid' | 'void' | 'expired';
 export type BankruptcyCause = 'voluntary' | 'forced' | 'escape';

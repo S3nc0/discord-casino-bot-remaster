@@ -45,6 +45,7 @@ Planned owner: `B3` | Screen IDs: `teiai-bank`, `teiai-bank-cds`, `teiai-bank-de
   1. `bankrupt` (`🔴 破産者`): `bankrupt_at IS NOT NULL AND debt > 0`.
   2. `underground` (`🟤 地下労働者`): `debt > 0 OR has_overdue_p2p_loan`.
   3. `katagi` (`🟢 カタギ`): otherwise (displayed as `🟡 富豪` if `net_worth >= 1,000,000`).
+  - Remaster wiring: the `🟡` wealthy badge is wired display-only from Financial Net Worth (`NetWorthService`) and shown on `/pelica balance`, `/pelica bank`, `/pelica ranking` (weekly/net/liquid), the live ranking board, and the Activity Bank, Profile, and Ranking screens (all `katagi_only` checks stay on raw status; nickname suffixes are not used).
   - While `underground` or `bankrupt`, shop titles/card skins/effects/collections are frozen (not lost; restored on returning to `katagi`).
 - **Debt Interest Accrual** (`infra/db/debt.py:336-375`):
   - If `debt <= 0`: resets `debt_interest_at = 0`.

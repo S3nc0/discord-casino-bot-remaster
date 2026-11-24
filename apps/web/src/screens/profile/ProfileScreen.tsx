@@ -1,5 +1,5 @@
-import { avatarUrl, type ScreenId, type ShopKind } from '@casino/shared';
-import { Button, GameIcon, PixelScene } from '@casino/ui';
+import { avatarUrl, type FinanceDebtStatus, type ScreenId, type ShopKind } from '@casino/shared';
+import { Button, GameIcon, PixelScene, Tag, type TagHue } from '@casino/ui';
 import { formatPelica, screenName, useLocale, useT } from '../../shell/i18n.ts';
 import { useRuntime } from '../../shell/runtime.ts';
 import { useBalanceStore } from '../../shell/stores/balance.ts';
@@ -13,6 +13,13 @@ import { PROFILE_CARD, PROFILE_PLACEHOLDER, PROFILE_SLOTS } from './profile-art.
 import './profile.css';
 
 const SHORTCUTS: readonly ScreenId[] = ['inventory', 'history', 'relics', 'settings'];
+
+const STATUS_HUE: Record<FinanceDebtStatus, TagHue> = {
+  katagi: 'green',
+  wealthy: 'yellow',
+  underground: 'brown',
+  bankrupt: 'red',
+};
 
 /** Shop kinds that are things to show off (not used up), in socket order. */
 const COSMETIC: readonly ShopKind[] = [
@@ -51,6 +58,7 @@ export default function ProfileScreen() {
   const nf = new Intl.NumberFormat(locale);
   const streak = daily.data?.streak;
   const self = ranking.data?.self;
+  const status = ranking.data?.selfStatus;
   const owned = (shop.data?.items ?? [])
     .filter((i) => i.owned > 0 && COSMETIC.includes(i.kind))
     .sort((a, b) => COSMETIC.indexOf(a.kind) - COSMETIC.indexOf(b.kind))
@@ -76,9 +84,16 @@ export default function ProfileScreen() {
   ];
   return (
     <section className="profile" data-screen="profile" aria-labelledby="profile-title">
-      <h1 id="profile-title" className="profile__title">
-        {screenName(locale, 'profile')}
-      </h1>
+      <div className="profile__head">
+        <h1 id="profile-title" className="profile__title">
+          {screenName(locale, 'profile')}
+        </h1>
+        {status ? (
+          <Tag hue={STATUS_HUE[status]} className="profile__status" data-status={status}>
+            {t(`status.badge.${status}`)}
+          </Tag>
+        ) : null}
+      </div>
       <div className="profile-card">
         <PixelScene art={PROFILE_CARD} scale={S} className="profile-card__art" />
         <div className="profile-card__portrait" style={box(PROFILE_SLOTS.portrait)}>

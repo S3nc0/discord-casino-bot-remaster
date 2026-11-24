@@ -130,8 +130,30 @@ export function rankBalanceSheets(
 }
 
 /**
- * Financial net worth (金融純資産): cash - Teiai debt + valuations of trust deposits, securities
- * and companies. Not a ranking any more; it only decides the 🟡 wealthy badge.
+ * Keys of `AssetParts` that make up Financial Net Worth (金融純資産):
+ * cash − Teiai debt + deposit + stocks + bonds + options at value.
+ * Fixed assets, labor pot, auction escrow, and P2P loans are excluded.
+ */
+export const FINANCIAL_NET_WORTH_KEYS = [
+  'cash',
+  'deposit',
+  'crypto',
+  'bonds',
+  'options',
+  'debt',
+] as const;
+
+/**
+ * Financial net worth (金融純資産) from a balance sheet's parts (`parts.debt` is stored negative).
+ * Used only for the display-only 🟡 wealthy badge.
+ */
+export function financialNetWorth(parts: AssetParts): number {
+  return parts.cash + parts.debt + parts.deposit + parts.crypto + parts.bonds + parts.options;
+}
+
+/**
+ * Financial net worth (金融純資産): cash - Teiai debt + valuations of trust deposits, stocks,
+ * bonds and options. Not a ranking any more; it only decides the 🟡 wealthy badge.
  */
 export function netWorth(input: { cash: number; debt: number; valuations: number }): number {
   return input.cash - input.debt + input.valuations;

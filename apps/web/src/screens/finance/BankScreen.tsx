@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { FINANCE_ROUTES, type FinanceRepayRequest } from '@casino/shared';
+import { FINANCE_ROUTES, type FinanceDebtStatus, type FinanceRepayRequest } from '@casino/shared';
 import { Button, Progress, Tag, type TagHue } from '@casino/ui';
 import { useT } from '../../shell/i18n.ts';
 import { useFinanceClient } from './client.ts';
@@ -16,10 +16,18 @@ import {
 } from './parts.tsx';
 import { BankScene } from './scenes/BankScene.tsx';
 
-const STATUS_HUE: Record<string, TagHue> = {
+const STATUS_HUE: Record<FinanceDebtStatus, TagHue> = {
   katagi: 'green',
-  underground: 'yellow',
+  wealthy: 'yellow',
+  underground: 'brown',
   bankrupt: 'red',
+};
+
+const STATUS_EMOJI: Record<FinanceDebtStatus, string> = {
+  katagi: '🟢',
+  wealthy: '🟡',
+  underground: '🟤',
+  bankrupt: '🔴',
 };
 
 /** Teiai Bank: what you hold, what you owe, the grace window and the way to repay. */
@@ -90,8 +98,8 @@ export default function BankScreen() {
           <Stat
             label={t('screen.finance.bank.status')}
             value={
-              <Tag hue={STATUS_HUE[data.status] ?? 'neutral'}>
-                {t(`screen.finance.bank.status.${data.status}`)}
+              <Tag hue={STATUS_HUE[data.status] ?? 'neutral'} data-status={data.status}>
+                {`${STATUS_EMOJI[data.status] ? `${STATUS_EMOJI[data.status]} ` : ''}${t(`screen.finance.bank.status.${data.status}`)}`}
               </Tag>
             }
           />

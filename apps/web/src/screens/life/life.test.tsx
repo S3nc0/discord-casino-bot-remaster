@@ -192,6 +192,50 @@ describe('ranking', () => {
     expect(rows[1]).toContain('Sora');
     expect(text(root)).toContain('Your rank: 3 of 9');
   });
+
+  it('shows 🟡 / 🟤 / 🔴 next to names and no emoji for Clean in weekly and net-worth rows', async () => {
+    const base = createMockLifeApi();
+    const api = {
+      ...base,
+      ranking: async () => {
+        const v = await base.ranking();
+        return {
+          ...v,
+          rows: [
+            { ...v.rows[0]!, name: 'Aki', status: 'wealthy' as const },
+            { ...v.rows[1]!, name: 'Mock Player', status: 'katagi' as const },
+            { ...v.rows[2]!, name: 'Sora', status: 'bankrupt' as const },
+            { ...v.rows[3]!, name: 'Ren', status: 'underground' as const },
+          ],
+        };
+      },
+      netWorth: async (view: 'net' | 'liquid') => {
+        const v = await base.netWorth(view);
+        return {
+          ...v,
+          rows: [
+            { ...v.rows[0]!, name: 'Aki', status: 'wealthy' as const },
+            { ...v.rows[1]!, name: 'Mock Player', status: 'underground' as const },
+            { ...v.rows[2]!, name: 'Sora', status: 'bankrupt' as const },
+            { ...v.rows[3]!, name: 'Ren', status: 'katagi' as const },
+          ],
+        };
+      },
+    };
+    const root = await show(<RankingScreen />, api);
+    const weeklyRows = [...root.querySelectorAll('.bb-list li')].map(text);
+    expect(weeklyRows[0]).toContain('Aki 🟡');
+    expect(weeklyRows[1]).not.toMatch(/🟢|🟡|🟤|🔴/);
+    expect(weeklyRows[2]).toContain('Sora 🔴');
+    expect(weeklyRows[3]).toContain('Ren 🟤');
+
+    await click(tab(root, 'Net assets'));
+    const netRows = [...root.querySelectorAll('.bb-list li')].map(text);
+    expect(netRows[0]).toContain('Aki 🟡');
+    expect(netRows[1]).toContain('Mock Player 🟤');
+    expect(netRows[2]).toContain('Sora 🔴');
+    expect(netRows[3]).not.toMatch(/🟢|🟡|🟤|🔴/);
+  });
 });
 
 describe('labor', () => {

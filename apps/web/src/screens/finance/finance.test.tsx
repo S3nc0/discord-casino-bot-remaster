@@ -2,7 +2,7 @@
 import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { FINANCE_ROUTES, type FinanceListingsView } from '@casino/shared';
+import { FINANCE_ROUTES, type FinanceBankView, type FinanceListingsView } from '@casino/shared';
 import { dictionaries } from '@casino/shared/i18n';
 import { useBalanceStore } from '../../shell/stores/balance.ts';
 import { useSessionStore } from '../../shell/stores/session.ts';
@@ -20,7 +20,12 @@ import { glueAmount } from './hooks.ts';
 import { PixelChart, toCandles } from './PixelChart.tsx';
 import { FinanceClientContext } from './client.ts';
 import { createMockFinanceClient } from './mock.ts';
-import { FinanceApiError, type FinanceBody, type FinanceClient } from './types.ts';
+import {
+  FinanceApiError,
+  type FinanceBody,
+  type FinanceClient,
+  type FinanceReads,
+} from './types.ts';
 
 let mounted: Rendered | null = null;
 beforeEach(() => {
@@ -224,6 +229,34 @@ describe('Bank screen', () => {
     expect(view.container.querySelector('h1')!.textContent).toBe('銀行');
     expect(text(view)).toContain('地下労働者');
     expect(text(view)).toContain('返済する');
+  });
+
+  it('shows the 🟡 Wealthy badge when status is wealthy (EN and JA)', async () => {
+    const base = spy().client;
+    const wealthyClient: FinanceClient = {
+      ...base,
+      get: async <R extends keyof FinanceReads>(route: R) => {
+        const res = await base.get(route);
+        if (route === FINANCE_ROUTES.bank) {
+          return {
+            ...(res as FinanceBankView),
+            balance: 1_200_000,
+            debt: 0,
+            status: 'wealthy' as const,
+          } as FinanceReads[R];
+        }
+        return res;
+      },
+    };
+    const enView = await show(<BankScreen />, wealthyClient);
+    const enBadge = enView.container.querySelector('[data-status="wealthy"]');
+    expect(enBadge?.textContent).toBe('🟡 Wealthy');
+    enView.unmount();
+
+    useSettingsStore.setState({ language: 'ja' });
+    const jaView = await show(<BankScreen />, wealthyClient);
+    const jaBadge = jaView.container.querySelector('[data-status="wealthy"]');
+    expect(jaBadge?.textContent).toBe('🟡 富豪');
   });
 });
 
@@ -750,7 +783,7 @@ describe('copy', () => {
 
   it('covers every dynamic key family', () => {
     const families: [string, string[]][] = [
-      ['bank.status', ['katagi', 'underground', 'bankrupt']],
+      ['bank.status', ['katagi', 'wealthy', 'underground', 'bankrupt']],
       ['loans.role', ['lender', 'borrower', 'open']],
       [
         'loans.status',
@@ -788,7 +821,7 @@ describe('Japanese screens show no raw enum values', () => {
   // Known enum and id strings the services send. None may reach a Japanese screen as is.
   const RAW = new RegExp(
     [
-      '\\b(safe|warn|danger|frozen|normal|junk|katagi|underground|bankrupt)\\b',
+      '\\b(safe|warn|danger|frozen|normal|junk|katagi|wealthy|underground|bankrupt)\\b',
       '\\b(offer|request|active|overdue|repaid|discharged|declined|cancelled|expired)\\b',
       '\\b(fixed|auction|item|horse|farm|mine|long|short|spot|margin|bond)\\b',
       '\\b(incoming|outgoing|lender|borrower|open)\\b',

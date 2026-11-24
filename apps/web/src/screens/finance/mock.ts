@@ -572,7 +572,7 @@ export function createMockFinanceClient(options: { balance?: number } = {}): Fin
     balance,
     debt,
     deposit: 0,
-    status: debt > 0 ? 'underground' : 'katagi',
+    status: debt > 0 ? 'underground' : balance >= 1_000_000 ? 'wealthy' : 'katagi',
     inGrace: debt >= 15_000,
     graceUntil: debt >= 15_000 ? now() + 18 * HOUR : null,
     blacklistUntil: null,

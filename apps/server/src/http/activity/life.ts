@@ -575,6 +575,7 @@ export function registerLifeRoutes(app: FastifyInstance, deps: LifeRouteDeps): v
         const rows = games.progression.weeklyStandings(w.guildId, week, 10);
         const self = games.progression.weeklyRankOf(w.guildId, w.userId, week);
         const champion = games.progression.lastChampion(w.guildId);
+        const statuses = deps.netWorth?.displayStatuses(w.guildId, clock.now());
         return {
           now: clock.now(),
           week,
@@ -587,6 +588,7 @@ export function registerLifeRoutes(app: FastifyInstance, deps: LifeRouteDeps): v
             net: r.net,
             plays: r.plays,
             qualified: r.net > 0 && r.plays >= WEEKLY_MIN_PLAYS,
+            ...(statuses ? { status: statuses.get(r.userId) ?? 'katagi' } : {}),
           })),
           self,
           minPlays: WEEKLY_MIN_PLAYS,
@@ -599,6 +601,7 @@ export function registerLifeRoutes(app: FastifyInstance, deps: LifeRouteDeps): v
                 wins: champion.wins,
               }
             : null,
+          ...(statuses ? { selfStatus: statuses.get(w.userId) ?? 'katagi' } : {}),
         };
       }),
     );
@@ -621,6 +624,7 @@ export function registerLifeRoutes(app: FastifyInstance, deps: LifeRouteDeps): v
               name: nameOf(r.sheet.userId),
               value: r.value,
               groups: r.sheet.groups,
+              status: r.status,
             })),
             self: res.self
               ? {
@@ -628,6 +632,7 @@ export function registerLifeRoutes(app: FastifyInstance, deps: LifeRouteDeps): v
                   value: res.self.value,
                   groups: res.self.sheet.groups,
                   parts: res.self.sheet.parts,
+                  status: res.self.status,
                 }
               : null,
           };

@@ -2185,4 +2185,10 @@ export const ja: Messages = {
   'screen.stream.ui.resultVoid': '無効になりました（全額返金）。',
   'screen.stream.ui.resultRefunded': '片側だけの賭けだったため全額返金されました。',
   'screen.stream.ui.resultOutcome': '結果: {side} ・ 払い戻し {count}件 ・ 帝愛控除: {rake}',
+  'bot.balance.status': '身分',
+  'screen.finance.bank.status.wealthy': '富豪',
+  'status.badge.katagi': '🟢 カタギ',
+  'status.badge.wealthy': '🟡 富豪',
+  'status.badge.underground': '🟤 地下労働者',
+  'status.badge.bankrupt': '🔴 破産者',
 };

@@ -2,6 +2,7 @@ import { Type, type Static, type TProperties } from 'typebox';
 import { ErrorCode } from '../errors.ts';
 import { EpochMs, Pelica, Snowflake } from '../ids.ts';
 import { IdempotencyKey } from '../intents.ts';
+import { FinanceDebtStatus } from './finance.ts';
 
 /**
  * Activity contracts of the "life" slice: underground labor, quiz, lottery, polls, shop,
@@ -580,6 +581,8 @@ export const RankingRow = Type.Object({
   plays: count,
   /** Could take the title: at least `minPlays` games and a profit. */
   qualified: Type.Boolean(),
+  /** Display-only status badge (`katagi` | `wealthy` | `underground` | `bankrupt`). */
+  status: Type.Optional(FinanceDebtStatus),
 });
 export type RankingRow = Static<typeof RankingRow>;
 
@@ -612,6 +615,8 @@ export const RankingView = Type.Object({
     }),
     Type.Null(),
   ]),
+  /** Display-only status badge of the signed-in caller. */
+  selfStatus: Type.Optional(FinanceDebtStatus),
 });
 export type RankingView = Static<typeof RankingView>;
 
@@ -742,6 +747,8 @@ export const NetWorthRow = Type.Object({
   /** The sort value of the view: `groups.net` or `groups.liquid`. */
   value: Type.Integer(),
   groups: BalanceSheetGroups,
+  /** Display-only status badge (`katagi` | `wealthy` | `underground` | `bankrupt`). */
+  status: Type.Optional(FinanceDebtStatus),
 });
 export type NetWorthRow = Static<typeof NetWorthRow>;
 
@@ -758,6 +765,7 @@ export const NetWorthView = Type.Object({
       value: Type.Integer(),
       groups: BalanceSheetGroups,
       parts: BalanceSheetParts,
+      status: Type.Optional(FinanceDebtStatus),
     }),
     Type.Null(),
   ]),
