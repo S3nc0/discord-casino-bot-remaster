@@ -204,6 +204,7 @@ export function createServer(options: CreateServerOptions): CasinoServices {
         games: lazy.games as NonCasinoGames,
         teiai: lazy.teiai as ReturnType<typeof createTeiaiPort>,
         offsetHours: utcOffsetHours,
+        netWorth: finance.netWorth,
       }),
       horse: {
         store,

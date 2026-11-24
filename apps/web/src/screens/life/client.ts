@@ -4,6 +4,7 @@ import {
   type ErrorCode,
   type LotteryView,
   type MissionsView,
+  type NetWorthView,
   type PollCreateRequest,
   type PollsView,
   type PollWriteResponse,
@@ -87,6 +88,8 @@ export interface LifeApi {
   shopSeizedBuy(lotId: number, key: string): Promise<ShopBuyResponse>;
   missions(): Promise<MissionsView>;
   ranking(): Promise<RankingView>;
+  /** Balance-sheet ranking: net assets (default) or current assets, with the caller's sheet. */
+  netWorth(view: 'net' | 'liquid'): Promise<NetWorthView>;
   transfer(): Promise<TransferView>;
   transferMembers(q: string): Promise<TransferMembers>;
   transferPreview(receiverId: string, amount: number): Promise<TransferPreview>;
@@ -182,6 +185,7 @@ export function createHttpLifeApi({
     shopSeizedBuy: (lotId, k) => post(LIFE_ROUTES.shopSeizedBuy, { idempotencyKey: k, lotId }),
     missions: () => call('GET', LIFE_ROUTES.missions),
     ranking: () => call('GET', LIFE_ROUTES.ranking),
+    netWorth: (view) => call('GET', query(LIFE_ROUTES.netWorth, { view })),
     transfer: () => call('GET', LIFE_ROUTES.transfer),
     transferMembers: (q) => call('GET', query(LIFE_ROUTES.transferMembers, { q })),
     transferPreview: (receiverId, amount) =>

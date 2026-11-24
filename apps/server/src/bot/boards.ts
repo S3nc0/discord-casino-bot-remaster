@@ -1,65 +1,38 @@
 import type { Client, EmbedBuilder, Message } from 'discord.js';
-import { formatPelica, resolveLocale, t, type Locale } from '@casino/shared/i18n';
+import { resolveLocale, t, type Locale } from '@casino/shared/i18n';
 import type { Logger } from 'pino';
 import type { IdentityRepo } from '../db/identity.ts';
 import type { Store } from '../db/store.ts';
+import type { NetWorthService, NetWorthStanding } from '../finance/net-worth-service.ts';
 import { embed } from './chat-kit.ts';
+import { standingLine } from './net-worth-chat.ts';
 
 /** How often the live ranking posts are rewritten (docs/spec/economy-core.md §4). */
 export const BOARD_INTERVAL_MS = 60_000;
 export const BOARD_TOP_N = 10;
 
-export interface NetWorthRow {
-  userId: string;
-  net: number;
-}
-
 /**
- * Net worth ranking of a guild: cash − debt + Teiai trust deposit + the cost basis of spot holdings,
- * active bonds and company funds. Sorted `(-net, user_id)`, top `limit` rows.
+ * The board's rows: the balance-sheet net worth ranking (純資産 = total assets − liabilities, debt
+ * interest accrued first), top `limit`. Empty when the finance services are not wired.
  */
-export function netWorthStandings(
-  store: Store,
+export function boardStandings(
+  netWorth: Pick<NetWorthService, 'standings'> | undefined,
   guildId: string,
+  nowMs: number,
   limit = BOARD_TOP_N,
-): NetWorthRow[] {
-  const rows = store
-    .stmt(
-      `SELECT m.user_id AS user_id,
-              COALESCE(b.balance, 0) - COALESCE(a.debt, 0) + COALESCE(d.amount, 0)
-              + COALESCE((SELECT SUM(cost) FROM positions_spot s
-                           WHERE s.guild_id = m.guild_id AND s.user_id = m.user_id), 0)
-              + COALESCE((SELECT SUM(principal) FROM bonds o
-                           WHERE o.guild_id = m.guild_id AND o.user_id = m.user_id AND o.status = 'active'), 0)
-              + COALESCE((SELECT funds FROM companies c
-                           WHERE c.guild_id = m.guild_id AND c.user_id = m.user_id), 0) AS net
-         FROM guild_members m
-         LEFT JOIN balances b ON b.guild_id = m.guild_id AND b.user_id = m.user_id
-         LEFT JOIN bank_accounts a ON a.guild_id = m.guild_id AND a.user_id = m.user_id
-         LEFT JOIN bank_deposits d ON d.guild_id = m.guild_id AND d.user_id = m.user_id
-        WHERE m.guild_id = ?
-        ORDER BY net DESC, m.user_id ASC
-        LIMIT ?`,
-    )
-    .all(guildId, limit) as { user_id: string; net: number }[];
-  return rows.map((r) => ({ userId: r.user_id, net: r.net }));
+): readonly NetWorthStanding[] {
+  return netWorth ? netWorth.standings(guildId, 'net', limit, nowMs).rows : [];
 }
 
 export function boardEmbed(
   locale: Locale,
-  rows: readonly NetWorthRow[],
+  rows: readonly NetWorthStanding[],
   nowMs: number,
 ): EmbedBuilder {
-  const medals = ['🥇', '🥈', '🥉'];
   const lines =
     rows.length === 0
       ? t(locale, 'bot.board.empty')
-      : rows
-          .map(
-            (r, i) =>
-              `${medals[i] ?? `${i + 1}.`} <@${r.userId}> — **${formatPelica(locale, r.net)}**`,
-          )
-          .join('\n');
+      : rows.map((r) => standingLine(locale, r)).join('\n');
   return embed('primary', t(locale, 'bot.board.title'))
     .setDescription(
       `${t(locale, 'bot.board.updated', { ts: Math.floor(nowMs / 1000) })}\n\n${lines}`,
@@ -128,6 +101,7 @@ export async function refreshBoard(
   identity: Pick<IdentityRepo, 'getGuildLocale'>,
   board: BoardRow,
   nowMs: number,
+  netWorth?: Pick<NetWorthService, 'standings'>,
 ): Promise<void> {
   const channel = await fetchSendable(client, board.channelId, board.guildId);
   if (!channel) {
@@ -139,7 +113,7 @@ export async function refreshBoard(
     client: null,
     guild: identity.getGuildLocale(board.guildId),
   });
-  const embedBuilder = boardEmbed(locale, netWorthStandings(store, board.guildId), nowMs);
+  const embedBuilder = boardEmbed(locale, boardStandings(netWorth, board.guildId, nowMs), nowMs);
   if (board.messageId !== null) {
     const message = await channel.messages.fetch(board.messageId).catch(() => null);
     if (message) {
@@ -158,6 +132,7 @@ export function startBoardRefresh(
   identity: Pick<IdentityRepo, 'getGuildLocale'>,
   logger: Logger,
   now: () => number = Date.now,
+  netWorth?: Pick<NetWorthService, 'standings'>,
 ): () => void {
   const tick = (): void => {
     if (!client.isReady()) return;
@@ -173,6 +148,7 @@ export function startBoardRefresh(
         identity,
         { guildId: row.guild_id, channelId: row.channel_id, messageId: row.message_id },
         now(),
+        netWorth,
       ).catch((error: unknown) =>
         logger.warn({ err: error, guildId: row.guild_id }, 'leaderboard refresh failed'),
       );

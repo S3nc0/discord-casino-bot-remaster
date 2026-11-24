@@ -4,7 +4,7 @@
 
 Planned owner: `B2-B` | Screen IDs: `home`, `ranking`, `history`, `inbox`, `profile` (`packages/shared/src/ids.ts`)
 
-Covers: **per-guild economy**, **3,000 initial balance**, `AccountCore` ledger & debt withholding, balance card (`/ペリカ 残高`), history summarization (`/ペリカ 履歴`), net worth & final total assets (`/ペリカ ランキング`), auto-updating leaderboard (`/ペリカ ランキング掲示`), temporary notice queue, guild approval gate, and per-guild feature toggles.
+Covers: **per-guild economy**, **3,000 initial balance**, `AccountCore` ledger & debt withholding, balance card (`/ペリカ 残高`), history summarization (`/ペリカ 履歴`), balance-sheet net worth: net assets, current assets, total assets (`/ペリカ ランキング`), auto-updating leaderboard (`/ペリカ ランキング掲示`), temporary notice queue, guild approval gate, and per-guild feature toggles.
 
 ## Source Files
 - `catalogs/economy.yaml:2-18`
@@ -54,43 +54,72 @@ Covers: **per-guild economy**, **3,000 initial balance**, `AccountCore` ledger &
   - `amount >= 0`: sets cash balance to `amount` (`income=0`, no withholding, debt untouched).
   - `amount < 0`: sets cash balance to `0` and overwrites `users.debt = -amount` (logs 0-delta ledger row `"{reason}（借金を {-amount:,}ペリカ に設定）"`, triggers `after_debt_change`).
 
-### 3. Net Worth (純資産) vs Final Total Assets (総資産)
-Two rankings exist in `/ペリカ ランキング` (`cogs/economy/boards.py:26-42`, `infra/db/wallet.py:220-245`, `infra/db/assets.py:180-218`):
+### 3. Balance sheet: net assets (純資産), current assets (流動資産), total assets (総資産)
+Upstream c099a04 and ce6f500 count wealth as a balance sheet everywhere: `/ペリカ ランキング`, the
+balance card, the auto-updating board and the breakdown. Remaster: `NetWorthService`
+(`apps/server/src/finance/net-worth-service.ts`), groups and sort in
+`packages/domain/src/progression/economy-core.ts`. Terms: [glossary](glossary.md#assets-balance-sheet).
 
-1. **Net Worth (`純資産` — default ranking & leaderboard)**:
-   - Accrues debt interest for all debtors in scope first (`infra/db/wallet.py:231-233`).
-   - Formula: `balance - debt + valuations(crypto + margin + bonds + bank_deposits + options + company)` (`infra/db/repositories.py:278`).
-   - Sort: `(-net_worth, user_id)`.
-   - Also determines the cosmetic `WEALTHY` status (`富豪`: `net_worth >= teiai.WEALTHY_ASSETS` and `status == KATAGI`, `infra/db/wallet.py:246-265`).
+- **Debt interest first.** Before anything is valued, Toichi interest is accrued for every debtor of
+  the guild in one transaction (`TeiaiService.accrueGuildDebtInterest`), so the ranking shows the
+  debt as it stands now. This is a write (debt only, no ledger row).
+- 15 lines in 3 groups (`LIQUID_KEYS`, `FIXED_KEYS`, `LIABILITY_KEYS`, `PART_KEYS`):
+  - **Current assets (流動資産)**:
+    - `cash`: wallet balance
+    - `deposit`: Teiai trust deposit
+    - `crypto`: spot holdings at the sell quote (`spotSellQuote(...).proceeds`, fee taken off) +
+      every margin position at `max(0, margin + P&L)` at the latest price
+    - `bonds`: principal of active bonds
+    - `options`: open options (`StocksService.optionValuesByUser`): a bought option at its resale
+      value (its payout once past expiry); a written one at posted margin − buy-back cost (− what it
+      owes once past expiry), which can be negative
+    - `pot`: unclaimed labor wages (`work_state.pot`)
+    - `escrow`: bids held in escrow: the top bid of an active player-market auction and of an open
+      kyosai auction (remaster addition: the remaster holds kyosai bids with `kyosai_bid_hold`, so
+      leaving them out would make a bid lower net assets)
+    - `loans_lent`: what is left to repay on `active` / `overdue` P2P loans, for the lender
+  - **Fixed assets (固定資産)**:
+    - `items`: inventory and active player-market item listings at shop price (0 for priceless
+      limited items)
+    - `relics`: relics in the inventory, waiting in the mine (`work_state.relics`) and listed, at
+      `RELIC_VALUE × MERGE_COUNT^star`
+    - `horses`: owned (not retired) and listed horses at `max(0, 30,000 + retireValue(races, wins, places))`
+    - `company`: `funds + companyInvested(level)` (office build cost), split with outside investors
+      by `computeStakeValues` (owner gets what exceeds the stakes, investors at most their stake)
+    - `tools`: `upgradeSpent(pick) + upgradeSpent(glove) + dormSpent(dorm)`
+  - **Liabilities (負債, stored negative in `parts`)**:
+    - `debt`: Teiai debt, after the accrual above
+    - `loans_owed`: what is left to repay on `active` / `overdue` P2P loans, for the borrower
+- Subtotals (`assetGroups`): `liquid`, `fixed`, `gross = liquid + fixed`,
+  `liabilities = −Σ LIABILITY_KEYS`, `net = gross − liabilities`. **`liquid + fixed − liabilities =
+  net = Σ parts` always holds** (property tests in `balance-sheet.test.ts` and
+  `net-worth-service.test.ts`).
+- Views and sort (`rankBalanceSheets`): `net` (純資産, the default), `liquid` (流動資産; ce6f500
+  replaced the short-lived `💎 総資産` button, which ranked like 純資産 whenever nobody had debt),
+  `gross` (server only). Order `(-value, user_id)`, user ids compared as numbers. Every member with
+  an account is ranked; top N = 10. A caller ranked below 10 gets `…` and their own line.
+- Each ranking row shows the subtotals `（流動 12,345・固定 6,789・負債 1,000）`; zero groups are
+  left out.
+- **Financial net worth (金融純資産)**: the old ranking key, `cash − debt + valuations`
+  (`netWorth`), survives only for the 🟡 wealthy badge (`WEALTHY_ASSETS = 1,000,000`). The made-up
+  term "ファイナル総資産" (final total assets) is gone: it is now **net assets**.
+- **Cost.** One aggregate query per source, about 15 statements per guild whatever its size. Measured
+  on 1,000 seeded players: median 5.7 ms on a dev machine (`net-worth-service.test.ts`), so no cache.
 
-2. **Final Total Assets (`総資産` — balance-sheet breakdown)**:
-   - 15 component keys grouped into 3 balance-sheet categories (`domain/types.py:14-31`, `cogs/shared/texts.py:3-19`):
-     - **Liquid Assets (`LIQUID_KEYS`)**:
-       - `cash`: `users.balance`
-       - `deposit`: Teiai Bank deposit balance
-       - `crypto`: spot holdings + margin equity (`crypto + margin`)
-       - `bonds`: bond principal
-       - `options`: option valuation
-       - `pot`: unclaimed underground labor pot (`labor.pot`)
-       - `escrow`: active P2P auction highest-bid escrow (`market_listings.bid`)
-       - `loans_lent`: remaining P2P loan principal+interest (`active`/`overdue`)
-     - **Fixed Assets (`FIXED_KEYS`)**:
-       - `items`: inventory & active P2P listed items valued at shop `price` (0 for priceless exclusives)
-       - `relics`: inventory, unclaimed `labor.relics`, & active P2P listed relics valued at `shop.RELIC_VALUE`
-       - `horses`: owned & active P2P listed horses valued at `max(0, 30_000 + horse.retire_value(races, wins, places))`
-       - `company`: company valuation (`company_funds + construction_cost`)
-       - `tools`: cumulative labor upgrade cost (`upgrade_spent(pick) + upgrade_spent(glove) + dorm_spent(dorm)`)
-     - **Liabilities (`LIABILITY_KEYS`, stored negative in `parts`)**:
-       - `debt`: `-users.debt`
-       - `loans_owed`: `-remaining` on `active`/`overdue` P2P loans
-   - Subtotals (`asset_groups`): `gross = liquid + fixed`, `liabilities = -sum(LIABILITY_KEYS)`, `net = gross - liabilities`.
-   - Sort: `(-net, user_id)`.
-   - Top N displayed: `TOP_N = 10`. If viewer is ranked `> 10`, appends `…\n` and viewer's rank line (`cogs/shared/ranking.py:13,47-49,74-77`).
+**Where it shows (remaster, decision D2).** `/pelica ranking` keeps the weekly game ranking as its
+default and gains `view: weekly | net | liquid`. With `net` or `liquid` it shows the balance-sheet
+ranking with three buttons, `🏆 純資産`, `💧 流動資産` and `🧾 自分の内訳`; only the person who ran the
+command may press them (others get `core.rank_owner_only`, privately). `member` with `net` or
+`liquid` opens that member's breakdown, visible only to the caller. The balance card adds the rank by
+net assets and the field `🧾 資産（貸借対照表）`. The Activity Ranking screen has three tabs, weekly
+(default), net assets and current assets, under the same podium art, with a "My breakdown" sheet
+(`GET /api/life/net-worth`, query `view=net|liquid`).
 
 ### 4. Auto-Updating Leaderboard (`/ペリカ ランキング掲示`)
 - Permissions: guild `Manage Guild` permission OR bot owner (`owner_ids`) (`cogs/economy/cog.py:72-83`).
 - 1 board per guild (`leaderboards(guild_id, channel_id, message_id)`).
 - Refresh interval: `BOARD_INTERVAL_MINUTES = 1` minute (`catalogs/economy.yaml:18`, `cogs/economy/cog.py:226-233`).
+- Ranks by balance-sheet net assets (§3, debt interest accrued first), top 10, each row with its subtotals; the post has no buttons. Remaster: `boardStandings` / `boardEmbed` in `apps/server/src/bot/boards.ts`, which used to rank by `cash − debt + deposit + spot cost basis + bonds + company funds`.
 - Recovery behavior (`cogs/economy/boards.py:85-106`):
   - If the message was deleted (`discord.NotFound`), reposts and updates `message_id`.
   - If the channel was deleted (`channel is None`), deletes the `leaderboards` DB row.
@@ -151,18 +180,21 @@ Two rankings exist in `/ペリカ ランキング` (`cogs/economy/boards.py:26-4
 | `core.bal_field_best_streak` | `最大連勝` / `{n}連勝` | `cogs/economy/embeds.py:76` |
 | `core.bal_footer` | `勝率・損益は、集計を始めてからのゲームの分です` | `cogs/economy/embeds.py:77` |
 | `core.rank_title_net` | `🏆 このサーバーのランキング（純資産）` | `cogs/economy/boards.py:38` |
-| `core.rank_footer_net` | `純資産 = 現金 − 借金 + 信託・株・債券・オプションの評価額 ｜ ペリカはサーバーごとに別々です` | `cogs/economy/boards.py:40` |
-| `core.rank_title_final` | `🏆 このサーバーのランキング（総資産）` | `cogs/economy/boards.py:31` |
-| `core.rank_footer_final` | `総資産 = 純資産 + 馬・持ち物・発掘品・地下作業の工具・預かり中のお金・貸し借りなど、ペリカに換算できるもの全部` | `cogs/economy/boards.py:33` |
+| `core.rank_footer_net` | `純資産 = 総資産 − 負債（帝愛への借金・個人からの借入） ｜ ペリカはサーバーごとに別々です` | `cogs/economy/boards.py:40` (c099a04) |
+| `core.rank_title_liquid` | `🏆 このサーバーのランキング（流動資産）` | `cogs/economy/boards.py` (ce6f500) |
+| `core.rank_footer_liquid` | `流動資産 = 現金・預金・株式・債券など、すぐペリカにできる資産（馬・持ち物などの固定資産は含まない） ｜ 内訳は「自分の内訳」で` | `cogs/economy/boards.py` (ce6f500) |
 | `core.rank_empty` | `まだ誰も遊んでいません。\`/ペリカ デイリー\` から始めましょう。` | `cogs/shared/ranking.py:30,66` |
 | `core.rank_owner_only` | `これは他の人のランキングです。\`/ペリカ ランキング\` で自分を開けます。` | `cogs/economy/boards.py:21` |
 | `core.rank_btn_net` | `🏆 純資産` | `cogs/economy/boards.py:53` |
-| `core.rank_btn_final` | `💎 総資産` | `cogs/economy/boards.py:57` |
+| `core.rank_btn_liquid` | `💧 流動資産` | `cogs/economy/boards.py` (ce6f500) |
 | `core.rank_btn_mine` | `🧾 自分の内訳` | `cogs/economy/boards.py:61` |
 | `core.breakdown_title` | `🧾 {name} の資産の内訳` | `cogs/shared/ranking.py:90,105` |
 | `core.breakdown_no_account` | `まだ口座がありません。` | `cogs/shared/ranking.py:90` |
 | `core.breakdown_sections` | `**💧 流動資産**`, `**🏛️ 固定資産**`, `**総資産（流動＋固定）: {gross}**`, `**📉 負債**`, `**負債合計: {liab}**`, `**🧾 純資産（総資産 − 負債）: {net}**`, `（なし）` | `cogs/shared/ranking.py:97-104` |
-| `core.breakdown_footer` | `着せ替え・コレクションは買値、馬は購入価格＋引退金の見込み、発掘品は目安の価値、地下作業の工具・寮はこれまでの強化費用で数えます` | `cogs/shared/ranking.py:107` |
+| `core.breakdown_footer` | `着せ替え・コレクションは買値、馬は購入価格＋引退金の見込み、発掘品は目安の価値、地下作業の工具・寮はこれまでの強化費用で数えます` (remaster: `持ち物は買値、…`) | `cogs/shared/ranking.py:107` |
+| `core.rank_subtotals` | `（流動 {liquid}・固定 {fixed}・負債 {liab}）` (zero groups left out) | `cogs/shared/ranking.py` (c099a04) |
+| `core.part_labels` | `💴 現金` `🏦 預金（帝愛信託）` `📈 株式（現物の時価＋信用取引の評価額）` `📜 債券（元本）` `🎯 オプション（評価額）` `⛏ 未収金（受け取る前の地下作業の稼ぎ）` `🔒 預け金（競りへの入札）` `🤝 貸付金（個人への貸付）` `🎁 持ち物（買値）` `🏺 発掘品（目安の価値）` `🐎 競走馬（購入価格＋引退金の見込み）` `🏢 会社（会社資金＋事業所の建設費）` `🧰 地下作業の工具・寮（これまでの強化費用）` `💳 借入金（帝愛への借金）` `📉 借入金（個人からの借入）` | `cogs/shared/texts.py` (c099a04) |
+| `core.bal_field_bs` | `🧾 資産（貸借対照表）` / `流動資産 {liquid}　固定資産 {fixed}\n総資産 {gross} − 負債 {liab} ＝ **純資産 {net}**` | `cogs/economy/embeds.py` (c099a04) |
 | `core.board_title` | `🏆 ペリカランキング（純資産）` | `cogs/economy/boards.py:72` |
 | `core.board_header` | `最終更新: <t:{ts}:R>\n\n` | `cogs/economy/boards.py:73` |
 | `core.board_footer` | `{interval}分ごとに自動で更新されます` | `cogs/economy/boards.py:74` |

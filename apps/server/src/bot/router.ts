@@ -19,7 +19,7 @@ import type { IdentityRepo } from '../db/identity.ts';
 import type { SettingsRepo } from '../db/settings.ts';
 import type { Store } from '../db/store.ts';
 import type { EconomyService } from '../economy/economy-service.ts';
-import type { FinanceServices } from '../finance/index.ts';
+import type { FinanceServices, NetWorthService } from '../finance/index.ts';
 import type { CasinoGames } from '../games/index.ts';
 import type { NonCasinoGames } from '../games/progression/index.ts';
 import type { NotifyConfigService } from '../notify/config-service.ts';
@@ -30,6 +30,7 @@ import {
   parseLaunchButtonId,
 } from '../notify/discord-port.ts';
 import { botColor } from '../notify/theme.ts';
+import { systemClock } from '../runtime/clock.ts';
 import { AppError } from '../runtime/errors.ts';
 import { handleAdminNotifications } from './admin-notifications.ts';
 import { getCommandMeta, getCommandPath, type ResolvedCommandMeta } from './commands.ts';
@@ -184,6 +185,48 @@ async function sendReply(
   await interaction.reply(options);
 }
 
+/**
+ * Rank by balance-sheet net worth and the `🧾 Assets (balance sheet)` field on the balance card.
+ * Nothing is added when the finance services are not wired or the member has no account.
+ */
+function addBalanceSheetFields(
+  embed: EmbedBuilder,
+  locale: Locale,
+  netWorth: NetWorthService | undefined,
+  guildId: string,
+  userId: string,
+  clock: Clock | undefined,
+): void {
+  if (!netWorth) return;
+  const { self, total } = netWorth.standingsWithSelf(
+    guildId,
+    userId,
+    'net',
+    0,
+    (clock ?? systemClock).now(),
+  );
+  if (!self) return;
+  const g = self.sheet.groups;
+  const money = (n: number): string => formatPelica(locale, n);
+  embed.addFields(
+    {
+      name: t(locale, 'bot.balance.rank'),
+      value: t(locale, 'bot.balance.rankValue', { rank: self.rank, total }),
+      inline: true,
+    },
+    {
+      name: t(locale, 'bot.balance.sheet'),
+      value: t(locale, 'bot.balance.sheetValue', {
+        liquid: money(g.liquid),
+        fixed: money(g.fixed),
+        gross: money(g.gross),
+        liab: money(g.liabilities),
+        net: money(g.net),
+      }),
+    },
+  );
+}
+
 async function handleBalance(
   deps: BotRouterDeps,
   interaction: ChatInputCommandInteraction,
@@ -216,6 +259,7 @@ async function handleBalance(
       value: `**${formatPelica(locale, balance)}**`,
       inline: true,
     });
+  addBalanceSheetFields(embed, locale, deps.finance?.netWorth, guildId, target.id, deps.clock);
 
   await sendReply(interaction, {
     embeds: [embed],

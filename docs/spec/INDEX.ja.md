@@ -38,7 +38,7 @@
 | 週間ランキングの称号 | [weekly-ranking.ja.md](weekly-ranking.ja.md) | `tests/fixtures/legacy/weekly-ranking/` | B2-B | 週間の純利益ランキング（`min_plays = 5`）と週間王者の称号。 |
 | デイリー（ストリークあり、JST 6 時間リセット） | [daily.ja.md](daily.ja.md) | `tests/fixtures/legacy/daily/` | B2-B | JST 1 日 4 枠、ストリークによる増額、`daily_double`／`streak_guard`／`relic_crown`、債務者のピンハネと天引き。 |
 | 送金（手数料 `10%`、1 日の上限、`3` ゲーム以上） | [transfer.ja.md](transfer.ja.md) | `tests/fixtures/legacy/transfer/` | B2-B | 上限 `10%` の手数料、1 日の元本上限 `20,000`、`3` ゲーム以上の条件、債務者のブロックと受取側の天引き。 |
-| 経済の中核（サーバー別経済、初期残高 `3,000`） | [economy-core.ja.md](economy-core.ja.md) | `tests/fixtures/legacy/economy-core/` | B2-B | **サーバー別経済**と**初期残高 3,000**に、台帳、下限の切り上げ、履歴のまとめ方、総資産、プレイヤーの状態を合わせて扱います。 |
+| 経済の中核（サーバー別経済、初期残高 `3,000`） | [economy-core.ja.md](economy-core.ja.md) | `tests/fixtures/legacy/economy-core/` | B2-B | **サーバー別経済**と**初期残高 3,000**に、台帳、下限の切り上げ、履歴のまとめ方、貸借対照表（純資産・流動資産）、プレイヤーの状態を合わせて扱います。 |
 | 管理コマンド | [admin.ja.md](admin.ja.md) | *（なし。[parity-fixtures.ja.md](parity-fixtures.ja.md) を参照）* | B2-B | Discord の権限、モデレーション、サーバー承認の流れは固定入力では再現できません。根本の変更処理は `economy-core` と `casino-common` で検証します。 |
 | 株式（4 銘柄、信用取引、オプション、債券、1 分ティック） | [stocks.ja.md](stocks.ja.md) | `tests/fixtures/legacy/stocks/` | B3 | 相関つきのコレスキー分解ティック、±30% の値幅制限、譲渡益課税、クロスマージン、Black-Scholes と Margrabe のオプション、決算、イベント、CIR の `r_f`、債券。 |
 | 暗号資産（`CSトークン`） | [crypto.ja.md](crypto.ja.md) | `tests/fixtures/legacy/crypto/` | B3 | 旧版では `/証券` に統合済み（`cs` 銘柄、`CryptoRepo` のミリ単位の現物保有と担保ロック）。市場のティックと信用取引は [stocks.ja.md](stocks.ja.md) も参照。 |

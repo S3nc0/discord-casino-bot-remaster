@@ -6,6 +6,7 @@ import type { PlayerMarketService, SettledListingEntry } from './player-market-s
 import type { BondRow, MarketTickSummary, OptionRow, StocksService } from './stocks-service.ts';
 import type { TeiaiService } from './teiai-service.ts';
 import { listKnownGuildIds } from './types.ts';
+import type { NetWorthService } from './net-worth-service.ts';
 
 /** Standard JST UTC offset (`UTC_OFFSET_HOURS` default). */
 export const FINANCE_JOB_UTC_OFFSET_HOURS = 9;
@@ -20,6 +21,8 @@ export interface FinanceServices {
   readonly stocks: StocksService;
   readonly companies: CompaniesService;
   readonly playerMarket: PlayerMarketService;
+  /** Balance sheet (net worth) of every member, for the rankings, the board and the balance card. */
+  readonly netWorth: NetWorthService;
 }
 
 export interface MarketMinuteTickReport {

@@ -4,7 +4,7 @@
 
 担当：`B2-B` | 画面 ID：`home`、`ranking`、`history`、`inbox`、`profile`（`packages/shared/src/ids.ts`）
 
-対象：**サーバー別経済**、**初期残高 3,000**、`AccountCore` の台帳と債務の天引き、残高カード（`/ペリカ 残高`）、履歴のまとめ（`/ペリカ 履歴`）、純資産と最終的な総資産（`/ペリカ ランキング`）、自動更新のランキング掲示（`/ペリカ ランキング掲示`）、一時的な通知キュー、サーバーの承認ゲート、サーバーごとの機能トグル。
+対象：**サーバー別経済**、**初期残高 3,000**、`AccountCore` の台帳と債務の天引き、残高カード（`/ペリカ 残高`）、履歴のまとめ（`/ペリカ 履歴`）、貸借対照表の純資産・流動資産・総資産（`/ペリカ ランキング`）、自動更新のランキング掲示（`/ペリカ ランキング掲示`）、一時的な通知キュー、サーバーの承認ゲート、サーバーごとの機能トグル。
 
 ## 元ファイル
 - `catalogs/economy.yaml:2-18`
@@ -54,43 +54,42 @@
   - `amount >= 0`：現金の残高を `amount` にします（`income=0`、天引きなし、債務はそのまま）。
   - `amount < 0`：現金の残高を `0` にして、`users.debt = -amount` で上書きします（差額 0 の台帳の行 `"{reason}（借金を {-amount:,}ペリカ に設定）"` を記録し、`after_debt_change` を呼びます）。
 
-### 3. 純資産（純資産）と最終的な総資産（総資産）
-`/ペリカ ランキング` には 2 つのランキングがあります（`cogs/economy/boards.py:26-42`、`infra/db/wallet.py:220-245`、`infra/db/assets.py:180-218`）：
+### 3. 貸借対照表：純資産・流動資産・総資産
+upstream の c099a04 と ce6f500 で、資産はどこでも貸借対照表（B/S）で数えるようになりました：`/ペリカ ランキング`、残高カード、自動更新の掲示、内訳。リマスター：`NetWorthService`（`apps/server/src/finance/net-worth-service.ts`）、区分と並び順は `packages/domain/src/progression/economy-core.ts`。用語は[用語集](glossary.ja.md#資産貸借対照表)。
 
-1. **純資産（`純資産` — 既定のランキングと掲示）**：
-   - 最初に、対象範囲のすべての債務者の債務の利息を加算します（`infra/db/wallet.py:231-233`）。
-   - 式：`balance - debt + valuations(crypto + margin + bonds + bank_deposits + options + company)`（`infra/db/repositories.py:278`）。
-   - 並び順：`(-net_worth, user_id)`。
-   - 見た目だけの `WEALTHY` の状態（`富豪`：`net_worth >= teiai.WEALTHY_ASSETS` かつ `status == KATAGI`）も、ここで決まります（`infra/db/wallet.py:246-265`）。
+- **先に借金の利息。** 何かを評価する前に、そのサーバーの債務者全員のトイチの利息を 1 つのトランザクションで計上します（`TeiaiService.accrueGuildDebtInterest`）。ランキングには、いまの借金が出ます。書き込みです（借金だけで、元帳の行はありません）。
+- 15 の項目を 3 つの区分にまとめます（`LIQUID_KEYS`、`FIXED_KEYS`、`LIABILITY_KEYS`、`PART_KEYS`）：
+  - **流動資産**：
+    - `cash`：手持ちの残高
+    - `deposit`：帝愛信託の預金
+    - `crypto`：現物を、いま売ったときの手取り（`spotSellQuote(...).proceeds`、手数料を引いた額）＋信用取引の建玉を、最新の価格で `max(0, 担保 + 含み損益)`
+    - `bonds`：保有中の債券の元本
+    - `options`：未決済のオプション（`StocksService.optionValuesByUser`）：買いは、いま売ったときの手取り（満期を過ぎていれば配当）。裸売りは、証拠金 − 買い戻しの費用（満期を過ぎていれば、払う額を引く）。マイナスもあります
+    - `pot`：受け取る前の地下作業の稼ぎ（`work_state.pot`）
+    - `escrow`：預けている入札：進行中の競り（プレイヤー市場）と、開いている共済の競りの最高入札（リマスターの追加：リマスターは共済の入札も `kyosai_bid_hold` で預かるので、数えないと入札しただけで純資産が減って見えます）
+    - `loans_lent`：`active`／`overdue` の個人間の貸付の、まだ返してもらっていない額（貸した人）
+  - **固定資産**：
+    - `items`：持ち物と、出品中の品を、ショップの値段で（値段のない限定品は 0）
+    - `relics`：持ち物・鉱山で受け取りを待っている分（`work_state.relics`）・出品中の発掘品を、`RELIC_VALUE × MERGE_COUNT^星` で
+    - `horses`：持っている（引退していない）馬と、出品中の馬を、`max(0, 30,000 + retireValue(races, wins, places))` で
+    - `company`：`会社資金 + companyInvested(level)`（事業所の建設費）。出資があれば `computeStakeValues` で社長と出資者に分けます（出資者は出資額まで、社長はそれを超えた分）
+    - `tools`：`upgradeSpent(pick) + upgradeSpent(glove) + dormSpent(dorm)`
+  - **負債（`parts` にはマイナスで持つ）**：
+    - `debt`：帝愛への借金（上の利息を計上したあと）
+    - `loans_owed`：`active`／`overdue` の個人間の貸付の、まだ返していない額（借りた人）
+- 小計（`assetGroups`）：`liquid`、`fixed`、`gross = liquid + fixed`、`liabilities = −Σ LIABILITY_KEYS`、`net = gross − liabilities`。**「流動資産 ＋ 固定資産 − 負債 ＝ 純資産 ＝ 項目の合計」は常に一致します**（`balance-sheet.test.ts` と `net-worth-service.test.ts` のプロパティテスト）。
+- 表示と並び順（`rankBalanceSheets`）：`net`（純資産。既定）、`liquid`（流動資産。ce6f500 で、短い間だけあった `💎 総資産` のボタンを置き換えました。誰も借金がないと、純資産と同じ順位になっていたため）、`gross`（サーバー内だけ）。順番は `(-値, user_id)`、ユーザー ID は数として比べます。口座のある全員に順位がつき、上位 10 人を出します。11 位以下の人には `…` と本人の行を足します。
+- ランキングの各行に、小計 `（流動 12,345・固定 6,789・負債 1,000）` を出します。0 の区分は出しません。
+- **金融純資産**：以前のランキングの基準（`現金 − 借金 + 評価額`、`netWorth`）は、🟡 富豪の表示（`WEALTHY_ASSETS = 1,000,000`）にだけ残ります。造語の「ファイナル総資産」は廃止し、いまの**純資産**です。
+- **コスト。** 集計は資産の種類ごとに 1 本のクエリで、サーバーの人数によらず 1 回あたり約 15 文です。1,000 人を入れた計測で、開発機の中央値 5.7 ms（`net-worth-service.test.ts`）。キャッシュは置きません。
 
-2. **最終的な総資産（`総資産` — 貸借対照表の内訳）**：
-   - 15 の項目キーを、貸借対照表の 3 つの区分にまとめます（`domain/types.py:14-31`、`cogs/shared/texts.py:3-19`）：
-     - **流動資産（`LIQUID_KEYS`）**：
-       - `cash`：`users.balance`
-       - `deposit`：帝愛銀行の預金残高
-       - `crypto`：現物の保有 + 信用取引の純資産（`crypto + margin`）
-       - `bonds`：債券の元本
-       - `options`：オプションの評価額
-       - `pot`：未回収の地下労働のポット（`labor.pot`）
-       - `escrow`：進行中の P2P オークションの最高入札のエスクロー（`market_listings.bid`）
-       - `loans_lent`：P2P 融資の残りの元本と利息（`active`／`overdue`）
-     - **固定資産（`FIXED_KEYS`）**：
-       - `items`：持ち物と、出品中の P2P アイテムを、ショップの `price` で評価（価格のない限定品は 0）
-       - `relics`：持ち物、未回収の `labor.relics`、出品中の P2P 発掘品を、`shop.RELIC_VALUE` で評価
-       - `horses`：所有する馬と、出品中の P2P の馬を、`max(0, 30_000 + horse.retire_value(races, wins, places))` で評価
-       - `company`：会社の評価額（`company_funds + construction_cost`）
-       - `tools`：地下労働の強化費用の累計（`upgrade_spent(pick) + upgrade_spent(glove) + dorm_spent(dorm)`）
-     - **負債（`LIABILITY_KEYS`。`parts` にはマイナスで保存）**：
-       - `debt`：`-users.debt`
-       - `loans_owed`：`active`／`overdue` の P2P 融資の `-remaining`
-   - 小計（`asset_groups`）：`gross = liquid + fixed`、`liabilities = -sum(LIABILITY_KEYS)`、`net = gross - liabilities`。
-   - 並び順：`(-net, user_id)`。
-   - 表示する上位の人数：`TOP_N = 10`。見ている人の順位が `> 10` なら、`…\n` と見ている人の順位の行を足します（`cogs/shared/ranking.py:13,47-49,74-77`）。
+**出る場所（リマスター、決定 D2）。** `/pelica ranking` の既定は週間のゲームのランキングのままで、`表示`（`view: weekly | net | liquid`）を追加しました。`net` か `liquid` では、貸借対照表のランキングと 3 つのボタン `🏆 純資産`・`💧 流動資産`・`🧾 自分の内訳` を出します。ボタンを押せるのはコマンドを実行した人だけです（ほかの人には `core.rank_owner_only` を、本人だけに見える形で返します）。`net` か `liquid` で `内訳` に人を選ぶと、その人の資産の内訳を、実行した人だけに見える形で出します。残高カードには、純資産の順位と `🧾 資産（貸借対照表）` の欄を足しました。Activity のランキング画面は、同じ表彰台の絵の下に、週間（既定）・純資産・流動資産の 3 つのタブと「自分の内訳」のシートがあります（`GET /api/life/net-worth`、クエリ `view=net|liquid`）。
 
 ### 4. 自動更新のランキング掲示（`/ペリカ ランキング掲示`）
 - 権限：サーバーの `Manage Guild` 権限、または Bot のオーナー（`owner_ids`）（`cogs/economy/cog.py:72-83`）。
 - 1 サーバーにつき 1 つの掲示（`leaderboards(guild_id, channel_id, message_id)`）。
 - 更新の間隔：`BOARD_INTERVAL_MINUTES = 1` 分（`catalogs/economy.yaml:18`、`cogs/economy/cog.py:226-233`）。
+- 貸借対照表の純資産（§3。先に借金の利息を計上）で並べ、上位 10 人を、各行に小計をつけて出します。投稿にボタンはありません。リマスター：`apps/server/src/bot/boards.ts` の `boardStandings`／`boardEmbed`（以前は `現金 − 借金 + 預金 + 現物の取得額 + 債券 + 会社資金` で並べていました）。
 - 復旧の動作（`cogs/economy/boards.py:85-106`）：
   - メッセージが削除されていたら（`discord.NotFound`）、投稿し直して `message_id` を更新します。
   - チャンネルが削除されていたら（`channel is None`）、`leaderboards` の DB の行を削除します。
@@ -151,18 +150,21 @@
 | `core.bal_field_best_streak` | `最大連勝` / `{n}連勝` | `cogs/economy/embeds.py:76` |
 | `core.bal_footer` | `勝率・損益は、集計を始めてからのゲームの分です` | `cogs/economy/embeds.py:77` |
 | `core.rank_title_net` | `🏆 このサーバーのランキング（純資産）` | `cogs/economy/boards.py:38` |
-| `core.rank_footer_net` | `純資産 = 現金 − 借金 + 信託・株・債券・オプションの評価額 ｜ ペリカはサーバーごとに別々です` | `cogs/economy/boards.py:40` |
-| `core.rank_title_final` | `🏆 このサーバーのランキング（総資産）` | `cogs/economy/boards.py:31` |
-| `core.rank_footer_final` | `総資産 = 純資産 + 馬・持ち物・発掘品・地下作業の工具・預かり中のお金・貸し借りなど、ペリカに換算できるもの全部` | `cogs/economy/boards.py:33` |
+| `core.rank_footer_net` | `純資産 = 総資産 − 負債（帝愛への借金・個人からの借入） ｜ ペリカはサーバーごとに別々です` | `cogs/economy/boards.py:40` （c099a04） |
+| `core.rank_title_liquid` | `🏆 このサーバーのランキング（流動資産）` | `cogs/economy/boards.py` （ce6f500） |
+| `core.rank_footer_liquid` | `流動資産 = 現金・預金・株式・債券など、すぐペリカにできる資産（馬・持ち物などの固定資産は含まない） ｜ 内訳は「自分の内訳」で` | `cogs/economy/boards.py` （ce6f500） |
 | `core.rank_empty` | `まだ誰も遊んでいません。\`/ペリカ デイリー\` から始めましょう。` | `cogs/shared/ranking.py:30,66` |
 | `core.rank_owner_only` | `これは他の人のランキングです。\`/ペリカ ランキング\` で自分を開けます。` | `cogs/economy/boards.py:21` |
 | `core.rank_btn_net` | `🏆 純資産` | `cogs/economy/boards.py:53` |
-| `core.rank_btn_final` | `💎 総資産` | `cogs/economy/boards.py:57` |
+| `core.rank_btn_liquid` | `💧 流動資産` | `cogs/economy/boards.py` （ce6f500） |
 | `core.rank_btn_mine` | `🧾 自分の内訳` | `cogs/economy/boards.py:61` |
 | `core.breakdown_title` | `🧾 {name} の資産の内訳` | `cogs/shared/ranking.py:90,105` |
 | `core.breakdown_no_account` | `まだ口座がありません。` | `cogs/shared/ranking.py:90` |
 | `core.breakdown_sections` | `**💧 流動資産**`、`**🏛️ 固定資産**`、`**総資産（流動＋固定）: {gross}**`、`**📉 負債**`、`**負債合計: {liab}**`、`**🧾 純資産（総資産 − 負債）: {net}**`、`（なし）` | `cogs/shared/ranking.py:97-104` |
-| `core.breakdown_footer` | `着せ替え・コレクションは買値、馬は購入価格＋引退金の見込み、発掘品は目安の価値、地下作業の工具・寮はこれまでの強化費用で数えます` | `cogs/shared/ranking.py:107` |
+| `core.breakdown_footer` | `着せ替え・コレクションは買値、馬は購入価格＋引退金の見込み、発掘品は目安の価値、地下作業の工具・寮はこれまでの強化費用で数えます` （リマスター：`持ち物は買値、…`） | `cogs/shared/ranking.py:107` |
+| `core.rank_subtotals` | `（流動 {liquid}・固定 {fixed}・負債 {liab}）` （0 の区分は出さない） | `cogs/shared/ranking.py` （c099a04） |
+| `core.part_labels` | `💴 現金` `🏦 預金（帝愛信託）` `📈 株式（現物の時価＋信用取引の評価額）` `📜 債券（元本）` `🎯 オプション（評価額）` `⛏ 未収金（受け取る前の地下作業の稼ぎ）` `🔒 預け金（競りへの入札）` `🤝 貸付金（個人への貸付）` `🎁 持ち物（買値）` `🏺 発掘品（目安の価値）` `🐎 競走馬（購入価格＋引退金の見込み）` `🏢 会社（会社資金＋事業所の建設費）` `🧰 地下作業の工具・寮（これまでの強化費用）` `💳 借入金（帝愛への借金）` `📉 借入金（個人からの借入）` | `cogs/shared/texts.py` （c099a04） |
+| `core.bal_field_bs` | `🧾 資産（貸借対照表）` / `流動資産 {liquid}　固定資産 {fixed}\n総資産 {gross} − 負債 {liab} ＝ **純資産 {net}**` | `cogs/economy/embeds.py` （c099a04） |
 | `core.board_title` | `🏆 ペリカランキング（純資産）` | `cogs/economy/boards.py:72` |
 | `core.board_header` | `最終更新: <t:{ts}:R>\n\n` | `cogs/economy/boards.py:73` |
 | `core.board_footer` | `{interval}分ごとに自動で更新されます` | `cogs/economy/boards.py:74` |

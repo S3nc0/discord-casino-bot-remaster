@@ -48,7 +48,7 @@ Single source of truth for all Discord slash commands, subcommand groups, subcom
 | `pelica bank` | `ペリカ 帝愛` | — | `true` | `teiai` |
 | `pelica bankrupt` | `ペリカ 破産` | — | `false` (after confirm) | `teiai` |
 | `pelica missions` | `ペリカ ミッション` | — | `true` | `economy` (`missions`) |
-| `pelica ranking` | `ペリカ ランキング` | `member` / `内訳`: user (optional) | `false` (`true` if `member` set) | `economy` (`ranking`) |
+| `pelica ranking` | `ペリカ ランキング` | `view` / `表示`: string choices (`weekly` / `📅 週間（ゲームの損益）`, `net` / `🏆 純資産`, `liquid` / `💧 流動資産`) (optional, default `weekly`); `member` / `内訳`: user (optional) | `false` (`true` if `member` set with `net` / `liquid`) | `economy` (`ranking`, [economy-core.md §3](economy-core.md#3-balance-sheet-net-assets-純資産-current-assets-流動資産-total-assets-総資産)) |
 | `pelica leaderboard` | `ペリカ ランキング掲示` | `channel` / `チャンネル`: channel (optional); `stop` / `止める`: boolean (optional) | `true` | `economy` (`boards`, Manage Guild or Owner) |
 | `pelica transfer` | `ペリカ 送金` | `member` / `相手`: user (required); `amount` / `金額`: integer, `1..1000000`, autocomplete (required) | `false` (`true` on confirm) | `economy` (`transfer`) |
 | `pelica history` | `ペリカ 履歴` | — | `true` | `economy` (`history`) |

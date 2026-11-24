@@ -893,6 +893,33 @@ export class TeiaiService {
     });
   }
 
+  /**
+   * Accrue Toichi interest for every debtor of the guild in one transaction, so a ranking or a
+   * balance sheet shows the debt as it stands now. Returns the interest added in total.
+   */
+  accrueGuildDebtInterest(guildId: string, nowMs = this.deps.clock.now()): number {
+    return this.deps.store.transaction(() => {
+      const rows = this.deps.store
+        .stmt(
+          'SELECT user_id, debt, debt_interest_at FROM bank_accounts WHERE guild_id = ? AND debt > 0',
+        )
+        .all(guildId) as { user_id: string; debt: number; debt_interest_at: number }[];
+      let added = 0;
+      for (const row of rows) {
+        const res = accrueDebtInterest(row.debt, row.debt_interest_at, nowMs);
+        if (res.added > 0 || res.nextInterestAtMs !== row.debt_interest_at) {
+          this.deps.store
+            .stmt(
+              'UPDATE bank_accounts SET debt = ?, debt_interest_at = ? WHERE guild_id = ? AND user_id = ?',
+            )
+            .run(res.nextDebt, res.nextInterestAtMs, guildId, row.user_id);
+        }
+        added += res.added;
+      }
+      return added;
+    });
+  }
+
   /** Manual seed loan (`/ペリカ 帝愛`): lends `3,000 - balance`, blocked if bankrupt/in-grace/bal>=3000. */
   borrowSeed(
     guildId: string,

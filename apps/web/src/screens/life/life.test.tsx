@@ -156,6 +156,42 @@ describe('ranking', () => {
     expect(text(rows[1])).toContain('Title contender');
     expect(text(rows[2])).not.toContain('Title contender');
   });
+
+  it('keeps weekly as the first tab and adds net and current assets', async () => {
+    const root = await show(<RankingScreen />);
+    const tabs = [...root.querySelectorAll('[role="tab"]')].map(text);
+    expect(tabs).toEqual(['Weekly', 'Net assets', 'Current assets']);
+    expect(tab(root, 'Weekly').getAttribute('aria-selected')).toBe('true');
+  });
+
+  it('net assets: ranks with subtotals, then opens my balance sheet', async () => {
+    const root = await show(<RankingScreen />);
+    await click(tab(root, 'Net assets'));
+    expect(text(root)).toContain('Net assets ranking');
+    expect(text(root)).toContain('Your rank: 2 of 9');
+    const rows = root.querySelectorAll('.bb-list li');
+    expect(text(rows[0])).toContain('Aki');
+    expect(text(rows[0])).toContain('(current 84,000 · fixed 62,000)');
+    expect(text(rows[1])).toContain('liabilities 3,000');
+    expect(text(rows[2])).toContain('(current 52,300)');
+    expect(text(root)).toContain('Net assets = total assets − liabilities');
+    await click(button(root, 'My breakdown'));
+    const dialog = document.querySelector('[role="dialog"]');
+    expect(text(dialog)).toContain('Your balance sheet');
+    expect(text(dialog)).toContain('💴 Cash');
+    expect(text(dialog)).toContain('🐎 Racehorses');
+    expect(text(dialog)).toContain('💳 Borrowings (debt to Teiai)');
+    expect(text(dialog)).not.toContain('Options');
+  });
+
+  it('current assets: horses and belongings drop out, so the order changes', async () => {
+    const root = await show(<RankingScreen />);
+    await click(tab(root, 'Current assets'));
+    const rows = [...root.querySelectorAll('.bb-list li')].map(text);
+    expect(rows[0]).toContain('Aki');
+    expect(rows[1]).toContain('Sora');
+    expect(text(root)).toContain('Your rank: 3 of 9');
+  });
 });
 
 describe('labor', () => {

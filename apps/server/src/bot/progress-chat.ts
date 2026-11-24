@@ -32,7 +32,7 @@ import {
   fetchSendable,
   getBoard,
   boardEmbed,
-  netWorthStandings,
+  boardStandings,
   saveBoard,
 } from './boards.ts';
 import {
@@ -147,7 +147,7 @@ async function leaderboard(ctx: ChatCtx, interaction: ChatInputCommandInteractio
   }
   const previous = getBoard(store, guildId);
   const posted = await channel.send({
-    embeds: [boardEmbed(locale, netWorthStandings(store, guildId), now)],
+    embeds: [boardEmbed(locale, boardStandings(ctx.deps.finance?.netWorth, guildId, now), now)],
     allowedMentions: { parse: [] },
   });
   saveBoard(store, { guildId, channelId: channel.id, messageId: posted.id }, now);

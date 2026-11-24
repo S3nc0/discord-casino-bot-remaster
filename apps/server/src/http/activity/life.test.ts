@@ -4,6 +4,7 @@ import {
   LIFE_ROUTES,
   LotteryView,
   MissionsView,
+  NetWorthView,
   PollsView,
   QuizView,
   RankingView,
@@ -524,6 +525,44 @@ describe('missions and ranking', () => {
     expect(view.rows[1]).toMatchObject({ rank: 2, net: 1000, plays: 5, qualified: true });
     expect(view.self).toMatchObject({ rank: 2, total: 2 });
     expect(view.minPlays).toBe(5);
+  });
+});
+
+describe('net worth ranking', () => {
+  it("ranks by net or current assets and returns the caller's balance sheet", async () => {
+    server = createTestServer();
+    const me = await login(USER);
+    await login(OTHER_USER);
+    // USER keeps the 3,000 start grant and owns a 30,000 horse; OTHER_USER gets 20,000 more.
+    server.economy.credit({
+      guildId: GUILD,
+      userId: OTHER_USER,
+      amount: 20_000,
+      reason: 'admin_grant',
+    });
+    server.store
+      .stmt(
+        `INSERT INTO horses (guild_id, owner_id, name, coat, silks, speed, stamina, power, guts, created_at)
+         VALUES (?, ?, 'H', 'bay', 'red', 50, 50, 50, 50, 0)`,
+      )
+      .run(GUILD, USER);
+    const cash = (id: string) => server.economy.getBalance(GUILD, id);
+
+    const net = (await me.get(LIFE_ROUTES.netWorth)).json();
+    expect(Value.Check(NetWorthView, net)).toBe(true);
+    expect(net.view).toBe('net');
+    expect(net.total).toBe(2);
+    expect(net.rows.map((r: { userId: string }) => r.userId)).toEqual([USER, OTHER_USER]);
+    expect(net.rows[0]).toMatchObject({ rank: 1, value: cash(USER) + 30_000 });
+    expect(net.self).toMatchObject({ rank: 1, groups: { fixed: 30_000, liabilities: 0 } });
+    expect(net.self.parts).toMatchObject({ cash: cash(USER), horses: 30_000, debt: 0 });
+
+    const liquid = (await me.get(`${LIFE_ROUTES.netWorth}?view=liquid`)).json();
+    expect(Value.Check(NetWorthView, liquid)).toBe(true);
+    expect(liquid.rows.map((r: { userId: string }) => r.userId)).toEqual([OTHER_USER, USER]);
+    expect(liquid.self).toMatchObject({ rank: 2, value: cash(USER) });
+
+    expect((await me.get(`${LIFE_ROUTES.netWorth}?view=gross`)).statusCode).toBe(400);
   });
 });
 

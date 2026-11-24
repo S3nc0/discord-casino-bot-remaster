@@ -66,7 +66,7 @@
     <td><img src="docs/images/readme/icons/lottery.svg" alt="" width="32"> <b>抽選・クイズ・投票</b><br>誰でも始められる、サーバーみんなの遊び。</td>
   </tr>
   <tr>
-    <td><img src="docs/images/readme/icons/trophy.svg" alt="" width="32"> <b>ランキング</b><br>週間王者や総資産の順位が見られます。</td>
+    <td><img src="docs/images/readme/icons/trophy.svg" alt="" width="32"> <b>ランキング</b><br>週間王者や、純資産・流動資産の順位が見られます。</td>
     <td><img src="docs/images/readme/icons/shop.svg" alt="" width="32"> <b>ショップと取引</b><br>称号や名前の色、アイテムを交換。ほかの人との取引もできます。</td>
     <td><img src="docs/images/readme/icons/shield.svg" alt="" width="32"> <b>安心の作り</b><br>賭け金は先に預かって、1回の処理で精算します。ゲームの途中でペリカが消えることはありません。</td>
   </tr>
