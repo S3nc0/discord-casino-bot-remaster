@@ -200,39 +200,63 @@ export const ChinchiroSeatAccepted = Type.Object({
 });
 export type ChinchiroSeatAccepted = Static<typeof ChinchiroSeatAccepted>;
 
-/** Public data of the chinchiro table snapshot (`TableSnapshot.data`). */
+/** `game:action` chinchiro `table_roll` on the table round: the caller's whole hand. */
+export const ChinchiroTableRollAccepted = Type.Object({
+  tableRound: Type.String(),
+  rolls: Type.Array(ChinchiroRollView),
+  /** This was the last seat to roll, so the table settled. */
+  finished: Type.Boolean(),
+});
+export type ChinchiroTableRollAccepted = Static<typeof ChinchiroTableRollAccepted>;
+
+/**
+ * Public data of the chinchiro table snapshot (`TableSnapshot.data`). Phases: `idle`, `lobby`
+ * (seats join), `rolling` (each seat rolls its own hand), `result`. Winner takes all: the
+ * strongest hand shares the losers' stakes minus the table fee (`rakeBps`).
+ */
 export const ChinchiroTableData = Type.Object({
   minBet: Pelica,
-  /** Time one dice step stays on screen during the reveal. */
+  /** Seats needed at the start; fewer and the table folds with every stake refunded. */
+  minSeats: Type.Integer({ minimum: 1 }),
+  /** The table fee on the losers' stakes, in basis points (1000 = 10 %). */
+  rakeBps: Type.Integer({ minimum: 0 }),
+  /** Time one dice step stays on screen when a hand is shown. */
   stepMs: Type.Integer({ minimum: 0 }),
+  /** Lobby: when it starts by itself. Rolling: when the seats left are rolled automatically. */
   deadline: Type.Union([EpochMs, Type.Null()]),
-  closedEmpty: Type.Boolean(),
+  /** The last table folded: fewer than `minSeats` were seated at the start, all refunded. */
+  folded: Type.Boolean(),
   hostId: Type.Optional(Snowflake),
   bet: Type.Optional(Pelica),
   seatRounds: Type.Optional(Type.Array(Type.Object({ userId: Snowflake, roundId: Type.String() }))),
-  dealerRolls: Type.Optional(Type.Array(ChinchiroRollView)),
+  /** Rolling and result: one per seat, in seat order; `rolls` is empty until the seat rolled. */
   hands: Type.Optional(
     Type.Array(
       Type.Object({
         userId: Snowflake,
         roundId: Type.String(),
+        rolled: Type.Boolean(),
         rolls: Type.Array(ChinchiroRollView),
       }),
     ),
   ),
-  verdicts: Type.Optional(
+  /** Result: strongest hand first, ties in seat order. Winners wear the crown. */
+  results: Type.Optional(
     Type.Array(
       Type.Object({
         userId: Snowflake,
-        result: Type.Enum(CHINCHIRO_RESULTS),
-        multiplier: Type.Number(),
+        isWinner: Type.Boolean(),
+        /** Credited for the seat (stake back plus share for a winner, 0 for a loser). */
         payout: Pelica,
         net: PelicaDelta,
         settled: Type.Boolean(),
       }),
     ),
   ),
-  won: Type.Optional(Type.Boolean()),
+  /** Result: what the table kept (the fee plus the split leftover). */
+  rake: Type.Optional(Pelica),
+  /** Result: settling failed, so every stake was returned instead. */
+  refunded: Type.Optional(Type.Boolean()),
 });
 export type ChinchiroTableData = Static<typeof ChinchiroTableData>;
 

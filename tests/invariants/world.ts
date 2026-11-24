@@ -234,6 +234,8 @@ export function checkInvariants(w: World): void {
   }
   w.seenLedgerId = all.at(-1)?.id ?? w.seenLedgerId;
 
+  checkChinchiroTables(w);
+
   // Transfers: the principal sent per game day stays under the cap; every fee is the 10 % ceiling.
   const sent = new Map<string, number>();
   for (const r of all) {
@@ -355,4 +357,66 @@ export function checkTeiaiRelicAuction(w: World, perDay: number): void {
   }
   const relics = relicCount(w);
   if (relics !== sold) throw new Error(`${relics} relics in inventories, ${sold} Teiai sales`);
+}
+
+/**
+ * The chinchiro table is winner takes all: once a table round has settled seats, at least two
+ * settled (the whole table, in one transaction), and when no event bonus, insurance or jackpot
+ * touched it, Σ payouts ≤ Σ stakes: every winner gets exactly `bet + floor(floor(bet × losers ×
+ * 9/10) / winners)`, every loser 0, and the table keeps the rest (rake ≥ 0).
+ */
+function checkChinchiroTables(w: World): void {
+  const seats = rows<{
+    round_id: string;
+    table_round: string;
+    status: string;
+    stake: number;
+    payout: number | null;
+  }>(
+    w,
+    `SELECT round_id, table_round, status, stake, payout FROM game_rounds
+     WHERE game = 'chinchiro' AND table_round IS NOT NULL ORDER BY table_round, created_at`,
+  );
+  const byTable = new Map<string, typeof seats>();
+  for (const seat of seats) {
+    const list = byTable.get(seat.table_round) ?? [];
+    list.push(seat);
+    byTable.set(seat.table_round, list);
+  }
+  for (const [tableRound, list] of byTable) {
+    const settled = list.filter((s) => s.status === 'settled');
+    if (settled.length === 0) continue;
+    if (settled.length < 2) {
+      throw new Error(`table ${tableRound} settled ${settled.length} seat(s); a pot needs 2+`);
+    }
+    if (list.some((s) => s.status === 'open')) {
+      throw new Error(`table ${tableRound} settled some seats and left others open`);
+    }
+    const bet = (settled[0] as (typeof settled)[number]).stake;
+    if (settled.some((s) => s.stake !== bet)) throw new Error(`table ${tableRound}: mixed stakes`);
+    const ids = settled.map((s) => s.round_id);
+    const marks = ids.map(() => '?').join(', ');
+    const extras = (
+      w.server.store
+        .stmt(
+          `SELECT COUNT(*) AS n FROM ledger WHERE ref_type = 'round' AND ref_id IN (${marks})
+           AND (reason IN ('game_insurance_refund', 'jackpot_payout')
+                OR COALESCE(json_extract(meta, '$.eventBonus'), 0) > 0)`,
+        )
+        .get(...ids) as { n: number }
+    ).n;
+    if (extras > 0) continue; // a bonus event, insurance or the jackpot may add to the pot
+    const payouts = settled.map((s) => s.payout ?? 0);
+    const paid = payouts.reduce((a, b) => a + b, 0);
+    const staked = bet * settled.length;
+    if (paid > staked) throw new Error(`table ${tableRound} paid ${paid} on ${staked} staked`);
+    const winners = payouts.filter((p) => p > 0).length;
+    const losers = settled.length - winners;
+    const expected = bet + Math.floor(Math.floor((bet * losers * 9) / 10) / winners);
+    for (const p of payouts) {
+      if (p !== 0 && p !== expected) {
+        throw new Error(`table ${tableRound}: a winner got ${p}, the pot gives ${expected}`);
+      }
+    }
+  }
 }

@@ -415,19 +415,23 @@ function createMock(): CasinoServices {
     return structuredClone(view);
   };
 
-  // chinchiro table
+  // chinchiro table: winner takes all, 10 % fee on the losers' stakes
   const CH_STEP = 900;
+  const CH_ROLL_MS = 45_000;
+  const CH_MIN_SEATS = 2;
+  const CH_RAKE_BPS = 1000;
+  type ChHand = NonNullable<ChinchiroTableData['hands']>[number];
   const ch = {
-    phase: 'idle' as 'idle' | 'lobby' | 'playing' | 'result',
+    phase: 'idle' as 'idle' | 'lobby' | 'rolling' | 'result',
     roundId: null as string | null,
     bet: 0,
     hostId: '',
     seats: [] as string[],
     deadline: null as number | null,
-    closedEmpty: false,
-    dealerRolls: [] as ChinchiroRollView[],
-    hands: [] as { userId: string; roundId: string; rolls: ChinchiroRollView[] }[],
-    verdicts: [] as NonNullable<ChinchiroTableData['verdicts']>,
+    folded: false,
+    hands: [] as ChHand[],
+    results: [] as NonNullable<ChinchiroTableData['results']>,
+    rake: 0,
     timer: 0 as unknown,
   };
   snapshots.set('chinchiro', () =>
@@ -438,77 +442,96 @@ function createMock(): CasinoServices {
       Array.from({ length: 6 }, (_, index) => ({ index, userId: ch.seats[index] ?? null })),
       {
         minBet: MIN_BET,
+        minSeats: CH_MIN_SEATS,
+        rakeBps: CH_RAKE_BPS,
         stepMs: CH_STEP,
         deadline: ch.deadline,
-        closedEmpty: ch.closedEmpty,
+        folded: ch.folded,
         ...(ch.phase === 'idle' ? {} : { hostId: ch.hostId, bet: ch.bet }),
-        ...(ch.phase === 'playing' || ch.phase === 'result'
-          ? { dealerRolls: ch.dealerRolls, hands: ch.hands }
-          : {}),
-        ...(ch.phase === 'result'
-          ? { verdicts: ch.verdicts, won: ch.verdicts.some((v) => v.result === 'win') }
-          : {}),
+        ...(ch.phase === 'rolling' || ch.phase === 'result' ? { hands: ch.hands } : {}),
+        ...(ch.phase === 'result' ? { results: ch.results, rake: ch.rake, refunded: false } : {}),
       } satisfies ChinchiroTableData,
     ),
   );
+  const finishChTable = () => {
+    if (ch.phase !== 'rolling') return;
+    clearTimeout(ch.timer as number);
+    for (const h of ch.hands) {
+      if (!h.rolled) Object.assign(h, { rolled: true, rolls: rollHand() });
+    }
+    const power = ch.hands.map((h) =>
+      strength((h.rolls[h.rolls.length - 1] as ChinchiroRollView).hand),
+    );
+    const best = Math.max(...power);
+    const winners = power.filter((p) => p === best).length;
+    const losers = power.length - winners;
+    const share = Math.floor(
+      Math.floor((ch.bet * losers * (10_000 - CH_RAKE_BPS)) / 10_000) / winners,
+    );
+    const order = ch.hands
+      .map((_, i) => i)
+      .sort((x, y) => (power[y] ?? 0) - (power[x] ?? 0) || x - y);
+    ch.results = order.map((i) => {
+      const h = ch.hands[i] as ChHand;
+      const isWinner = power[i] === best;
+      const payout = isWinner ? ch.bet + share : 0;
+      if (h.userId === me()) settle('chinchiro', h.roundId, ch.bet, payout);
+      return { userId: h.userId, isWinner, payout, net: payout - ch.bet, settled: true };
+    });
+    ch.rake = ch.bet * ch.hands.length - ch.results.reduce((n, r) => n + r.payout, 0);
+    ch.phase = 'result';
+    ch.deadline = null;
+    emit('chinchiro');
+    later(10_000, () => {
+      Object.assign(ch, { phase: 'idle', roundId: null, seats: [], hands: [], results: [] });
+      emit('chinchiro');
+    });
+  };
+  const rollChTable = (roundId: string) => {
+    if (ch.roundId !== roundId || ch.phase === 'result') throw new GameError('conflict');
+    const hand = ch.hands.find((h) => h.userId === me());
+    if (ch.phase !== 'rolling' || !hand || hand.rolled) throw new GameError('conflict');
+    Object.assign(hand, { rolled: true, rolls: rollHand() });
+    const finished = ch.hands.every((h) => h.rolled);
+    if (finished) finishChTable();
+    else emit('chinchiro');
+    return { tableRound: roundId, rolls: hand.rolls, finished };
+  };
   const startChTable = () => {
     if (ch.phase !== 'lobby') return;
     clearTimeout(ch.timer as number);
-    if (ch.seats.length === 0) {
-      Object.assign(ch, { phase: 'idle', roundId: null, deadline: null, closedEmpty: true });
+    if (ch.seats.length < CH_MIN_SEATS) {
+      if (ch.seats.includes(me())) post(ch.bet, 'game_refund', 'round');
+      Object.assign(ch, { phase: 'idle', roundId: null, seats: [], deadline: null, folded: true });
       emit('chinchiro');
       return;
     }
-    ch.dealerRolls = rollHand();
     ch.hands = ch.seats.map((userId, i) => ({
       userId,
       roundId: `ch_seat${i}_${roundCounter}`,
-      rolls: rollHand(),
+      rolled: false,
+      rolls: [],
     }));
-    const dealerHand = (ch.dealerRolls[ch.dealerRolls.length - 1] as ChinchiroRollView).hand;
-    ch.phase = 'playing';
-    const steps = ch.dealerRolls.length + ch.hands.reduce((n, h) => n + h.rolls.length, 0);
-    ch.deadline = Date.now() + steps * CH_STEP;
+    ch.phase = 'rolling';
+    ch.deadline = Date.now() + CH_ROLL_MS;
     emit('chinchiro');
-    ch.timer = setTimeout(() => {
-      ch.verdicts = ch.hands.map((h) => {
-        const v = verdictOf(
-          (h.rolls[h.rolls.length - 1] as ChinchiroRollView).hand,
-          dealerHand,
-          ch.bet,
-        );
-        const net = v.payout - ch.bet - v.penalty;
-        if (h.userId === me()) settle('chinchiro', h.roundId, ch.bet, v.payout, v.penalty);
-        return {
-          userId: h.userId,
-          result: v.result,
-          multiplier: v.multiplier,
-          payout: v.payout,
-          net,
-          settled: true,
-        };
+    // the other seats roll after a moment; the rest is rolled when the window ends
+    ch.hands.forEach((h, i) => {
+      if (h.userId === me()) return;
+      later(1_500 + i * 1_200, () => {
+        if (ch.phase !== 'rolling' || h.rolled) return;
+        Object.assign(h, { rolled: true, rolls: rollHand() });
+        if (ch.hands.every((x) => x.rolled)) finishChTable();
+        else emit('chinchiro');
       });
-      ch.phase = 'result';
-      ch.deadline = null;
-      emit('chinchiro');
-      later(10_000, () => {
-        Object.assign(ch, {
-          phase: 'idle',
-          roundId: null,
-          seats: [],
-          hands: [],
-          dealerRolls: [],
-          verdicts: [],
-        });
-        emit('chinchiro');
-      });
-    }, steps * CH_STEP);
+    });
+    ch.timer = setTimeout(finishChTable, CH_ROLL_MS);
   };
   const sitChTable = (
     stake: number,
     roundId?: string,
   ): { tableRound: string; roundId: string; host: boolean; deadline: number | null } => {
-    if (ch.phase === 'playing' || ch.phase === 'result') throw new GameError('conflict');
+    if (ch.phase === 'rolling' || ch.phase === 'result') throw new GameError('conflict');
     if (ch.phase === 'lobby') {
       if (roundId !== undefined && roundId !== ch.roundId) throw new GameError('conflict');
       if (ch.seats.includes(me())) throw new GameError('conflict');
@@ -531,7 +554,7 @@ function createMock(): CasinoServices {
       hostId: me(),
       seats: [me()],
       deadline: Date.now() + 20_000,
-      closedEmpty: false,
+      folded: false,
     });
     ch.timer = setTimeout(startChTable, 20_000);
     later(3_000, () => {
@@ -991,6 +1014,9 @@ function createMock(): CasinoServices {
       args?: ActionIntent['args'],
     ): Promise<BetOutcome<T>> {
       try {
+        if (game === 'chinchiro' && action === 'table_roll') {
+          return Promise.resolve(outcome(rollChTable(roundId) as T, roundId));
+        }
         if (game === 'chinchiro' && action === 'roll') {
           return Promise.resolve(outcome(rollSolo(roundId) as T, roundId));
         }

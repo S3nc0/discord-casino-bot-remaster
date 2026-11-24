@@ -207,6 +207,8 @@ export function createCasinoHandlers(
               return accepted(caller, key, games.chinchiroTable.stand(caller, base));
             case 'begin':
               return accepted(caller, key, games.chinchiroTable.begin(caller, base));
+            case 'table_roll':
+              return accepted(caller, key, games.chinchiroTable.roll(caller, base));
           }
         }
         if (intent.game === 'blackjack') {
