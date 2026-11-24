@@ -408,9 +408,14 @@ The server also runs the **chat bot**: the slash commands you type in Discord, s
    pnpm commands:deploy:guild
    ```
 
-   This registers all commands in your test server (`TEST_GUILD_ID`), and they show up almost immediately. It prints how many commands it registered. If it says it cannot deploy without a real token or a server ID, fix `.env` first.
+   This does two things, and prints what went where:
 
-4. **Run the same command again whenever the commands change** (for example after you pull an update that adds or renames commands). It is safe to repeat. It replaces the whole list each time.
+   - **Test server** (`TEST_GUILD_ID`): every command except `/admin` is registered there and shows up almost immediately.
+   - **Global, `/admin` only:** `/admin` is used in a **DM with the bot**, and commands registered for one server never appear in DMs. So the guild deploy creates or updates `/admin` globally, on its own. It usually shows in the bot's DM within seconds (Discord allows up to an hour). Your other global commands, and the Activity's **Entry Point** command (the one that launches the Activity), are not touched.
+
+   If it says it cannot deploy without a real token or a server ID, fix `.env` first. If it says it could not read the current global commands, nothing was changed; check your internet connection and the token, then run it again.
+
+4. **Run the same command again whenever the commands change** (for example after you pull an update that adds or renames commands). It is safe to repeat. It replaces the test server's list each time.
 
 5. **Optional: preview without touching Discord.** `pnpm commands:dry-run` only prints the command list, needs no `.env`, and changes nothing.
 
@@ -428,7 +433,10 @@ The guild deploy only covers your test server. When you want the commands in oth
 pnpm commands:deploy:global
 ```
 
-Discord can take **up to an hour** to show global commands everywhere. Do not run it while you are still testing. Use the guild deploy for that, because it is instant.
+This registers every command (including `/admin`) globally: in every server the app is installed in, and in DMs with the bot. Discord can take **up to an hour** to show global changes everywhere. Do not run it while you are still testing. Use the guild deploy for that, because it is instant.
+
+- **Activity Entry Point:** with Activities enabled, Discord keeps a global **Entry Point** command that launches the Activity. The global deploy reads the current global commands first and keeps the Entry Point exactly as it is. If that read fails, it stops and changes nothing.
+- **No duplicates in the test server:** after a global deploy, run `pnpm commands:deploy:guild` once more. The guild deploy skips every command that is already global (it says which), so the test server stops showing two copies. To change a command that is already global, run the global deploy again.
 
 ---
 
