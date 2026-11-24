@@ -177,6 +177,9 @@ function baseInteraction(spec: {
     editReply: vi.fn(async (options: unknown) => {
       out.push({ kind: 'editReply', options });
     }),
+    deferUpdate: vi.fn(async () => {
+      interaction.deferred = true;
+    }),
     fetchReply: vi.fn(async () => ({
       id: `reply-${spec.id}`,
       channelId: spec.channelId ?? 'chan-1',
