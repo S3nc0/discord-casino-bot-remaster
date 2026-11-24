@@ -4,6 +4,31 @@
 
 All notable changes to this project are written here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow [Semantic Versioning](https://semver.org/).
 
+## [1.2.0] - 2026-11-24
+
+Name-colour shop items give real Discord colour roles again, the 🟡 Wealthy (富豪) badge is wired, and the player guides and specs describe only what the remaster does. The original project was reviewed through `8671af3` (its own first Activity, with the chinchiro table only): nothing to port.
+
+**Owner actions when updating from v1.1.0:**
+- In the Discord Developer Portal (**OAuth2 → URL Generator**, or **Installation → Default Install Settings**), tick **Manage Roles** as well. The permission integer becomes `2251802229622784` (`2251802766493696` with **Manage Webhooks**). Re-authorize the bot in each server (or grant **Manage Roles** to the bot role under *Server Settings → Roles*). Without it everything still works; only no name is coloured.
+- In *Server Settings → Roles*, keep the bot's role **below** your admin and moderator roles but **above** the colour roles members should be able to show (the bot places each `ペリカ・<colour>` role directly below its own highest role).
+- Rename or delete leftover `ペリカ・…` roles made by the original bot. The bot only uses colour roles it created itself and refuses a same-name role it did not create (the member is told to ask an admin to rename it).
+- No slash command changed in this release, so you do not need to re-deploy commands.
+- Restart the server so the migration (`0014_color_roles`) runs and the 30-second colour-role sync starts.
+
+### Added
+
+- **Name-colour roles** (#90): wearing a name colour you own (chat `/shop` → 🌈 Name colors, or Activity Inventory → Wear / Take off) puts a real Discord role named `ペリカ・<colour>` on the member: no permissions, not hoisted, not mentionable, created on first use and placed directly below the bot's highest role. One colour at a time; no Pelica moves. The bot only touches roles it created (it records their ids), never adopts a same-name role, and removes the role when the last copy of the colour leaves the member (bankruptcy seizure, player-market listing or sale, any other removal). Discord is called after the database commit, behind a small REST port and a per-guild lock; pending changes are stored (migration `0014`: `color_roles`, `color_role_holders`, `color_role_sync`) and a 30-second `shop:color-role-sweep` job applies them after an error or restart. Without **Manage Roles**, or with the bot's role too low, the choice stays recorded, the member gets one notice and the bot retries (every 10 minutes at first, then hourly); a deleted role is recreated. The Activity Inventory shows Wear / Take off and the profile shows the worn colour.
+- **🟡 Wealthy (富豪) badge** (#89): members with a Clean (katagi) status and a financial net worth of at least 1,000,000 Pelica show 🟡 on the balance card, `/pelica bank`, `/pelica ranking` (weekly, net and liquid views), the live ranking board, and the Activity Bank, Profile and Ranking screens. It is display only: `katagi_only` checks, titles and limits still use the raw status, and no nickname is changed.
+
+### Changed
+
+- **Permission set** (#90): the recommended bot permissions now include **Manage Roles** (`2251802229622784`, or `2251802766493696` with **Manage Webhooks**). The setup guide explains where to place the bot's role and the risk.
+- **Docs describe only what the remaster does** (#88): the player guides (`docs/shop.md`, `docs/teiai.md`) and the specs (`docs/spec/{shop,teiai,weekly-ranking,parity-fixtures}`, EN and JA) no longer promise Discord nickname edits, `【…】` title suffixes, or the Manage Nicknames permission, and carry "Not in the remaster" notes where the original bot did them. (Name-colour roles were part of that list until #90 brought them back.)
+
+### Fixed
+
+- **Security review of the colour roles** (#90, 3 medium and 1 low, all fixed): the bot re-checks a role before it adds or removes it, and lets go of one that was renamed, gained a permission or became managed; removals stay queued and retry with back-off instead of being dropped; denied servers are skipped, with nothing retried while a server is denied; repeated no-op syncs do nothing.
+
 ## [1.1.0] - 2026-11-24
 
 Ports the new upstream commits up to `upstream/main` into the TypeScript Activity and chat bot, plus a pixel app icon and Activity favicons.
