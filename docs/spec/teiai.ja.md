@@ -45,6 +45,7 @@
   1. `bankrupt`（`🔴 破産者`）：`bankrupt_at IS NOT NULL AND debt > 0`。
   2. `underground`（`🟤 地下労働者`）：`debt > 0 OR has_overdue_p2p_loan`。
   3. `katagi`（`🟢 カタギ`）：それ以外（`net_worth >= 1,000,000` なら `🟡 富豪` と表示）。
+  - リマスターでの接続：`🟡` 富豪バッジは金融純資産（`NetWorthService`）から表示専用で接続されており、`/pelica balance`、`/pelica bank`、`/pelica ranking`（週間・純資産・流動資産）、ライブボード、およびアクティビティの銀行・プロフィール・ランキング画面に表示されます（`katagi_only` 判定は元の身分のままで、ニックネーム接尾辞は使用しません）。
   - `underground` か `bankrupt` の間は、ショップの称号、カードのスキン、演出、コレクションが凍結されます（失われず、`katagi` に戻ると復元されます）。
 - **債務の利息の加算**（`infra/db/debt.py:336-375`）：
   - `debt <= 0` なら：`debt_interest_at = 0` にリセットします。

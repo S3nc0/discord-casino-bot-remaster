@@ -125,5 +125,4 @@ Discord sends no proxy signature headers on Activity traffic; `REQUIRE_PROXY_SIG
 The legacy import dry run (3.4) was skipped by the owner for v1.0.0. The importer is tested against fixtures, but it has not been run on the real `casino.db`. Before anyone relies on it, follow [Importing the legacy database](../MAINTAINERS.md#importing-the-legacy-database) and do a dry run on a copy first.
 
 Known gaps in v1.1.0:
-- The `🟡` wealthy badge is not wired yet.
 - Raffle fees, CDS, and race/arena bets are not valued on the balance sheet (same as upstream).
