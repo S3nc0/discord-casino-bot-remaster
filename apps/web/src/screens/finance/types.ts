@@ -35,12 +35,21 @@ export class FinanceApiError extends Error {
   readonly reason: string | undefined;
   readonly status: number;
   readonly retryAfterMs: number | undefined;
-  constructor(code: ErrorCode, status: number, reason?: string, retryAfterMs?: number) {
+  /** Numbers the refusal text quotes, such as the margin ratio after the action. */
+  readonly params: Readonly<Record<string, number>> | undefined;
+  constructor(
+    code: ErrorCode,
+    status: number,
+    reason?: string,
+    retryAfterMs?: number,
+    params?: Readonly<Record<string, number>>,
+  ) {
     super(reason ?? code);
     this.name = 'FinanceApiError';
     this.code = code;
     this.reason = reason;
     this.status = status;
     this.retryAfterMs = retryAfterMs;
+    this.params = params;
   }
 }

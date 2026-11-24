@@ -69,6 +69,7 @@ function isArenaFormat(value: string): value is ArenaFormat {
 function unwrapServiceResult<T>(res: ServiceResult<T>): T {
   if (res.ok) return res.data;
   const reason = res.reason;
+  const rule = { reason, ...(res.params ? { ruleParams: res.params } : {}) };
   if (reason === 'insufficient_funds') {
     throw new AppError('insufficient_funds');
   }
@@ -79,13 +80,13 @@ function unwrapServiceResult<T>(res: ServiceResult<T>): T {
     reason.includes('not_buyer') ||
     reason.includes('not_borrower')
   ) {
-    throw new AppError('forbidden', { reason });
+    throw new AppError('forbidden', rule);
   }
   if (reason.includes('not_found') || reason === 'no_debt' || reason === 'kyosai_no_open_auction') {
-    throw new AppError('not_found', { reason });
+    throw new AppError('not_found', rule);
   }
   if (reason.includes('expired')) {
-    throw new AppError('expired', { reason });
+    throw new AppError('expired', rule);
   }
   if (
     reason.includes('invalid') ||
@@ -95,9 +96,9 @@ function unwrapServiceResult<T>(res: ServiceResult<T>): T {
     reason.includes('out_of_range') ||
     reason.includes('self_')
   ) {
-    throw new AppError('invalid_payload', { reason });
+    throw new AppError('invalid_payload', rule);
   }
-  throw new AppError('conflict', { reason });
+  throw new AppError('conflict', rule);
 }
 
 function parseDurationMinutes(raw: string | null): number | undefined {

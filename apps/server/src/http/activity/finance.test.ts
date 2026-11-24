@@ -208,6 +208,41 @@ describe('securities market', () => {
     expect(res.json()).toEqual({ error: 'invalid_payload', reason: 'margin_min_amount' });
   });
 
+  it('refuses to sell collateral below 130% and quotes the ratio it would leave', async () => {
+    server = createTestServer();
+    const me = await login(USER);
+    server.economy.credit({ guildId: GUILD, userId: USER, amount: 100_000, reason: 'admin_grant' });
+    await me.post(FINANCE_ROUTES.marketSpot, {
+      idempotencyKey: key(),
+      symbol: 'cs',
+      amount: 20_000,
+    });
+    const open = await me.post(FINANCE_ROUTES.marketMargin, {
+      idempotencyKey: key(),
+      symbol: 'numa',
+      side: 'long',
+      amount: 10_000,
+      leverage: 5,
+    });
+    expect(open.statusCode).toBe(200);
+    const price = server.finance.stocks.getPricesMicros().numa;
+    server.finance.stocks.setPrice('numa', Math.round(price * 0.84));
+
+    const sell = await me.post(FINANCE_ROUTES.marketSettle, {
+      idempotencyKey: key(),
+      position: 'spot:cs',
+    });
+    expect(sell.statusCode).toBe(409);
+    const body = sell.json<{ error: string; reason: string; params: Record<string, number> }>();
+    expect(body).toMatchObject({
+      error: 'conflict',
+      reason: 'market_collateral_locked',
+      params: { open_ratio: 130 },
+    });
+    expect(body.params.ratio).toBeGreaterThanOrEqual(100);
+    expect(body.params.ratio).toBeLessThan(130);
+  });
+
   it('settles an unknown position as not found', async () => {
     server = createTestServer();
     const me = await login(USER);

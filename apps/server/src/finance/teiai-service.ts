@@ -125,8 +125,17 @@ export interface EscapeAttemptReport {
   readonly bankrupt: BankruptcyReport | null;
 }
 
-export type ServiceResult<T> =
-  { readonly ok: true; readonly data: T } | { readonly ok: false; readonly reason: string };
+/**
+ * A refusal carries a stable `reason` code and, for the few that quote numbers (the margin
+ * ratios), `params` the text can show.
+ */
+export interface ServiceFailure {
+  readonly ok: false;
+  readonly reason: string;
+  readonly params?: Readonly<Record<string, number>>;
+}
+
+export type ServiceResult<T> = { readonly ok: true; readonly data: T } | ServiceFailure;
 
 export class TeiaiService {
   private readonly deps: FinanceDeps;

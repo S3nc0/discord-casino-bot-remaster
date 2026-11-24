@@ -90,6 +90,7 @@ Canonical English and Japanese terms used across the legacy bot, YAML catalogs, 
 - **Daily Price Limit / 値幅制限 (ストップ高・ストップ安)**: ±30% cap from daily reference price, setting pin locks (`+1` / `-1`) that restrict one side of trading.
 - **Capital Gains Tax / 譲渡益課税**: Progressive tax brackets levied on realized spot and margin profits.
 - **Cross Margin / 信用取引**: Leveraged long and short positions with shared collateral, daily financing interest (`0.1%` long / `0.05%` short), and automatic loss-cut.
+- **Collateral Headroom / 担保余裕度**: Effective margin ÷ required margin for the whole margin account (shown as 🟢 ≥ `150%`, 🟡 `130–150%`, 🔴 < `130%`). New positions need `130%` or more; below `100%` the loss-cut closes the biggest losers first. Formerly called `維持率`.
 - **Option / オプション**: European call and put contracts priced via Black-Scholes with event and earnings jump variance.
 - **Pair Warrant / ペア・ワラント**: Relative-performance option between two tickers priced via the Margrabe exchange formula.
 - **Earnings Release / 決算**: Scheduled jump shock event on a ticker accompanied by a noisy insider memo (`70%` directional accuracy).
@@ -107,7 +108,7 @@ Canonical English and Japanese terms used across the legacy bot, YAML catalogs, 
 - **Debt Withholding / 天引き**: Automatic `30%` garnishment on debtor incoming payouts and transfers applied directly to debt repayment.
 - **Overseas Escape / 海外逃亡**: High-risk debt-evasion attempt (`1%` full wipe success, `99%` fine added to debt).
 - **Teiai Trust / 帝愛信託**: Interest-bearing player deposit account at Teiai Bank accruing hourly yield (`r_f + premium`).
-- **CDS / 破綻保証 (Credit Default Swap)**: Insurance/bet contract against a target player's default or bankruptcy, priced from status, debt, and margin ratio.
+- **CDS / 破綻保証 (Credit Default Swap)**: Insurance/bet contract against a target player's default or bankruptcy, priced from status, debt, and margin ratio (collateral headroom, 担保余裕度).
 - **P2P Loan / 個人間融資**: Player-to-player loan contract with daily simple interest, overdue penalty (`max(1.5x, 2%/day)`, `2x` cap), and garnishment behind Teiai.
 - **Teiai Kyosai / 帝愛共済**: Guild mutual equity fund issuing 100 auctioned units per cycle with Hamilton-method dividends, `5%` P2P transfer fees, excess-loss charges, and governance motions.
 - **Company / 会社**: Player-founded production business (`farm`, `mine`, `factory`, etc.) with deterministic daily market states, continuous output, external investor stakes, dividends, and 3-day unpaid upkeep bankruptcy.

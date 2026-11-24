@@ -108,7 +108,7 @@ export function unwrapRule<T>(res: ServiceResult<T>): T {
     }
     return 'conflict' as const;
   })();
-  throw new AppError(code, { reason });
+  throw new AppError(code, { reason, ...(res.params ? { ruleParams: res.params } : {}) });
 }
 
 /** Catalog name of a listed item (`[ja, en]` in the shop catalog); horses carry their own name. */
@@ -185,7 +185,11 @@ export function registerFinanceRoutes(authed: FastifyInstance, ctx: FinanceRoute
         return { ...response, ...(replayed ? { replayed: true } : {}) };
       } catch (error) {
         if (error instanceof AppError && error.authReason !== undefined) {
-          const payload: FinanceError = { error: error.code, reason: error.authReason };
+          const payload: FinanceError = {
+            error: error.code,
+            reason: error.authReason,
+            ...(error.ruleParams ? { params: error.ruleParams } : {}),
+          };
           return reply.code(error.status).send(payload);
         }
         throw error;

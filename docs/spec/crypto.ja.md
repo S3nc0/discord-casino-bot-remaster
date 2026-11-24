@@ -62,7 +62,7 @@
   7. 台帳の理由 `"{name}購入:{lots}@{fmt(price)}"` で `total` を引きます（`income` なし）。
 - **売り（`crypto_sell`）**：
   1. 銘柄がストップ安に張り付いている（`-1` で `sell_spot` をブロック）なら拒否します。
-  2. `have > 0` なら `collateral_guard.check_spot_sell` を実行します。現物の保有は、クロスマージンの純資産に **80% の掛け目**（`COLLATERAL_HAIRCUT.spot = 0.8`）で数えられ、売ったあとの維持率が `OPEN_RATIO = 1.30` を下回るなら拒否します（`crypto_collateral_locked`）。
+  2. `have > 0` なら `collateral_guard.check_spot_sell` を実行します。現物の保有は、クロスマージンの純資産に **80% の掛け目**（`COLLATERAL_HAIRCUT.spot = 0.8`）で数えられ、売ったあとの担保余裕度が `OPEN_RATIO = 1.30` を下回るなら拒否します（`crypto_collateral_locked`）。
   3. `have <= 0`（`crypto_not_held`）、`units < 1 or units > have`（`crypto_sell_range`）、`proceeds < 1 and units != have`（`crypto_proceeds_too_small`）は拒否します。
   4. `taxable=True` のとき（強制破産の差し押さえ中は無効）、`profit = proceeds - removed_cost` に累進の譲渡益課税（`0% / 3% / 7% / 12%`）をかけます。
   5. 台帳の理由 `"{name}売却:{lots}@{fmt(price)}"` で `proceeds - tax` を入金します（`income=0`。自分の現物資産を売っても、帝愛の 30% の債務の天引きは**かかりません**。ただし譲渡益課税は帝愛に入ります）。
@@ -90,7 +90,7 @@
 | `crypto.err_invalid_amount` | `金額が正しくありません。` | `cogs/shared/messages/market.py:42` |
 | `crypto.err_balance` | `ペリカが足りません（残高 {balance:,}ペリカ）。` | `cogs/shared/messages/market.py:43` |
 | `crypto.err_too_small` | `その金額では 0.001枚も買えません。金額を増やしてください。` | `cogs/shared/messages/market.py:44` |
-| `crypto.err_collateral` | `信用取引の担保になっているので、売れません（売ると維持率が {ratio:.0%}・{open_ratio:.0%} 以上が必要）。先に建玉を決済してください。` | `cogs/shared/messages/market.py:46-47` |
+| `crypto.err_collateral` | `信用取引の担保になっているので、売れません（売ると担保余裕度が {ratio:.0%}・{open_ratio:.0%} 以上が必要）。先に建玉を決済してください。` | `cogs/shared/messages/market.py:46-47` |
 | `crypto.err_not_held` | `{name}を持っていません。` | `cogs/shared/messages/market.py:49` |
 | `crypto.err_sell_range` | `売れるのは 0.001〜{max_lots} です（持っている分）。` | `cogs/shared/messages/market.py:50` |
 | `crypto.err_proceeds_small` | `その数量では受け取れる額が 1ペリカ未満です。もう少し多く売ってください。` | `cogs/shared/messages/market.py:51` |
