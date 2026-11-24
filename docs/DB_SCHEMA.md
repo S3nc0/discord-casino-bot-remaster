@@ -191,16 +191,20 @@ three STRICT tables with TEXT snowflakes and millisecond timestamps:
 
 - `color_roles`: the colour roles the bot created, one per `(guild_id, item_id)`, with `role_id`
   (unique per guild) and `created_at`. The bot touches no role that is not listed here. A row is
-  removed when Discord says the role no longer exists; the role is then created again on next use.
+  removed when Discord says the role no longer exists (the role is then created again on next use)
+  and when a sync finds it renamed, given a permission or managed (then it is never touched again).
 - `color_role_holders`: the colour role the bot last put on a member, primary key
   `(guild_id, user_id)`, with `role_id` and `applied_at`, so a change knows what to take off
   without reading the member list.
 - `color_role_sync`: members whose Discord roles must catch up with `profiles.color_role`, primary
   key `(guild_id, user_id)`. Written in the transaction of the change (equip, unequip, the last
-  copy leaving); `queued_at`, `next_at` (the sweep skips the row until then: 10 minutes after a
-  missing permission), `tries` (failed attempts) and `seq` (bumped on every new change, so a
+  copy leaving); `queued_at`, `next_at` (the sweep skips the row until then: back-off of 30 s,
+  2 min, 10 min, 1 h, then hourly, at least 10 minutes after a missing permission; rows of a
+  denied guild are not swept), `tries` (failed attempts) and `seq` (bumped on every new change, so a
   finished sync never deletes a newer request). The `shop:color-role-sweep` job (every 30 s) and
-  the equip itself apply it after commit and delete it.
+  the equip itself apply it after commit and delete it. A row whose member still holds a colour
+  role (`color_role_holders`) other than the worn colour's is never deleted; only an addition is
+  given up.
 
 None of them holds Pelica or has ledger rows. The importer does not carry them (the original bot
 kept no record of its roles; members wear a colour again after the switch).

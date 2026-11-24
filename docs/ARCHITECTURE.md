@@ -94,8 +94,13 @@ manager, attached after login like the pin port. Only the `Guilds` intent is nee
 is cached. A per-guild lock serialises the syncs, so one colour never gets two roles. The equip
 applies its own row at once (the chat answer and `POST /api/life/shop/color-role` wait a few
 seconds at most and return a `notice` when Discord refuses); the `shop:color-role-sweep` job
-(every 30 s) applies the rest, retrying a missing Manage Roles or a role too low every 10 minutes
-for a day (logged once per guild per 10 minutes) and an unexpected error 3 times. It never blocks a
+(every 30 s, skipping denied guilds) applies the rest with back-off (30 s, 2 min, 10 min, 1 h, then
+hourly; at least 10 minutes for a missing Manage Roles or a role too low; logged once per guild per
+10 minutes). A removal stays queued while `color_role_holders` still lists a colour role that is
+not the worn colour's; only an addition is given up (3 unexpected errors, or a day blocked). Every
+sync re-reads the guild's roles first and forgets any of ours that was renamed, gained a permission
+or became managed, so it is never added to or removed from a member again. An equip of the colour
+already worn, with nothing queued, makes no Discord call. It never blocks a
 command or a job, and with `BOT_DISABLED=1` the rows wait.
 
 ## Notify

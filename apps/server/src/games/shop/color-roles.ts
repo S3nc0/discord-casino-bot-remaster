@@ -1,8 +1,10 @@
 import type { Clock } from '@casino/shared';
 import {
   botStanding,
+  colorRoleName,
   COLOR_ROLES,
   isColorRoleItem,
+  isSafeColorRole,
   needsMove,
   pickColorRole,
   wantedPosition,
@@ -92,20 +94,30 @@ export function classifyDiscordError(error: unknown): Failure {
   }
 }
 
-/** Sweep cadence for blocked rows, and the log throttle per guild. */
+/** Retry delay after a missing permission or a role too low (at least; see `retryDelay`). */
 export const COLOR_ROLE_RETRY_MS = 600_000;
 export const COLOR_ROLE_LOG_THROTTLE_MS = 600_000;
-/** Unexpected errors before a row is dropped. */
+/** Back-off of a failed sync, by attempt: 30 s, 2 min, 10 min, 1 h, then hourly. */
+export const COLOR_ROLE_BACKOFF_MS = [30_000, 120_000, 600_000, 3_600_000] as const;
+/** Unexpected errors before an addition is given up (a removal never is). */
 export const COLOR_ROLE_MAX_ERRORS = 3;
-/** 10-minute retries of a blocked row (one day) before it is dropped. */
-export const COLOR_ROLE_MAX_BLOCKED = 144;
+/** How long a blocked addition is retried before it is given up (a removal never is). */
+export const COLOR_ROLE_GIVE_UP_MS = 86_400_000;
 /** Rows one sweep looks at. */
 const SWEEP_BATCH = 50;
 const AUDIT_REASON = 'Pelica shop: name colour / ペリカショップ: 名前の色';
 
+/** Delay before the next attempt after `tries` failed ones. */
+export function retryDelay(tries: number, blocked: boolean): number {
+  const step =
+    COLOR_ROLE_BACKOFF_MS[Math.min(tries, COLOR_ROLE_BACKOFF_MS.length) - 1] ?? 3_600_000;
+  return blocked ? Math.max(COLOR_ROLE_RETRY_MS, step) : step;
+}
+
 interface SyncRow {
   guild_id: string;
   user_id: string;
+  queued_at: number;
   tries: number;
   seq: number;
 }
@@ -117,6 +129,13 @@ interface WarnLogger {
 const QUIET: WarnLogger = { warn: () => {} };
 
 class Retry extends Error {}
+
+const SUCCESS: ReadonlySet<ColorRoleSyncResult> = new Set([
+  'applied',
+  'removed',
+  'name_taken',
+  'gone',
+]);
 
 export class ColorRoleService {
   private readonly store: Store;
@@ -155,8 +174,25 @@ export class ColorRoleService {
   }
 
   /**
+   * True when Discord already matches the database for the member: nothing is queued and the
+   * role the bot put on them is the one of the worn colour (or none when nothing is worn).
+   */
+  upToDate(guildId: string, userId: string): boolean {
+    const queued = this.store
+      .stmt('SELECT 1 FROM color_role_sync WHERE guild_id = ? AND user_id = ?')
+      .get(guildId, userId);
+    if (queued !== undefined) return false;
+    const worn = this.equipped(guildId, userId);
+    const holder = this.holder(guildId, userId);
+    return worn === null
+      ? holder === null
+      : holder !== null && holder === this.roleIdOf(guildId, worn);
+  }
+
+  /**
    * Apply the member's pending change now (after the equip committed), waiting at most
    * `timeoutMs`; past that the sync carries on in the background and `pending` is returned.
+   * With nothing queued it answers from the database without calling Discord.
    * Discord failures never throw; calling it inside a transaction is a bug and does.
    */
   async syncNow(
@@ -178,7 +214,10 @@ export class ColorRoleService {
     }
   }
 
-  /** Job: apply every due `color_role_sync` row. Returns how many were settled. Never throws. */
+  /**
+   * Job: apply every due `color_role_sync` row, except in guilds the owner denied (their rows
+   * wait untouched until the guild is approved again). Returns how many were settled. Never throws.
+   */
   async sweep(): Promise<number> {
     if (!this.port || this.sweeping) return 0;
     this.sweeping = true;
@@ -186,7 +225,10 @@ export class ColorRoleService {
     try {
       const rows = this.store
         .stmt(
-          'SELECT guild_id, user_id FROM color_role_sync WHERE next_at <= ? ORDER BY next_at, queued_at LIMIT ?',
+          `SELECT s.guild_id, s.user_id FROM color_role_sync s
+           WHERE s.next_at <= ?
+             AND NOT EXISTS (SELECT 1 FROM guilds g WHERE g.guild_id = s.guild_id AND g.status = 'denied')
+           ORDER BY s.next_at, s.queued_at LIMIT ?`,
         )
         .all(this.clock.now(), SWEEP_BATCH) as { guild_id: string; user_id: string }[];
       for (const row of rows) {
@@ -210,13 +252,21 @@ export class ColorRoleService {
       if (!port) return 'skipped';
       const row = this.store
         .stmt(
-          'SELECT guild_id, user_id, tries, seq FROM color_role_sync WHERE guild_id = ? AND user_id = ?',
+          'SELECT guild_id, user_id, queued_at, tries, seq FROM color_role_sync WHERE guild_id = ? AND user_id = ?',
         )
         .get(guildId, userId) as SyncRow | undefined;
       const desired = this.equipped(guildId, userId);
+      // Nothing queued: Discord already matches (an equip of the colour already worn).
+      if (!row) return desired === null ? 'removed' : 'applied';
       let result: ColorRoleSyncResult;
       try {
-        result = await this.sync(port, guildId, userId, desired);
+        try {
+          result = await this.sync(port, guildId, userId, desired);
+        } catch (error) {
+          if (!(error instanceof Retry)) throw error;
+          // The stored role was deleted in Discord: it was forgotten, so this round creates a new one.
+          result = await this.sync(port, guildId, userId, desired);
+        }
       } catch (error) {
         this.logOnce(guildId, { err: error, userId }, 'colour role sync failed');
         result = 'error';
@@ -237,8 +287,13 @@ export class ColorRoleService {
     return next;
   }
 
+  /**
+   * Keep or drop the member's row. The state left to reach is read again from the database: while
+   * the bot still has a colour role on the member that is not the worn colour's, the removal stays
+   * queued (with back-off) however often it fails. Only an addition may be given up.
+   */
   private settle(
-    row: SyncRow | undefined,
+    row: SyncRow,
     guildId: string,
     userId: string,
     desired: string | null,
@@ -255,15 +310,18 @@ export class ColorRoleService {
           )
           .run(guildId, userId, desired);
       }
-      if (!row) return;
+      const worn = this.equipped(guildId, userId);
+      const holder = this.holder(guildId, userId);
+      const removalPending =
+        holder !== null && (worn === null || holder !== this.roleIdOf(guildId, worn));
       const blocked = result === 'missing_permissions' || result === 'hierarchy';
-      const failed = blocked || result === 'error';
       const tries = row.tries + 1;
-      const drop =
-        !failed ||
-        (result === 'error' && tries >= COLOR_ROLE_MAX_ERRORS) ||
-        (blocked && tries >= COLOR_ROLE_MAX_BLOCKED);
-      if (drop) {
+      const giveUp =
+        !removalPending &&
+        (SUCCESS.has(result) ||
+          (result === 'error' && tries >= COLOR_ROLE_MAX_ERRORS) ||
+          (blocked && now - row.queued_at >= COLOR_ROLE_GIVE_UP_MS));
+      if (giveUp) {
         this.store
           .stmt('DELETE FROM color_role_sync WHERE guild_id = ? AND user_id = ? AND seq = ?')
           .run(guildId, userId, row.seq);
@@ -273,7 +331,13 @@ export class ColorRoleService {
         .stmt(
           'UPDATE color_role_sync SET tries = ?, next_at = ? WHERE guild_id = ? AND user_id = ? AND seq = ?',
         )
-        .run(tries, blocked ? now + COLOR_ROLE_RETRY_MS : now, guildId, userId, row.seq);
+        .run(
+          tries,
+          now + retryDelay(tries, blocked || result === 'name_taken'),
+          guildId,
+          userId,
+          row.seq,
+        );
     });
     if (result === 'missing_permissions' || result === 'hierarchy' || result === 'name_taken') {
       this.logOnce(
@@ -288,39 +352,17 @@ export class ColorRoleService {
     }
   }
 
+  /**
+   * Bring the member's Discord roles in line with `desired`. Every role is checked against a fresh
+   * snapshot before it is touched (`dropUnsafe`): the bot only adds or removes a role it created
+   * that still has its colour's name, no permission and is not managed.
+   */
   private async sync(
     port: ColorRoleRest,
     guildId: string,
     userId: string,
     desired: string | null,
   ): Promise<ColorRoleSyncResult> {
-    const holder = this.holder(guildId, userId);
-    if (desired === null) {
-      if (holder === null) return 'removed';
-      const failure = await attempt(() => port.removeMemberRole(guildId, userId, holder));
-      if (failure === 'forbidden') return this.blockedReason(port, guildId);
-      if (failure === 'error') return 'error';
-      this.setHolder(guildId, userId, null);
-      return failure === 'unknown_guild' ? 'gone' : 'removed';
-    }
-    try {
-      return await this.apply(port, guildId, userId, desired, holder);
-    } catch (error) {
-      if (!(error instanceof Retry)) throw error;
-      // The stored role was deleted in Discord: it was forgotten, so this round creates a new one.
-      return this.apply(port, guildId, userId, desired, this.holder(guildId, userId));
-    }
-  }
-
-  private async apply(
-    port: ColorRoleRest,
-    guildId: string,
-    userId: string,
-    itemId: string,
-    holder: string | null,
-  ): Promise<ColorRoleSyncResult> {
-    const spec = COLOR_ROLES[itemId];
-    if (!spec) return 'removed';
     let snapshot: { roles: RoleSnapshot[]; botRoleIds: string[] };
     try {
       snapshot = await port.guildRoles(guildId);
@@ -328,23 +370,60 @@ export class ColorRoleService {
       const failure = classifyDiscordError(error);
       return failure === 'unknown_guild' || failure === 'unknown_member' ? 'gone' : 'error';
     }
+    this.dropUnsafe(guildId, snapshot.roles);
     const standing = botStanding(guildId, snapshot.roles, snapshot.botRoleIds);
-    const pick = pickColorRole({
-      itemId,
-      roles: snapshot.roles,
-      knownRoleId: this.roleIdOf(guildId, itemId),
-    });
-    if (pick.kind === 'refuse') {
-      // The choice is undone (see `settle`): take off the colour the member wore before, if any.
-      if (holder !== null && standing.canManageRoles) {
-        const failure = await attempt(() => port.removeMemberRole(guildId, userId, holder));
-        if (failure === null || failure === 'unknown_role' || failure === 'unknown_member')
-          this.setHolder(guildId, userId, null);
-      }
-      return 'name_taken';
-    }
-    if (!standing.canManageRoles) return 'missing_permissions';
+    const holder = this.holder(guildId, userId);
+    const pick =
+      desired === null
+        ? null
+        : pickColorRole({
+            itemId: desired,
+            roles: snapshot.roles,
+            knownRoleId: this.roleIdOf(guildId, desired),
+          });
+    const targetId = pick?.kind === 'use' ? pick.roleId : null;
 
+    // 1. Take off the colour role the member wears that is not the target (checked safe above).
+    if (holder !== null && holder !== targetId) {
+      if (!standing.canManageRoles) return 'missing_permissions';
+      const worn = snapshot.roles.find((r) => r.id === holder);
+      if (worn && worn.position >= standing.top) return 'hierarchy';
+      const failure = await attempt(() => port.removeMemberRole(guildId, userId, holder));
+      switch (failure) {
+        case null:
+        case 'unknown_role':
+          this.setHolder(guildId, userId, null);
+          break;
+        case 'unknown_member':
+          this.setHolder(guildId, userId, null);
+          return 'gone';
+        case 'unknown_guild':
+          return 'gone';
+        case 'forbidden':
+          return 'hierarchy';
+        default:
+          return 'error';
+      }
+    }
+    if (desired === null || pick === null) return 'removed';
+    if (pick.kind === 'refuse') return 'name_taken';
+    if (!standing.canManageRoles) return 'missing_permissions';
+    return this.apply(port, guildId, userId, desired, pick, standing, snapshot.roles, holder);
+  }
+
+  /** Put the colour's role on the member, creating or fixing the role first. */
+  private async apply(
+    port: ColorRoleRest,
+    guildId: string,
+    userId: string,
+    itemId: string,
+    pick: Exclude<ReturnType<typeof pickColorRole>, { kind: 'refuse' }>,
+    standing: { top: number; canManageRoles: boolean },
+    roles: readonly RoleSnapshot[],
+    holder: string | null,
+  ): Promise<ColorRoleSyncResult> {
+    const spec = COLOR_ROLES[itemId];
+    if (!spec) return 'removed';
     let roleId: string;
     let role: RoleSnapshot | null;
     if (pick.kind === 'create') {
@@ -371,28 +450,27 @@ export class ColorRoleService {
     if (role) {
       if (role.color !== spec.color) {
         const failure = await attempt(() => port.setRoleColor(guildId, roleId, spec.color));
-        if (failure === 'unknown_role') this.forget(guildId, itemId);
+        if (failure === 'unknown_role') {
+          this.forget(guildId, itemId);
+          throw new Retry();
+        }
         if (failure === 'error') return 'error';
       }
       const ours = new Set(this.ourRoleIds(guildId));
-      if (needsMove(role, standing.top, snapshot.roles, ours)) {
+      if (needsMove(role, standing.top, roles, ours)) {
         const failure = await attempt(() =>
           port.setRolePosition(guildId, roleId, wantedPosition(standing.top)),
         );
-        if (failure === 'unknown_role') this.forget(guildId, itemId);
+        if (failure === 'unknown_role') {
+          this.forget(guildId, itemId);
+          throw new Retry();
+        }
         // A refused move is fine as long as the role stays below the bot (checked next).
       }
       if (role.position >= standing.top) return 'hierarchy';
     }
 
-    if (holder !== null && holder !== roleId) {
-      const failure = await attempt(() => port.removeMemberRole(guildId, userId, holder));
-      if (failure === 'forbidden') return 'hierarchy';
-      if (failure === 'error') return 'error';
-      if (failure === 'unknown_member') return 'gone';
-      this.setHolder(guildId, userId, null);
-    }
-
+    if (holder === roleId) return 'applied';
     const failure = await attempt(() => port.addMemberRole(guildId, userId, roleId));
     switch (failure) {
       case null:
@@ -411,15 +489,25 @@ export class ColorRoleService {
     }
   }
 
-  /** With Manage Roles granted, a refused call means the role sits above the bot. */
-  private async blockedReason(port: ColorRoleRest, guildId: string): Promise<ColorRoleSyncResult> {
-    try {
-      const snapshot = await port.guildRoles(guildId);
-      return botStanding(guildId, snapshot.roles, snapshot.botRoleIds).canManageRoles
-        ? 'hierarchy'
-        : 'missing_permissions';
-    } catch {
-      return 'missing_permissions';
+  /**
+   * Stop touching any stored colour role that is gone from Discord, was renamed, gained a
+   * permission or became managed: it is forgotten (with every member said to wear it) and never
+   * added to or removed from anyone again. A changed role is logged once per guild per 10 minutes.
+   */
+  private dropUnsafe(guildId: string, roles: readonly RoleSnapshot[]): void {
+    const stored = this.store
+      .stmt('SELECT item_id, role_id FROM color_roles WHERE guild_id = ?')
+      .all(guildId) as { item_id: string; role_id: string }[];
+    for (const row of stored) {
+      const role = roles.find((r) => r.id === row.role_id);
+      if (role && role.name === colorRoleName(row.item_id) && isSafeColorRole(role)) continue;
+      this.forget(guildId, row.item_id);
+      if (role)
+        this.logOnce(
+          guildId,
+          { roleId: row.role_id, itemId: row.item_id },
+          'a colour role was renamed or given a permission; the bot no longer touches it',
+        );
     }
   }
 
@@ -438,7 +526,7 @@ export class ColorRoleService {
     ).map((r) => r.role_id);
   }
 
-  /** The role was deleted in Discord: forget it (and any member said to wear it). */
+  /** Forget a stored role (and any member said to wear it): the bot no longer touches it. */
   private forget(guildId: string, itemId: string): void {
     const roleId = this.roleIdOf(guildId, itemId);
     if (roleId === null) return;

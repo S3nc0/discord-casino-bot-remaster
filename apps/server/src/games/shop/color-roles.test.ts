@@ -9,9 +9,11 @@ import {
 } from '../../runtime/test-kit.ts';
 import {
   COLOR_ROLE_LOG_THROTTLE_MS,
+  COLOR_ROLE_GIVE_UP_MS,
   COLOR_ROLE_MAX_ERRORS,
   COLOR_ROLE_RETRY_MS,
   createDiscordColorRolePort,
+  retryDelay,
   type ColorRoleRest,
 } from './color-roles.ts';
 
@@ -194,6 +196,32 @@ describe('wearing a name colour', () => {
     expect(guild.worn(OTHER_USER)).toEqual(['ペリカ・赤']);
   });
 
+  it('makes no Discord call when the colour worn is worn again', async () => {
+    const { guild, own, shop, pending } = setup();
+    own('role_red');
+    await shop.wearColor(GUILD, USER, 'role_red');
+    const port = guild.port as unknown as Record<string, ReturnType<typeof vi.fn>>;
+    for (const fn of Object.values(port)) fn.mockClear();
+    expect(await shop.wearColor(GUILD, USER, 'role_red')).toBe('applied');
+    expect(await shop.wearColor(GUILD, USER, 'role_red')).toBe('applied');
+    for (const fn of Object.values(port)) expect(fn).not.toHaveBeenCalled();
+    await shop.wearColor(GUILD, USER, null);
+    for (const fn of Object.values(port)) fn.mockClear();
+    expect(await shop.wearColor(GUILD, USER, null)).toBe('removed');
+    for (const fn of Object.values(port)) expect(fn).not.toHaveBeenCalled();
+    expect(pending()).toBe(0);
+  });
+
+  it('still syncs a repeat when Discord is behind (a queued row)', async () => {
+    const { guild, own, shop } = setup();
+    shop.colorRoles.attach(null);
+    own('role_red');
+    await shop.wearColor(GUILD, USER, 'role_red');
+    shop.colorRoles.attach(guild.port);
+    expect(await shop.wearColor(GUILD, USER, 'role_red')).toBe('applied');
+    expect(guild.worn(USER)).toEqual(['ペリカ・赤']);
+  });
+
   it('refuses a colour the player does not own', async () => {
     const { shop } = setup();
     await expect(shop.wearColor(GUILD, USER, 'role_red')).rejects.toMatchObject({
@@ -234,15 +262,49 @@ describe('roles that are not ours', () => {
     expect(pending()).toBe(0);
   });
 
-  it('refuses one of our roles once it has gained a permission', async () => {
-    const { guild, own, shop } = setup();
+  it('lets go of one of our roles once it has gained a permission: never removes it from anyone', async () => {
+    const { guild, own, shop, ourRoles, pending, warn } = setup();
     own('role_red');
     await shop.wearColor(GUILD, USER, 'role_red');
     const [role] = guild.named('ペリカ・赤');
     if (role) role.permissions = '8';
-    await shop.wearColor(GUILD, USER, null);
+    // Taking it off would now strip a role that grants a permission: the bot forgets it instead.
+    expect(await shop.wearColor(GUILD, USER, null)).toBe('removed');
+    expect(guild.port.removeMemberRole).not.toHaveBeenCalled();
+    expect(guild.worn(USER)).toEqual(['ペリカ・赤']);
+    expect(ourRoles()).toEqual([]);
+    expect(pending()).toBe(0);
+    expect(warn.mock.calls.at(-1)?.[1]).toMatch(/renamed or given a permission/);
+    // And it is a foreign role from now on: refused, never adopted.
     expect(await shop.wearColor(GUILD, USER, 'role_red')).toBe('name_taken');
-    expect(guild.worn(USER)).toEqual([]);
+    expect(guild.port.addMemberRole).toHaveBeenCalledTimes(1);
+  });
+
+  it('lets go of one of our roles once an admin renamed it: a switch leaves it on the member', async () => {
+    const { guild, own, shop, ourRoles } = setup();
+    own('role_red');
+    own('role_blue');
+    await shop.wearColor(GUILD, USER, 'role_red');
+    const [role] = guild.named('ペリカ・赤');
+    if (role) role.name = 'Red team';
+    expect(await shop.wearColor(GUILD, USER, 'role_blue')).toBe('applied');
+    expect(guild.port.removeMemberRole).not.toHaveBeenCalled();
+    expect(guild.worn(USER).sort()).toEqual(['Red team', 'ペリカ・青'].sort());
+    expect(ourRoles().map((r) => r.item_id)).toEqual(['role_blue']);
+    // Taking blue off later removes blue only.
+    expect(await shop.wearColor(GUILD, USER, null)).toBe('removed');
+    expect(guild.worn(USER)).toEqual(['Red team']);
+  });
+
+  it('lets go of a role that became managed before a switch', async () => {
+    const { guild, own, shop } = setup();
+    own('role_red');
+    own('role_blue');
+    await shop.wearColor(GUILD, USER, 'role_red');
+    const [role] = guild.named('ペリカ・赤');
+    if (role) role.managed = true;
+    expect(await shop.wearColor(GUILD, USER, 'role_blue')).toBe('applied');
+    expect(guild.port.removeMemberRole).not.toHaveBeenCalled();
   });
 
   it('refuses a managed role with the name', async () => {
@@ -331,19 +393,100 @@ describe('when Discord says no', () => {
     expect(guild.worn(USER)).toEqual(['ペリカ・赤']);
   });
 
-  it('retries an unexpected error a few times, then drops the row', async () => {
+  it('backs off 30 s, 2 min, 10 min, 1 h, then hourly', () => {
+    expect([1, 2, 3, 4, 5, 9].map((t) => retryDelay(t, false))).toEqual([
+      30_000, 120_000, 600_000, 3_600_000, 3_600_000, 3_600_000,
+    ]);
+    expect(retryDelay(1, true)).toBe(COLOR_ROLE_RETRY_MS);
+    expect(retryDelay(5, true)).toBe(3_600_000);
+  });
+
+  it('retries an unexpected error on an addition with back-off, then gives the addition up', async () => {
     const { s, guild, own, shop, pending } = setup();
     own('role_red');
     for (let i = 0; i < COLOR_ROLE_MAX_ERRORS + 1; i += 1)
       guild.failures.push({ op: 'guildRoles', code: 0 });
     expect(await shop.wearColor(GUILD, USER, 'role_red')).toBe('error');
     expect(pending()).toBe(1);
+    expect(await shop.colorRoles.sweep()).toBe(0); // not due yet
+    s.clock.advance(retryDelay(1, false));
     await shop.colorRoles.sweep();
     expect(pending()).toBe(1);
+    s.clock.advance(retryDelay(2, false));
     await shop.colorRoles.sweep();
     expect(pending()).toBe(0);
     expect(shop.profile(GUILD, USER).colorRole).toBe('role_red');
-    void s;
+  });
+
+  it('never gives up a removal: errors back off and the role comes off in the end', async () => {
+    const { s, guild, own, shop, pending } = setup();
+    own('role_red');
+    await shop.wearColor(GUILD, USER, 'role_red');
+    const failures = COLOR_ROLE_MAX_ERRORS + 4;
+    for (let i = 0; i < failures; i += 1) guild.failures.push({ op: 'removeMemberRole', code: 0 });
+    expect(await shop.wearColor(GUILD, USER, null)).toBe('error');
+    for (let tries = 1; tries < failures; tries += 1) {
+      expect(pending()).toBe(1);
+      s.clock.advance(retryDelay(tries, false) - 1);
+      expect(await shop.colorRoles.sweep()).toBe(0); // backs off
+      s.clock.advance(1);
+      expect(await shop.colorRoles.sweep()).toBe(1);
+    }
+    expect(pending()).toBe(1);
+    expect(guild.worn(USER)).toEqual(['ペリカ・赤']);
+    s.clock.advance(retryDelay(failures, false));
+    await shop.colorRoles.sweep();
+    expect(guild.worn(USER)).toEqual([]);
+    expect(pending()).toBe(0);
+  });
+
+  it('keeps a removal queued past a day without Manage Roles, and applies it once granted', async () => {
+    const { s, guild, own, shop, pending } = setup();
+    own('role_red');
+    await shop.wearColor(GUILD, USER, 'role_red');
+    const bot = guild.roles.get(BOT_ROLE);
+    if (bot) bot.permissions = '0';
+    expect(await shop.wearColor(GUILD, USER, null)).toBe('missing_permissions');
+    for (let elapsed = 0; elapsed <= COLOR_ROLE_GIVE_UP_MS * 2; elapsed += 3_600_000) {
+      s.clock.advance(3_600_000);
+      await shop.colorRoles.sweep();
+    }
+    expect(pending()).toBe(1);
+    if (bot) bot.permissions = String(1n << 28n);
+    s.clock.advance(3_600_000);
+    await shop.colorRoles.sweep();
+    expect(guild.worn(USER)).toEqual([]);
+    expect(pending()).toBe(0);
+  });
+
+  it('gives up a blocked addition after a day', async () => {
+    const { s, guild, own, shop, pending } = setup();
+    const bot = guild.roles.get(BOT_ROLE);
+    if (bot) bot.permissions = '0';
+    own('role_red');
+    await shop.wearColor(GUILD, USER, 'role_red');
+    for (let elapsed = 0; elapsed <= COLOR_ROLE_GIVE_UP_MS; elapsed += 3_600_000) {
+      s.clock.advance(3_600_000);
+      await shop.colorRoles.sweep();
+    }
+    expect(pending()).toBe(0);
+    expect(shop.profile(GUILD, USER).colorRole).toBe('role_red');
+  });
+
+  it('keeps the old role queued for removal when a switch to a refused colour fails to remove it', async () => {
+    const { s, guild, own, shop, pending } = setup();
+    own('role_red');
+    own('role_blue');
+    await shop.wearColor(GUILD, USER, 'role_red');
+    guild.add({ id: 'r-foreign', name: 'ペリカ・青' });
+    guild.failures.push({ op: 'removeMemberRole', code: 0 });
+    expect(await shop.wearColor(GUILD, USER, 'role_blue')).toBe('error');
+    expect(pending()).toBe(1);
+    s.clock.advance(retryDelay(1, false));
+    await shop.colorRoles.sweep();
+    expect(guild.worn(USER)).toEqual([]);
+    expect(shop.profile(GUILD, USER).colorRole).toBeNull(); // blue was refused
+    expect(pending()).toBe(0);
   });
 
   it('logs once per guild per 10 minutes', async () => {
@@ -371,6 +514,24 @@ describe('when Discord says no', () => {
 });
 
 describe('restart and the sweep', () => {
+  it('leaves the rows of a denied guild untouched until it is approved again', async () => {
+    const { s, guild, own, shop, pending } = setup();
+    shop.colorRoles.attach(null);
+    own('role_red');
+    await shop.wearColor(GUILD, USER, 'role_red');
+    s.store.stmt("UPDATE guilds SET status = 'denied' WHERE guild_id = ?").run(GUILD);
+    shop.colorRoles.attach(guild.port);
+    s.clock.advance(COLOR_ROLE_GIVE_UP_MS * 2);
+    expect(await shop.colorRoles.sweep()).toBe(0);
+    expect(guild.port.guildRoles).not.toHaveBeenCalled();
+    const row = s.store.stmt('SELECT tries, next_at FROM color_role_sync').get();
+    expect(row).toEqual({ tries: 0, next_at: 0 });
+    expect(pending()).toBe(1);
+    s.store.stmt("UPDATE guilds SET status = 'approved' WHERE guild_id = ?").run(GUILD);
+    expect(await shop.colorRoles.sweep()).toBe(1);
+    expect(guild.worn(USER)).toEqual(['ペリカ・赤']);
+  });
+
   it('waits without a Discord client, and the sweep applies the row after a restart', async () => {
     const { s, guild, own, shop, pending } = setup();
     shop.colorRoles.attach(null);
@@ -396,6 +557,18 @@ describe('ownership changes take the colour off', () => {
     expect(ctx.guild.worn(USER)).toEqual(['ペリカ・赤']);
     return ctx;
   }
+
+  it('queues the removal from the role the member still wears, even when the profile lost it', async () => {
+    const { s, guild, shop, pending } = await wearing();
+    // An earlier sync left the profile empty and dropped its row, but the role is still on.
+    s.store.stmt('UPDATE profiles SET color_role = NULL').run();
+    s.store.stmt('DELETE FROM color_role_sync').run();
+    expect(shop.inventory.take(GUILD, USER, 'role_red', 1)).toBe(true);
+    expect(pending()).toBe(1);
+    await shop.colorRoles.sweep();
+    expect(guild.worn(USER)).toEqual([]);
+    expect(pending()).toBe(0);
+  });
 
   it('bankruptcy seizure', async () => {
     const { guild, shop, pending } = await wearing();

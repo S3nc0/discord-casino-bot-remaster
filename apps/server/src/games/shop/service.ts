@@ -213,12 +213,18 @@ export class ShopService {
         throw new GameRuleError('not_owned', {}, 'not_found');
     }
     this.ctx.store.transaction(() => {
+      // Wearing the colour already worn (and already on Discord) changes nothing: no sync, so
+      // `syncNow` answers without a Discord call.
+      const unchanged =
+        slot === 'color_role' &&
+        this.colorRoles.equipped(guildId, userId) === itemId &&
+        this.colorRoles.upToDate(guildId, userId);
       this.ctx.store
         .stmt(
           `INSERT INTO profiles (guild_id, user_id, ${SLOT_COLUMN[slot]}) VALUES (?, ?, ?) ON CONFLICT (guild_id, user_id) DO UPDATE SET ${SLOT_COLUMN[slot]} = excluded.${SLOT_COLUMN[slot]}`,
         )
         .run(guildId, userId, itemId);
-      if (slot === 'color_role')
+      if (slot === 'color_role' && !unchanged)
         queueColorRoleSync(this.ctx.store, guildId, userId, this.ctx.clock.now());
     });
   }
