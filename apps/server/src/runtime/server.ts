@@ -36,6 +36,7 @@ import {
 } from './adapters/index.ts';
 import { EventBus } from './bus.ts';
 import { PostPinService } from '../notify/post-pins.ts';
+import { StreamService } from '../stream/service.ts';
 import { systemClock } from './clock.ts';
 import type { Config } from './config.ts';
 import { buildJobManifest } from './jobs.ts';
@@ -95,6 +96,8 @@ export interface CasinoServices {
   casino: CasinoGames;
   /** Pins the poll, kyosai motion and raffle posts and unpins them when they end. */
   postPins: PostPinService;
+  /** The stream panel: super chats and win/lose rounds (docs/spec/stream.md). */
+  stream: StreamService;
   scheduler: Scheduler;
   /** Start HTTP and sockets, then the scheduler. */
   listen(): Promise<string>;
@@ -160,6 +163,7 @@ export function createServer(options: CreateServerOptions): CasinoServices {
     games?: NonCasinoGames;
     casino?: CasinoGames;
     teiai?: ReturnType<typeof createTeiaiPort>;
+    stream?: StreamService;
   } = {};
   const finance = createFinanceServices(
     { store, economy, identity, clock, rng, bus, utcOffsetHours },
@@ -206,6 +210,14 @@ export function createServer(options: CreateServerOptions): CasinoServices {
         offsetHours: utcOffsetHours,
         netWorth: finance.netWorth,
       }),
+      stream: () => ({
+        sessions,
+        store,
+        economy,
+        clock,
+        stream: lazy.stream as StreamService,
+        locate: (instanceId, guildId) => discord.activityVoiceChannel(instanceId, guildId),
+      }),
       horse: {
         store,
         economy,
@@ -243,6 +255,16 @@ export function createServer(options: CreateServerOptions): CasinoServices {
   });
   lazy.casino = casino;
   const stopGames = games.start();
+  const stream = new StreamService({
+    store,
+    economy,
+    identity,
+    clock,
+    bus,
+    teiai: teiaiPort,
+    transfers: games.progression,
+  });
+  lazy.stream = stream;
 
   const sockets = attachSocketServer({
     httpServer: app.server,
@@ -254,7 +276,10 @@ export function createServer(options: CreateServerOptions): CasinoServices {
     logger,
     proxyVerifier,
     requireProxySignature: config.requireProxySignature,
-    handlers: options.socketHandlers ?? casino.handlers,
+    handlers: {
+      ...(options.socketHandlers ?? casino.handlers),
+      streamView: (scope, streamId) => stream.liveView(scope, streamId),
+    },
     ...(options.socketLimits === undefined ? {} : { limits: options.socketLimits }),
     trustProxy: options.trustProxy ?? false,
   });
@@ -275,6 +300,7 @@ export function createServer(options: CreateServerOptions): CasinoServices {
       finance,
       games,
       postPins,
+      stream,
       purgeLaunchIntents: () => (launchIntents as SqliteLaunchIntentService).purge(),
     }),
     ...(options.cronDriver === undefined ? {} : { driver: options.cronDriver }),
@@ -301,6 +327,7 @@ export function createServer(options: CreateServerOptions): CasinoServices {
     games,
     casino,
     postPins,
+    stream,
     scheduler,
     async listen() {
       const address = await app.listen({ port: config.port, host: config.host });

@@ -1899,6 +1899,35 @@ export const COMMAND_SPECS: readonly TopLevelCommandSpec[] = [
         ],
       },
       {
+        kind: 'subcommand',
+        name: 'stream-void',
+        jaName: '配信無効',
+        description: '[Admin] Void a stream round and refund every bettor',
+        jaDescription: '[管理者] 配信の勝負を無効にして全員に返金する',
+        module: 'admin',
+        ephemeral: true,
+        options: [
+          { ...ADMIN_GUILD_OPT, required: true },
+          {
+            kind: 'string',
+            name: 'target',
+            jaName: '対象',
+            description: 'stream:<id> (its active round), round:<id>, or a round id',
+            jaDescription: 'stream:<番号>（その配信の勝負）、round:<番号>、または勝負の番号',
+            required: true,
+          },
+          {
+            kind: 'string',
+            name: 'reason',
+            jaName: '理由',
+            description: 'Why the round is voided (shown in the channel, kept in the audit log)',
+            jaDescription: '無効にする理由（チャンネルに表示され、記録に残ります）',
+            required: true,
+            maxLength: 200,
+          },
+        ],
+      },
+      {
         kind: 'group',
         name: 'event',
         jaName: 'イベント',
@@ -2466,6 +2495,7 @@ export const WIRED_COMMAND_PATHS: ReadonlySet<string> = new Set([
   'admin quiz bulk',
   'admin quiz list',
   'admin quiz delete',
+  'admin stream-void',
 ]);
 
 function indexCommandLeaves(): ReadonlyMap<string, ResolvedCommandMeta> {

@@ -11,6 +11,7 @@ import horseBreeding from './0009_horse_breeding.sql';
 import botTools from './0010_bot_tools.sql';
 import arenaRunnerUp from './0011_arena_runner_up.sql';
 import pinnedPosts from './0012_pinned_posts.sql';
+import stream from './0013_stream.sql';
 
 export type { Migration };
 
@@ -28,4 +29,5 @@ export const migrations: readonly Migration[] = [
   { version: 10, name: 'bot_tools', sql: botTools },
   { version: 11, name: 'arena_runner_up', sql: arenaRunnerUp },
   { version: 12, name: 'pinned_posts', sql: pinnedPosts },
+  { version: 13, name: 'stream', sql: stream },
 ];

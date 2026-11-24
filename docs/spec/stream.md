@@ -246,3 +246,17 @@ Next free migration number at S1's rebase. STRICT tables, millisecond timestamps
 ## 15. Not ported
 
 The upstream's auto-created voice channel and its Manage Channels permission (D4); declaring win or lose while bets are open (D3-1); a profit cap and a per-guild panel cap (not adopted, D3). Kept from the upstream: `start` creates the streamer's account if it is missing, and the feature switch never blocks settling or ending.
+
+## 16. Details the server fixed (S1)
+
+The sections above left these open; the server (5.S1) settled them as follows.
+
+- **Unknown stream.** A stream id that does not exist in the caller's guild is refused with `stream_ended` and the HTTP code `not_found` (404), the same answer for another guild's stream, so ids are not probed.
+- **One-sided rounds keep the declared outcome.** A one-sided or empty round that the streamer settles keeps its status `win` or `lose` with `refunded: true`; voiding it afterwards is `stream_round_settled`. The owner naming a round that is already `void` gets `stream_no_round`.
+- **Rake in the result.** `StreamSettleResult.rake` and the audit row's `rake` are the Teiai deduction **plus the rounding dust**: what the bank keeps. Both are 0 when refunded, and the audit `top` is then empty.
+- **Empty label.** A round opened with no name stores an empty `label`; every reader shows the default name in their own language.
+- **Job ids.** `stream.lockDue` and `stream.closeDue` run as the scheduler jobs `stream:lock-due` and `stream:close-due` (`* * * * *`).
+- **Rate limits.** On top of the general per-user limit, the stream routes allow 60 writes per user per minute, and at most 30 of them may be tips and bets.
+- **Tips.** A tip is `ProgressionService.transfer` itself, called inside the tip's transaction with `ref: { refType: 'stream', refId: streamId }` and the receiver key scope `stream`. So the rules, fee, keys, daily cap (counted from `transfer_out` rows, so tips and transfers share the 20,000) and the debt withholding (`creditIncome`) are the transfer's. The streamer's row is keyed `stream:{tipper}:{key}:in`. The stream checks (live stream, feature switch, self tip, minimum, message) run before the call and the panel totals are updated after it.
+- **No session lock.** Every stream write is one synchronous `store.transaction` (`BEGIN IMMEDIATE`), which already serializes writes; there is no separate per-user lock.
+- **Chat posts.** The tip card, round opened, auto-lock notice and result post (§13) are sent by the server (`notify/stream-posts.ts`) to the panel's `channel_id`, sharing the announcer's per-guild budget. The chat side (S3) must not post them again; it only edits the panel, using `StreamService.onChange` and `attachPanel`. The panel edit debounce of §7 is the chat side's.

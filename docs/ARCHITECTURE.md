@@ -45,7 +45,7 @@ outermost commit; they are dropped on rollback. That is how "events are publishe
 holds. Per-connection pragmas (`db/pragmas.ts`): WAL, `synchronous = NORMAL`,
 `busy_timeout = 5000`, foreign keys, recursive triggers.
 
-Migrations are numbered `.sql` files in `db/migrations/` (`0001_init` to `0012_pinned_posts` at
+Migrations are numbered `.sql` files in `db/migrations/` (`0001_init` to `0013_stream` at
 the time of writing), listed in `db/migrations/index.ts` and inlined into the bundle. `runMigrations`
 applies the newer ones in order, one transaction each, and records a SHA-256 checksum in
 `schema_migrations`. The server refuses to start if an applied migration was edited, or if the file
@@ -58,7 +58,8 @@ add a new one. Tables and rules: [DB_SCHEMA.md](DB_SCHEMA.md).
 the game's time zone (`UTC_OFFSET_HOURS`, 9 for JST). `runtime/jobs.ts` is the one manifest:
 the finance jobs (the market, Teiai bank, loans and kyosai each every minute; companies daily plus maintenance; player-market settlement), the game jobs
 (races four times a day, daily reset and reminders, arena, weekly ranking, lottery, polls, quiz,
-shop market) which run once per guild that is not `denied`, the pin sweep (every 30 seconds, see
+shop market, and the stream panel's `stream:lock-due` and `stream:close-due` every minute) which
+run once per guild that is not `denied`, the pin sweep (every 30 seconds, see
 [Notify](#notify)), and housekeeping (expired idempotency
 keys every 10 minutes, expired launch intents every minute). A job that throws is logged and never
 stops the scheduler; a guild that throws never stops the other guilds.
@@ -102,6 +103,11 @@ its `NotificationKind` if players can opt in, and the toast tone):
   Messages** permission and never breaks the command or job around it: a refused pin is logged
   (once per guild per 10 minutes) and a deleted message is ignored. The Discord side is the
   separate `PostPinPort`, attached after the bot logs in.
+- **Stream posts** (`stream-posts.ts`): the stream panel's chat posts (a super chat card, a round
+  opened, the auto-lock notice and the result, [spec/stream.md](spec/stream.md) §13) go only to
+  the channel the panel was posted in, never to the announce channel. They share the announcer's
+  per-guild budget (one `GuildRateLimiter`) and wait in a small per-guild queue when it is spent.
+  The panel message itself is edited by the chat side through `StreamService.onChange`.
 
 Everything reaches Discord through `DiscordNotifyPort` (`ports.ts`); with `BOT_DISABLED=1` a no-op
 port is used, so HTTP, sockets and jobs still run.
@@ -143,7 +149,7 @@ HTTP: `http/app.ts` builds the Fastify app: the proxy policy hook, per-IP and pe
 limits (`DEFAULT_RATE_LIMITS`: 600 requests per IP per minute, 30 per IP per minute on
 `POST /api/token`, 240 per user per minute), the session check, then the core routes in
 [HTTP API](#http-api). `http/activity/` adds the authenticated routes of each Activity slice
-(casino, horse and arena, life, finance); each slice registers itself in
+(casino, horse and arena, life, finance, stream); each slice registers itself in
 `http/activity/index.ts` through an optional entry in `ActivityDeps`. Routes are named once, in
 `packages/shared/src/activity/` (for finance, `FINANCE_ROUTES`), and every write takes an
 idempotency key. For example, the player market has `GET /api/finance/listings` (open listings,
@@ -161,6 +167,16 @@ rooms receive a domain event: an allowlist of event types that every guild membe
 anything not listed goes only to the users it names, so a new event type is never public by accident. Game handlers (`games/casino/handlers.ts`) turn `game:bet` and
 `game:action` intents into service calls with the session's own user, guild and instance, behind a
 per-user limiter (`DEFAULT_LIMITS`: 12 bets and 30 follow-up actions per 10 s).
+
+Stream panel: `apps/server/src/stream/service.ts` (`StreamService`) owns the panels, super chats
+and win/lose rounds ([spec/stream.md](spec/stream.md)); the money rules are pure in
+`packages/domain/src/stream/`. The Activity routes are `http/activity/stream.ts` (`STREAM_ROUTES`,
+with their own per-user limits: 60 stream writes and 30 tips and bets per minute). The stream's
+voice channel is read from the caller's Activity instance (`location.channel_id`, checked with
+Discord in `auth/discord.ts`), never from the request. Viewers join the room `stream:{guild}:{id}`
+with `stream:join` (which answers the current view) and leave it with `stream:leave`; the round
+and tip events go only to that room, and `StreamStarted` / `StreamEnded` also to the guild room
+for the live list. The owner's `/admin stream-void` calls the same service.
 
 ## Catalogs
 
@@ -440,6 +456,7 @@ serializer also masks `Bearer …`, JWS-shaped strings and bot-token-shaped stri
 | `apps/server/src/{http,socket,db,auth,runtime}/` | Transport, persistence, auth, boot and jobs. |
 | `apps/server/src/{economy,finance,games}/` | Services: the ledger writer, the money modules, the games. |
 | `apps/server/src/{bot,notify}/` | Slash commands, announcements, DMs, inbox. |
+| `apps/server/src/stream/`, `packages/domain/src/stream/` | The stream panel: the service and the parimutuel rules. |
 | `apps/server/scripts/` | The legacy importer and the load generator. |
 | `apps/web/src/shell/`, `apps/web/src/screens/` | The Activity frame and its screens. |
 | `tests/e2e/`, `tests/invariants/` | Multi-client socket suites and economy property tests. Unit tests sit next to the code (`*.test.ts`). |

@@ -114,6 +114,8 @@ export interface AnnouncerOptions {
   theme?: EmbedTheme;
   /** Coalescing window for bursts (ms). Default 2,000 ms. */
   batchWindowMs?: number;
+  /** Shared per-guild limiter (the stream posts use the same budget). Default: its own. */
+  rateLimiter?: GuildRateLimiter;
   /** Max events coalesced into a single message before triggering immediate flush. Default 10. */
   maxBatchSize?: number;
   /** Hard cap per buffer key to protect memory during long outages. Default 50. */
@@ -158,7 +160,7 @@ export class Announcer {
     this.batchWindowMs = options.batchWindowMs ?? 2_000;
     this.maxBatchSize = options.maxBatchSize ?? 10;
     this.maxBufferedPerKey = options.maxBufferedPerKey ?? 50;
-    this.rateLimiter = new GuildRateLimiter(options.rateWindowMs ?? 60_000);
+    this.rateLimiter = options.rateLimiter ?? new GuildRateLimiter(options.rateWindowMs ?? 60_000);
   }
 
   /** Buffer an event for announcement if it passes the guild's config and threshold checks. */

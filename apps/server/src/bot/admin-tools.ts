@@ -31,6 +31,7 @@ import { parseBulk } from '@casino/domain/quiz';
 import { MIN_FEE } from '@casino/domain/lottery';
 import { fetchSendable } from './boards.ts';
 import { AppError } from '../runtime/errors.ts';
+import { GameRuleError } from '../games/progression/context.ts';
 import {
   EPHEMERAL,
   activityRow,
@@ -1790,6 +1791,55 @@ export async function adminAutocomplete(
   return true;
 }
 
+// ------------------------------------------------------------------ stream void (decision D3-2)
+
+/** `/admin stream-void`: void a stream round with a reason; the service writes the audit row. */
+async function streamVoid(ctx: ChatCtx, interaction: ChatInputCommandInteraction): Promise<void> {
+  const { locale } = ctx;
+  const service = ctx.deps.stream;
+  if (!service) throw new AppError('feature_disabled');
+  const guildId = knownGuild(ctx, interaction.options.getString('guild_id', true), true);
+  try {
+    const done = service.ownerVoid({
+      guildId,
+      ownerId: interaction.user.id,
+      target: interaction.options.getString('target', true),
+      reason: interaction.options.getString('reason', true),
+    });
+    const audit = service.auditOf(guildId, done.roundId);
+    await reply(interaction, {
+      embeds: [
+        embed(
+          'warning',
+          t(locale, 'bot.admin.streamVoid.title'),
+          t(locale, 'bot.admin.streamVoid.body', {
+            guild: guildLabel(ctx, guildId),
+            round: done.roundId,
+            label: done.label === '' ? t(locale, 'screen.stream.round.default') : done.label,
+            stream: done.streamId,
+            count: done.result.bettors,
+            amount: formatNumber(locale, done.refunded),
+            reason: audit?.reason ?? '',
+          }),
+        ),
+      ],
+      flags: EPHEMERAL,
+    });
+  } catch (error) {
+    if (!(error instanceof GameRuleError)) throw error;
+    await reply(interaction, {
+      embeds: [
+        embed(
+          'error',
+          t(locale, 'bot.admin.streamVoid.errTitle'),
+          t(locale, `screen.stream.rule.${error.rule}` as Parameters<typeof t>[1], error.params),
+        ),
+      ],
+      flags: EPHEMERAL,
+    });
+  }
+}
+
 // ------------------------------------------------------------------ entry points
 
 export async function handleAdminCommand(
@@ -1877,6 +1927,9 @@ export async function handleAdminCommand(
         return true;
       case 'admin quiz delete':
         await quizDelete(ctx, interaction);
+        return true;
+      case 'admin stream-void':
+        await streamVoid(ctx, interaction);
         return true;
       default:
         return false;

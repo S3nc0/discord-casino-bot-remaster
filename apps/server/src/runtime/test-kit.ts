@@ -83,7 +83,13 @@ export interface FakeDiscordState {
   user: { id: string; username: string; global_name: string | null; avatar: string | null };
   guilds: { id: string; name: string }[];
   /** null = Discord answers 404 for the instance. */
-  instance: { instance_id: string; location: { guild_id: string | null }; users: string[] } | null;
+  instance: {
+    instance_id: string;
+    location: { guild_id: string | null; channel_id?: string | null };
+    users: string[];
+  } | null;
+  /** Channels `GET /channels/{id}` knows (the stream location check); others answer 404. */
+  channels?: Record<string, { id: string; type: number; guild_id: string }>;
   /** Status for the token exchange; anything but 200 fails it. */
   exchangeStatus: number;
   /** Scopes Discord reports as granted (space separated). */
@@ -123,6 +129,9 @@ export function fakeDiscord(overrides: Partial<FakeDiscordState> = {}): FakeDisc
         response = { status: 200, body: state.user };
       } else if (path === '/users/@me/guilds') {
         response = { status: 200, body: state.guilds };
+      } else if (path.startsWith('/channels/')) {
+        const channel = state.channels?.[decodeURIComponent(path.slice('/channels/'.length))];
+        response = channel ? { status: 200, body: channel } : { status: 404, body: {} };
       } else if (path.includes('/activity-instances/')) {
         response = state.instance
           ? { status: 200, body: state.instance }

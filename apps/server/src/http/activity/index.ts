@@ -3,6 +3,7 @@ import { registerCasinoRoutes, type CasinoHttpDeps, type SessionOf } from './cas
 import { createActivityKit, type ActivityKitDeps } from './context.ts';
 import { registerHorseRoutes } from './horse.ts';
 import { registerLifeRoutes, type LifeRouteDeps } from './life.ts';
+import { registerStreamRoutes, type StreamRouteDeps } from './stream.ts';
 
 export type { ActivityKit, ActivityKitDeps, ActivityServices } from './context.ts';
 
@@ -12,6 +13,8 @@ export interface ActivityDeps {
   horse?: ActivityKitDeps;
   /** Called once when the routes are registered (after the games exist). */
   life?: () => LifeRouteDeps;
+  /** Stream panel routes; called once when the routes are registered. */
+  stream?: () => StreamRouteDeps;
 }
 
 /**
@@ -26,4 +29,5 @@ export function registerActivityRoutes(
   if (deps.casino) registerCasinoRoutes(authed, deps.casino, sessionOf);
   if (deps.horse) registerHorseRoutes(createActivityKit(authed, deps.horse, sessionOf));
   if (deps.life) registerLifeRoutes(authed, deps.life());
+  if (deps.stream) registerStreamRoutes(authed, deps.stream());
 }

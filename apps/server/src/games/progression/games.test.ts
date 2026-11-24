@@ -234,6 +234,85 @@ describe('scripted run: one race, one daily claim, one transfer, one mission', (
     expect(send(10, 'e')).toMatchObject({ ok: false, error: { code: 'debt_blocks' } });
   });
 
+  it('transfer keys and refs: the defaults stay as they were, a ref and key scope change only those', () => {
+    const h = harness();
+    const { games, economy, teiai, store } = h;
+    economy.credit({ guildId: GUILD, userId: USER, amount: 100_000, reason: 'admin_grant' });
+    h.settle(USER, 'slots', 100, -100, 3);
+    teiai.setDebt(GUILD, OTHER_USER, 7000);
+    const legs = (refType: string) =>
+      store
+        .stmt(
+          `SELECT user_id, reason, delta, ref_type, ref_id, idempotency_key FROM ledger WHERE ref_type = ? ORDER BY id`,
+        )
+        .all(refType);
+    const base = { guildId: GUILD, senderId: USER, receiverId: OTHER_USER, amount: 2000 };
+    expect(games.progression.transfer({ ...base, idempotencyKey: 'plain' })).toMatchObject({
+      ok: true,
+      withheld: 600,
+    });
+    const ref = { ref_type: 'transfer', ref_id: 'plain' };
+    expect(legs('transfer')).toEqual([
+      { user_id: USER, reason: 'transfer_out', delta: -2000, ...ref, idempotency_key: 'plain:out' },
+      { user_id: USER, reason: 'transfer_fee', delta: -200, ...ref, idempotency_key: 'plain:fee' },
+      {
+        user_id: OTHER_USER,
+        reason: 'transfer_in',
+        delta: 2000,
+        ...ref,
+        idempotency_key: `transfer:${USER}:plain:in`,
+      },
+      {
+        user_id: OTHER_USER,
+        reason: 'debt_withholding',
+        delta: -600,
+        ...ref,
+        idempotency_key: `transfer:${USER}:plain:in:w`,
+      },
+    ]);
+    games.progression.transfer({
+      ...base,
+      idempotencyKey: 'scoped',
+      ref: { refType: 'stream', refId: '7' },
+      receiverKeyScope: 'stream',
+    });
+    expect(legs('stream')).toEqual([
+      {
+        user_id: USER,
+        reason: 'transfer_out',
+        delta: -2000,
+        ref_type: 'stream',
+        ref_id: '7',
+        idempotency_key: 'scoped:out',
+      },
+      {
+        user_id: USER,
+        reason: 'transfer_fee',
+        delta: -200,
+        ref_type: 'stream',
+        ref_id: '7',
+        idempotency_key: 'scoped:fee',
+      },
+      {
+        user_id: OTHER_USER,
+        reason: 'transfer_in',
+        delta: 2000,
+        ref_type: 'stream',
+        ref_id: '7',
+        idempotency_key: `stream:${USER}:scoped:in`,
+      },
+      {
+        user_id: OTHER_USER,
+        reason: 'debt_withholding',
+        delta: -600,
+        ref_type: 'stream',
+        ref_id: '7',
+        idempotency_key: `stream:${USER}:scoped:in:w`,
+      },
+    ]);
+    expect(games.progression.sentToday(GUILD, USER)).toBe(4000);
+  });
+
   it('a debtor claiming the daily loses 20 % to Teiai and 30 % of the rest to the debt', () => {
     const h = harness();
     h.teiai.setDebt(GUILD, USER, 8000);

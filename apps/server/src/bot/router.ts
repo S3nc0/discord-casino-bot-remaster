@@ -24,6 +24,7 @@ import type { CasinoGames } from '../games/index.ts';
 import type { NonCasinoGames } from '../games/progression/index.ts';
 import type { NotifyConfigService } from '../notify/config-service.ts';
 import type { PostPinService } from '../notify/post-pins.ts';
+import type { StreamService } from '../stream/service.ts';
 import {
   buildLaunchActivityRow,
   buildLaunchButtonId,
@@ -62,6 +63,8 @@ export interface BotRouterDeps {
   games?: NonCasinoGames;
   /** Pins the poll, kyosai motion and raffle posts; absent in tests that do not need it. */
   pins?: PostPinService;
+  /** The stream panel service (`/admin stream-void`, the `/stream` chat commands). */
+  stream?: StreamService;
   /** Game clock (the real one when absent). Owner tools and boards stamp times with it. */
   clock?: Clock;
   /** Called once a guild is denied (`/admin server-revoke`): drop its live sessions and sockets. */

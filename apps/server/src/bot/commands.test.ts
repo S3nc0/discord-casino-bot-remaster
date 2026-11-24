@@ -203,6 +203,7 @@ describe('command registry', () => {
       'admin server-list',
       'admin server-allow',
       'admin server-revoke',
+      'admin stream-void',
       'admin event start',
       'admin event stop',
       'admin rtp set',

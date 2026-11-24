@@ -21,6 +21,7 @@ import {
   memoryStore,
   testConfig,
 } from '../../apps/server/src/runtime/test-kit.ts';
+import { checkStreams } from './stream-check.ts';
 
 export const GUILDS = ['234567890123456789', '234567890123456780'] as const;
 export const USERS = ['123456789012345601', '123456789012345602', '123456789012345603'] as const;
@@ -262,6 +263,7 @@ export function checkInvariants(w: World): void {
   }
 
   checkTeiaiRelicAuction(w, w.relicAuctionPerDay);
+  checkStreams(w);
 }
 
 interface TeiaiListingRow {
