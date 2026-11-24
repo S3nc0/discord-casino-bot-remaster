@@ -84,8 +84,9 @@ You will gather these values during Steps 2–6. Keep a private note (such as a 
 ## 2. Discord Developer Portal (Part 1: Keys and Redirect)
 
 1. Open the [Discord Developer Portal](https://discord.com/developers/applications) and click your application (or click **New Application** to create one).
-2. Get your **Application ID** and **Public Key**:
+2. Get your **Application ID** and **Public Key** (and optionally set the **App Icon**):
    - In the left menu, click **General Information**.
+   - **App Icon:** upload `docs/images/app-icon-512.png`.
    - Copy **Application ID** (this guide calls it `APP_ID`).
    - Copy **Public Key** (a 64-character hex string).
 3. Get your **OAuth2 Client Secret**:

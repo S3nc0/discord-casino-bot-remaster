@@ -58,7 +58,7 @@
 
 ### 参考資料なしで描いたもの
 
-ほかのドット絵は、すべて参考画像なしで `tools/pixel-art/` のコードで描いています。ゲームのアイコン 35 個（`packages/ui/src/pixel/icon-art.ts`）、レース場、馬房、放牧場、闘技場、鉱山、ショップ、倉庫の背景と鉱石と発掘品（`tools/pixel-art/scenes/`）、カジノの場面、トランプ、サイコロ、チップ、リールの絵柄（`tools/pixel-art/casino/`）、クイズ、抽選、投票、ミッション、ランキング、発掘品、送金、デイリーボーナス、履歴、プロフィールの場面（`tools/pixel-art/social/`）、そして金融の場面、コイン、会社のバッジ、ハンマー、配当のコイン（`tools/pixel-art/finance/`）です。
+ほかのドット絵は、すべて参考画像なしで `tools/pixel-art/` のコードで描いています。ゲームのアイコン 35 個（`packages/ui/src/pixel/icon-art.ts`）、アプリアイコンと Activity 用ファビコン（`tools/pixel-art/app-icon/`）、レース場、馬房、放牧場、闘技場、鉱山、ショップ、倉庫の背景と鉱石と発掘品（`tools/pixel-art/scenes/`）、カジノの場面、トランプ、サイコロ、チップ、リールの絵柄（`tools/pixel-art/casino/`）、クイズ、抽選、投票、ミッション、ランキング、発掘品、送金、デイリーボーナス、履歴、プロフィールの場面（`tools/pixel-art/social/`）、そして金融の場面、コイン、会社のバッジ、ハンマー、配当のコイン（`tools/pixel-art/finance/`）です。
 
 ## ツール
 

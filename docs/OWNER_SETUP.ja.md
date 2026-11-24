@@ -84,8 +84,9 @@ Discord Activity（デスクトップ / モバイル）
 ## 2. Discord Developer Portal（前半: キー取得と Redirect 設定）
 
 1. [Discord Developer Portal](https://discord.com/developers/applications) を開き、対象アプリをクリックします（まだなければ **New Application**（新規作成）から作成します）。
-2. **Application ID** と **Public Key** を控えます。
+2. **Application ID** と **Public Key** を控えます（**App Icon** もここで設定できます）。
    - 左メニューの **General Information**（一般情報）を開きます。
+   - **App Icon:** `docs/images/app-icon-512.png` をアップロードします。
    - **Application ID** をコピーします（このガイドでは `APP_ID` と表記します）。
    - **Public Key**（64 文字の 16 進数）をコピーします。
 3. **OAuth2 Client Secret** を取得します。

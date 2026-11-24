@@ -12,6 +12,7 @@ Every icon, sprite and scene in the app is generated, not hand-edited. Run every
 | `casino/` | Slots, chinchiro, blackjack, roulette, pachinko | [Casino scenes](#casino-scenes) |
 | `social/` | Quiz, lottery, poll, missions, ranking, relics, transfer, daily, history, profile | [Social and player scenes](#social-and-player-scenes) |
 | `finance/` | Bank, loans, kyosai, stocks, crypto, companies, market | [Finance scenes](#finance-scenes) |
+| `app-icon/` | App icon (`512x512`) and Activity favicons (`32x32`, `16x16`) | [Icons and the race horse](#icons-and-the-race-horse) |
 | `lib/` | Shared palette names, the 8x drawing helper, output folders | |
 | `vendor/` | The codixel core | |
 
@@ -23,6 +24,9 @@ node tools/pixel-art/icons/build.js
 
 # preview sheet of the icons (needs ART_OUT, a folder for pictures)
 ART_OUT=/some/folder node tools/pixel-art/icons/sheet.js
+
+# app icon: writes docs/images/app-icon-512.png and apps/web/public/favicon-{32,16}.png
+node tools/pixel-art/app-icon/build.js
 
 # race horse: writes apps/web/src/screens/horse/horse-art.ts and the coat and silks colours in horse.css
 ART_OUT=/some/folder ART_REF=/some/folder/ref node tools/pixel-art/horse/ship.js
