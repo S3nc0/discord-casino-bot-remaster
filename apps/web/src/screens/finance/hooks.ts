@@ -68,7 +68,7 @@ export function errorMessage(t: Translate, error: unknown): string {
   if (error instanceof FinanceApiError) {
     if (error.reason) {
       const key = `screen.finance.reason.${error.reason}`;
-      const text = t(key);
+      const text = t(key, error.params);
       if (text !== key) return text;
     }
     return t(`error.${error.code}`);

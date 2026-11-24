@@ -203,6 +203,21 @@ describe('Bank screen', () => {
     expect(view.container.querySelector('[role="alert"]')!.textContent).toBe('You have no debt.');
   });
 
+  it('quotes the margin ratios a refusal carries', async () => {
+    const s = spy();
+    const view = await show(<BankScreen />, s.client);
+    s.failNext(
+      new FinanceApiError('conflict', 409, 'market_collateral_locked', undefined, {
+        ratio: 118,
+        open_ratio: 130,
+      }),
+    );
+    await click(button(view, 'Repay all I can'));
+    const alert = view.container.querySelector('[role="alert"]')!.textContent!;
+    expect(alert).toContain('collateral headroom at 118%');
+    expect(alert).toContain('130% or more is needed');
+  });
+
   it('reads in Japanese', async () => {
     useSettingsStore.setState({ language: 'ja' });
     const view = await show(<BankScreen />, spy().client);

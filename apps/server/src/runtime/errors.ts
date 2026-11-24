@@ -28,6 +28,8 @@ export class AppError extends Error {
    * Logged on every 401/403; in the response body only outside production.
    */
   readonly authReason: string | undefined;
+  /** Numbers a rule's text quotes (for example the margin ratios), shown to the player. */
+  readonly ruleParams: Readonly<Record<string, number>> | undefined;
 
   constructor(
     code: ErrorCode,
@@ -36,6 +38,7 @@ export class AppError extends Error {
       status?: number;
       retryAfterMs?: number;
       reason?: string;
+      ruleParams?: Readonly<Record<string, number>>;
       cause?: unknown;
     } = {},
   ) {
@@ -48,5 +51,6 @@ export class AppError extends Error {
     this.status = options.status ?? ERROR_STATUS[code];
     this.retryAfterMs = options.retryAfterMs;
     this.authReason = options.reason;
+    this.ruleParams = options.ruleParams;
   }
 }

@@ -24,8 +24,14 @@ describe('margin terms', () => {
     expect(checkParity({ en, ja })).toEqual([]);
   });
 
-  it('states the opening floor (130%) the code enforces', () => {
-    expect(ja['screen.finance.reason.margin_ratio_too_low']).toContain('130%');
-    expect(en['screen.finance.reason.margin_ratio_too_low']).toContain('130%');
+  it('quotes the ratio after the action and the 130% it needs', () => {
+    const params = { ratio: 118, open_ratio: 130 };
+    for (const key of REFUSALS) {
+      expect(t('en', key, params)).toContain('118%');
+      expect(t('en', key, params)).toContain('130%');
+      expect(t('ja', key, params)).toContain('118%');
+      expect(t('ja', key, params)).toContain('130%');
+      expect(t('ja', key, params)).not.toContain('{');
+    }
   });
 });

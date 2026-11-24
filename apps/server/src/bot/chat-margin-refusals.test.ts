@@ -51,9 +51,11 @@ describe('margin refusals in chat', () => {
       integers: { amount: 500, leverage: 5 },
     });
     await handler(open.interaction as never);
-    expect(allText(open.out[0]!.options)).toContain(
-      dict['screen.finance.reason.margin_ratio_too_low'],
-    );
+    const text = allText(open.out[0]!.options);
+    expect(text).toMatch(new RegExp(`${locale === 'ja' ? '担保余裕度' : 'headroom'}.*?\\d+%`));
+    expect(text).toContain('130%');
+    expect(text).not.toContain('{');
+    expect(dict['screen.finance.reason.margin_ratio_too_low']).toContain('{ratio}');
     expect(s.finance.stocks.listMarginPositions(GUILD, USER)).toHaveLength(1);
   });
 
@@ -79,9 +81,11 @@ describe('margin refusals in chat', () => {
       integers: { percent: 100 },
     });
     await handler(sell.interaction as never);
-    expect(allText(sell.out[0]!.options)).toContain(
-      dict['screen.finance.reason.market_collateral_locked'],
-    );
+    const text = allText(sell.out[0]!.options);
+    expect(text).toMatch(/(?:headroom at|担保余裕度が) \d+%/);
+    expect(text).toContain('130%');
+    expect(text).not.toContain('{');
+    expect(dict['screen.finance.reason.market_collateral_locked']).toContain('{open_ratio}');
     expect(s.finance.stocks.getSpotHoldings(GUILD, USER)).toHaveLength(1);
   });
 });

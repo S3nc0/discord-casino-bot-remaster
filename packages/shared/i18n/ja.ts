@@ -1285,9 +1285,9 @@ export const ja: Messages = {
   'screen.finance.reason.marketplace_debtor_blocked': '帝愛に借金がある間は出品できません。',
   'screen.finance.reason.invalid_qty': 'その数量は使えません。',
   'screen.finance.reason.margin_ratio_too_low':
-    '口座の担保余裕度が足りなくなります（建てると 130% 以上が必要）。証拠金を減らすか、レバレッジを下げるか、現物や債券を担保に持ってください。',
+    '口座の担保余裕度が足りなくなります（建てると {ratio}%・{open_ratio}% 以上が必要）。証拠金を減らすか、レバレッジを下げるか、現物や債券を担保に持ってください。',
   'screen.finance.reason.market_collateral_locked':
-    '信用取引の担保になっているので、売れません（売ると口座の担保余裕度が足りなくなります）。先に建玉を決済してください。',
+    '信用取引の担保になっているので、売れません（売ると担保余裕度が {ratio}%・{open_ratio}% 以上が必要）。先に建玉を決済してください。',
   // Casino screens, daily bonus on Home and ledger history (screen.casino.*).
   'home.games': 'ゲーム',
   'screen.casino.bet': 'ベット',

@@ -56,7 +56,7 @@ import {
   type SymbolKey,
   type VolatilityEvent,
 } from '@casino/domain/finance';
-import type { ServiceResult, TeiaiService } from './teiai-service.ts';
+import type { ServiceFailure, ServiceResult, TeiaiService } from './teiai-service.ts';
 import { financeDeps, listKnownGuildIds, type FinanceDeps } from './types.ts';
 
 export interface SpotHoldingRow {
@@ -132,6 +132,22 @@ export interface MarketTickSummary {
   readonly pins: Record<SymbolKey, PinState>;
   readonly earningsReleased: SymbolKey | null;
   readonly volatilityEventAnnounced: VolatilityEvent | null;
+}
+
+/**
+ * A margin refusal that quotes the account's ratio after the action and the ratio it needs,
+ * both in whole percent. The ratio is rounded down, so 129.6% reads as 129%, never as the 130%
+ * it lacks.
+ */
+function ratioRefusal(reason: string, ratio: number | null): ServiceFailure {
+  return {
+    ok: false,
+    reason,
+    params: {
+      ratio: Math.floor((ratio ?? 0) * 100),
+      open_ratio: MARKET_CONSTANTS.openRatioBps / 100,
+    },
+  };
 }
 
 export class StocksService {
@@ -652,15 +668,16 @@ export class StocksService {
       const prices = this.getPricesMicros(nowMs);
       const priceMicros = options.priceMicrosOverride ?? prices[symbol];
 
-      // Cross-margin collateral guard: cannot sell spot collateral if margin ratio would drop below 100%
+      // Cross-margin collateral guard: cannot sell spot collateral if the ratio would drop below the open ratio (130%)
       if (!bypass) {
         const marginBefore = this.getPortfolioMarginStatus(guildId, userId, nowMs);
         if (marginBefore.required > 0) {
           const soldVal = (unitsMilli * microsToPrice(priceMicros)) / QUANTITY_SCALE;
           const nextEquity =
             marginBefore.equity - (soldVal * MARKET_CONSTANTS.collateralHaircutBps.spot) / 10_000;
-          if (nextEquity / marginBefore.required < MARKET_CONSTANTS.losscutRatioBps / 10_000) {
-            return { ok: false, reason: 'market_collateral_locked' };
+          const nextRatio = nextEquity / marginBefore.required;
+          if (nextRatio < MARKET_CONSTANTS.openRatioBps / 10_000) {
+            return ratioRefusal('market_collateral_locked', nextRatio);
           }
         }
       }
@@ -913,7 +930,7 @@ export class StocksService {
         junkBondPrincipal: 0,
       });
       if (!simStatus.meetsOpenRatio) {
-        return { ok: false, reason: 'margin_ratio_too_low' };
+        return ratioRefusal('margin_ratio_too_low', simStatus.ratio);
       }
 
       const openRes = this.deps.economy.debit({
@@ -1719,8 +1736,9 @@ export class StocksService {
         const nextEquity =
           marginStatus.equity -
           (bond.principal * MARKET_CONSTANTS.collateralHaircutBps.normal) / 10_000;
-        if (nextEquity / marginStatus.required < MARKET_CONSTANTS.losscutRatioBps / 10_000) {
-          return { ok: false, reason: 'market_collateral_locked' };
+        const nextRatio = nextEquity / marginStatus.required;
+        if (nextRatio < MARKET_CONSTANTS.openRatioBps / 10_000) {
+          return ratioRefusal('market_collateral_locked', nextRatio);
         }
       }
 
