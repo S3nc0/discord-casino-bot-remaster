@@ -43,6 +43,7 @@ import type { Store } from '../db/store.ts';
 import type { EconomyService } from '../economy/economy-service.ts';
 import { IdempotencyStore } from '../games/casino/idempotency.ts';
 import { GameRuleError } from '../games/progression/context.ts';
+import type { ProgressionService } from '../games/progression/service.ts';
 import type { TeiaiPort } from '../games/progression/ports.ts';
 import type { EventBus } from '../runtime/bus.ts';
 import { AppError } from '../runtime/errors.ts';
@@ -53,12 +54,14 @@ export interface StreamActor {
   userId: string;
 }
 
-/** What the tip rules need from the transfer service (shared daily cap, games played). */
-export interface StreamTransferRules {
-  gamesPlayed(guildId: string, userId: string): number;
-  /** Principal sent today, from `transfer_out` rows: tips and transfers share the cap. */
-  sentToday(guildId: string, userId: string): number;
-}
+/**
+ * The transfer service a tip goes through: the same legs, keys, fee, daily cap and withholding
+ * as `/pelica transfer`, with `ref_type = 'stream'`. The reads serve the tip preview.
+ */
+export type StreamTransferRules = Pick<
+  ProgressionService,
+  'gamesPlayed' | 'sentToday' | 'transfer'
+>;
 
 export interface StreamServiceDeps {
   store: Store;
@@ -378,56 +381,28 @@ export class StreamService {
     const message = input.message ?? '';
     const key = input.idempotencyKey;
     return this.write(actor, key, 'stream.tip', { streamId, amount, message }, () => {
-      const { store, economy, clock, teiai } = this.deps;
+      const { store, clock } = this.deps;
       const s = this.liveStream(actor.guildId, streamId);
       if (!this.isEnabled(actor.guildId)) throw new AppError('feature_disabled');
       this.tipChecks(actor, s, amount);
       if (message.length > TIP_MESSAGE_MAX) throw new AppError('invalid_payload');
-      economy.ensureMember(actor.guildId, actor.userId);
-      const plan = this.planTip(actor, s, amount);
-      if (!plan.ok) {
-        const refusal = tipRefusal(plan.error);
+      // The transfer itself, in this transaction: rules, fee, cap, keys and withholding are the
+      // transfer service's. Only the reference and the receiver's key scope differ.
+      const sent = this.deps.transfers.transfer({
+        guildId: actor.guildId,
+        senderId: actor.userId,
+        receiverId: s.streamer_id,
+        amount,
+        idempotencyKey: key,
+        ref: { refType: 'stream', refId: String(s.id) },
+        receiverKeyScope: 'stream',
+      });
+      if (!sent.ok) {
+        const refusal = tipRefusal(sent.error);
         throw rule(refusal.rule, refusal.params, refusal.code);
       }
-      const ref = { refType: 'stream', refId: String(s.id) } as const;
-      economy.debit({
-        guildId: actor.guildId,
-        userId: actor.userId,
-        amount: plan.amount,
-        reason: 'transfer_out',
-        ...ref,
-        idempotencyKey: `${key}:out`,
-      });
-      economy.debit({
-        guildId: actor.guildId,
-        userId: actor.userId,
-        amount: plan.fee,
-        reason: 'transfer_fee',
-        ...ref,
-        idempotencyKey: `${key}:fee`,
-      });
-      // In the streamer's account: scoped by the tipper, so two tippers' keys never collide.
-      const inKey = `stream:${actor.userId}:${key}:in`;
-      economy.credit({
-        guildId: actor.guildId,
-        userId: s.streamer_id,
-        amount: plan.amount,
-        reason: 'transfer_in',
-        ...ref,
-        idempotencyKey: inKey,
-      });
-      const withheld = withholdIncome(plan.amount, teiai.debtOf(actor.guildId, s.streamer_id));
-      if (withheld > 0) {
-        economy.debit({
-          guildId: actor.guildId,
-          userId: s.streamer_id,
-          amount: withheld,
-          reason: 'debt_withholding',
-          ...ref,
-          idempotencyKey: `${inKey}:w`,
-        });
-        teiai.repayDebt(actor.guildId, s.streamer_id, withheld);
-      }
+      const plan = { amount: sent.amount, fee: sent.fee };
+      const withheld = sent.withheld;
       store
         .stmt('UPDATE streams SET tips = tips + ?, tip_count = tip_count + 1 WHERE id = ?')
         .run(plan.amount, s.id);

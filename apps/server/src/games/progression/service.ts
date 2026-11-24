@@ -399,6 +399,10 @@ export class ProgressionService {
   /**
    * Send Pelica. The receiver's account is created first (legacy quirk), then the checks run in
    * the legacy order. `idempotencyKey` makes a repeated request return the first result.
+   *
+   * `ref` names what the rows belong to (default: the transfer itself, `ref_type = 'transfer'`,
+   * `ref_id` = the key) and `receiverKeyScope` prefixes the receiver's key (default `transfer`):
+   * a super chat is this same transfer with `ref_type = 'stream'` and its own key space.
    */
   transfer(input: {
     guildId: string;
@@ -406,9 +410,13 @@ export class ProgressionService {
     receiverId: string;
     amount: number;
     idempotencyKey: string;
+    ref?: { refType: string; refId: string };
+    receiverKeyScope?: string;
   }): TransferResult {
     const { ctx } = this;
     const { guildId, senderId, receiverId, amount, idempotencyKey } = input;
+    const ref = input.ref ?? { refType: 'transfer', refId: idempotencyKey };
+    const scope = input.receiverKeyScope ?? 'transfer';
     return ctx.store.transaction(() => {
       ctx.economy.ensureMember(guildId, senderId);
       ctx.economy.ensureMember(guildId, receiverId);
@@ -428,7 +436,6 @@ export class ProgressionService {
         if (prior) return this.replayed(guildId, senderId, idempotencyKey, -prior.delta);
         return plan;
       }
-      const ref = { refType: 'transfer', refId: idempotencyKey } as const;
       const out = ctx.economy.debit({
         guildId,
         userId: senderId,
@@ -453,7 +460,7 @@ export class ProgressionService {
         reason: 'transfer_in',
         ...ref,
         // in the receiver's account: scoped by sender, so two senders' keys never collide
-        idempotencyKey: `transfer:${senderId}:${idempotencyKey}:in`,
+        idempotencyKey: `${scope}:${senderId}:${idempotencyKey}:in`,
       });
       return {
         ok: true,

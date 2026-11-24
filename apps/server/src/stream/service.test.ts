@@ -197,6 +197,58 @@ describe('StreamService: tips', () => {
     expect(h.ofType('StreamTipped')[0]).toMatchObject({ tipperId: A, amount: 1000, tips: 1000 });
   });
 
+  it('a tip and a transfer with the same inputs write the same legs, apart from the reference', () => {
+    // Two worlds in the same state: one tips the streamer, the other transfers to them.
+    const run = (how: 'tip' | 'transfer') => {
+      const h = harness();
+      const s = h.live();
+      h.games(A, 3);
+      h.grant(A, 10_000);
+      h.teiai.setDebt(GUILD, S, 7000);
+      const key = 'same-key-0001';
+      if (how === 'tip') {
+        h.stream.tip(h.who(A), { streamId: s.id, amount: 2000, idempotencyKey: key });
+      } else {
+        h.progression.transfer({
+          guildId: GUILD,
+          senderId: A,
+          receiverId: S,
+          amount: 2000,
+          idempotencyKey: key,
+        });
+      }
+      const legs = h.store
+        .stmt(
+          `SELECT user_id, reason, delta, balance_after, ref_type, ref_id, idempotency_key FROM ledger
+           WHERE reason IN ('transfer_out', 'transfer_fee', 'transfer_in', 'debt_withholding') ORDER BY id`,
+        )
+        .all() as Record<string, unknown>[];
+      return {
+        legs,
+        refs: legs.map((l) => [l.ref_type, l.ref_id]),
+        debt: h.teiai.debtOf(GUILD, S),
+        balances: [h.bal(A), h.bal(S)],
+        sent: h.progression.sentToday(GUILD, A),
+        streamId: s.id,
+      };
+    };
+    const tip = run('tip');
+    const transfer = run('transfer');
+    const strip = (legs: Record<string, unknown>[], scope: string) =>
+      legs.map(({ ref_type: _t, ref_id: _i, idempotency_key: k, ...rest }) => ({
+        ...rest,
+        // The receiver's key carries the scope (stream / transfer); the rest is the same key.
+        key: String(k).replace(`${scope}:`, ''),
+      }));
+    expect(tip.legs).toHaveLength(4);
+    expect(strip(tip.legs, 'stream')).toEqual(strip(transfer.legs, 'transfer'));
+    expect(tip.refs).toEqual(Array(4).fill(['stream', String(tip.streamId)]));
+    expect(transfer.refs).toEqual(Array(4).fill(['transfer', 'same-key-0001']));
+    expect(tip.debt).toBe(transfer.debt);
+    expect(tip.balances).toEqual(transfer.balances);
+    expect(tip.sent).toBe(transfer.sent);
+  });
+
   it('refuses self tips, small tips, too few games and debt', () => {
     const h = harness();
     const s = h.live();
