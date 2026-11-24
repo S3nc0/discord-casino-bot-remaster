@@ -138,6 +138,7 @@ are per guild. Only the read-only feeds below are shared by all guilds, as in th
 | `0010_bot_tools` | Owner tools | `leaderboards` (a pinned board message per guild), `casino_events` (the owner's manual special event, at most one per guild) |
 | `0011_arena_runner_up` | Arena | `arena_tournaments.runner_up_id` (see above) |
 | `0012_pinned_posts` | Bot | `pinned_posts` (see below) |
+| `0013_stream` | Stream panel | `streams`, `stream_rounds`, `stream_bets`, `stream_round_audit` (see below) |
 
 `0012_pinned_posts.sql` creates `pinned_posts`: one row per poll, kyosai motion or raffle whose chat
 post the bot has pinned. Columns: `kind` (`poll`, `motion` or `raffle`), `ref_id` (the id in
@@ -147,6 +148,41 @@ is no foreign key: a source row that is gone counts as ended. The `notify:pin-sw
 post when its source is no longer `open` and then deletes the row. It holds no Pelica and has no
 ledger rows. The importer does not carry it. See [spec/polls.md](spec/polls.md) §2.5,
 [spec/kyosai.md](spec/kyosai.md) §6 and [spec/lottery.md](spec/lottery.md) §2.3.
+
+`0013_stream.sql` holds the stream panel ([spec/stream.md](spec/stream.md) §14). All four tables
+are STRICT, with millisecond timestamps and TEXT snowflakes.
+
+- `streams`: one panel. `guild_id`, `streamer_id` (a `guild_members` row), `title` (1 to 100),
+  `url` (null or at most 300), `channel_id` and `message_id` of the chat panel (null for a stream
+  started in the Activity only), `voice_channel_id` (the voice channel of the streamer's Activity
+  instance, verified with Discord; never a channel the bot made, decision D4), `started_at`,
+  `ends_at` (= start + 24 h), `ended_at`, `tips` and `tip_count` (panel totals), `status`
+  (`live` or `ended`; `ended_at` is set exactly when ended). Partial unique index
+  `streams_one_live` on `(guild_id, streamer_id) WHERE status = 'live'`: one live panel per
+  streamer per guild. `streams_live_due` serves the close job.
+- `stream_rounds`: one win/lose round. `stream_id`, `guild_id`, `label` (0 to 60; empty means the
+  default name in the reader's language), `status` (`open`, `locked`, `win`, `lose`, `void`),
+  `created_at`, `auto_lock_at` (= created + 10 minutes), `locked_at`, `settled_at` (set exactly
+  when decided). Partial unique index `stream_rounds_one_active` on `stream_id WHERE status IN
+  ('open', 'locked')`: one undecided round per stream. A one-sided round keeps its declared
+  status (`win` or `lose`) and is refunded; the audit row says `refunded`.
+- `stream_bets`: one row per person per round, primary key `(round_id, user_id)`; `side` (`win`
+  or `lose`) and `amount` (> 0, the whole stake: a second bet adds to it). The money is in the
+  ledger: `stream_bet` rows (`ref_type = 'stream_round'`, `ref_id` = round id), paid back as
+  `stream_payout` or `stream_refund` under the same reference, keyed
+  `stream_round:{id}:payout|refund` in each bettor's account so a round pays a person at most once.
+- `stream_round_audit`: one row per round that ended, written in the transaction that settled or
+  voided it (decision D3-2): `round_id` (primary key), `stream_id`, `guild_id`, `streamer_id`,
+  `label`, `opened_at`, `locked_at`, `ended_at`, `outcome` (`win`, `lose`, `void`), `cause`
+  (`streamer`, `owner`, `stream_end`, `timeout`), `actor_id` (null for timers), `reason` (the
+  owner's, 1 to 200), `bettors`, `win_total`, `lose_total`, `rake` (Teiai's deduction plus the
+  rounding dust, 0 when refunded), `refunded` (0/1), `top` (JSON, up to 10 `{userId, amount}`,
+  largest first; empty when refunded). Owner-only, kept for the life of the database.
+
+Super chats have no table of their own: they are `transfer_out` / `transfer_fee` / `transfer_in`
+ledger rows with `ref_type = 'stream'` and `ref_id` = stream id. The tip message is not stored.
+The importer does not carry any of these tables (the original bot had no stream panel at the
+import point).
 
 | Shared feed (no `guild_id`, no money) | Migration |
 | --- | --- |

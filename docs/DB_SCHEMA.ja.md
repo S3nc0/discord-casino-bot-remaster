@@ -119,8 +119,18 @@ SQLite のファイルは 1 つで、サーバーのプロセス 1 つが `bette
 | `0010_bot_tools` | 持ち主向けのツール | `leaderboards`（サーバーごとに固定表示するランキングのメッセージ）、`casino_events`（持ち主が手で始める特別イベント。サーバーごとに最大 1 つ） |
 | `0011_arena_runner_up` | 闘技場 | `arena_tournaments.runner_up_id`（上を参照） |
 | `0012_pinned_posts` | ボット | `pinned_posts`（下を参照） |
+| `0013_stream` | 配信パネル | `streams`、`stream_rounds`、`stream_bets`、`stream_round_audit`（下を参照） |
 
 `0012_pinned_posts.sql` は `pinned_posts` を作ります。ボットがチャットの投稿をピン留めした投票・共済の動議・抽選 1 件につき 1 行です。列は `kind`（`poll`、`motion`、`raffle`）、`ref_id`（`polls`・`kyosai_motions`・`raffles` の id。`kind` と合わせて主キー）、`guild_id`、`channel_id`、`message_id`、`pinned_at`、`tries`（想定外のエラーでピン留め解除に失敗した回数）です。外部キーはなく、元の行が消えていれば終了とみなします。`notify:pin-sweep` ジョブは、元が `open` でなくなった投稿のピン留めを外し、行を消します。ペリカは持たず、台帳の行もありません。インポーターは持ち込みません。[spec/polls.ja.md](spec/polls.ja.md) §2.5、[spec/kyosai.ja.md](spec/kyosai.ja.md) §6、[spec/lottery.ja.md](spec/lottery.ja.md) §2.3 を見てください。
+
+`0013_stream.sql` は配信パネルのテーブルです（[spec/stream.ja.md](spec/stream.ja.md) §14）。4 つとも STRICT で、時刻はミリ秒、スノーフレークは TEXT です。
+
+- `streams`：パネル 1 枚。`guild_id`、`streamer_id`（`guild_members` の行）、`title`（1〜100）、`url`（null か 300 文字まで）、チャットのパネルの `channel_id` と `message_id`（Activity だけで始めた配信は null）、`voice_channel_id`（配信者の Activity インスタンスのボイスチャンネル。Discord に確かめた値で、ボットが作ったチャンネルではありません。決定 D4）、`started_at`、`ends_at`（開始 + 24 時間）、`ended_at`、`tips` と `tip_count`（パネルの合計）、`status`（`live` か `ended`。`ended_at` は終わったときだけ入ります）。部分ユニークインデックス `streams_one_live`（`(guild_id, streamer_id) WHERE status = 'live'`）で、1 サーバーに配信者 1 人あたり配信中のパネルは 1 枚です。`streams_live_due` は自動終了ジョブ用です。
+- `stream_rounds`：勝ち負けの勝負 1 回。`stream_id`、`guild_id`、`label`（0〜60。空なら、読む人の言語の既定の名前）、`status`（`open`、`locked`、`win`、`lose`、`void`）、`created_at`、`auto_lock_at`（開始 + 10 分）、`locked_at`、`settled_at`（決まったときだけ入ります）。部分ユニークインデックス `stream_rounds_one_active`（`stream_id WHERE status IN ('open', 'locked')`）で、決まっていない勝負は配信 1 つにつき 1 回です。片方にしか賭けがなかった勝負は、宣言した状態（`win` か `lose`）のまま全額返金になり、監査の行に `refunded` が残ります。
+- `stream_bets`：勝負 1 回につき 1 人 1 行。主キーは `(round_id, user_id)`。`side`（`win` か `lose`）と `amount`（0 より大きい、合計の賭け金。2 回目の賭けは足されます）。お金は台帳にあります：`stream_bet` の行（`ref_type = 'stream_round'`、`ref_id` は勝負の番号）で預かり、同じ参照の `stream_payout` か `stream_refund` で返します。キーは各人の口座で `stream_round:{id}:payout|refund` なので、1 回の勝負で 1 人に払うのは多くて 1 回です。
+- `stream_round_audit`：終わった勝負 1 回につき 1 行。精算か無効にしたのと同じトランザクションで書きます（決定 D3-2）。`round_id`（主キー）、`stream_id`、`guild_id`、`streamer_id`、`label`、`opened_at`、`locked_at`、`ended_at`、`outcome`（`win`、`lose`、`void`）、`cause`（`streamer`、`owner`、`stream_end`、`timeout`）、`actor_id`（タイマーのときは null）、`reason`（運営の理由、1〜200）、`bettors`、`win_total`、`lose_total`、`rake`（帝愛の控除と端数。返金なら 0）、`refunded`（0/1）、`top`（JSON。大きい順に最大 10 件の `{userId, amount}`。返金なら空）。運営だけが見るもので、データベースがあるかぎり残します。
+
+スパチャには専用のテーブルがありません。`ref_type = 'stream'`、`ref_id` が配信の番号の `transfer_out`・`transfer_fee`・`transfer_in` の台帳の行です。メッセージは保存しません。インポーターはこれらのテーブルを持ち込みません（取り込みの時点で、元の Bot には配信パネルがありません）。
 
 | 共有フィード（`guild_id` なし、お金なし） | マイグレーション |
 | --- | --- |

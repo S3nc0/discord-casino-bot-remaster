@@ -22,11 +22,11 @@ Node 24 のプロセスが 1 つだけ動きます。Fastify（HTTP API）、Soc
 
 SQLite のファイルは 1 つで、`better-sqlite3` の接続も 1 つです（`db/store.ts`）。`Store.transaction` は `BEGIN IMMEDIATE` で始めます（書き込みロックを先に取るので、読み取り側が途中で昇格してビジーエラーになることはありません）。入れ子はセーブポイントとして扱い、`afterCommit` コールバックは一番外側のコミットのあとにだけ実行します。ロールバックしたときは捨てます。「イベントはコミット後に発行する」という約束はこの仕組みで守られています。接続ごとの pragma（`db/pragmas.ts`）は、WAL、`synchronous = NORMAL`、`busy_timeout = 5000`、外部キー、再帰トリガーです。
 
-マイグレーションは `db/migrations/` にある番号付きの `.sql` ファイルです（執筆時点で `0001_init` から `0012_pinned_posts` まで）。`db/migrations/index.ts` に並べ、バンドルの中に埋め込みます。`runMigrations` は新しいものを順番に、1 つずつトランザクションで適用し、SHA-256 のチェックサムを `schema_migrations` に記録します。適用済みのマイグレーションが書き換えられていた場合や、ファイルにこのビルドの知らないマイグレーションがある場合（新しいビルドが書いたもの）は、サーバーは起動を拒否します。マージ済みのマイグレーションは決して編集せず、新しいものを足してください。テーブルとルールは [DB_SCHEMA.ja.md](DB_SCHEMA.ja.md) にあります。
+マイグレーションは `db/migrations/` にある番号付きの `.sql` ファイルです（執筆時点で `0001_init` から `0013_stream` まで）。`db/migrations/index.ts` に並べ、バンドルの中に埋め込みます。`runMigrations` は新しいものを順番に、1 つずつトランザクションで適用し、SHA-256 のチェックサムを `schema_migrations` に記録します。適用済みのマイグレーションが書き換えられていた場合や、ファイルにこのビルドの知らないマイグレーションがある場合（新しいビルドが書いたもの）は、サーバーは起動を拒否します。マージ済みのマイグレーションは決して編集せず、新しいものを足してください。テーブルとルールは [DB_SCHEMA.ja.md](DB_SCHEMA.ja.md) にあります。
 
 ## スケジューラーとジョブ
 
-`runtime/scheduler.ts` は `JobSpec`（`id`、cron、`run`）を `croner` で動かします。cron のフィールドはゲームのタイムゾーンで読みます（`UTC_OFFSET_HOURS`。JST なら 9）。`runtime/jobs.ts` が唯一の一覧です。金融のジョブ（市場、帝愛銀行、ローン、共済はそれぞれ毎分、会社は日次とメンテナンス、プレイヤーマーケットの精算）、ゲームのジョブ（レースは 1 日 4 回、デイリーのリセットとリマインダー、闘技場、週間ランキング、抽選会、投票、クイズ、ショップの市場）は `denied` でないサーバーごとに 1 回ずつ実行します。ピン留めの掃除（30 秒ごと。[Notify](#notify) を参照）と、後片付けのジョブもあります（期限切れの冪等キーは 10 分ごと、期限切れの起動インテントは毎分）。ジョブが例外を投げてもログに残すだけでスケジューラーは止まりません。1 つのサーバーが例外を投げても、ほかのサーバーは止まりません。
+`runtime/scheduler.ts` は `JobSpec`（`id`、cron、`run`）を `croner` で動かします。cron のフィールドはゲームのタイムゾーンで読みます（`UTC_OFFSET_HOURS`。JST なら 9）。`runtime/jobs.ts` が唯一の一覧です。金融のジョブ（市場、帝愛銀行、ローン、共済はそれぞれ毎分、会社は日次とメンテナンス、プレイヤーマーケットの精算）、ゲームのジョブ（レースは 1 日 4 回、デイリーのリセットとリマインダー、闘技場、週間ランキング、抽選会、投票、クイズ、ショップの市場、配信パネルの `stream:lock-due` と `stream:close-due` は毎分）は `denied` でないサーバーごとに 1 回ずつ実行します。ピン留めの掃除（30 秒ごと。[Notify](#notify) を参照）と、後片付けのジョブもあります（期限切れの冪等キーは 10 分ごと、期限切れの起動インテントは毎分）。ジョブが例外を投げてもログに残すだけでスケジューラーは止まりません。1 つのサーバーが例外を投げても、ほかのサーバーは止まりません。
 
 ## チャットボット
 
@@ -41,6 +41,7 @@ SQLite のファイルは 1 つで、`better-sqlite3` の接続も 1 つです�
 - **DM キュー**（`dm-queue.ts`）: オプトインのダイレクトメッセージです。再試行とバックオフがあり、一度に多く届くときはダイジェストにまとめます。Discord のエラー 50007（DM が閉じている）が出ると、そのユーザーの DM はすべての種類がオフになり、受信箱に `dm_disabled` のお知らせを書きます。
 - **受信箱**（`inbox-writer.ts`）と**トースト**: 同じイベントを受信箱に保存し、ユーザーのソケットルームにも送ります。
 - **ピン留め**（`post-pins.ts`）: 新しい投票・共済の動議・抽選のチャット投稿をピン留めし（`PostPinService.pinPost`）、`pinned_posts` に記録します。`notify:pin-sweep` ジョブ（30 秒ごと）が、投票・動議・抽選が `open` でなくなったものを順にピン留め解除します。**メッセージをピン留め（Pin Messages）** 権限が必要で、失敗してもその前後のコマンドやジョブは止まりません。ピン留めが拒否されたときはログに残し（ギルドごとに 10 分に 1 行まで）、削除済みのメッセージは無視します。Discord 側は別の `PostPinPort` で、ボットのログイン後に取り付けます。
+- **配信の投稿**（`stream-posts.ts`）: 配信パネルのチャット投稿（スパチャのカード、勝負の開始、自動締め切りのお知らせ、結果。[spec/stream.ja.md](spec/stream.ja.md) §13）は、パネルを投稿したチャンネルにだけ送り、お知らせチャンネルには送りません。お知らせと同じサーバーごとの枠（1 つの `GuildRateLimiter`）を使い、枠を使い切ったら、サーバーごとの小さなキューで待ちます。パネルのメッセージそのものは、チャット側が `StreamService.onChange` を見て編集します。
 
 Discord へのやり取りはすべて `DiscordNotifyPort`（`ports.ts`）を通ります。`BOT_DISABLED=1` のときは何もしないポートを使うので、HTTP、ソケット、ジョブは動き続けます。
 
@@ -56,9 +57,11 @@ Discord へのやり取りはすべて `DiscordNotifyPort`（`ports.ts`）を通
 
 ## サーバーのルートとソケット
 
-HTTP: `http/app.ts` が Fastify アプリを組み立てます。プロキシポリシーのフック、IP ごととユーザーごとのレート制限（`DEFAULT_RATE_LIMITS`: IP あたり毎分 600 リクエスト、`POST /api/token` は IP あたり毎分 30、ユーザーあたり毎分 240）、セッションの確認、そして [HTTP API](#http-api) のコアルートの順です。`http/activity/` は、アクティビティの区分ごとに認証つきのルートを足します（カジノ、競馬と闘技場、生活、金融）。各区分は `ActivityDeps` の任意の項目を通して `http/activity/index.ts` に自分を登録します。ルートの名前は `packages/shared/src/activity/` に 1 か所だけ定義します（金融は `FINANCE_ROUTES`）。書き込みはすべて冪等キーを取ります。たとえばプレイヤーマーケットには、`GET /api/finance/listings`（出品中の一覧、手数料、フォームに必要な情報。`sellable` は呼び出し元が持つ取引可能アイテムの数量と参考価値、`maxActive`、`auctionHours`、`fixedDays`）と、`POST /api/finance/listings/create`、`…/buy`、`…/bid`、`…/cancel` があります。`create` は、取引可能なアイテム 1 種類の数量を、プレイヤーマーケットのサービスを通してエスクローします。価格の範囲と出品数の上限はそのサービスが守らせ、出品者は常にセッションのユーザー本人です。闘技場の画面は `ArenaTournament.runnerUpId` を返します（[spec/arena.ja.md](spec/arena.ja.md#45-準優勝リマスターでの追加マイグレーション-0011) を参照）。
+HTTP: `http/app.ts` が Fastify アプリを組み立てます。プロキシポリシーのフック、IP ごととユーザーごとのレート制限（`DEFAULT_RATE_LIMITS`: IP あたり毎分 600 リクエスト、`POST /api/token` は IP あたり毎分 30、ユーザーあたり毎分 240）、セッションの確認、そして [HTTP API](#http-api) のコアルートの順です。`http/activity/` は、アクティビティの区分ごとに認証つきのルートを足します（カジノ、競馬と闘技場、生活、金融、配信）。各区分は `ActivityDeps` の任意の項目を通して `http/activity/index.ts` に自分を登録します。ルートの名前は `packages/shared/src/activity/` に 1 か所だけ定義します（金融は `FINANCE_ROUTES`）。書き込みはすべて冪等キーを取ります。たとえばプレイヤーマーケットには、`GET /api/finance/listings`（出品中の一覧、手数料、フォームに必要な情報。`sellable` は呼び出し元が持つ取引可能アイテムの数量と参考価値、`maxActive`、`auctionHours`、`fixedDays`）と、`POST /api/finance/listings/create`、`…/buy`、`…/bid`、`…/cancel` があります。`create` は、取引可能なアイテム 1 種類の数量を、プレイヤーマーケットのサービスを通してエスクローします。価格の範囲と出品数の上限はそのサービスが守らせ、出品者は常にセッションのユーザー本人です。闘技場の画面は `ArenaTournament.runnerUpId` を返します（[spec/arena.ja.md](spec/arena.ja.md#45-準優勝リマスターでの追加マイグレーション-0011) を参照）。
 
 ソケット: `socket/server.ts` が Socket.io を `/api/socket.io` に載せます（WebSocket のみ）。ハンドシェイクでセッショントークン、プロキシポリシー、ソケット数の上限を確認し、自動のルームに参加させ、イベントごとの期限チェックとレート制限を取り付けます。`socket/domain-audience.ts` は、ドメインイベントをどのルームに送るかを決めます。サーバーの全メンバーが見てよいイベントの種類は許可リストで管理し、リストにないものはイベントが名指しするユーザーにだけ届きます。新しいイベントの種類が、うっかり全体に公開されることはありません。ゲームのハンドラー（`games/casino/handlers.ts`）は、`game:bet` と `game:action` のインテントを、セッション本人のユーザー、サーバー、インスタンスでサービス呼び出しに変えます。その前にユーザーごとのリミッターがあります（`DEFAULT_LIMITS`: 10 秒あたり、ベット 12 回とその後のアクション 30 回）。
+
+配信パネル: `apps/server/src/stream/service.ts`（`StreamService`）が、パネル、スパチャ、勝ち負けの勝負を受け持ちます（[spec/stream.ja.md](spec/stream.ja.md)）。お金のルールは `packages/domain/src/stream/` の純粋な関数です。アクティビティのルートは `http/activity/stream.ts`（`STREAM_ROUTES`）で、ユーザーごとに独自の上限があります（配信の書き込みは毎分 60 回、そのうちスパチャとベットは合わせて毎分 30 回）。配信のボイスチャンネルは、呼び出した人のアクティビティのインスタンス（`location.channel_id`。`auth/discord.ts` で Discord に確かめます）から読み、リクエストの中身は使いません。視聴者は `stream:join` でルーム `stream:{guild}:{id}` に入り（今の画面が返ります）、`stream:leave` で出ます。勝負とスパチャのイベントはそのルームにだけ届き、`StreamStarted` と `StreamEnded` は配信中の一覧のためにサーバーのルームにも届きます。運営の `/admin stream-void` も同じサービスを呼びます。
 
 ## カタログ
 
@@ -173,6 +176,7 @@ Discord のドキュメントでは、`X-Signature-Ed25519`、`X-Signature-Times
 | `apps/server/src/{http,socket,db,auth,runtime}/` | 通信、永続化、認証、起動、ジョブ。 |
 | `apps/server/src/{economy,finance,games}/` | サービス: 台帳の書き込み役、お金のモジュール、ゲーム。 |
 | `apps/server/src/{bot,notify}/` | スラッシュコマンド、お知らせ、DM、受信箱。 |
+| `apps/server/src/stream/`、`packages/domain/src/stream/` | 配信パネル。サービスとパリミュチュエルのルール。 |
 | `apps/server/scripts/` | 旧データの取り込みスクリプトと負荷生成スクリプト。 |
 | `apps/web/src/shell/`、`apps/web/src/screens/` | アクティビティの外枠と画面。 |
 | `tests/e2e/`、`tests/invariants/` | 複数クライアントのソケットのテストと、経済のプロパティテスト。ユニットテストはコードの隣に置きます（`*.test.ts`）。 |
